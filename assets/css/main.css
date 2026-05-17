@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f7f7f4;
+  color: #1f2933;
+}
+
+.content-body {
+  line-height: 1.75;
+}
+
+.content-body :where(h1, h2, h3) {
+  color: #111827;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 2rem 0 1rem;
+}
+
+.content-body h1 {
+  font-size: 2.25rem;
+}
+
+.content-body h2 {
+  font-size: 1.65rem;
+}
+
+.content-body h3 {
+  font-size: 1.25rem;
+}
+
+.content-body p,
+.content-body ul,
+.content-body ol,
+.content-body pre {
+  margin: 1rem 0;
+}
+
+.content-body a {
+  color: #0f766e;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.content-body code {
+  border-radius: 0.25rem;
+  background: #e9ece7;
+  padding: 0.1rem 0.3rem;
+}
+
+.content-body .shiki {
+  margin: 0;
+  padding: 1rem;
+  background: transparent !important;
+}
+
+.wiki-link,
+.wiki-link-editor {
+  border-radius: 0.35rem;
+  background: #dff3ed;
+  color: #0f766e;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  text-decoration: none;
+}
+
+.tiptap-editor .ProseMirror {
+  min-height: 28rem;
+  padding: 1.25rem;
+  outline: none;
+  line-height: 1.7;
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #94a3a0;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.tiptap-editor .ProseMirror :where(h1, h2, h3) {
+  color: #111827;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.tiptap-editor .ProseMirror h1 {
+  font-size: 2rem;
+}
+
+.tiptap-editor .ProseMirror h2 {
+  font-size: 1.55rem;
+}
+
+.tiptap-editor .ProseMirror h3 {
+  font-size: 1.25rem;
+}
+
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 1.4rem;
+}
+
+.tiptap-editor .ProseMirror ul {
+  list-style: disc;
+}
+
+.tiptap-editor .ProseMirror ol {
+  list-style: decimal;
+}
+
+.tiptap-editor .ProseMirror blockquote {
+  border-left: 4px solid #0f766e;
+  color: #475569;
+  margin: 1rem 0;
+  padding-left: 1rem;
+}
+
+.tiptap-editor .ProseMirror pre {
+  background: #111827;
+  border-radius: 0.5rem;
+  color: #f8fafc;
+  font-size: 0.9rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  padding: 1rem;
+}
+
+.tiptap-editor .ProseMirror img {
+  border-radius: 0.5rem;
+  max-height: 34rem;
+  object-fit: cover;
+  width: 100%;
+}
+
+.mermaid-diagram svg {
+  height: auto;
+  max-width: 100%;
+}

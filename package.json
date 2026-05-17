@@ -1,0 +1,43 @@
+{
+  "name": "pandablog",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@nuxt/icon": "^2.2.2",
+    "@nuxt/image": "^2.0.0",
+    "@nuxt/ui": "^4.7.1",
+    "@pinia/nuxt": "^0.11.3",
+    "@tiptap/core": "^2.27.2",
+    "@tiptap/extension-code-block-lowlight": "^2.27.2",
+    "@tiptap/extension-image": "^2.27.2",
+    "@tiptap/extension-link": "^2.27.2",
+    "@tiptap/extension-placeholder": "^2.27.2",
+    "@tiptap/extension-text-align": "^2.27.2",
+    "@tiptap/pm": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
+    "@tiptap/suggestion": "^2.27.2",
+    "@tiptap/vue-3": "^2.27.2",
+    "lowlight": "^3.3.0",
+    "mermaid": "^11.15.0",
+    "nuxt": "^4.4.5",
+    "nuxt-auth-utils": "^0.5.29",
+    "pinia": "^3.0.4",
+    "shiki": "^4.0.2",
+    "surrealdb": "^2.0.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.108",
+    "@types/node": "^25.8.0",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.2.9"
+  }
+}
