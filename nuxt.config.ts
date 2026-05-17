@@ -1,23 +1,38 @@
-import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 
 const localEnv = readLocalEnv()
 
-function envValue(name: string, fallback = '') {
-  return process.env[name] ?? localEnv[name] ?? fallback
-}
-
-function localFirstEnvValue(name: string, fallback = '') {
+/**
+ * Resolve env value with .env file as HIGHEST priority.
+ * Falls back to process.env, then to the provided default.
+ */
+function env(name: string, fallback = ''): string {
   return localEnv[name] ?? process.env[name] ?? fallback
 }
 
-const fallbackSessionPassword = createHash('sha256')
-  .update([
-    envValue('SURREAL_ROOT_PASSWORD'),
-    envValue('APP_LOGIN_PASSWORD') || envValue('PANDABLOG_PASSWORD') || localFirstEnvValue('PASSWORD'),
-    'pandablog-session'
-  ].join(':'))
-  .digest('hex')
+const appEnv = env('APP_ENV', 'dev')
+const isProd = appEnv === 'prod'
+
+const sessionPassword = env('NUXT_SESSION_PASSWORD')
+if (!sessionPassword || sessionPassword.length < 32) {
+  if (isProd) {
+    throw new Error(
+      'NUXT_SESSION_PASSWORD must be set to a 32+ character random string in production (.env)'
+    )
+  }
+  console.warn(
+    '⚠️  NUXT_SESSION_PASSWORD missing or shorter than 32 chars. ' +
+    'Sessions will use a weak insecure value. Set it in .env before going to prod.'
+  )
+}
+
+const adminPasswordHash = env('APP_LOGIN_PASSWORD_HASH')
+if (!adminPasswordHash) {
+  console.warn(
+    '⚠️  APP_LOGIN_PASSWORD_HASH is not set. Login will fail. ' +
+    'Run: npm run hash-password "<your-password>" and put the result in .env'
+  )
+}
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-17',
@@ -31,22 +46,34 @@ export default defineNuxtConfig({
   ],
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
-    surrealUrl: envValue('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
-    surrealNamespace: envValue('SURREAL_NAMESPACE', 'main'),
-    surrealDatabase: envValue('SURREAL_DATABASE', 'main'),
-    surrealRoot: envValue('SURREAL_ROOT', 'root'),
-    surrealRootPassword: envValue('SURREAL_ROOT_PASSWORD', 'root'),
-    adminUsername: envValue('APP_LOGIN_USERNAME') || envValue('PANDABLOG_USERNAME') || localFirstEnvValue('USERNAME', 'admin'),
-    adminPassword: envValue('APP_LOGIN_PASSWORD') || envValue('PANDABLOG_PASSWORD') || localFirstEnvValue('PASSWORD'),
+    appEnv,
+    surrealUrl: env('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
+    surrealNamespace: env('SURREAL_NAMESPACE', 'main'),
+    surrealDatabase: env('SURREAL_DATABASE', 'main'),
+    surrealRoot: env('SURREAL_ROOT', 'root'),
+    surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
+    adminUsername: env('APP_LOGIN_USERNAME', 'admin'),
+    adminPasswordHash,
     session: {
-      password: envValue('NUXT_SESSION_PASSWORD', fallbackSessionPassword),
+      password: sessionPassword || 'dev-only-insecure-fallback-do-not-use-in-prod-xx',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
       cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax'
+        secure: isProd,
+        sameSite: 'lax',
+        httpOnly: true
       }
     },
     public: {
-      siteName: 'PandaBlog'
+      siteName: 'PandaBlog',
+      appEnv
+    }
+  },
+  nitro: {
+    storage: {
+      'rate-limit': {
+        driver: 'fs',
+        base: './.data/rate-limit'
+      }
     }
   },
   image: {
@@ -55,12 +82,13 @@ export default defineNuxtConfig({
   }
 })
 
-function readLocalEnv() {
+/**
+ * Read .env file from project root.
+ * Returns an empty object if the file doesn't exist.
+ */
+function readLocalEnv(): Record<string, string> {
   const path = '.env'
-
-  if (!existsSync(path)) {
-    return {} as Record<string, string>
-  }
+  if (!existsSync(path)) return {}
 
   return Object.fromEntries(
     readFileSync(path, 'utf8')
@@ -68,11 +96,12 @@ function readLocalEnv() {
       .map((line) => line.trim())
       .filter((line) => line && !line.startsWith('#'))
       .map((line) => {
-        const index = line.indexOf('=')
-        const name = line.slice(0, index).trim()
-        const value = line.slice(index + 1).trim().replace(/^"|"$/g, '')
-        return [name, value]
+        const idx = line.indexOf('=')
+        if (idx === -1) return ['', '']
+        const key = line.slice(0, idx).trim()
+        const value = line.slice(idx + 1).trim().replace(/^"|"$/g, '')
+        return [key, value]
       })
-      .filter(([name]) => Boolean(name))
+      .filter(([key]) => Boolean(key))
   )
 }

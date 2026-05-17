@@ -31,6 +31,8 @@ cp .env.example .env
 Required values:
 
 ```env
+APP_ENV="dev"
+
 SURREAL_URL="wss://your-surreal-host/rpc"
 SURREAL_NAMESPACE="main"
 SURREAL_DATABASE="main"
@@ -40,10 +42,12 @@ SURREAL_ROOT_PASSWORD="your-db-password"
 NUXT_SESSION_PASSWORD="at-least-32-random-characters"
 
 APP_LOGIN_USERNAME="admin"
-APP_LOGIN_PASSWORD="your-admin-password"
+APP_LOGIN_PASSWORD_HASH="$argon2id$..."
 ```
 
-Use `APP_LOGIN_USERNAME` and `APP_LOGIN_PASSWORD` for the app login. Avoid generic `USERNAME` on Windows because it can collide with the OS account environment variable.
+Set `APP_ENV` to `dev` on the Windows development machine and `prod` on the Ubuntu server. The `.env` file has highest priority over OS environment variables.
+
+See the [Auth setup](#auth-setup) section below for how to generate `APP_LOGIN_PASSWORD_HASH`.
 
 ## Install And Run
 
@@ -224,3 +228,72 @@ Manual smoke flow:
 - Add analytics collection and dashboard widgets.
 - Add stronger cache invalidation when posts are published or archived.
 - Add backup automation for both SurrealDB exports and `public/uploads`.
+
+## Auth Setup
+
+The admin login uses environment variables. The `.env` file in the project root has **highest priority** over OS environment variables.
+
+### Configure admin credentials
+
+1. Choose a password.
+2. Hash it:
+   ```bash
+   npm run hash-password "your-strong-password"
+   ```
+3. Copy the output (`$argon2id$...`) into `.env` as `APP_LOGIN_PASSWORD_HASH`.
+4. Set `APP_LOGIN_USERNAME` in `.env`.
+
+### Required env vars
+
+| Variable | Purpose | Required |
+|---|---|---|
+| `APP_ENV` | `dev` (local Windows) or `prod` (Ubuntu server) | Yes |
+| `SURREAL_URL` | SurrealDB RPC endpoint | Yes |
+| `SURREAL_NAMESPACE` | DB namespace | Yes |
+| `SURREAL_DATABASE` | DB name | Yes |
+| `SURREAL_ROOT` | Root user | Yes |
+| `SURREAL_ROOT_PASSWORD` | Root password | Yes |
+| `NUXT_SESSION_PASSWORD` | 32+ char random string for session cookie encryption | Yes (prod hard-fails without it) |
+| `APP_LOGIN_USERNAME` | Admin username | Yes |
+| `APP_LOGIN_PASSWORD_HASH` | argon2id hash of admin password | Yes |
+
+### Rate limiting
+
+Failed login attempts are tracked per IP. After 5 failed attempts within 15 minutes, that IP is locked for 15 minutes. Storage lives at `./.data/rate-limit/` (gitignored).
+
+### Rotating the admin password
+
+Run `npm run hash-password "<new-password>"` and replace the value of `APP_LOGIN_PASSWORD_HASH` in `.env`. Restart the app. Existing sessions remain valid until expiry — log out from `/admin` to invalidate immediately.
+
+### Production reverse proxy (nginx)
+
+When `APP_ENV=prod`, the login endpoint trusts the `X-Forwarded-For` header to determine the client IP for rate limiting. **Your nginx config must strip any inbound `X-Forwarded-For` header from clients and set its own**, otherwise an attacker can spoof the header to bypass per-IP lockout.
+
+Recommended nginx location block:
+
+```nginx
+location / {
+    # Always overwrite (do NOT use add_header — that appends).
+    proxy_set_header X-Real-IP        $remote_addr;
+    proxy_set_header X-Forwarded-For  $remote_addr;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host             $host;
+
+    proxy_pass http://127.0.0.1:3000;
+}
+```
+
+Key point: `proxy_set_header X-Forwarded-For $remote_addr;` **replaces** any client-supplied value with the real socket address nginx sees. Do not use `$proxy_add_x_forwarded_for` here unless you have an additional trusted proxy in front of nginx.
+
+### HTTP vs HTTPS in production
+
+If you serve over plain HTTP (no TLS), session cookies will still be sent because cookie `Secure` flag follows `APP_ENV`. However:
+- Anyone on the network path can read the session cookie.
+- `Secure` cookies cannot be transmitted over HTTP at all in modern browsers.
+
+Currently `Secure` is enabled when `APP_ENV=prod`. **If you must serve admin traffic over HTTP in prod**, sessions will silently fail to set in the browser. Either:
+1. Use HTTPS for the admin area (strongly recommended), or
+2. Manually override the cookie config in `nuxt.config.ts` (not recommended; do this only with full awareness of the risk).
+
+The public blog frontend can safely run on HTTP; only the admin/login flow is sensitive.
