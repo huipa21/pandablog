@@ -1,28 +1,53 @@
-import { useDb } from '../../utils/db'
+import { queryDb, useDb } from '../../utils/db'
 import { normalizePost } from '../../utils/content'
-import { firstRow } from '../../utils/surrealResult'
+import { firstRow, stringifyRecordId } from '../../utils/surrealResult'
+import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../utils/visibility'
 
-export default defineCachedEventHandler(async (event) => {
+export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
 
   if (!slug) {
-    throw createError({ statusCode: 400, statusMessage: 'Slug is required' })
+    throw createError({ statusCode: 400, message: 'Slug is required' })
   }
 
   const db = await useDb()
-  const response = await db.query(
+  const response = await queryDb(
+    db,
     'SELECT * FROM post WHERE slug = $slug AND status = "published" LIMIT 1;',
     { slug }
   )
   const post = firstRow<Record<string, unknown>>(response)
 
   if (!post) {
-    throw createError({ statusCode: 404, statusMessage: 'Post not found' })
+    throw createError({ statusCode: 404, message: 'Post not found' })
   }
 
-  return normalizePost(post)
-}, {
-  maxAge: 60,
-  swr: true,
-  getKey: (event) => `post:${getRouterParam(event, 'slug') ?? ''}`
+  const access = await evaluatePostAccess(event, {
+    id: stringifyRecordId(post.id),
+    visibility: toPostVisibility(post.visibility)
+  })
+
+  if (access.state === 'site-private') {
+    throw createError({ statusCode: 401, message: 'Site is private' })
+  }
+
+  if (access.state === 'not-found') {
+    throw createError({ statusCode: 404, message: 'Post not found' })
+  }
+
+  if (access.state === 'locked') {
+    return {
+      locked: true,
+      slug: String(post.slug ?? slug),
+      title: String(post.title ?? ''),
+      visibility: 'password' as const,
+      passwordHint: post.password_hint === undefined ? null : post.password_hint
+    }
+  }
+
+  return normalizePost(sanitizePost(post))
 })
+
+function toPostVisibility(value: unknown): PostVisibility {
+  return value === 'private' || value === 'password' ? value : 'public'
+}

@@ -87,6 +87,16 @@ Typecheck:
 npm run typecheck
 ```
 
+Browser e2e tests:
+
+```bash
+$env:E2E_ADMIN_USERNAME="admin"
+$env:E2E_ADMIN_PASSWORD="your-admin-password"
+npm run test:e2e
+```
+
+The e2e suite starts the Nuxt dev server when `PLAYWRIGHT_BASE_URL` is not set. Set `PLAYWRIGHT_BASE_URL` to test an already-running local or staging instance.
+
 ## Project Layout
 
 ```text
@@ -204,6 +214,59 @@ Admin:
 - `POST /api/admin/upload` uploads and deduplicates a local asset.
 - `GET /api/admin/concepts/search?q=` searches concepts and posts for the wiki-link picker.
 
+Logging Admin:
+
+- `GET /api/admin/settings/logging` returns current logging settings.
+- `PUT /api/admin/settings/logging` updates logging settings and refreshes the in-memory cache.
+- `POST /api/admin/settings/logging/reset` resets logging settings to defaults.
+- `GET /api/admin/logs/access` queries access logs with filter + pagination.
+- `GET /api/admin/logs/activity` queries activity logs with filter + pagination.
+- `GET /api/admin/logs/errors` queries error logs with filter + pagination.
+- `GET /api/admin/logs/:type/:id` returns a single log record by type + id.
+- `GET /api/admin/logs/:type/export?format=csv|json` exports filtered logs (capped at 10k rows).
+- `POST /api/admin/logs/cleanup` runs retention cleanup immediately.
+- `DELETE /api/admin/logs/:type` purges a full log table (requires confirmation token in body).
+- `GET /api/admin/logs/stats` returns counts + oldest/newest timestamps + size estimate.
+
+## Logging System
+
+The app now includes a runtime-configurable logging system with SurrealDB-backed settings and log tables.
+
+### SurrealDB tables
+
+- `logging_settings` (singleton record `logging_settings:current`)
+- `access_logs`
+- `activity_logs`
+- `error_logs`
+
+These tables are created in `server/utils/schema.surql` and applied automatically by `server/plugins/db-init.ts`.
+
+### Runtime behavior
+
+- Logging settings are cached in memory and initialized on server startup.
+- Updating logging settings via API atomically replaces the cache object.
+- Logging DB writes are fire-and-forget and isolated from request failures.
+- Metadata/context fields are redacted recursively using configured `redact_fields`.
+- Oversized metadata is truncated with `{ _truncated: true }` payload marker.
+- A 60-second DB write circuit breaker prevents repeated write failures from cascading.
+- Scheduled cleanup is controlled by `cleanup_cron` using `node-cron`.
+
+### Activity action naming
+
+Use `<resource>.<verb>` naming for activity logs. Current actions in this codebase:
+
+- `auth.login`
+- `site.visibility.update`
+- `system.log_cleanup`
+
+### Tests
+
+Run logging unit tests:
+
+```bash
+npm run test:unit
+```
+
 ## Verification
 
 Current checks used during implementation:
@@ -297,3 +360,97 @@ Currently `Secure` is enabled when `APP_ENV=prod`. **If you must serve admin tra
 2. Manually override the cookie config in `nuxt.config.ts` (not recommended; do this only with full awareness of the risk).
 
 The public blog frontend can safely run on HTTP; only the admin/login flow is sensitive.
+
+## Theming
+
+The public blog uses an uploadable theme system. Themes live in `./themes/<id>/`.
+
+### Theme structure
+
+```
+themes/my-theme/
+├── theme.json      # manifest (required)
+├── tokens.json     # design tokens for light + dark (required)
+├── theme.css       # CSS overrides (required)
+└── preview.png     # 1200x630 thumbnail (required)
+```
+
+See `themes/default/` for a reference implementation.
+
+### Manifest fields (`theme.json`)
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | Lowercase alphanumeric + dashes, 2-50 chars. Reserved: `default`. |
+| `name` | yes | Display name. |
+| `version` | yes | Semver `x.y.z`. |
+| `author` | yes | Free text. |
+| `description` | yes | Free text, ≤500 chars. |
+| `supports` | yes | Array containing `"light"` and/or `"dark"`. |
+| `preview` | yes | Filename of the preview image. |
+| `tokens` | yes | Filename of the tokens JSON. |
+| `css` | yes | Filename of the CSS overrides. |
+| `layout` | yes | Layout preferences (see below). |
+
+### Layout preferences
+
+```json
+{
+  "type": "three-column",          // or "two-column" | "single-column"
+  "leftSidebar": "toc",            // or "nav" | null
+  "rightSidebar": "meta-graph",    // or "meta" | "related" | null
+  "maxContentWidth": "720px",
+  "showCoverImage": true,
+  "stickyHeader": true
+}
+```
+
+### Tokens (`tokens.json`)
+
+Two top-level keys: `light` and `dark`. Each contains categories: `color`, `font`, `size`, `space`, `radius`, `shadow`. Each category is a flat object mapping name → CSS value.
+
+Tokens are exposed as CSS custom properties: `color.bg` → `--color-bg`, `font.sans` → `--font-sans`, etc.
+
+### Uploading
+
+1. Zip your theme folder (containing `theme.json` at root or inside one top-level folder).
+2. Go to **Admin → Settings → Themes**.
+3. Click **Upload .zip**.
+4. The zip must be ≤5 MB and must pass validation:
+   - No path traversal in entry names
+   - Allowed extensions only (`.json`, `.css`, image, `.md`, `.txt`)
+   - Manifest passes schema validation
+   - CSS does not use `@import`, `javascript:`, or `expression()`
+   - Theme id must not already exist
+5. After upload, click **Preview** to inspect, then **Activate** to publish.
+
+## Site and post visibility
+
+PandaBlog has two independent visibility layers: site-wide and per-post.
+
+### Site-wide visibility
+
+Set in **Admin -> Settings -> Visibility**.
+
+- **Public** (default): anyone can browse the site. Per-post rules still apply.
+- **Private**: anonymous visitors are redirected to login. Only the admin can browse.
+
+The setting is stored in `app_setting:site_visibility` and enforced via Nitro middleware.
+
+### Per-post visibility
+
+Set on each post in the editor.
+
+- **Public**: visible to anyone (default).
+- **Private**: hidden from non-admins. Returns 404 to anonymous visitors. Excluded from public lists and concept pages.
+- **Password protected**: appears in public lists, but the body is gated behind a password. Correct entry sets a 7-day signed cookie so the post stays unlocked on later visits.
+
+Passwords are stored as argon2id hashes. Failed unlock attempts are rate-limited (5 per 15 minutes per IP per post).
+
+### Admin override
+
+The logged-in admin always sees everything regardless of either layer.
+
+### Failure mode
+
+If SurrealDB is unreachable while reading site visibility, PandaBlog defaults to `'public'` (fail-open). This prevents DB outages from locking out the site.

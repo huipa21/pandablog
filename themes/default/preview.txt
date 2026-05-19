@@ -1,0 +1,6 @@
+# Default Theme Preview
+
+This is a placeholder for the preview image (1200x630).
+To replace this with an actual preview:
+1. Create a 1200x630 PNG screenshot of the default theme
+2. Save it as preview.png in this directory

@@ -12,6 +12,12 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 
+type MermaidModule = (typeof import('mermaid'))['default']
+
+let mermaidPromise: Promise<MermaidModule> | null = null
+let mermaidInitialized = false
+const diagramCache = new Map<string, string>()
+
 const props = defineProps<{
   node: JsonContent
 }>()
@@ -32,19 +38,39 @@ async function renderDiagram() {
     return
   }
 
+  const cached = diagramCache.get(code.value)
+  if (cached) {
+    container.value.innerHTML = cached
+    return
+  }
+
   try {
-    const mermaid = (await import('mermaid')).default
+    const mermaid = await loadMermaid()
+    const id = `mermaid-${Math.random().toString(36).slice(2)}`
+    const { svg } = await mermaid.render(id, code.value)
+    diagramCache.set(code.value, svg)
+    container.value.innerHTML = svg
+  } catch {
+    container.value.innerHTML = `<pre><code>${escapeHtml(code.value)}</code></pre>`
+  }
+}
+
+async function loadMermaid() {
+  if (!mermaidPromise) {
+    mermaidPromise = import('mermaid').then((module) => module.default)
+  }
+
+  const mermaid = await mermaidPromise
+  if (!mermaidInitialized) {
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
       theme: 'neutral'
     })
-    const id = `mermaid-${Math.random().toString(36).slice(2)}`
-    const { svg } = await mermaid.render(id, code.value)
-    container.value.innerHTML = svg
-  } catch {
-    container.value.innerHTML = `<pre><code>${escapeHtml(code.value)}</code></pre>`
+    mermaidInitialized = true
   }
+
+  return mermaid
 }
 
 function escapeHtml(value: string) {

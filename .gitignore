@@ -16,3 +16,12 @@ pnpm-debug.log*
 public/uploads/*
 !public/uploads/.gitkeep
 pandablog.code-workspace
+
+# Themes — keep default, ignore others
+themes/*
+!themes/default/
+!themes/default/**
+
+
+tests
+test-results

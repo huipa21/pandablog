@@ -1,5 +1,6 @@
 import argon2 from 'argon2'
 import { constantTimeEqual, type AdminUser } from '../../utils/auth'
+import { recordActivity } from '../../utils/activity'
 import { checkLoginRateLimit, recordLoginAttempt } from '../../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
     if (isProd) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Could not resolve client IP. Check reverse proxy configuration.'
+        message: 'Could not resolve client IP. Check reverse proxy configuration.'
       })
     }
     console.warn('⚠️  [auth] Could not resolve client IP in dev; rate limiting will be skipped for this request.')
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event) => {
       setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
       throw createError({
         statusCode: 429,
-        statusMessage: `Too many attempts. Try again in ${rate.retryAfterSec}s.`
+        message: `Too many attempts. Try again in ${rate.retryAfterSec}s.`
       })
     }
   }
@@ -42,7 +43,7 @@ export default defineEventHandler(async (event) => {
   if (!config.adminPasswordHash) {
     throw createError({
       statusCode: 500,
-      statusMessage: 'Admin password is not configured. Set APP_LOGIN_PASSWORD_HASH in .env.'
+      message: 'Admin password is not configured. Set ADMIN_PASSWORD_HASH (or APP_LOGIN_PASSWORD_HASH) in .env.'
     })
   }
 
@@ -64,7 +65,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!isValid) {
-    throw createError({ statusCode: 401, statusMessage: 'Invalid username or password' })
+    throw createError({ statusCode: 401, message: 'Invalid username or password' })
   }
 
   // ---- Issue session -------------------------------------------------------
@@ -76,6 +77,14 @@ export default defineEventHandler(async (event) => {
   await setUserSession(event, {
     user,
     loggedInAt: new Date().toISOString()
+  })
+
+  recordActivity(event, {
+    action: 'auth.login',
+    resource_type: 'session',
+    resource_id: user.username,
+    metadata: { username: user.username },
+    description: 'Admin user signed in'
   })
 
   return { user }

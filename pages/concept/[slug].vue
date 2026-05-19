@@ -31,11 +31,11 @@
 </template>
 
 <script setup lang="ts">
-import type { ConceptRecord, PostRecord } from '~/types/content'
+import type { ConceptRecord, PostListItem } from '~/types/content'
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug))
-const { data, error } = await useAsyncData(`concept-${slug.value}`, () => $fetch<{ concept: ConceptRecord, posts: PostRecord[] }>(`/api/concepts/${slug.value}`))
+const { data, error } = await useAsyncData(`concept-${slug.value}`, () => $fetch<{ concept: ConceptRecord, posts: PostListItem[] }>(`/api/concepts/${slug.value}`))
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))

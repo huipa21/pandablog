@@ -22,8 +22,26 @@ export async function requireAdminUser(event: H3Event): Promise<AdminUser> {
   const user = session.user as AdminUser | undefined
 
   if (!user || user.role !== 'admin') {
-    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
+    throw createError({ statusCode: 401, message: 'Authentication required' })
   }
 
   return user
+}
+
+export async function requireAdmin(event: H3Event): Promise<AdminUser> {
+  return requireAdminUser(event)
+}
+
+/**
+ * Non-throwing variant of requireAdminUser.
+ * Returns true if the request has a valid admin session, false otherwise.
+ */
+export async function isAdminAuthenticated(event: H3Event): Promise<boolean> {
+  try {
+    const session = await getUserSession(event)
+    const user = session.user as AdminUser | undefined
+    return Boolean(user && user.role === 'admin')
+  } catch {
+    return false
+  }
 }

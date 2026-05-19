@@ -1,4 +1,4 @@
-import { useDb } from '../../../utils/db'
+import { queryDb, useDb } from '../../../utils/db'
 import { normalizePost } from '../../../utils/content'
 import { queryRows } from '../../../utils/surrealResult'
 import { requireAdminUser } from '../../../utils/auth'
@@ -9,7 +9,8 @@ export default defineEventHandler(async (event) => {
 
   const search = String(getQuery(event).q ?? '').trim().toLowerCase()
   const db = await useDb()
-  const response = await db.query(
+  const response = await queryDb(
+    db,
     `SELECT * FROM concept ORDER BY name ASC LIMIT 50;
      SELECT id, title, slug, status, content_json, content_text, author_username, created_at, updated_at, view_count FROM post WHERE status != "archived" ORDER BY updated_at DESC LIMIT 50;`
   )

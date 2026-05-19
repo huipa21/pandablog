@@ -31,6 +31,13 @@ const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 
+onMounted(async () => {
+  const session = await $fetch<{ loggedIn: boolean }>('/api/auth/session').catch(() => null)
+  if (session?.loggedIn) {
+    await navigateTo(String(route.query.redirect ?? '/admin'))
+  }
+})
+
 async function login() {
   loading.value = true
   errorMessage.value = ''

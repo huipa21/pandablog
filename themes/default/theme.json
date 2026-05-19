@@ -1,0 +1,19 @@
+{
+  "id": "default",
+  "name": "Default",
+  "version": "1.0.0",
+  "author": "PandaBlog",
+  "description": "Notion-inspired clean reading experience with three-column layout",
+  "supports": ["light", "dark"],
+  "preview": "preview.png",
+  "tokens": "tokens.json",
+  "css": "theme.css",
+  "layout": {
+    "type": "three-column",
+    "leftSidebar": "toc",
+    "rightSidebar": "meta-graph",
+    "maxContentWidth": "720px",
+    "showCoverImage": true,
+    "stickyHeader": true
+  }
+}

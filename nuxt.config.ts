@@ -12,6 +12,7 @@ function env(name: string, fallback = ''): string {
 
 const appEnv = env('APP_ENV', 'dev')
 const isProd = appEnv === 'prod'
+const disableHmr = env('NUXT_DISABLE_HMR') === 'true' || env('APP_DISABLE_HMR') === 'true'
 
 const sessionPassword = env('NUXT_SESSION_PASSWORD')
 if (!sessionPassword || sessionPassword.length < 32) {
@@ -26,10 +27,10 @@ if (!sessionPassword || sessionPassword.length < 32) {
   )
 }
 
-const adminPasswordHash = env('APP_LOGIN_PASSWORD_HASH')
+const adminPasswordHash = env('ADMIN_PASSWORD_HASH', env('APP_LOGIN_PASSWORD_HASH'))
 if (!adminPasswordHash) {
   console.warn(
-    '⚠️  APP_LOGIN_PASSWORD_HASH is not set. Login will fail. ' +
+    '⚠️  ADMIN_PASSWORD_HASH (or APP_LOGIN_PASSWORD_HASH) is not set. Login will fail. ' +
     'Run: npm run hash-password "<your-password>" and put the result in .env'
   )
 }
@@ -37,6 +38,9 @@ if (!adminPasswordHash) {
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-17',
   devtools: { enabled: true },
+  vite: {
+    server: disableHmr ? { hmr: false } : undefined
+  },
   modules: [
     '@nuxt/ui',
     '@nuxt/image',
@@ -52,7 +56,7 @@ export default defineNuxtConfig({
     surrealDatabase: env('SURREAL_DATABASE', 'main'),
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
-    adminUsername: env('APP_LOGIN_USERNAME', 'admin'),
+    adminUsername: env('ADMIN_USERNAME', env('APP_LOGIN_USERNAME', 'admin')),
     adminPasswordHash,
     session: {
       password: sessionPassword || 'dev-only-insecure-fallback-do-not-use-in-prod-xx',
@@ -64,7 +68,14 @@ export default defineNuxtConfig({
       }
     },
     public: {
-      siteName: 'PandaBlog',
+      siteName: env('APP_SITE_TITLE', 'PandaBlog'),
+      siteSubtitle: env('APP_SITE_SUBTITLE', ''),
+      siteLogo: env('APP_SITE_LOGO', ''),
+      siteBanner: env('APP_SITE_BANNER', ''),
+      siteFavicon: env('APP_SITE_FAVICON', '/favicon.ico'),
+      ownerName: env('APP_OWNER_NAME', ''),
+      ownerBio: env('APP_OWNER_BIO', ''),
+      ownerAvatar: env('APP_OWNER_AVATAR', ''),
       appEnv
     }
   },
@@ -79,6 +90,16 @@ export default defineNuxtConfig({
   image: {
     provider: 'ipx',
     domains: []
+  },
+  app: {
+    head: {
+      link: [
+        { rel: 'icon', type: 'image/x-icon', href: env('APP_SITE_FAVICON', '/favicon.ico') }
+      ]
+    }
+  },
+  devServer: {
+    port: 3000
   }
 })
 

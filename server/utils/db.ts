@@ -1,21 +1,33 @@
 import { Surreal } from 'surrealdb'
 
+interface QueryOptions {
+  label?: string
+  timeoutMs?: number
+  retryOnReconnect?: boolean
+}
+
 let client: Surreal | null = null
 let connectionPromise: Promise<Surreal> | null = null
+let connectionGeneration = 0
 
-async function connectDb() {
+async function connectDb(generation: number) {
   const config = useRuntimeConfig()
   const db = new Surreal()
 
   await withTimeout(db.connect(config.surrealUrl), 10_000, `Could not connect to SurrealDB at ${config.surrealUrl}`)
-  await db.signin({
+  await withTimeout(db.signin({
     username: config.surrealRoot,
     password: config.surrealRootPassword
-  })
-  await db.use({
+  }), 10_000, 'Could not authenticate with SurrealDB')
+  await withTimeout(db.use({
     namespace: config.surrealNamespace,
     database: config.surrealDatabase
-  })
+  }), 10_000, 'Could not select SurrealDB namespace/database')
+
+  if (generation !== connectionGeneration) {
+    await closeDbClient(db)
+    throw new Error('Discarded stale SurrealDB connection attempt')
+  }
 
   client = db
   return db
@@ -27,13 +39,114 @@ export async function useDb() {
   }
 
   if (!connectionPromise) {
-    connectionPromise = connectDb().catch((error) => {
-      connectionPromise = null
+    const generation = ++connectionGeneration
+    connectionPromise = connectDb(generation).catch((error) => {
+      if (generation === connectionGeneration) {
+        connectionPromise = null
+      }
       throw error
     })
   }
 
   return connectionPromise
+}
+
+export async function queryDb<T extends unknown[] = unknown[]>(db: Surreal, sql: string, params?: Record<string, unknown>, options: QueryOptions = {}): Promise<T> {
+  const timeoutMs = options.timeoutMs ?? 15_000
+  const label = options.label ?? summarizeQuery(sql)
+  const startedAt = Date.now()
+  let queryClient = resolveQueryClient(db)
+
+  try {
+    return await runQuery<T>(queryClient, sql, params, timeoutMs, label)
+  } catch (error: any) {
+    let failure = error
+
+    if (options.retryOnReconnect !== false && isConnectionError(error)) {
+      await discardDbConnection(queryClient)
+
+      if (isReadOnlyQuery(sql)) {
+        try {
+          queryClient = await useDb()
+          const result = await runQuery<T>(queryClient, sql, params, timeoutMs, label)
+
+          if (import.meta.dev) {
+            console.warn(`[db] recovered connection and retried query: ${label}`)
+          }
+
+          return result as T
+        } catch (retryError: any) {
+          failure = retryError
+        }
+      }
+    }
+
+    const message = failure?.message ?? 'Database query failed'
+    const statusCode = isConnectionError(failure)
+      ? 503
+      : message.includes('timed out')
+        ? 504
+        : 500
+    throw createError({ statusCode, message })
+  } finally {
+    const elapsed = Date.now() - startedAt
+    if (import.meta.dev && elapsed > 750) {
+      console.warn(`[db] slow query (${elapsed}ms): ${label}`)
+    }
+  }
+}
+
+async function runQuery<T extends unknown[] = unknown[]>(db: Surreal, sql: string, params: Record<string, unknown> | undefined, timeoutMs: number, label: string): Promise<T> {
+  const result = await withTimeout(
+    db.query<T>(sql, params) as Promise<T>,
+    timeoutMs,
+    `Database query timed out after ${timeoutMs}ms: ${label}`
+  )
+
+  return result as T
+}
+
+function resolveQueryClient(db: Surreal) {
+  return client && client !== db ? client : db
+}
+
+async function discardDbConnection(staleClient?: Surreal | null) {
+  if (staleClient && client && staleClient !== client) {
+    return
+  }
+
+  const activeClient = staleClient ?? client
+  connectionGeneration += 1
+  client = null
+  connectionPromise = null
+  await closeDbClient(activeClient)
+}
+
+async function closeDbClient(db: Surreal | null | undefined) {
+  if (!db) {
+    return
+  }
+
+  const closable = db as Surreal & { close?: () => Promise<void> | void }
+
+  try {
+    await closable.close?.()
+  } catch {
+    // Ignore close failures while discarding a broken connection.
+  }
+}
+
+function isReadOnlyQuery(sql: string) {
+  return /^\s*(SELECT|INFO|RETURN)\b/i.test(sql)
+}
+
+function isConnectionError(error: unknown) {
+  const value = error as { message?: string, cause?: { message?: string } }
+  const message = [value?.message, value?.cause?.message]
+    .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+    .join(' ')
+
+  return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound)/i.test(message)
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -51,4 +164,8 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
       clearTimeout(timeout)
     }
   }
+}
+
+function summarizeQuery(sql: string) {
+  return sql.replace(/\s+/g, ' ').trim().slice(0, 120)
 }

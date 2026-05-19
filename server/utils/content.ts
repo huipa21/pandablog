@@ -1,4 +1,4 @@
-import type { JsonContent, PostRecord, PostStatus } from '~/types/content'
+import type { JsonContent, PostRecord, PostStatus, PostVisibility } from '~/types/content'
 import { stringifyRecordId } from './surrealResult'
 
 const allowedStatuses: PostStatus[] = ['draft', 'published', 'archived']
@@ -69,7 +69,9 @@ export function normalizePost(record: Record<string, unknown>): PostRecord {
     published_at: serializeDate(record.published_at),
     created_at: serializeDate(record.created_at) ?? new Date().toISOString(),
     updated_at: serializeDate(record.updated_at) ?? new Date().toISOString(),
-    view_count: Number(record.view_count ?? 0)
+    view_count: Number(record.view_count ?? 0),
+    visibility: cleanVisibility(record.visibility),
+    password_hint: record.password_hint === undefined ? null : record.password_hint as string | null
   }
 }
 
@@ -130,4 +132,10 @@ export function stringOrNull(value: unknown): string | null {
 
 function stringAttr(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function cleanVisibility(value: unknown): PostVisibility {
+  return ['public', 'private', 'password'].includes(String(value))
+    ? value as PostVisibility
+    : 'public'
 }

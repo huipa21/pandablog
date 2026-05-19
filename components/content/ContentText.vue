@@ -15,6 +15,9 @@
   <NuxtLink v-else-if="currentMark.type === 'link'" :to="href">
     <ContentText :text="text" :marks="remainingMarks" />
   </NuxtLink>
+  <span v-else-if="currentMark.type === 'textStyle' || currentMark.type === 'highlight'" :style="markStyle">
+    <ContentText :text="text" :marks="remainingMarks" />
+  </span>
   <ContentText v-else :text="text" :marks="remainingMarks" />
 </template>
 
@@ -41,4 +44,39 @@ const href = computed(() => {
 
   return '#'
 })
+
+const markStyle = computed(() => {
+  const style: Record<string, string> = {}
+  const attrs = currentMark.value?.attrs ?? {}
+
+  if (currentMark.value?.type === 'textStyle') {
+    const color = safeCssValue(attrs.color)
+    const fontFamily = safeCssValue(attrs.fontFamily)
+
+    if (color) {
+      style.color = color
+    }
+
+    if (fontFamily) {
+      style.fontFamily = fontFamily
+    }
+  }
+
+  if (currentMark.value?.type === 'highlight') {
+    const color = safeCssValue(attrs.color)
+    if (color) {
+      style.backgroundColor = color
+    }
+  }
+
+  return style
+})
+
+function safeCssValue(value: unknown) {
+  if (typeof value !== 'string') {
+    return ''
+  }
+
+  return /^[#a-zA-Z0-9(),.%\s-]+$/.test(value) ? value : ''
+}
 </script>

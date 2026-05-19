@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
-import { useDb } from '../../utils/db'
+import { queryDb, useDb } from '../../utils/db'
 import { requireAdminUser } from '../../utils/auth'
 import { firstRow } from '../../utils/surrealResult'
 
@@ -22,20 +22,20 @@ export default defineEventHandler(async (event) => {
   const file = formData?.find((item) => item.filename && item.data)
 
   if (!file) {
-    throw createError({ statusCode: 400, statusMessage: 'File is required' })
+    throw createError({ statusCode: 400, message: 'File is required' })
   }
 
   if (!file.type || !allowedMimeTypes.has(file.type)) {
-    throw createError({ statusCode: 415, statusMessage: 'Unsupported file type' })
+    throw createError({ statusCode: 415, message: 'Unsupported file type' })
   }
 
   if (file.data.length > maxFileSize) {
-    throw createError({ statusCode: 413, statusMessage: 'File is too large' })
+    throw createError({ statusCode: 413, message: 'File is too large' })
   }
 
   const hash = createHash('sha256').update(file.data).digest('hex')
   const db = await useDb()
-  const existingResponse = await db.query('SELECT * FROM asset WHERE hash = $hash LIMIT 1;', { hash })
+  const existingResponse = await queryDb(db, 'SELECT * FROM asset WHERE hash = $hash LIMIT 1;', { hash })
   const existing = firstRow<Record<string, unknown>>(existingResponse)
 
   if (existing) {
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
   await mkdir(publicDir, { recursive: true })
   await writeFile(diskPath, file.data)
 
-  const createResponse = await db.query('CREATE asset CONTENT $asset;', {
+  const createResponse = await queryDb(db, 'CREATE asset CONTENT $asset;', {
     asset: {
       filename: file.filename ?? filename,
       path: diskPath,

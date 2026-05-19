@@ -1,6 +1,7 @@
 import type { Surreal } from 'surrealdb'
 import type { JsonContent } from '~/types/content'
 import { slugify } from './content'
+import { queryDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 
 export interface WikiLinkTarget {
@@ -39,7 +40,7 @@ export async function syncPostMentions(db: Surreal, postRecordId: string, conten
   const postId = recordIdPart(postRecordId, 'post')
   const links = extractWikiLinks(content)
 
-  await db.query('DELETE mentions WHERE in = type::record($postTable, $postId);', {
+  await queryDb(db, 'DELETE mentions WHERE in = type::record($postTable, $postId);', {
     postTable: 'post',
     postId
   })
@@ -48,7 +49,8 @@ export async function syncPostMentions(db: Surreal, postRecordId: string, conten
     const concept = await ensureConcept(db, link)
     const conceptId = recordIdPart(stringifyRecordId(concept.id), 'concept')
 
-    await db.query(
+    await queryDb(
+      db,
       'RELATE (type::record($postTable, $postId))->mentions->(type::record($conceptTable, $conceptId)) CONTENT { context: $context };',
       {
         postTable: 'post',
@@ -62,7 +64,7 @@ export async function syncPostMentions(db: Surreal, postRecordId: string, conten
 }
 
 async function ensureConcept(db: Surreal, link: WikiLinkTarget) {
-  const existingResponse = await db.query('SELECT * FROM concept WHERE slug = $slug LIMIT 1;', {
+  const existingResponse = await queryDb(db, 'SELECT * FROM concept WHERE slug = $slug LIMIT 1;', {
     slug: link.target
   })
   const existing = firstRow<Record<string, unknown>>(existingResponse)
@@ -71,7 +73,7 @@ async function ensureConcept(db: Surreal, link: WikiLinkTarget) {
     return existing
   }
 
-  const createdResponse = await db.query('CREATE concept CONTENT $concept;', {
+  const createdResponse = await queryDb(db, 'CREATE concept CONTENT $concept;', {
     concept: {
       name: link.label,
       slug: link.target
@@ -80,7 +82,7 @@ async function ensureConcept(db: Surreal, link: WikiLinkTarget) {
   const concept = firstRow<Record<string, unknown>>(createdResponse)
 
   if (!concept) {
-    throw createError({ statusCode: 500, statusMessage: 'Concept was not created' })
+    throw createError({ statusCode: 500, message: 'Concept was not created' })
   }
 
   return concept

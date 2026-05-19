@@ -6,13 +6,17 @@
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
   <NodeWikiLink v-else-if="node.type === 'wikiLink'" :node="node" />
-  <component :is="tag" v-else :class="nodeClass">
+  <component :is="tag" v-else :id="nodeId" :class="nodeClass">
     <ContentRenderer v-for="(child, index) in node.content ?? []" :key="index" :node="child" />
   </component>
 </template>
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
+import NodeCodeBlock from './NodeCodeBlock.vue'
+import NodeImage from './NodeImage.vue'
+import NodeMermaid from './NodeMermaid.vue'
+import NodeWikiLink from './NodeWikiLink.vue'
 
 const props = defineProps<{
   node: JsonContent
@@ -32,6 +36,14 @@ const tag = computed(() => {
       return 'ol'
     case 'listItem':
       return 'li'
+    case 'table':
+      return 'table'
+    case 'tableRow':
+      return 'tr'
+    case 'tableHeader':
+      return 'th'
+    case 'tableCell':
+      return 'td'
     case 'blockquote':
       return 'blockquote'
     default:
@@ -49,16 +61,47 @@ const nodeClass = computed(() => {
       return 'list-decimal pl-6'
     case 'blockquote':
       return 'border-l-4 border-teal-600 pl-4 text-stone-700'
+    case 'table':
+      return 'my-6 w-full border-collapse overflow-hidden rounded-lg text-sm'
+    case 'tableHeader':
+      return 'border border-stone-200 bg-stone-100 p-3 text-left font-semibold'
+    case 'tableCell':
+      return 'border border-stone-200 p-3 align-top'
     default:
       return undefined
   }
 })
 
+const nodeId = computed(() => {
+  if (props.node.type !== 'heading') {
+    return undefined
+  }
+
+  return slugifyHeading(flattenNodeText(props.node))
+})
+
 function headingTag(level: unknown) {
   const safeLevel = Number(level)
-  if ([1, 2, 3].includes(safeLevel)) {
+  if ([1, 2, 3, 4, 5, 6].includes(safeLevel)) {
     return `h${safeLevel}`
   }
   return 'h2'
+}
+
+function flattenNodeText(node: JsonContent): string {
+  if (node.type === 'text') {
+    return node.text ?? ''
+  }
+
+  return node.content?.map(flattenNodeText).join(' ') ?? ''
+}
+
+function slugifyHeading(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '') || 'section'
 }
 </script>
