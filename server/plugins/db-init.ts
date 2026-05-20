@@ -7,7 +7,7 @@ import { firstRow } from '../utils/surrealResult'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
 const DEFAULT_MEDIA_SETTINGS = {
-  allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip'],
+  allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z'],
   max_file_size_mb: 10,
   max_files_per_upload: 5,
   enable_perceptual_dedup: true,

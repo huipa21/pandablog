@@ -15,6 +15,10 @@ pnpm-debug.log*
 
 public/uploads/*
 !public/uploads/.gitkeep
+storage/uploads/*
+storage/thumbnails/*
+!storage/uploads/.gitkeep
+!storage/thumbnails/.gitkeep
 pandablog.code-workspace
 
 # Themes — keep default, ignore others

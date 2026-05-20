@@ -61,22 +61,51 @@ export interface ConceptRecord {
 
 // ============ MEDIA LIBRARY ============
 
-export type MediaFileType = 'image' | 'document' | 'archive' | 'other'
+export type MediaFileType = 'image' | 'video' | 'document' | 'archive' | 'other'
+
+export interface MediaImageMeta {
+  width?: number | null
+  height?: number | null
+  format?: string | null
+  has_alpha?: boolean
+  exif?: Record<string, unknown> | null
+}
+
+export interface MediaFolderRecord {
+  id: string
+  name: string
+  slug: string
+  parent?: string | null
+  created_at: string
+  updated_at: string
+}
 
 export interface MediaRecord {
   id: string
   original_name: string
+  stored_name?: string
   extension: string
   mime_type: string
   size: number
   hash: string
-  path: string
+  path?: string
+  storage_path?: string
   url: string
   width?: number | null
   height?: number | null
+  is_image?: boolean
+  image_meta?: MediaImageMeta | null
+  folders?: string[]
+  tags?: string[]
+  comment?: string | null
+  reference_count?: number
+  referenced_by?: string[]
   thumbnail_path?: string | null
+  thumbnail_url?: string | null
   perceptual_hash?: string | null
   created_at: string
+  uploaded_at?: string
+  updated_at?: string
 }
 
 export type UploadResultStatus = 'created' | 'duplicate' | 'similar' | 'rejected'

@@ -18,7 +18,13 @@
         Back
       </UButton>
 
-      <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Post not found" />
+      <UAlert
+        v-if="error"
+        color="error"
+        icon="i-lucide-circle-alert"
+        :title="isSitePrivateError ? 'Site is private' : 'Post not found'"
+        :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to continue.' : undefined"
+      />
 
       <PostPasswordGate
         v-else-if="post && isLocked(post)"
@@ -60,6 +66,20 @@ definePageMeta({ layout: false })
 const route = useRoute()
 const slug = computed(() => String(route.params.slug))
 const { data: post, error } = await useAsyncData(`post-${slug.value}`, () => $fetch<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`))
+
+const isSitePrivateError = computed(() => {
+  const err = error.value as {
+    statusCode?: number
+    status?: number
+    statusMessage?: string
+    message?: string
+    data?: { message?: string }
+  } | null | undefined
+
+  const statusCode = Number(err?.statusCode ?? err?.status ?? 0)
+  const message = String(err?.statusMessage ?? err?.data?.message ?? err?.message ?? '').toLowerCase()
+  return statusCode === 401 && message.includes('site is private')
+})
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))

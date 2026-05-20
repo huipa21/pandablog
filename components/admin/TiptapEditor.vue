@@ -39,7 +39,13 @@
       <UTooltip text="Image">
         <UButton type="button" icon="i-lucide-image-plus" size="sm" variant="ghost" color="neutral" :loading="uploading" @mousedown.prevent="openImagePicker" />
       </UTooltip>
-      <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handlePickedImage">
+      <MediaPicker
+        :open="mediaPickerOpen"
+        return-value="url"
+        type-filter="image"
+        @update:open="mediaPickerOpen = $event"
+        @select="handleMediaPicked"
+      />
 
       <div class="relative min-w-52 flex-1">
         <UInput
@@ -83,11 +89,12 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { common, createLowlight } from 'lowlight'
-import type { JsonContent } from '~/types/content'
+import type { JsonContent, MediaRecord } from '~/types/content'
 import { MermaidNode } from '~/extensions/mermaid'
 import { normalizeWikiTarget, WikiLinkNode } from '~/extensions/wikiLink'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import WikiLinkNodeView from '~/components/admin/editor/WikiLinkNodeView.vue'
+import MediaPicker from '~/components/admin/MediaPicker.vue'
 
 const props = defineProps<{
   modelValue: JsonContent
@@ -105,8 +112,8 @@ interface WikiSuggestion {
 }
 
 const lowlight = createLowlight(common)
-const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
+const mediaPickerOpen = ref(false)
 const codeLanguage = ref('ts')
 const wikiQuery = ref('')
 const wikiSuggestions = ref<WikiSuggestion[]>([])
@@ -300,18 +307,7 @@ function insertMermaid() {
 }
 
 function openImagePicker() {
-  fileInput.value?.click()
-}
-
-function handlePickedImage(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-
-  if (file) {
-    void uploadImage(file)
-  }
-
-  input.value = ''
+  mediaPickerOpen.value = true
 }
 
 function uploadImagesFromList(fileList: FileList | undefined | null) {
@@ -343,6 +339,12 @@ async function uploadImage(file: File) {
     }
   } finally {
     uploading.value = false
+  }
+}
+
+function handleMediaPicked(files: MediaRecord[]) {
+  for (const file of files) {
+    editor.value?.chain().focus().setImage({ src: file.url, alt: file.original_name }).run()
   }
 }
 

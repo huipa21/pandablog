@@ -56,6 +56,9 @@ export default defineNuxtConfig({
     surrealDatabase: env('SURREAL_DATABASE', 'main'),
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
+    mediaOrphanCleanupEnabled: env('MEDIA_ORPHAN_CLEANUP_ENABLED', 'false') === 'true',
+    mediaOrphanCleanupDays: Number(env('MEDIA_ORPHAN_CLEANUP_DAYS', '30')),
+    mediaOrphanCleanupCron: env('MEDIA_ORPHAN_CLEANUP_CRON', '0 4 * * *'),
     adminUsername: env('ADMIN_USERNAME', env('APP_LOGIN_USERNAME', 'admin')),
     adminPasswordHash,
     session: {

@@ -1,0 +1,356 @@
+/* ============================================================================
+   Craft-Style Block Editor CSS
+   
+   Spring easing for Craft-like animations with subtle overshoot/bounce.
+   All drag, drop, and reorder animations use consistent spring physics.
+   ============================================================================ */
+
+:root {
+  /* Colors */
+  --block-handle-color: #9ca3af;
+  --block-handle-hover-color: #4b5563;
+  --block-handle-hover-bg: rgba(0, 0, 0, 0.04);
+  --block-handle-focus-ring: #6366f1;
+  --block-drop-indicator-color: rgba(99, 102, 241, 0.9);
+  --block-drop-indicator-glow-outer: rgba(99, 102, 241, 0.4);
+  --block-drop-indicator-glow-inner: rgba(99, 102, 241, 0.6);
+  --block-drop-indicator-invalid: rgba(239, 68, 68, 0.9);
+  --block-ghost-bg: #ffffff;
+  --block-ghost-border: rgba(0, 0, 0, 0.06);
+  --block-source-opacity: 0.4;
+  --block-selection-bg: rgba(99, 102, 241, 0.08);
+  --block-menu-bg: #ffffff;
+  --block-menu-item-hover-bg: #f9fafb;
+  --block-menu-item-text: #374151;
+  --block-menu-item-danger: #dc2626;
+  --block-just-dropped-glow: rgba(99, 102, 241, 0.15);
+
+  /* Shadows */
+  --block-ghost-shadow: 0 1px 3px rgba(0, 0, 0, 0.05),
+                        0 8px 16px rgba(0, 0, 0, 0.08),
+                        0 24px 48px rgba(0, 0, 0, 0.12);
+  --block-menu-shadow: 0 1px 2px rgba(0, 0, 0, 0.04),
+                       0 4px 12px rgba(0, 0, 0, 0.08),
+                       0 16px 32px rgba(0, 0, 0, 0.1);
+  --block-drop-indicator-shadow: 0 0 12px var(--block-drop-indicator-glow-outer),
+                                 0 0 4px var(--block-drop-indicator-glow-inner);
+  --block-just-dropped-shadow: 0 0 0 4px var(--block-just-dropped-glow);
+
+  /* Border radius */
+  --block-handle-radius: 8px;
+  --block-menu-radius: 12px;
+  --block-menu-item-radius: 6px;
+  --block-ghost-radius: 12px;
+  --block-drop-indicator-radius: 2px;
+
+  /* Spacing & sizing */
+  --block-handle-size: 24px;
+  --block-handle-icon-size: 16px;
+  --block-handle-offset: 8px;
+  --block-handle-padding: 4px;
+  --block-drop-indicator-height: 3px;
+  --block-drop-indicator-inset: 8px;
+  --block-menu-width: 220px;
+  --block-menu-padding: 6px;
+  --block-menu-item-padding: 8px;
+  --block-menu-offset: 8px;
+  --block-autoscroll-zone: 100px;
+  --block-autoscroll-max-speed: 18px;
+
+  /* Typography */
+  --block-menu-item-font-size: 14px;
+  --block-menu-item-font-weight: 500;
+  --block-menu-item-line-height: 1.4;
+
+  /* Motion: Spring Physics */
+  --block-spring-easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --block-spring-easing-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --block-spring-easing-snappy: cubic-bezier(0.5, 1.8, 0.5, 1);
+  --block-handle-enter-duration: 180ms;
+  --block-handle-exit-delay: 250ms;
+  --block-source-transition-duration: 180ms;
+  --block-drop-indicator-duration: 240ms;
+  --block-flip-duration: 240ms;
+  --block-just-dropped-duration: 400ms;
+  --block-menu-enter-duration: 160ms;
+  --block-drag-threshold: 5px;
+  --block-mobile-longpress-duration: 500ms;
+  --block-handle-flicker-grace: 250ms;
+
+  /* Z-Index Layers */
+  --block-handle-z: 10;
+  --block-drop-indicator-z: 20;
+  --block-ghost-z: 50;
+  --block-menu-z: 100;
+  --block-mobile-done-button-z: 200;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --block-handle-color: #6b7280;
+    --block-handle-hover-color: #d1d5db;
+    --block-handle-hover-bg: rgba(255, 255, 255, 0.06);
+    --block-drop-indicator-color: rgba(129, 140, 248, 0.9);
+    --block-ghost-bg: #18181b;
+    --block-ghost-border: rgba(255, 255, 255, 0.08);
+    --block-menu-bg: #27272a;
+    --block-menu-item-hover-bg: #3f3f46;
+    --block-menu-item-text: #d4d4d8;
+    --block-menu-item-danger: #f87171;
+    --block-ghost-shadow: 0 1px 3px rgba(0, 0, 0, 0.3),
+                          0 8px 16px rgba(0, 0, 0, 0.4),
+                          0 24px 48px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ============================================================================
+   Drag Handle Styling
+   ============================================================================ */
+
+.drag-handle {
+  position: absolute;
+  width: var(--block-handle-size);
+  height: var(--block-handle-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  border-radius: var(--block-handle-radius);
+  color: var(--block-handle-color);
+  transition: background-color 150ms ease-out, color 150ms ease-out,
+              transform var(--block-handle-enter-duration) var(--block-spring-easing),
+              opacity var(--block-handle-enter-duration) var(--block-spring-easing);
+  opacity: 0;
+  transform: translateX(-8px);
+  z-index: var(--block-handle-z);
+}
+
+.drag-handle:hover {
+  background-color: var(--block-handle-hover-bg);
+  color: var(--block-handle-hover-color);
+}
+
+.drag-handle:focus {
+  outline: 2px solid var(--block-handle-focus-ring);
+  outline-offset: 2px;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle.drag-handle-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Show handle on parent hover or when data-dragging="true" */
+.ProseMirror > *:hover .drag-handle,
+.ProseMirror > *[data-dragging="true"] .drag-handle {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Keep handle visible for 250ms after pointer leaves (prevent flicker) */
+.ProseMirror > *:has(.drag-handle:hover) .drag-handle {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ============================================================================
+   Source Block During Drag (Reduced Opacity + Scale)
+   ============================================================================ */
+
+.ProseMirror > *[data-dragging="true"] {
+  opacity: var(--block-source-opacity);
+  transform: scale(0.97);
+  transition: opacity var(--block-source-transition-duration) var(--block-spring-easing),
+              transform var(--block-source-transition-duration) var(--block-spring-easing);
+  will-change: opacity, transform;
+}
+
+/* ============================================================================
+   Drop Indicator (Custom Dropcursor)
+   ============================================================================ */
+
+.ProseMirror .dropcursor {
+  height: var(--block-drop-indicator-height);
+  background-color: var(--block-drop-indicator-color);
+  border-radius: var(--block-drop-indicator-radius);
+  margin-left: var(--block-drop-indicator-inset);
+  margin-right: var(--block-drop-indicator-inset);
+  box-shadow: var(--block-drop-indicator-shadow);
+  animation: drop-indicator-pulse 240ms var(--block-spring-easing) forwards;
+}
+
+@keyframes drop-indicator-pulse {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Invalid drop state (red indicator) */
+.ProseMirror .dropcursor.invalid {
+  background-color: var(--block-drop-indicator-invalid);
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   Just-Dropped Settlement Animation
+   ============================================================================ */
+
+.ProseMirror > *.just-dropped {
+  animation: just-dropped-settle var(--block-just-dropped-duration) var(--block-spring-easing) forwards;
+}
+
+@keyframes just-dropped-settle {
+  0% {
+    transform: scale(1.03);
+    box-shadow: var(--block-just-dropped-shadow);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+/* ============================================================================
+   Block Actions Menu
+   ============================================================================ */
+
+.block-actions-menu {
+  position: absolute;
+  background-color: var(--block-menu-bg);
+  border-radius: var(--block-menu-radius);
+  box-shadow: var(--block-menu-shadow);
+  padding: var(--block-menu-padding);
+  min-width: var(--block-menu-width);
+  z-index: var(--block-menu-z);
+  animation: menu-enter var(--block-menu-enter-duration) var(--block-spring-easing) forwards;
+}
+
+@keyframes menu-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.block-actions-menu-item {
+  padding: var(--block-menu-item-padding);
+  border-radius: var(--block-menu-item-radius);
+  font-size: var(--block-menu-item-font-size);
+  font-weight: var(--block-menu-item-font-weight);
+  line-height: var(--block-menu-item-line-height);
+  color: var(--block-menu-item-text);
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.block-actions-menu-item:hover {
+  background-color: var(--block-menu-item-hover-bg);
+}
+
+.block-actions-menu-item.danger {
+  color: var(--block-menu-item-danger);
+  border-top: 1px solid var(--block-ghost-border);
+  margin-top: 6px;
+  padding-top: var(--block-menu-item-padding);
+}
+
+/* ============================================================================
+   Multi-Block Selection Highlight
+   ============================================================================ */
+
+.ProseMirror > *.selected {
+  background-color: var(--block-selection-bg);
+}
+
+/* ============================================================================
+   Reduced Motion Support
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --block-spring-easing: ease-out;
+    --block-spring-easing-soft: ease-out;
+    --block-spring-easing-snappy: ease-out;
+    --block-handle-enter-duration: 100ms;
+    --block-source-transition-duration: 100ms;
+    --block-drop-indicator-duration: 100ms;
+    --block-flip-duration: 100ms;
+    --block-just-dropped-duration: 100ms;
+    --block-menu-enter-duration: 100ms;
+  }
+
+  .drag-handle,
+  .ProseMirror > *[data-dragging="true"],
+  .ProseMirror > *.just-dropped,
+  .block-actions-menu {
+    /* Disable scale, rotate, translate; only opacity changes */
+    transform: none !important;
+  }
+
+  @keyframes drop-indicator-pulse {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes just-dropped-settle {
+    0% {
+      box-shadow: var(--block-just-dropped-shadow);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    }
+  }
+
+  @keyframes menu-enter {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+/* ============================================================================
+   Auto-Scroll Zones (for visual feedback)
+   ============================================================================ */
+
+.editor-autoscroll-top-zone,
+.editor-autoscroll-bottom-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  transition: background-color 150ms ease-out;
+}
+
+.editor-autoscroll-top-zone.active,
+.editor-autoscroll-bottom-zone.active {
+  background: linear-gradient(to bottom, rgba(99, 102, 241, 0.1), transparent);
+}
+
+.editor-autoscroll-bottom-zone.active {
+  background: linear-gradient(to top, rgba(99, 102, 241, 0.1), transparent);
+}

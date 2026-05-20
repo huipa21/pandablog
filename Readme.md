@@ -102,6 +102,7 @@ The e2e suite starts the Nuxt dev server when `PLAYWRIGHT_BASE_URL` is not set. 
 ```text
 assets/css/main.css                Global Tailwind and editor/content styles
 components/admin/TiptapEditor.vue  Rich admin editor wrapper
+components/admin/Media*.vue       Media library, uploader, picker, folders, orphans
 components/admin/editor/*          Tiptap Vue node views
 components/content/*               Public Tiptap JSON renderers
 extensions/*                       Custom Tiptap nodes
@@ -132,7 +133,9 @@ types/content.ts                   Shared post/concept types
 Core tables:
 
 - `post` stores title, slug, summary, Tiptap JSON, flattened search text, status, timestamps, and view count.
-- `asset` stores uploaded local file metadata and SHA-256 hashes for deduplication.
+- `files` stores hash-addressed media records. The SHA-256 hash is the record id and the stored filename.
+- `folder` stores user-created media folders. Month folders are virtual and derived from `files.uploaded_at`.
+- `asset` is the older upload table kept for compatibility with existing installs.
 - `concept` stores wiki-link topic hubs.
 - `tag` and `category` are prepared for future taxonomy features.
 
@@ -143,7 +146,34 @@ Graph relation tables:
 - `categorized_as`: `post -> category`, reserved for categories.
 - `post_reference`: `post -> post`, reserved for explicit post-to-post links.
 
-Full-text indexes are defined on `post.title`, `post.summary`, and `post.content_text` using SurrealDB 3 `FULLTEXT ANALYZER` syntax.
+Full-text indexes are defined on `post.title`, `post.summary`, `post.content_text`, `files.original_name`, and `files.comment` using SurrealDB 3 `FULLTEXT ANALYZER` syntax.
+
+### Media Library
+
+Admin media lives at `/admin/media` and is backed by [server/api/media](server/api/media). Uploads can start from the media library, the reusable [components/admin/MediaPicker.vue](components/admin/MediaPicker.vue), post editors, and existing settings upload fields.
+
+Files are hashed with SHA-256 and stored by hash prefix instead of date folders:
+
+```text
+storage/uploads/<hash[0:2]>/<hash[2:4]>/<hash>.<ext>
+storage/thumbnails/<hash[0:2]>/<hash[2:4]>/<hash>.webp
+```
+
+The `files` record stores `hash`, `original_name`, `stored_name`, `mime_type`, `size`, `extension`, timestamps, optional `comment`, `is_image`, `image_meta`, `folders`, `tags`, `reference_count`, `referenced_by`, `storage_path`, and `thumbnail_path`. Duplicate uploads reuse the existing hash record and increment `reference_count`.
+
+Images are processed with `sharp` for metadata and 300x300 WebP thumbnails. File bytes are served from `/api/media/file/<hash>` and thumbnails from `/api/media/thumbnail/<hash>` with immutable cache headers.
+
+Search supports combined filters for name/comment text, upload date range, type/MIME, custom folder, tag, and orphan state. Custom folder CRUD endpoints live under `/api/media/folders`; virtual month folders are computed from `uploaded_at` and never affect disk layout.
+
+Orphans are files where `reference_count = 0` and `referenced_by = []`. Use `GET /api/media/orphans` to list them and `POST /api/media/orphans/cleanup` to delete database records plus physical files/thumbnails. The admin UI requires confirmation for delete and orphan cleanup actions.
+
+Optional scheduled orphan cleanup is controlled by:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `MEDIA_ORPHAN_CLEANUP_ENABLED` | `false` | Enable scheduled orphan deletion |
+| `MEDIA_ORPHAN_CLEANUP_DAYS` | `30` | Delete only orphans older than this many days |
+| `MEDIA_ORPHAN_CLEANUP_CRON` | `0 4 * * *` | Cron expression for cleanup |
 
 ### Admin Editor
 
@@ -156,11 +186,11 @@ Supported editor features:
 - Blockquotes
 - Links
 - Code blocks with language selection
-- Image upload from toolbar, paste, or drag/drop
+- Image insertion through the media picker, plus paste or drag/drop upload
 - Mermaid diagram nodes
 - Wiki-link nodes through `[[Concept]]` typing or the toolbar search field
 
-Uploaded images go through [server/api/admin/upload.post.ts](server/api/admin/upload.post.ts). Files are written to `public/uploads/<year>/<month>/<hash>.<ext>` and ignored by git.
+Uploaded images go through [server/api/admin/upload.post.ts](server/api/admin/upload.post.ts), which now delegates to the hash-based media library.
 
 ### Rich Content Rendering
 
@@ -319,6 +349,9 @@ The admin login uses environment variables. The `.env` file in the project root 
 | `NUXT_SESSION_PASSWORD` | 32+ char random string for session cookie encryption | Yes (prod hard-fails without it) |
 | `APP_LOGIN_USERNAME` | Admin username | Yes |
 | `APP_LOGIN_PASSWORD_HASH` | argon2id hash of admin password | Yes |
+| `MEDIA_ORPHAN_CLEANUP_ENABLED` | Enable scheduled orphan cleanup | No |
+| `MEDIA_ORPHAN_CLEANUP_DAYS` | Orphan age threshold for scheduled cleanup | No |
+| `MEDIA_ORPHAN_CLEANUP_CRON` | Cron schedule for orphan cleanup | No |
 
 ### Rate limiting
 

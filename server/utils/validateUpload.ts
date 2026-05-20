@@ -34,7 +34,14 @@ const MIME_TYPES: Record<string, string> = {
   'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'ppt': 'application/vnd.ms-powerpoint',
   'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'zip': 'application/zip'
+  'txt': 'text/plain',
+  'md': 'text/markdown',
+  'mp4': 'video/mp4',
+  'webm': 'video/webm',
+  'mov': 'video/quicktime',
+  'zip': 'application/zip',
+  'rar': 'application/vnd.rar',
+  '7z': 'application/x-7z-compressed'
 }
 
 export function getExpectedMimeType(extension: string): string | null {
@@ -54,6 +61,10 @@ export function isMimeTypeValid(mimeType: string, extension: string): boolean {
   // JPEG can be reported as 'image/jpg' or 'image/jpeg'
   if (extension.toLowerCase() === 'jpg' && mimeType === 'image/jpg') return true
   if (extension.toLowerCase() === 'jpeg' && mimeType === 'image/jpg') return true
+  if (extension.toLowerCase() === 'md' && mimeType === 'text/plain') return true
+  if (extension.toLowerCase() === 'zip' && mimeType === 'application/x-zip-compressed') return true
+  if (extension.toLowerCase() === 'rar' && mimeType === 'application/octet-stream') return true
+  if (extension.toLowerCase() === '7z' && mimeType === 'application/octet-stream') return true
   
   return false
 }

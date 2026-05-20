@@ -1,28 +1,53 @@
 <template>
-  <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor">
+  <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer">
     <ClientOnly>
       <div class="relative">
         <InlineToolbar v-if="editor" :editor="editor" />
 
         <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor tiptap-editor" />
 
-        <!-- Per-block toolbar: + button and drag handle shown on the active block -->
+        <!-- Block actions menu (opens on handle click) -->
+        <BlockActionsMenu
+          v-if="editor"
+          :editor="editor"
+          :reference-el="actionsMenuReferenceEl"
+          :visible="actionsMenuVisible"
+          @close="actionsMenuVisible = false"
+          @action="actionsMenuVisible = false"
+        />
+
+        <!-- Per-block + button shown on the active block -->
         <div
           v-if="activeBlockRect && activeBlockIndex >= 0"
           class="pointer-events-none absolute left-0 right-0"
           :style="{ top: `${activeBlockRect.top}px`, height: `${activeBlockRect.height}px` }"
         >
-          <!-- Drag handle on the left -->
           <button
             type="button"
-            class="pointer-events-auto absolute -left-10 top-1 flex size-7 cursor-grab items-center justify-center rounded border border-stone-200 bg-white text-stone-400 shadow-sm transition hover:border-teal-300 hover:text-teal-700 active:cursor-grabbing"
-            title="Drag to reorder"
-            data-testid="block-drag-handle"
             draggable="true"
+            class="drag-handle drag-handle-visible pointer-events-auto absolute -left-10 top-1"
+            title="Drag block"
+            aria-label="Drag block"
+            data-testid="block-drag-handle"
+            @click.stop.prevent="onHandleClick"
             @dragstart="onBlockDragStart"
             @dragend="onBlockDragEnd"
           >
-            <UIcon name="i-lucide-grip-vertical" class="size-4" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              class="pointer-events-none"
+            >
+              <circle cx="6" cy="4" r="1.5" fill="currentColor" />
+              <circle cx="10" cy="4" r="1.5" fill="currentColor" />
+              <circle cx="6" cy="8" r="1.5" fill="currentColor" />
+              <circle cx="10" cy="8" r="1.5" fill="currentColor" />
+              <circle cx="6" cy="12" r="1.5" fill="currentColor" />
+              <circle cx="10" cy="12" r="1.5" fill="currentColor" />
+            </svg>
           </button>
 
           <!-- + button on the right (after the block) -->
@@ -70,7 +95,13 @@
         <!-- Block inserter panel (full sidebar) -->
         <BlockInserterPanel :open="inserterOpen" @close="closeInserter" @insert="handleInserterPick" />
 
-        <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="handlePickedImage">
+        <MediaPicker
+          :open="mediaPickerOpen"
+          return-value="url"
+          type-filter="image"
+          @update:open="setMediaPickerOpen"
+          @select="handleMediaPicked"
+        />
       </div>
       <template #fallback>
         <div class="min-h-96 rounded-md border border-dashed border-stone-300 p-5 text-sm text-stone-500">Loading editor...</div>
@@ -86,6 +117,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Color from '@tiptap/extension-color'
 import Dropcursor from '@tiptap/extension-dropcursor'
 import FontFamily from '@tiptap/extension-font-family'
+import GapCursor from '@tiptap/extension-gapcursor'
 import Highlight from '@tiptap/extension-highlight'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import Image from '@tiptap/extension-image'
@@ -98,10 +130,12 @@ import TableRow from '@tiptap/extension-table-row'
 import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import type { Editor } from '@tiptap/core'
+import '~/assets/css/editor-craft.css'
 import type { EditorView } from '@tiptap/pm/view'
 import { common, createLowlight } from 'lowlight'
-import type { JsonContent } from '~/types/content'
+import type { JsonContent, MediaRecord } from '~/types/content'
 import { MermaidNode } from '~/extensions/mermaid'
+import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
 import { normalizeWikiTarget, WikiLinkNode } from '~/extensions/wikiLink'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import WikiLinkNodeView from '~/components/admin/editor/WikiLinkNodeView.vue'
@@ -111,6 +145,9 @@ import WikiLinkNodeView from '~/components/admin/editor/WikiLinkNodeView.vue'
 import InlineToolbar from '~/components/admin/editor/InlineToolbar.vue'
 import SlashCommandMenu from '~/components/admin/editor/SlashCommandMenu.vue'
 import BlockInserterPanel from '~/components/admin/editor/BlockInserterPanel.vue'
+import BlockActionsMenu from '~/components/admin/editor/BlockActionsMenu.vue'
+import MediaPicker from '~/components/admin/MediaPicker.vue'
+import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 
 const props = defineProps<{
   modelValue: JsonContent
@@ -123,8 +160,8 @@ const emit = defineEmits<{
 const lowlight = createLowlight(common)
 const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
-const imageInput = ref<HTMLInputElement | null>(null)
 const editorContainer = ref<HTMLElement | null>(null)
+const mediaPickerOpen = ref(false)
 
 // Active block tracking (for + button and drag handle placement)
 const activeBlockRect = ref<{ top: number; height: number } | null>(null)
@@ -134,6 +171,13 @@ const activeBlockIndex = ref<number>(-1)
 const draggingIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 const dropIndicators = ref<Array<{ index: number; top: number }>>([])
+
+// Auto-scroll during drag
+const autoScroll = useAutoScroll()
+
+// Block actions menu state
+const actionsMenuVisible = ref(false)
+const actionsMenuReferenceEl = ref<HTMLElement | null>(null)
 
 // Slash command state
 const slashOpen = ref(false)
@@ -151,6 +195,7 @@ const inserterOpen = ref(false)
 const insertAfterIndex = ref<number>(-1)
 const pendingImageInsertPos = ref<number | null>(null)
 let trackFrame: number | null = null
+let draggedBlockElement: HTMLElement | null = null
 
 const editor = useEditor({
   content: props.modelValue,
@@ -162,6 +207,7 @@ const editor = useEditor({
       heading: { levels: [1, 2, 3, 4, 5, 6] },
       horizontalRule: false
     }),
+    GapCursor,
     TextStyle,
     Color,
     Highlight.configure({ multicolor: true }),
@@ -205,7 +251,8 @@ const editor = useEditor({
       addNodeView() {
         return VueNodeViewRenderer(WikiLinkNodeView)
       }
-    })
+    }),
+    BlockReorderCommands
   ],
   editorProps: {
     attributes: {
@@ -535,7 +582,7 @@ function insertBlockAtPosition(name: string, pos: number) {
 
   if (name === 'image') {
     pendingImageInsertPos.value = safePos
-    imageInput.value?.click()
+    mediaPickerOpen.value = true
     return
   }
 
@@ -571,7 +618,7 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
   if (name === 'image') {
     pendingImageInsertPos.value = range.from
     ed.chain().focus().deleteRange(range).run()
-    imageInput.value?.click()
+    mediaPickerOpen.value = true
     return
   }
 
@@ -602,23 +649,50 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
 
 // ─── DRAG AND DROP ───────────────────────────────────────────────────────────
 
+/**
+ * Called when handle is clicked (not dragged). Opens the block actions menu.
+ */
+function onHandleClick(event: MouseEvent) {
+  actionsMenuReferenceEl.value = event.currentTarget as HTMLElement
+  actionsMenuVisible.value = !actionsMenuVisible.value
+}
+
 function onBlockDragStart(event: DragEvent) {
   const idx = activeBlockIndex.value
   if (idx < 0) return
+
+  actionsMenuVisible.value = false
   draggingIndex.value = idx
+
+  const blockElement = getTopLevelBlockElements()[idx]
+  draggedBlockElement = blockElement ?? null
+  if (draggedBlockElement) {
+    draggedBlockElement.dataset.dragging = 'true'
+  }
+
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', String(idx))
+    if (blockElement) {
+      event.dataTransfer.setDragImage(blockElement, 24, Math.min(24, Math.max(12, blockElement.clientHeight / 2)))
+    }
   }
+
+  autoScroll.updatePointer(event)
+  autoScroll.start()
 }
 
 function onBlockDragEnd() {
+  clearDraggedBlockState()
+  autoScroll.stop()
   draggingIndex.value = null
   dragOverIndex.value = null
 }
 
 function onBlockDrop(targetIndex: number) {
   const sourceIndex = draggingIndex.value
+  clearDraggedBlockState()
+  autoScroll.stop()
   draggingIndex.value = null
   dragOverIndex.value = null
 
@@ -643,6 +717,7 @@ function onBlockDrop(targetIndex: number) {
     if (!editor.value) return
     const newPos = resolveBlockPosition(editor.value, adjustedTarget)
     editor.value.chain().focus().setTextSelection(newPos).run()
+    animateDroppedBlock(adjustedTarget)
   })
 }
 
@@ -652,6 +727,25 @@ function resolveBlockPosition(ed: Editor, index: number) {
     if (i < index) pos += node.nodeSize
   })
   return Math.min(pos, ed.state.doc.content.size)
+}
+
+function clearDraggedBlockState() {
+  if (!draggedBlockElement) return
+  delete draggedBlockElement.dataset.dragging
+  draggedBlockElement = null
+}
+
+function animateDroppedBlock(index: number) {
+  const element = getTopLevelBlockElements()[index]
+  if (!element) return
+
+  element.classList.remove('just-dropped')
+  void element.offsetWidth
+  element.classList.add('just-dropped')
+  element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  window.setTimeout(() => {
+    element.classList.remove('just-dropped')
+  }, 400)
 }
 
 // ─── UTILITY ─────────────────────────────────────────────────────────────────
@@ -708,18 +802,32 @@ function createTableContent(): JsonContent {
   }
 }
 
-function handlePickedImage(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) void uploadImage(file)
-  input.value = ''
-}
-
 function uploadImagesFromList(fileList: FileList | undefined | null) {
   const files = [...(fileList ?? [])].filter((f) => f.type.startsWith('image/'))
   if (!files.length) return false
   files.forEach((f) => void uploadImage(f))
   return true
+}
+
+function handleMediaPicked(files: MediaRecord[]) {
+  const ed = editor.value
+  if (!ed) return
+
+  const insertPos = pendingImageInsertPos.value
+  const content = files.map((file) => ({
+    type: 'image',
+    attrs: { src: file.url, alt: file.original_name }
+  }))
+
+  if (insertPos !== null) {
+    ed.chain().focus().insertContentAt(insertPos, content).run()
+  } else {
+    for (const node of content) {
+      ed.chain().focus().setImage(node.attrs).run()
+    }
+  }
+
+  pendingImageInsertPos.value = null
 }
 
 async function uploadImage(file: File) {
@@ -745,6 +853,13 @@ async function uploadImage(file: File) {
   } catch {
     debugEditor('Image upload failed.')
   } finally {
+    pendingImageInsertPos.value = null
+  }
+}
+
+function setMediaPickerOpen(value: boolean) {
+  mediaPickerOpen.value = value
+  if (!value) {
     pendingImageInsertPos.value = null
   }
 }

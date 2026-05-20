@@ -217,9 +217,10 @@ export function logAccess(entry: AccessLogEntry) {
 
   const payload = {
     ...entry,
-    timestamp: entry.timestamp ?? new Date().toISOString(),
+    timestamp: loggingTimestamp(entry.timestamp),
     query_params: sanitizeAndTrim(entry.query_params ?? {})
   }
+  const dbPayload = compactLogPayload(payload)
 
   mirrorConsole('info', 'access_log', payload)
   fireAndForgetDbWrite(async () => {
@@ -227,7 +228,7 @@ export function logAccess(entry: AccessLogEntry) {
     await queryDb(
       db,
       'CREATE access_logs CONTENT $entry;',
-      { entry: payload },
+      { entry: dbPayload },
       { label: 'log access write', timeoutMs: 5_000, retryOnReconnect: false }
     )
   })
@@ -241,9 +242,10 @@ export function logActivity(entry: ActivityLogEntry) {
 
   const payload = {
     ...entry,
-    timestamp: entry.timestamp ?? new Date().toISOString(),
+    timestamp: loggingTimestamp(entry.timestamp),
     metadata: sanitizeAndTrim(entry.metadata ?? {})
   }
+  const dbPayload = compactLogPayload(payload)
 
   mirrorConsole('info', 'activity_log', payload)
   fireAndForgetDbWrite(async () => {
@@ -251,7 +253,7 @@ export function logActivity(entry: ActivityLogEntry) {
     await queryDb(
       db,
       'CREATE activity_logs CONTENT $entry;',
-      { entry: payload },
+      { entry: dbPayload },
       { label: 'log activity write', timeoutMs: 5_000, retryOnReconnect: false }
     )
   })
@@ -265,7 +267,7 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
 
   const errorValue = normalizeError(err)
   const payload = {
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(),
     level: errorValue.level,
     message: errorValue.message,
     stack: errorValue.stack,
@@ -273,7 +275,8 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
     path: context?.path ? String(context.path) : null,
     method: context?.method ? String(context.method) : null,
     context: sanitizeAndTrim(context ?? {}) as Record<string, unknown>
-  } satisfies ErrorLogEntry
+  }
+  const dbPayload = compactLogPayload(payload)
 
   mirrorConsole('error', 'error_log', payload)
   fireAndForgetDbWrite(async () => {
@@ -281,7 +284,7 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
     await queryDb(
       db,
       'CREATE error_logs CONTENT $entry;',
-      { entry: payload },
+      { entry: dbPayload },
       { label: 'log error write', timeoutMs: 5_000, retryOnReconnect: false }
     )
   })
@@ -457,6 +460,21 @@ function fireAndForgetDbWrite(task: () => Promise<void>) {
 function sanitizeAndTrim(input: unknown) {
   const redacted = redactDeep(input, settingsCache.redact_fields)
   return trimByMaxSize(redacted, settingsCache.max_metadata_size_kb)
+}
+
+function loggingTimestamp(value?: string) {
+  if (!value) {
+    return new Date()
+  }
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
+function compactLogPayload(input: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== null && value !== undefined)
+  )
 }
 
 function normalizeError(err: unknown) {

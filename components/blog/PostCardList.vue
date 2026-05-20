@@ -4,7 +4,13 @@
       <USkeleton v-for="index in 3" :key="index" class="h-40 rounded-lg" />
     </div>
 
-    <UAlert v-else-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load posts" />
+    <UAlert
+      v-else-if="error"
+      color="error"
+      icon="i-lucide-circle-alert"
+      :title="isSitePrivateError ? 'Site is private' : 'Could not load posts'"
+      :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to view posts.' : undefined"
+    />
 
     <div v-else-if="posts.length" class="grid gap-6">
       <article
@@ -45,7 +51,7 @@
 <script setup lang="ts">
 import type { PostListItem } from '~/types/content'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   posts: PostListItem[]
   pending?: boolean
   error?: unknown
@@ -55,6 +61,20 @@ withDefaults(defineProps<{
   pending: false,
   emptyTitle: 'No published posts yet',
   emptyDescription: 'Publish your first note from the admin area.'
+})
+
+const isSitePrivateError = computed(() => {
+  const err = props.error as {
+    statusCode?: number
+    status?: number
+    statusMessage?: string
+    message?: string
+    data?: { message?: string }
+  } | null | undefined
+
+  const statusCode = Number(err?.statusCode ?? err?.status ?? 0)
+  const message = String(err?.statusMessage ?? err?.data?.message ?? err?.message ?? '').toLowerCase()
+  return statusCode === 401 && message.includes('site is private')
 })
 
 function formatDate(value: string) {

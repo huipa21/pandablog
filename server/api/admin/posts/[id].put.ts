@@ -6,6 +6,7 @@ import { uniquePostSlug } from '../../../utils/posts'
 import { syncPostMentions } from '../../../utils/wikiLinks'
 import { hashPostPassword } from '../../../utils/post-password'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
+import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import type { PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -23,6 +24,8 @@ export default defineEventHandler(async (event) => {
   if (!existing) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }
+
+  const previousPost = normalizePost(existing)
 
   const merged = {
     ...existing,
@@ -79,6 +82,12 @@ export default defineEventHandler(async (event) => {
     body.category_ids,
     body.tag_names,
     body.category_names
+  )
+  await mediaSyncRecordReferences(
+    db,
+    normalizedPost.id,
+    [previousPost.cover_image, previousPost.content_json],
+    [normalizedPost.cover_image, normalizedPost.content_json]
   )
 
   return {

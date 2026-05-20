@@ -1,7 +1,6 @@
 import { queryDb, useDb } from '../../utils/db'
 import { firstRow, queryRows, stringifyRecordId } from '../../utils/surrealResult'
 import { isAdminAuthenticated } from '../../utils/auth'
-import { getSiteVisibility } from '../../utils/visibility'
 import type { PostListItem, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -11,11 +10,6 @@ export default defineEventHandler(async (event) => {
   const tag = String(query.tag ?? '').trim()
   const category = String(query.category ?? '').trim()
   const isAdmin = await isAdminAuthenticated(event)
-  const site = await getSiteVisibility()
-
-  if (!isAdmin && site === 'private') {
-    throw createError({ statusCode: 401, message: 'Site is private' })
-  }
 
   const visibilityFilter = isAdmin
     ? ''

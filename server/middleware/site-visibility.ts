@@ -37,9 +37,5 @@ export default defineEventHandler(async (event) => {
 
   if (await isAdminAuthenticated(event)) return
 
-  if (url.startsWith('/api/')) {
-    throw createError({ statusCode: 401, message: 'Site is private' })
-  }
-
   return sendRedirect(event, `/admin/login?redirect=${encodeURIComponent(originalUrl)}`, 302)
 })

@@ -89,6 +89,44 @@ DEFINE FIELD IF NOT EXISTS perceptual_hash ON media TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON media TYPE datetime DEFAULT time::now();
 DEFINE INDEX IF NOT EXISTS media_hash_idx ON media FIELDS hash UNIQUE;
 
+-- ============ HASH-BASED FILE LIBRARY ============
+DEFINE TABLE IF NOT EXISTS folder SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS name ON folder TYPE string;
+DEFINE FIELD IF NOT EXISTS slug ON folder TYPE string;
+DEFINE FIELD IF NOT EXISTS parent ON folder TYPE option<record<folder>> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS created_at ON folder TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON folder TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS folder_slug_unique ON TABLE folder FIELDS slug UNIQUE;
+DEFINE INDEX IF NOT EXISTS folder_parent ON TABLE folder FIELDS parent;
+
+DEFINE TABLE IF NOT EXISTS files SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS hash ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS original_name ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS stored_name ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS mime_type ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS size ON files TYPE int;
+DEFINE FIELD IF NOT EXISTS extension ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS uploaded_at ON files TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON files TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS comment ON files TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS is_image ON files TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS image_meta ON files TYPE option<object> FLEXIBLE DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS folders ON files TYPE array<record<folder>> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS tags ON files TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS reference_count ON files TYPE int DEFAULT 0;
+DEFINE FIELD IF NOT EXISTS referenced_by ON files TYPE array<record> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS storage_path ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS thumbnail_path ON files TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS perceptual_hash ON files TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS uploaded_by ON files TYPE option<string> DEFAULT NONE;
+DEFINE INDEX IF NOT EXISTS files_hash_unique ON TABLE files FIELDS hash UNIQUE;
+DEFINE INDEX IF NOT EXISTS files_original_name_fts ON TABLE files COLUMNS original_name FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
+DEFINE INDEX IF NOT EXISTS files_comment_fts ON TABLE files COLUMNS comment FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
+DEFINE INDEX IF NOT EXISTS files_uploaded_at ON TABLE files FIELDS uploaded_at;
+DEFINE INDEX IF NOT EXISTS files_mime_type ON TABLE files FIELDS mime_type;
+DEFINE INDEX IF NOT EXISTS files_is_image ON TABLE files FIELDS is_image;
+DEFINE INDEX IF NOT EXISTS files_reference_count ON TABLE files FIELDS reference_count;
+
 -- ============ LOGGING SETTINGS ============
 DEFINE TABLE IF NOT EXISTS logging_settings SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS enabled ON logging_settings TYPE bool DEFAULT true;

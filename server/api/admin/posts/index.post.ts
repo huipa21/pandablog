@@ -6,6 +6,7 @@ import { uniquePostSlug } from '../../../utils/posts'
 import { syncPostMentions } from '../../../utils/wikiLinks'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
+import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import type { PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -61,6 +62,7 @@ export default defineEventHandler(async (event) => {
     body.tag_names,
     body.category_names
   )
+  await mediaSyncRecordReferences(db, normalizedPost.id, [], [normalizedPost.cover_image, normalizedPost.content_json])
 
   return {
     ...normalizedPost,

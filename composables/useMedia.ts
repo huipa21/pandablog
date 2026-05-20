@@ -1,4 +1,4 @@
-import type { MediaRecord, UploadFileResult } from '~/types/content'
+import type { MediaFileType, MediaFolderRecord, MediaRecord, UploadFileResult } from '~/types/content'
 
 interface MediaListResponse {
   files: MediaRecord[]
@@ -12,115 +12,206 @@ interface UploadResponse {
   results: UploadFileResult[]
 }
 
+interface MediaListOptions {
+  page?: number
+  limit?: number
+  search?: string
+  type?: 'all' | MediaFileType
+  folder?: string
+  tag?: string
+  mime_type?: string
+  uploaded_from?: string
+  uploaded_to?: string
+  orphan?: boolean
+}
+
 export function useMedia() {
-  /**
-   * List media files with pagination and filters
-   */
-  async function listMedia(options: {
-    page?: number
-    limit?: number
-    search?: string
-    type?: 'all' | 'image' | 'document' | 'archive'
-  } = {}) {
-    const page = options.page || 1
-    const limit = options.limit || 20
-    const search = options.search || ''
-    const type = options.type || 'all'
-
+  async function listMedia(options: MediaListOptions = {}) {
     const query = new URLSearchParams()
-    query.set('page', String(page))
-    query.set('limit', String(limit))
-    if (search) query.set('search', search)
-    if (type !== 'all') query.set('type', type)
+    query.set('page', String(options.page || 1))
+    query.set('limit', String(options.limit || 24))
+    if (options.search) query.set('search', options.search)
+    if (options.type && options.type !== 'all') query.set('type', options.type)
+    if (options.folder) query.set('folder', options.folder)
+    if (options.tag) query.set('tag', options.tag)
+    if (options.mime_type) query.set('mime_type', options.mime_type)
+    if (options.uploaded_from) query.set('uploaded_from', options.uploaded_from)
+    if (options.uploaded_to) query.set('uploaded_to', options.uploaded_to)
+    if (options.orphan) query.set('orphan', 'true')
 
-    return await $fetch<MediaListResponse>(`/api/media?${query}`)
+    return await $fetch<MediaListResponse>(`/api/media/search?${query}`)
   }
 
-  /**
-   * Upload multiple files
-   */
   async function uploadFiles(files: File[], onProgress?: (file: File, progress: number) => void) {
-    const formData = new FormData()
-    for (const file of files) {
-      formData.append('files', file)
+    if (!import.meta.client) {
+      const formData = new FormData()
+      for (const file of files) {
+        formData.append('files', file)
+      }
+      return await $fetch<UploadResponse>('/api/media/upload', {
+        method: 'POST',
+        body: formData
+      })
     }
 
-    return await $fetch<UploadResponse>('/api/media/upload', {
-      method: 'POST',
-      body: formData,
-      onRequest({ request }) {
-        // Track upload progress if needed
-        if (request instanceof XMLHttpRequest) {
-          request.upload.addEventListener('progress', (event) => {
-            if (event.lengthComputable && onProgress && files[0]) {
-              const progress = (event.loaded / event.total) * 100
-              onProgress(files[0], progress)
-            }
-          })
-        }
-      }
+    const responses = await Promise.all(files.map((file) => uploadSingleFile(file, onProgress)))
+    return {
+      results: responses.flatMap((response) => response.results)
+    }
+  }
+
+  async function getMedia(id: string) {
+    return await $fetch<MediaRecord>(`/api/media/${encodeURIComponent(mediaHashFromId(id))}`)
+  }
+
+  async function updateMedia(id: string, body: Partial<Pick<MediaRecord, 'comment' | 'tags' | 'folders'>>) {
+    return await $fetch<MediaRecord>(`/api/media/${encodeURIComponent(mediaHashFromId(id))}`, {
+      method: 'PATCH',
+      body
     })
   }
 
-  /**
-   * Delete a media file
-   */
-  async function deleteMedia(id: string) {
-    return await $fetch(`/api/media/${encodeURIComponent(id)}`, {
+  async function deleteMedia(id: string, force = false) {
+    const query = force ? '?force=true' : ''
+    return await $fetch(`/api/media/${encodeURIComponent(mediaHashFromId(id))}${query}`, {
       method: 'DELETE'
     })
   }
 
-  /**
-   * Get public file URL
-   */
-  function getFileUrl(id: string): string {
-    return `/api/media/file/${encodeURIComponent(id)}`
+  async function listFolders() {
+    return await $fetch<{ folders: MediaFolderRecord[] }>('/api/media/folders')
   }
 
-  /**
-   * Format file size for display
-   */
+  async function createFolder(name: string, parent?: string | null) {
+    return await $fetch<MediaFolderRecord>('/api/media/folders', {
+      method: 'POST',
+      body: { name, parent }
+    })
+  }
+
+  async function updateFolder(id: string, body: Partial<Pick<MediaFolderRecord, 'name' | 'parent'>>) {
+    return await $fetch<MediaFolderRecord>(`/api/media/folders/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body
+    })
+  }
+
+  async function deleteFolder(id: string) {
+    return await $fetch(`/api/media/folders/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    })
+  }
+
+  async function listOrphans(olderThanDays?: number) {
+    const query = new URLSearchParams()
+    if (olderThanDays) query.set('older_than_days', String(olderThanDays))
+    return await $fetch<{ files: MediaRecord[], total: number }>(`/api/media/orphans?${query}`)
+  }
+
+  async function cleanupOrphans(options: { older_than_days?: number, hashes?: string[] } = {}) {
+    return await $fetch<{ deleted_count: number, failed_count: number }>('/api/media/orphans/cleanup', {
+      method: 'POST',
+      body: options
+    })
+  }
+
+  function getFileUrl(id: string) {
+    return `/api/media/file/${encodeURIComponent(mediaHashFromId(id))}`
+  }
+
+  function getThumbnailUrl(id: string) {
+    return `/api/media/thumbnail/${encodeURIComponent(mediaHashFromId(id))}`
+  }
+
   function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 B'
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
+    return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`
   }
 
-  /**
-   * Get file type category
-   */
-  function getFileType(extension: string): 'image' | 'document' | 'archive' | 'other' {
+  function getFileType(extension: string, mimeType = ''): MediaFileType {
     const ext = extension.toLowerCase()
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image'
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'document'
-    if (['zip'].includes(ext)) return 'archive'
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'].includes(ext) || mimeType.startsWith('image/')) return 'image'
+    if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || mimeType.startsWith('video/')) return 'video'
+    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'].includes(ext)) return 'document'
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'archive'
     return 'other'
   }
 
-  /**
-   * Get icon name for file type
-   */
-  function getFileIcon(extension: string): string {
-    const type = getFileType(extension)
-    const iconMap: Record<string, string> = {
-      'image': 'i-lucide-image',
-      'document': 'i-lucide-file-text',
-      'archive': 'i-lucide-archive',
-      'other': 'i-lucide-file'
+  function getFileIcon(extension: string, mimeType = ''): string {
+    const type = getFileType(extension, mimeType)
+    const iconMap: Record<MediaFileType, string> = {
+      image: 'i-lucide-image',
+      video: 'i-lucide-film',
+      document: 'i-lucide-file-text',
+      archive: 'i-lucide-archive',
+      other: 'i-lucide-file'
     }
-    return iconMap[type] || 'i-lucide-file'
+    return iconMap[type]
   }
 
   return {
     listMedia,
     uploadFiles,
+    getMedia,
+    updateMedia,
     deleteMedia,
+    listFolders,
+    createFolder,
+    updateFolder,
+    deleteFolder,
+    listOrphans,
+    cleanupOrphans,
     getFileUrl,
+    getThumbnailUrl,
     formatFileSize,
     getFileType,
     getFileIcon
   }
+}
+
+function uploadSingleFile(file: File, onProgress?: (file: File, progress: number) => void) {
+  return new Promise<UploadResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const formData = new FormData()
+    formData.append('files', file)
+
+    xhr.open('POST', '/api/media/upload')
+    xhr.withCredentials = true
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        onProgress?.(file, Math.round((event.loaded / event.total) * 100))
+      }
+    })
+    xhr.addEventListener('load', () => {
+      const responseText = xhr.responseText || '{}'
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(file, 100)
+        resolve(JSON.parse(responseText) as UploadResponse)
+        return
+      }
+
+      reject(new Error(parseFetchError(responseText) || `Upload failed (${xhr.status})`))
+    })
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')))
+    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')))
+    xhr.send(formData)
+  })
+}
+
+function parseFetchError(responseText: string) {
+  try {
+    const parsed = JSON.parse(responseText) as { message?: string, statusMessage?: string }
+    return parsed.statusMessage || parsed.message || ''
+  } catch {
+    return ''
+  }
+}
+
+function mediaHashFromId(id: string) {
+  const decoded = decodeURIComponent(id)
+  return decoded.startsWith('files:') ? decoded.slice('files:'.length) : decoded
 }

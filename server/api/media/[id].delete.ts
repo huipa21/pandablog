@@ -1,44 +1,35 @@
-import { queryDb, useDb } from '../../utils/db'
 import { requireAdminUser } from '../../utils/auth'
-import { deleteStorageFile, deleteThumbnail } from '../../utils/storage'
-import { recordIdPart } from '../../utils/surrealResult'
+import { queryDb, useDb } from '../../utils/db'
+import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
+import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../utils/mediaLibrary'
+import { firstRow } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
+  const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
+  const force = getQuery(event).force === 'true'
   const db = await useDb()
-  const id = recordIdPart(getRouterParam(event, 'id') ?? '', 'media')
+  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
+    table: 'files',
+    id
+  })
+  const record = firstRow<Record<string, unknown>>(response)
 
-  // Fetch the media record
-  const response = await queryDb(
-    db,
-    'SELECT * FROM type::record($table, $id) LIMIT 1;',
-    { table: 'media', id }
-  )
-
-  const record = (response[0] as any)?.[0]
   if (!record) {
     throw createError({ statusCode: 404, message: 'Media file not found' })
   }
 
-  // Delete from storage
-  try {
-    if (record.path) {
-      await deleteStorageFile(record.path)
-    }
-    if (record.thumbnail_path) {
-      await deleteThumbnail(record.thumbnail_path)
-    }
-  } catch (error) {
-    console.error('Error deleting storage files:', error)
-    // Continue with DB deletion even if storage deletion fails
+  const file = mediaNormalizeFileRecord(record)
+
+  if (!force && (file.reference_count ?? 0) > 0) {
+    throw createError({ statusCode: 409, message: 'File is still referenced. Remove references or force delete.' })
   }
 
-  // Delete from database
-  await queryDb(
-    db,
-    'DELETE FROM type::record($table, $id);',
-    { table: 'media', id }
-  )
+  await mediaDeleteStoredObjects(file)
+  await queryDb(db, 'DELETE FROM type::record($table, $id);', {
+    table: 'files',
+    id
+  })
 
   return { success: true }
 })

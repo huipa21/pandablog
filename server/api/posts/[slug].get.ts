@@ -28,7 +28,8 @@ export default defineEventHandler(async (event) => {
   })
 
   if (access.state === 'site-private') {
-    throw createError({ statusCode: 401, message: 'Site is private' })
+    const currentPath = event.path ?? `/api/posts/${slug}`
+    return sendRedirect(event, `/admin/login?redirect=${encodeURIComponent(currentPath)}`, 302)
   }
 
   if (access.state === 'not-found') {
