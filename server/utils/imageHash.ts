@@ -21,7 +21,7 @@ export async function computePHash(buffer: Buffer): Promise<string> {
 /**
  * Calculate Hamming distance between two hashes
  */
-export function getHammingDistance(hash1: string, hash2: string): number {
+function getHammingDistance(hash1: string, hash2: string): number {
   if (!hash1 || !hash2 || hash1.length !== hash2.length) {
     return Infinity
   }

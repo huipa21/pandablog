@@ -5,7 +5,6 @@ const ALWAYS_ALLOWED_PREFIXES = [
   '/admin',
   '/api/admin',
   '/api/auth',
-  '/api/site/settings',
   '/api/site/visibility',
   '/api/health',
   '/_nuxt',

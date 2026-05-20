@@ -1,7 +1,6 @@
 import { createReadStream } from 'node:fs'
 import { access, mkdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { Readable } from 'node:stream'
 
 const mediaUploadsRoot = resolve(process.cwd(), 'storage/uploads')
 const mediaThumbnailsRoot = resolve(process.cwd(), 'storage/thumbnails')
@@ -95,10 +94,6 @@ export async function mediaDeleteStoredObjects(paths: MediaStoredObjectPaths) {
     mediaDeleteUploadPath(paths.storage_path),
     mediaDeleteThumbnailPath(paths.thumbnail_path)
   ])
-}
-
-export function mediaStreamFromBuffer(buffer: Buffer) {
-  return Readable.from(buffer)
 }
 
 function mediaCleanExtension(extension: string) {

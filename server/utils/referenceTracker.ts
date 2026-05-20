@@ -3,7 +3,7 @@ import { queryDb } from './db'
 import { firstRow, recordIdPart, stringifyRecordId } from './surrealResult'
 import { mediaNormalizeFileRecord } from './mediaLibrary'
 
-export function mediaExtractReferencedHashes(...values: unknown[]) {
+function mediaExtractReferencedHashes(...values: unknown[]) {
   const hashes = new Set<string>()
 
   for (const value of values) {
@@ -30,7 +30,7 @@ export async function mediaSyncRecordReferences(db: Surreal, sourceRecordId: str
   }
 }
 
-export async function mediaAddFileReference(db: Surreal, hash: string, sourceRecordId: string) {
+async function mediaAddFileReference(db: Surreal, hash: string, sourceRecordId: string) {
   const file = await readFileForReference(db, hash)
 
   if (!file) {
@@ -48,7 +48,7 @@ export async function mediaAddFileReference(db: Surreal, hash: string, sourceRec
   await writeFileReferences(db, file.hash, [...references], Math.max(0, file.reference_count ?? 0) + 1)
 }
 
-export async function mediaRemoveFileReference(db: Surreal, hash: string, sourceRecordId: string) {
+async function mediaRemoveFileReference(db: Surreal, hash: string, sourceRecordId: string) {
   const file = await readFileForReference(db, hash)
 
   if (!file) {
