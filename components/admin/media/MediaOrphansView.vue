@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import type { MediaRecord } from '~/types/content'
-import MediaGrid from '~/components/admin/MediaGrid.vue'
+import MediaGrid from '~/components/admin/media/MediaGrid.vue'
 
 const props = defineProps<{
   files: MediaRecord[]

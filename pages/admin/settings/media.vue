@@ -141,6 +141,20 @@
         </fieldset>
 
         <!-- Actions -->
+        <UFormField label="Download file cleanup (hours)" name="download_cleanup_hours">
+          <UInput
+            v-model.number="form.download_cleanup_hours"
+            type="number"
+            min="1"
+            max="168"
+            icon="i-lucide-clock"
+          />
+          <template #hint>
+            Temporary download zip files are deleted after this many hours (1-168)
+          </template>
+        </UFormField>
+
+        <!-- Save / Cancel -->
         <div class="flex gap-3 pt-4">
           <UButton type="submit" icon="i-lucide-save" :loading="saving">
             Save Settings
@@ -163,6 +177,7 @@ interface MediaSettings {
   max_files_per_upload: number
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
+  download_cleanup_hours: number
 }
 
 definePageMeta({ layout: 'admin' })
@@ -189,7 +204,8 @@ const form = reactive<MediaSettings>({
   max_file_size_mb: 10,
   max_files_per_upload: 5,
   enable_perceptual_dedup: true,
-  perceptual_dedup_threshold: 5
+  perceptual_dedup_threshold: 5,
+  download_cleanup_hours: 1
 })
 
 const hasAllImages = computed(() =>

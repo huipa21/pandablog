@@ -1,4 +1,4 @@
-import type { MediaFileType, MediaFolderRecord, MediaRecord, UploadFileResult } from '~/types/content'
+import type { MediaFileType, MediaFolderRecord, MediaRecord, MediaTagSummary, UploadFileResult } from '~/types/content'
 
 interface MediaListResponse {
   files: MediaRecord[]
@@ -16,6 +16,17 @@ interface MediaListOptions {
   page?: number
   limit?: number
   search?: string
+  file_name?: string
+  extension?: string
+  comment?: string
+  tags?: string[]
+  tag_relation?: 'and' | 'or'
+  filename_regex?: string
+  filename_regex_case_insensitive?: boolean
+  search_regex?: boolean
+  case_insensitive?: boolean
+  sort?: string
+  advanced?: unknown
   type?: 'all' | MediaFileType
   folder?: string
   tag?: string
@@ -31,6 +42,17 @@ export function useMedia() {
     query.set('page', String(options.page || 1))
     query.set('limit', String(options.limit || 24))
     if (options.search) query.set('search', options.search)
+    if (options.file_name) query.set('file_name', options.file_name)
+    if (options.extension) query.set('extension', options.extension)
+    if (options.comment) query.set('comment', options.comment)
+    if (options.tags?.length) query.set('tags', JSON.stringify(options.tags))
+    if (options.tag_relation && options.tag_relation !== 'and') query.set('tag_relation', options.tag_relation)
+    if (options.filename_regex) query.set('filename_regex', options.filename_regex)
+    if (options.filename_regex_case_insensitive) query.set('filename_regex_case_insensitive', 'true')
+    if (options.search_regex) query.set('search_regex', 'true')
+    if (options.case_insensitive) query.set('case_insensitive', 'true')
+    if (options.sort) query.set('sort', options.sort)
+    if (options.advanced) query.set('advanced', JSON.stringify(options.advanced))
     if (options.type && options.type !== 'all') query.set('type', options.type)
     if (options.folder) query.set('folder', options.folder)
     if (options.tag) query.set('tag', options.tag)
@@ -64,7 +86,7 @@ export function useMedia() {
     return await $fetch<MediaRecord>(`/api/media/${encodeURIComponent(mediaHashFromId(id))}`)
   }
 
-  async function updateMedia(id: string, body: Partial<Pick<MediaRecord, 'comment' | 'tags' | 'folders'>>) {
+  async function updateMedia(id: string, body: Partial<Pick<MediaRecord, 'original_name' | 'comment' | 'tags' | 'folders'>>) {
     return await $fetch<MediaRecord>(`/api/media/${encodeURIComponent(mediaHashFromId(id))}`, {
       method: 'PATCH',
       body
@@ -80,6 +102,12 @@ export function useMedia() {
 
   async function listFolders() {
     return await $fetch<{ folders: MediaFolderRecord[] }>('/api/media/folders')
+  }
+
+  async function listMediaTags(query?: string) {
+    const params = new URLSearchParams()
+    if (query) params.set('q', query)
+    return await $fetch<{ tags: MediaTagSummary[] }>(`/api/media/tags?${params}`)
   }
 
   async function createFolder(name: string, parent?: string | null) {
@@ -159,6 +187,7 @@ export function useMedia() {
     updateMedia,
     deleteMedia,
     listFolders,
+    listMediaTags,
     createFolder,
     updateFolder,
     deleteFolder,

@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import MediaLibrary from '~/components/admin/MediaLibrary.vue'
+import MediaLibrary from '~/components/admin/media/MediaLibrary.vue'
 
 definePageMeta({ layout: 'admin' })
 </script>

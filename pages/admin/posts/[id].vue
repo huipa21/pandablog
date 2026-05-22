@@ -69,16 +69,23 @@
       <USkeleton class="h-96" />
     </div>
 
-    <div v-else class="grid min-h-[calc(100vh-7rem)] grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <main class="min-w-0 px-5 py-8 md:px-8">
-        <div class="mx-auto max-w-3xl">
+    <div v-else class="flex min-h-[calc(100vh-7rem)]">
+      <BlockInserterPanel
+        :open="editorStore.inserterOpen"
+        inline
+        @close="editorStore.closeInserter()"
+        @insert="onInserterPick"
+      />
+
+      <main class="min-w-0 flex-1 px-4 py-6 md:px-6 lg:px-8">
+        <div class="mx-auto w-full max-w-6xl">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load this post" />
             <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
             <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
           </div>
 
-          <form class="rounded-lg border border-stone-200 bg-white px-12 py-7 shadow-sm md:px-16 md:py-10" @submit.prevent="save('draft', 'save-draft')">
+          <form class="rounded-lg border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-10 md:py-8" @submit.prevent="save('draft', 'save-draft')">
             <input
               v-model="form.title"
               type="text"
@@ -86,12 +93,13 @@
               class="mb-8 w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-stone-900 outline-none placeholder:text-stone-400"
             >
 
-            <BlockEditor ref="blockEditorRef" v-model="form.content" />
+            <BlockEditor ref="blockEditorRef" v-model="form.content" :use-inline-inserter="true" />
           </form>
         </div>
       </main>
 
       <EditorSidebar
+        class="w-[340px] shrink-0"
         :form="form"
         :categories="categories"
         :tags="tags"
@@ -106,14 +114,15 @@
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
-import BlockEditor from '~/components/admin/editor/BlockEditor.vue'
+import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
+import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import EditorSidebar from '~/components/admin/editor/EditorSidebar.vue'
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
 
-type BlockEditorInstance = InstanceType<typeof BlockEditor> & { editor?: Ref<Editor | undefined> }
+type BlockEditorInstance = InstanceType<typeof BlockEditor> & { editor?: Ref<Editor | undefined>, pickBlock?: (name: string) => void }
 const fetchTimeoutMs = 10_000
 
 const route = useRoute()
@@ -125,6 +134,11 @@ const saveError = ref('')
 const currentStatus = ref<PostStatus>('draft')
 const uploadingCover = ref(false)
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
+const editorStore = useEditorStore()
+
+function onInserterPick(name: string) {
+  blockEditorRef.value?.pickBlock?.(name)
+}
 const activeEditor = computed(() => blockEditorRef.value?.editor?.value ?? null)
 
 const form = reactive<AdminPostEditorForm>({

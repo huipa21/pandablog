@@ -21,7 +21,10 @@ export default defineEventHandler(async (event) => {
     enable_perceptual_dedup: body.enable_perceptual_dedup !== false,
     perceptual_dedup_threshold: typeof body.perceptual_dedup_threshold === 'number'
       ? Math.max(0, Math.min(20, body.perceptual_dedup_threshold))
-      : 5
+      : 5,
+    download_cleanup_hours: typeof body.download_cleanup_hours === 'number'
+      ? Math.max(1, Math.min(168, body.download_cleanup_hours))
+      : 1
   }
 
   if (settings.allowed_extensions.length === 0) {

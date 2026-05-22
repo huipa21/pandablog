@@ -63,9 +63,9 @@
 
 <script setup lang="ts">
 import type { MediaRecord } from '~/types/content'
-import MediaGrid from '~/components/admin/MediaGrid.vue'
-import MediaSearchBar from '~/components/admin/MediaSearchBar.vue'
-import MediaUploader from '~/components/admin/MediaUploader.vue'
+import MediaGrid from '~/components/admin/media/MediaGrid.vue'
+import MediaSearchBar from '~/components/admin/media/MediaSearchBar.vue'
+import MediaUploader from '~/components/admin/media/MediaUploader.vue'
 
 type ReturnValue = 'hash' | 'url'
 
@@ -75,6 +75,9 @@ interface PickerFilters {
   tag: string
   uploaded_from: string
   uploaded_to: string
+  orphan: boolean
+  search_regex: boolean
+  case_insensitive: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -108,7 +111,10 @@ const filters = ref<PickerFilters>({
   type: props.typeFilter,
   tag: '',
   uploaded_from: '',
-  uploaded_to: ''
+  uploaded_to: '',
+  orphan: false,
+  search_regex: false,
+  case_insensitive: true
 })
 
 const activeTabClass = 'border-teal-600 text-teal-700'
@@ -130,10 +136,13 @@ async function refresh() {
       page: page.value,
       limit: 20,
       search: filters.value.search,
+      search_regex: filters.value.search_regex,
+      case_insensitive: filters.value.case_insensitive,
       type: filters.value.type as any,
       tag: filters.value.tag,
       uploaded_from: filters.value.uploaded_from,
-      uploaded_to: filters.value.uploaded_to
+      uploaded_to: filters.value.uploaded_to,
+      orphan: filters.value.orphan
     })
     files.value = response.files
     pages.value = response.pages || 1

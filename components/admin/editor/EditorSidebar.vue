@@ -1,5 +1,5 @@
 <template>
-  <aside class="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto border-l border-stone-200 bg-white">
+  <aside class="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto border-l border-stone-200 bg-white">
     <div class="flex border-b border-stone-200">
       <button
         type="button"
@@ -173,7 +173,7 @@ import type { AdminPostEditorForm } from '~/types/editor'
 // Explicit import: Nuxt auto-registers nested components with a path prefix
 // (`AdminEditorBlockSettings`), so the short `<BlockSettings>` tag below
 // would otherwise fail to resolve.
-import BlockSettings from '~/components/admin/editor/BlockSettings.vue'
+import BlockSettings from '~/components/admin/editor/blocks/BlockSettings.vue'
 
 const props = defineProps<{
   form: AdminPostEditorForm

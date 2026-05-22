@@ -6,6 +6,8 @@
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
   <NodeWikiLink v-else-if="node.type === 'wikiLink'" :node="node" />
+  <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
+  <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
     <ContentRenderer v-for="(child, index) in node.content ?? []" :key="index" :node="child" />
   </component>
@@ -14,7 +16,9 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 import NodeCodeBlock from './NodeCodeBlock.vue'
+import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeImage from './NodeImage.vue'
+import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
 import NodeWikiLink from './NodeWikiLink.vue'
 

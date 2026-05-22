@@ -1,3 +1,7 @@
+-- ============ CLEANUP LEGACY TABLES ============
+REMOVE TABLE IF EXISTS asset;
+REMOVE TABLE IF EXISTS media;
+
 DEFINE TABLE IF NOT EXISTS post SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS title ON post TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON post TYPE string;
@@ -95,6 +99,16 @@ DEFINE INDEX IF NOT EXISTS files_uploaded_at ON TABLE files FIELDS uploaded_at;
 DEFINE INDEX IF NOT EXISTS files_mime_type ON TABLE files FIELDS mime_type;
 DEFINE INDEX IF NOT EXISTS files_is_image ON TABLE files FIELDS is_image;
 DEFINE INDEX IF NOT EXISTS files_reference_count ON TABLE files FIELDS reference_count;
+
+-- ============ MEDIA TAGS ============
+-- File tags are stored independently in files.tags and are not shared with post tags.
+
+-- ============ SMART FOLDERS ============
+DEFINE TABLE IF NOT EXISTS media_smart_folder SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS name ON media_smart_folder TYPE string;
+DEFINE FIELD IF NOT EXISTS filters ON media_smart_folder TYPE object FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS created_at ON media_smart_folder TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 
 -- ============ LOGGING SETTINGS ============
 DEFINE TABLE IF NOT EXISTS logging_settings SCHEMAFULL;

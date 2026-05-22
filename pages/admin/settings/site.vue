@@ -62,6 +62,8 @@
 </template>
 
 <script setup lang="ts">
+import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
+
 definePageMeta({ layout: 'admin' })
 
 type SiteSettingKey = 'site_title' | 'site_subtitle' | 'site_logo' | 'site_banner' | 'site_favicon'

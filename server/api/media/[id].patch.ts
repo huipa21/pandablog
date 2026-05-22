@@ -14,6 +14,14 @@ export default defineEventHandler(async (event) => {
     id
   }
 
+  if (Object.prototype.hasOwnProperty.call(body, 'original_name')) {
+    const name = typeof body.original_name === 'string' ? body.original_name.trim() : ''
+    if (name) {
+      params.original_name = name.slice(0, 255)
+      assignments.push('original_name = $original_name')
+    }
+  }
+
   if (Object.prototype.hasOwnProperty.call(body, 'comment')) {
     const comment = typeof body.comment === 'string' ? body.comment.trim() : ''
     assignments.push(comment ? 'comment = $comment' : 'comment = NONE')
@@ -23,7 +31,8 @@ export default defineEventHandler(async (event) => {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, 'tags')) {
-    params.tags = normalizeTags(body.tags)
+    const tags = normalizeTags(body.tags)
+    params.tags = tags
     assignments.push('tags = $tags')
   }
 

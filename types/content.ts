@@ -80,6 +80,14 @@ export interface MediaFolderRecord {
   updated_at: string
 }
 
+export interface MediaTagSummary {
+  id: string
+  name: string
+  slug: string
+  count: number
+  latest_uploaded_at?: string | null
+}
+
 export interface MediaRecord {
   id: string
   original_name: string
@@ -132,4 +140,5 @@ export interface TagRecord {
   name: string
   slug: string
   post_count?: number
+  media_count?: number
 }

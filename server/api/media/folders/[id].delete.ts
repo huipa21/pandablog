@@ -1,12 +1,20 @@
 import { requireAdminUser } from '../../../utils/auth'
 import { queryDb, useDb } from '../../../utils/db'
 import { mediaNormalizeFileRecord, mediaNormalizeFolderId } from '../../../utils/mediaLibrary'
-import { queryRows } from '../../../utils/surrealResult'
+import { firstRow, queryRows } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
   const id = mediaNormalizeFolderId(getRouterParam(event, 'id') ?? '')
   const db = await useDb()
+
+  // Prevent deletion of the Default folder
+  const folderResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'folder', id })
+  const folder = firstRow<Record<string, unknown>>(folderResponse)
+  if (folder && String(folder.slug ?? '') === 'default') {
+    throw createError({ statusCode: 400, message: 'The Default folder cannot be deleted' })
+  }
+
   const filesResponse = await queryDb(db, 'SELECT * FROM files WHERE folders CONTAINS type::record($folder_table, $folder_id);', {
     folder_table: 'folder',
     folder_id: id

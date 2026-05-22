@@ -6,14 +6,20 @@
 
         <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor tiptap-editor" />
 
-        <!-- Block actions menu (opens on handle click) -->
-        <BlockActionsMenu
+        <!-- Block popup toolbar (transform, drag, move, align, more) -->
+        <BlockPopupToolbar
           v-if="editor"
           :editor="editor"
           :reference-el="actionsMenuReferenceEl"
           :visible="actionsMenuVisible"
-          @close="actionsMenuVisible = false"
-          @action="actionsMenuVisible = false"
+          :block-type="editorStore.selectedBlockType"
+          @move-up="runMoveUp"
+          @move-down="runMoveDown"
+          @duplicate="runDuplicate"
+          @delete="runDelete"
+          @transform="runTransform"
+          @dragstart="onBlockDragStart"
+          @dragend="onBlockDragEnd"
         />
 
         <!-- Per-block + button shown on the active block -->
@@ -23,6 +29,7 @@
           :style="{ top: `${activeBlockRect.top}px`, height: `${activeBlockRect.height}px` }"
         >
           <button
+            ref="dragHandleRef"
             type="button"
             draggable="true"
             class="drag-handle drag-handle-visible pointer-events-auto absolute -left-10 top-1"
@@ -92,8 +99,13 @@
           @select-index="slashSelectedIndex = $event"
         />
 
-        <!-- Block inserter panel (full sidebar) -->
-        <BlockInserterPanel :open="inserterOpen" @close="closeInserter" @insert="handleInserterPick" />
+        <!-- Block inserter panel (rendered inline by parent when 3-col layout is active) -->
+        <BlockInserterPanel
+          v-if="!useInlineInserter"
+          :open="inserterOpen"
+          @close="closeInserter"
+          @insert="handleInserterPick"
+        />
 
         <MediaPicker
           :open="mediaPickerOpen"
@@ -113,14 +125,12 @@
 <script setup lang="ts">
 import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Color from '@tiptap/extension-color'
 import Dropcursor from '@tiptap/extension-dropcursor'
 import FontFamily from '@tiptap/extension-font-family'
 import GapCursor from '@tiptap/extension-gapcursor'
 import Highlight from '@tiptap/extension-highlight'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import Table from '@tiptap/extension-table'
@@ -131,33 +141,43 @@ import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import type { Editor } from '@tiptap/core'
 import '~/assets/css/editor-craft.css'
+import '~/assets/css/code-themes.css'
 import type { EditorView } from '@tiptap/pm/view'
-import { common, createLowlight } from 'lowlight'
+import { all, createLowlight } from 'lowlight'
 import type { JsonContent, MediaRecord } from '~/types/content'
 import { MermaidNode } from '~/extensions/mermaid'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
 import { normalizeWikiTarget, WikiLinkNode } from '~/extensions/wikiLink'
+import { CodeBlockEnhanced } from '~/extensions/codeBlockEnhanced'
+import { CustomHtmlNode } from '~/extensions/customHtml'
+import { ImageBlockNode } from '~/extensions/imageBlock'
+import { MediaTextNode } from '~/extensions/mediaText'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import WikiLinkNodeView from '~/components/admin/editor/WikiLinkNodeView.vue'
+import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
+import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
+import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
+import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
 // would not auto-resolve. Importing them directly guarantees they render.
 import InlineToolbar from '~/components/admin/editor/InlineToolbar.vue'
 import SlashCommandMenu from '~/components/admin/editor/SlashCommandMenu.vue'
-import BlockInserterPanel from '~/components/admin/editor/BlockInserterPanel.vue'
-import BlockActionsMenu from '~/components/admin/editor/BlockActionsMenu.vue'
-import MediaPicker from '~/components/admin/MediaPicker.vue'
+import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
+import BlockPopupToolbar from '~/components/admin/editor/BlockPopupToolbar.vue'
+import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 
 const props = defineProps<{
   modelValue: JsonContent
+  useInlineInserter?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: JsonContent]
 }>()
 
-const lowlight = createLowlight(common)
+const lowlight = createLowlight(all)
 const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
 const editorContainer = ref<HTMLElement | null>(null)
@@ -178,6 +198,16 @@ const autoScroll = useAutoScroll()
 // Block actions menu state
 const actionsMenuVisible = ref(false)
 const actionsMenuReferenceEl = ref<HTMLElement | null>(null)
+const dragHandleRef = ref<HTMLElement | null>(null)
+
+watch([activeBlockIndex, dragHandleRef], () => {
+  if (activeBlockIndex.value >= 0 && dragHandleRef.value) {
+    actionsMenuReferenceEl.value = dragHandleRef.value
+    actionsMenuVisible.value = true
+  } else {
+    actionsMenuVisible.value = false
+  }
+})
 
 // Slash command state
 const slashOpen = ref(false)
@@ -190,10 +220,19 @@ const slashItems = computed(() => {
   return items.filter((b) => b.implemented)
 })
 
-// Inserter state
+// Inserter state (also mirrored to editorStore so parent layout can switch to 3-column mode)
 const inserterOpen = ref(false)
 const insertAfterIndex = ref<number>(-1)
 const pendingImageInsertPos = ref<number | null>(null)
+
+watch(inserterOpen, (open) => {
+  if (open) editorStore.openInserter()
+  else editorStore.closeInserter()
+})
+
+watch(() => editorStore.inserterOpen, (open) => {
+  if (open !== inserterOpen.value) inserterOpen.value = open
+})
 let trackFrame: number | null = null
 let draggedBlockElement: HTMLElement | null = null
 
@@ -214,13 +253,28 @@ const editor = useEditor({
     FontFamily,
     HorizontalRule,
     Dropcursor.configure({ color: '#0f766e', width: 2 }),
-    CodeBlockLowlight.configure({
+    CodeBlockEnhanced.configure({
       lowlight,
       defaultLanguage: 'text'
+    }).extend({
+      addNodeView() {
+        return VueNodeViewRenderer(CodeBlockNodeView)
+      }
     }),
-    Image.configure({
-      allowBase64: false,
-      inline: false
+    CustomHtmlNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(CustomHtmlNodeView)
+      }
+    }),
+    ImageBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(ImageBlockNodeView)
+      }
+    }),
+    MediaTextNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(MediaTextNodeView)
+      }
     }),
     Link.configure({
       autolink: true,
@@ -256,7 +310,7 @@ const editor = useEditor({
   ],
   editorProps: {
     attributes: {
-      class: 'min-h-[520px] focus:outline-none'
+      class: 'min-h-[360px] focus:outline-none'
     },
     handlePaste(_view, event) {
       return uploadImagesFromList(event.clipboardData?.files)
@@ -325,7 +379,7 @@ const editor = useEditor({
   }
 })
 
-defineExpose({ editor })
+defineExpose({ editor, openInserter: () => { inserterOpen.value = true }, closeInserter, pickBlock: handleInserterPick })
 
 watch(() => props.modelValue, (value) => {
   const ed = editor.value
@@ -488,6 +542,66 @@ function closeInserter() {
 function handleInserterPick(name: string) {
   closeInserter()
   insertBlockAtIndex(name, insertAfterIndex.value + 1)
+}
+
+// ─── BLOCK POPUP TOOLBAR HANDLERS ─────────────────────────────────────────
+
+function runMoveUp() {
+  editor.value?.commands.moveBlockUp?.()
+  actionsMenuVisible.value = false
+}
+
+function runMoveDown() {
+  editor.value?.commands.moveBlockDown?.()
+  actionsMenuVisible.value = false
+}
+
+function runDuplicate() {
+  const ed = editor.value
+  if (!ed) return
+  const { $from } = ed.state.selection
+  let blockDepth = 0
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
+  }
+  if (blockDepth === 0) return
+  const blockStart = $from.before(blockDepth)
+  const blockEnd = $from.after(blockDepth)
+  const slice = ed.state.doc.slice(blockStart, blockEnd)
+  ed.chain().focus().insertContentAt(blockEnd, slice.content.toJSON()).run()
+  actionsMenuVisible.value = false
+}
+
+function runDelete() {
+  const ed = editor.value
+  if (!ed) return
+  const { $from } = ed.state.selection
+  let blockDepth = 0
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
+  }
+  if (blockDepth === 0) return
+  const blockStart = $from.before(blockDepth)
+  const blockEnd = $from.after(blockDepth)
+  ed.chain().focus().deleteRange({ from: blockStart, to: blockEnd }).run()
+  actionsMenuVisible.value = false
+}
+
+function runTransform(target: string) {
+  const ed = editor.value
+  if (!ed) return
+  const chain = ed.chain().focus()
+  switch (target) {
+    case 'paragraph': chain.setParagraph().run(); break
+    case 'heading-1': chain.setHeading({ level: 1 }).run(); break
+    case 'heading-2': chain.setHeading({ level: 2 }).run(); break
+    case 'heading-3': chain.setHeading({ level: 3 }).run(); break
+    case 'bulletList': chain.toggleBulletList().run(); break
+    case 'orderedList': chain.toggleOrderedList().run(); break
+    case 'blockquote': chain.toggleBlockquote().run(); break
+    case 'codeBlock': chain.toggleCodeBlock().run(); break
+  }
+  actionsMenuVisible.value = false
 }
 
 // ─── SLASH COMMAND ───────────────────────────────────────────────────────────

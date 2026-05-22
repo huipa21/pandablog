@@ -8,7 +8,7 @@
         alt=""
         class="absolute inset-0 h-full w-full object-cover opacity-60"
       >
-      <div class="relative mx-auto flex max-w-6xl items-center gap-4 px-5 py-6">
+      <div class="relative flex w-full items-center gap-4 px-5 py-6">
         <img v-if="siteLogo" :src="siteLogo" alt="" class="h-10 w-auto rounded">
         <div>
           <h1 class="text-xl font-bold tracking-tight">{{ siteName }}</h1>
@@ -19,7 +19,7 @@
 
     <!-- Navigation strip -->
     <nav class="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-5">
+      <div class="flex w-full items-center justify-between px-5">
         <div class="flex items-center gap-1">
           <button class="py-3 md:hidden" @click="mobileNav = !mobileNav">
             <UIcon name="i-lucide-menu" class="size-5 text-stone-700" />
@@ -41,7 +41,7 @@
     </nav>
 
     <!-- Two-column body -->
-    <div class="mx-auto grid w-full max-w-6xl flex-1 gap-8 px-5 py-8 md:grid-cols-[260px_1fr]">
+    <div class="grid w-full flex-1 gap-8 px-5 py-8 md:grid-cols-[260px_minmax(0,1fr)]">
       <!-- Left sidebar (widgets) -->
       <aside class="hidden space-y-6 md:block">
         <slot name="sidebar">
@@ -59,7 +59,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-stone-200 bg-white text-sm text-stone-500">
-      <div class="mx-auto grid max-w-6xl gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
+      <div class="grid w-full gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
         <div>
           <div class="font-medium text-stone-700">{{ siteName }}</div>
           <p class="mt-1">{{ footerCopyright }}</p>

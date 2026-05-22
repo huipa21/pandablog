@@ -39,6 +39,7 @@ export default defineNitroPlugin(async () => {
   }
 
   await ensureDefaultMediaSettings(db)
+  await ensureDefaultFolder(db)
   await initializeLoggingSettings()
 })
 
@@ -83,5 +84,31 @@ async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>)
       value: DEFAULT_MEDIA_SETTINGS
     },
     { label: 'media settings init', timeoutMs: 10_000 }
+  )
+}
+
+async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {
+  const existing = await queryDb(
+    db,
+    'SELECT * FROM folder WHERE slug = $slug LIMIT 1;',
+    { slug: 'default' },
+    { label: 'default folder check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(existing)) {
+    return
+  }
+
+  await queryDb(
+    db,
+    `CREATE folder CONTENT {
+      name: 'Default',
+      slug: 'default',
+      parent: NONE,
+      created_at: time::now(),
+      updated_at: time::now()
+    };`,
+    undefined,
+    { label: 'default folder init', timeoutMs: 10_000 }
   )
 }

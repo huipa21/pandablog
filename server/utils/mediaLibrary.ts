@@ -21,6 +21,17 @@ export interface MediaSearchOptions {
   page?: number
   limit?: number
   search?: string
+  file_name?: string
+  extension?: string
+  comment?: string
+  tags?: string[]
+  tag_relation?: 'and' | 'or'
+  filename_regex?: string
+  filename_regex_case_insensitive?: boolean
+  search_regex?: boolean
+  case_insensitive?: boolean
+  sort?: string
+  advanced?: MediaAdvancedGroup | null
   type?: string
   mime_type?: string
   folder?: string
@@ -28,6 +39,19 @@ export interface MediaSearchOptions {
   uploaded_from?: string
   uploaded_to?: string
   orphan?: boolean
+}
+
+export interface MediaAdvancedGroup {
+  op?: 'AND' | 'OR'
+  conditions?: Array<MediaAdvancedGroup | MediaAdvancedCondition>
+}
+
+export interface MediaAdvancedCondition {
+  field?: string
+  operator?: string
+  value?: string
+  valueTo?: string
+  caseInsensitive?: boolean
 }
 
 export function mediaNormalizeFileRecord(record: Record<string, unknown>): MediaRecord {
@@ -131,6 +155,10 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
   try {
     storagePath = await mediaWriteUploadBuffer(hash, extension, input.data)
     const now = new Date()
+    const imageMetaExpression = optionalParamExpression(image.image_meta, 'image_meta')
+    const thumbnailPathExpression = optionalParamExpression(image.thumbnail_path, 'thumbnail_path')
+    const perceptualHashExpression = optionalParamExpression(image.perceptual_hash, 'perceptual_hash')
+    const uploadedByExpression = optionalParamExpression(input.uploadedBy, 'uploaded_by')
     const createResponse = await queryDb(
       db,
       `CREATE type::record($table, $id) CONTENT {
@@ -144,15 +172,15 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
         updated_at: $now,
         comment: NONE,
         is_image: $is_image,
-        image_meta: $image_meta,
+        image_meta: ${imageMetaExpression},
         folders: [],
         tags: [],
         reference_count: 0,
         referenced_by: [],
         storage_path: $storage_path,
-        thumbnail_path: $thumbnail_path,
-        perceptual_hash: $perceptual_hash,
-        uploaded_by: $uploaded_by
+        thumbnail_path: ${thumbnailPathExpression},
+        perceptual_hash: ${perceptualHashExpression},
+        uploaded_by: ${uploadedByExpression}
       };`,
       {
         table: 'files',
@@ -217,57 +245,41 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   const page = Math.max(1, Number(options.page || 1))
   const limit = Math.max(1, Math.min(100, Number(options.limit || 24)))
   const offset = (page - 1) * limit
-  const params: Record<string, unknown> = { limit, offset }
-  const conditions: string[] = []
   const search = String(options.search || '').trim()
+  const fileName = String(options.file_name || '').trim()
+  const extension = String(options.extension || '').trim().replace(/^\./, '')
+  const comment = String(options.comment || '').trim()
+  const tagQueries = normalizeStringArray(options.tags)
+  const useRegex = options.search_regex === true
+  const caseInsensitive = options.case_insensitive !== false
+  const response = await queryDb(db, 'SELECT * FROM files;')
+  const allFiles = queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
+  const fromDate = options.uploaded_from ? normalizeDateBoundary(options.uploaded_from, 'start') : null
+  const toDate = options.uploaded_to ? normalizeDateBoundary(options.uploaded_to, 'end') : null
+  const normalizedFolderId = options.folder ? `folder:${mediaNormalizeFolderId(options.folder)}` : ''
+  const selectedFolder = normalizedFolderId ? await mediaReadFolderById(db, normalizedFolderId) : null
+  const selectedDefaultFolderId = selectedFolder?.slug === 'default' ? selectedFolder.id : ''
+  const filenameRegex = compileRegex(options.filename_regex, options.filename_regex_case_insensitive !== false)
+  const tagRelation = options.tag_relation === 'or' ? 'or' : 'and'
 
-  if (search) {
-    conditions.push('(original_name ~* $search OR comment ~* $search)')
-    params.search = search
-  }
+  const filtered = allFiles
+    .filter((file) => !options.type || options.type === 'all' || mediaRecordMatchesType(file, options.type))
+    .filter((file) => !options.mime_type || file.mime_type === options.mime_type)
+    .filter((file) => !normalizedFolderId || mediaFileMatchesFolder(file, normalizedFolderId, selectedDefaultFolderId))
+    .filter((file) => !options.tag || mediaTagsMatch(file.tags || [], [options.tag], { useRegex, caseInsensitive }))
+    .filter((file) => !tagQueries.length || mediaTagsMatch(file.tags || [], tagQueries, { useRegex, caseInsensitive, relation: tagRelation }))
+    .filter((file) => !fromDate || new Date(file.uploaded_at || file.created_at).getTime() >= fromDate.getTime())
+    .filter((file) => !toDate || new Date(file.uploaded_at || file.created_at).getTime() <= toDate.getTime())
+    .filter((file) => !options.orphan || ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length))
+    .filter((file) => !search || mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive }))
+    .filter((file) => !fileName || mediaTextMatches(file.original_name, fileName, { useRegex, caseInsensitive }))
+    .filter((file) => !extension || mediaTextMatches(file.extension, extension, { useRegex, caseInsensitive }))
+    .filter((file) => !comment || mediaTextMatches(file.comment || '', comment, { useRegex, caseInsensitive }))
+    .filter((file) => !filenameRegex || filenameRegex.test(file.original_name))
+    .filter((file) => !options.advanced || mediaAdvancedMatches(file, options.advanced))
 
-  if (options.type && options.type !== 'all') {
-    const typeCondition = mediaTypeCondition(options.type)
-    if (typeCondition) {
-      conditions.push(typeCondition)
-    }
-  }
-
-  if (options.mime_type) {
-    conditions.push('mime_type = $mime_type')
-    params.mime_type = options.mime_type
-  }
-
-  if (options.folder) {
-    conditions.push('folders CONTAINS type::record($folder_table, $folder_id)')
-    params.folder_table = 'folder'
-    params.folder_id = mediaNormalizeFolderId(options.folder)
-  }
-
-  if (options.tag) {
-    conditions.push('tags CONTAINS $tag')
-    params.tag = options.tag
-  }
-
-  if (options.uploaded_from) {
-    conditions.push('uploaded_at >= $uploaded_from')
-    params.uploaded_from = new Date(options.uploaded_from)
-  }
-
-  if (options.uploaded_to) {
-    conditions.push('uploaded_at <= $uploaded_to')
-    params.uploaded_to = new Date(options.uploaded_to)
-  }
-
-  if (options.orphan) {
-    conditions.push('reference_count = 0 AND referenced_by = []')
-  }
-
-  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
-  const countResponse = await queryDb(db, `SELECT count() AS total FROM files ${whereClause};`, params)
-  const total = Number(firstRow<{ total?: number }>(countResponse)?.total ?? 0)
-  const response = await queryDb(db, `SELECT * FROM files ${whereClause} ORDER BY uploaded_at DESC LIMIT $limit START $offset;`, params)
-  const files = queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
+  const files = [...filtered].sort((a, b) => mediaCompareRecords(a, b, options.sort)).slice(offset, offset + limit)
+  const total = filtered.length
 
   return {
     files,
@@ -276,6 +288,200 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     limit,
     pages: Math.ceil(total / limit)
   }
+}
+
+async function mediaReadFolderById(db: Surreal, folderId: string) {
+  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
+    table: 'folder',
+    id: mediaNormalizeFolderId(folderId)
+  })
+  const record = firstRow<Record<string, unknown>>(response)
+  return record ? mediaNormalizeFolderRecord(record) : null
+}
+
+function normalizeDateBoundary(value: string, boundary: 'start' | 'end') {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    if (boundary === 'start') {
+      return new Date(`${value}T00:00:00.000Z`)
+    }
+    return new Date(`${value}T23:59:59.999Z`)
+  }
+
+  return new Date(value)
+}
+
+function compileRegex(pattern: string | undefined, caseInsensitive: boolean) {
+  const trimmed = String(pattern || '').trim()
+  if (!trimmed) return null
+
+  try {
+    return new RegExp(trimmed, caseInsensitive ? 'i' : '')
+  } catch {
+    return null
+  }
+}
+
+function mediaTextMatches(value: string, query: string, options: { useRegex: boolean, caseInsensitive: boolean }) {
+  if (!query) return true
+
+  if (options.useRegex) {
+    const regex = compileRegex(query, options.caseInsensitive)
+    return regex ? regex.test(value) : false
+  }
+
+  if (options.caseInsensitive) {
+    return value.toLowerCase().includes(query.toLowerCase())
+  }
+
+  return value.includes(query)
+}
+
+function mediaGlobalTextMatches(file: MediaRecord, query: string, options: { useRegex: boolean, caseInsensitive: boolean }) {
+  return mediaTextMatches(file.original_name, query, options)
+    || mediaTextMatches(file.extension, query, options)
+    || mediaTextMatches(file.comment || '', query, options)
+    || mediaTextMatches((file.tags || []).join(' '), query, options)
+}
+
+function mediaTagsMatch(tags: string[], queries: string[], options: { useRegex: boolean, caseInsensitive: boolean, relation?: 'and' | 'or' }) {
+  const relation = options.relation === 'or' ? 'or' : 'and'
+  const matcher = relation === 'or' ? 'some' : 'every'
+
+  return queries[matcher]((query) => tags.some((tag) => {
+    if (options.useRegex) {
+      return mediaTextMatches(tag, query, options)
+    }
+
+    return options.caseInsensitive ? tag.toLowerCase() === query.toLowerCase() : tag === query
+  }))
+}
+
+function mediaFileMatchesFolder(file: MediaRecord, folderId: string, defaultFolderId: string) {
+  const folderIds = file.folders || []
+  if (folderIds.includes(folderId)) {
+    return true
+  }
+
+  if (defaultFolderId && folderId === defaultFolderId) {
+    return folderIds.length === 0
+  }
+
+  return false
+}
+
+function mediaRecordMatchesType(file: MediaRecord, type: string) {
+  switch (type) {
+    case 'image':
+      return file.is_image === true
+    case 'video':
+      return file.mime_type.startsWith('video/')
+    case 'document':
+      return ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'].includes(file.extension.toLowerCase())
+    case 'archive':
+      return ['zip', 'rar', '7z', 'tar', 'gz'].includes(file.extension.toLowerCase())
+    case 'other':
+      return !file.is_image
+        && !file.mime_type.startsWith('video/')
+        && !['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'zip', 'rar', '7z', 'tar', 'gz'].includes(file.extension.toLowerCase())
+    default:
+      return true
+  }
+}
+
+function mediaCompareRecords(a: MediaRecord, b: MediaRecord, sort: string | undefined) {
+  switch (sort) {
+    case 'uploaded_at_asc':
+      return new Date(a.uploaded_at || a.created_at).getTime() - new Date(b.uploaded_at || b.created_at).getTime()
+    case 'name_asc':
+      return a.original_name.localeCompare(b.original_name)
+    case 'name_desc':
+      return b.original_name.localeCompare(a.original_name)
+    case 'size_asc':
+      return a.size - b.size
+    case 'size_desc':
+      return b.size - a.size
+    default:
+      return new Date(b.uploaded_at || b.created_at).getTime() - new Date(a.uploaded_at || a.created_at).getTime()
+  }
+}
+
+function mediaAdvancedMatches(file: MediaRecord, group: MediaAdvancedGroup): boolean {
+  const conditions = Array.isArray(group.conditions) ? group.conditions : []
+  if (!conditions.length) return true
+
+  const op = group.op === 'OR' ? 'OR' : 'AND'
+  const results: boolean[] = conditions.map((condition): boolean => {
+    if ('conditions' in condition) {
+      return mediaAdvancedMatches(file, condition as MediaAdvancedGroup)
+    }
+
+    return mediaAdvancedConditionMatches(file, condition as MediaAdvancedCondition)
+  })
+
+  return op === 'OR' ? results.some(Boolean) : results.every(Boolean)
+}
+
+function mediaAdvancedConditionMatches(file: MediaRecord, condition: MediaAdvancedCondition) {
+  const field = condition.field || 'name'
+  const operator = condition.operator || 'contains'
+  const value = String(condition.value || '')
+  const valueTo = String(condition.valueTo || '')
+  const caseInsensitive = condition.caseInsensitive !== false
+
+  if (field === 'uploaded_at') {
+    const uploadedTime = new Date(file.uploaded_at || file.created_at).getTime()
+    if (operator === 'before') return uploadedTime <= normalizeDateBoundary(value, 'end').getTime()
+    if (operator === 'after') return uploadedTime >= normalizeDateBoundary(value, 'start').getTime()
+    if (operator === 'between') {
+      return uploadedTime >= normalizeDateBoundary(value, 'start').getTime()
+        && uploadedTime <= normalizeDateBoundary(valueTo || value, 'end').getTime()
+    }
+  }
+
+  if (field === 'orphan') {
+    return ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length) === (value !== 'false')
+  }
+
+  if (field === 'type') {
+    return mediaRecordMatchesType(file, value)
+  }
+
+  const target = mediaAdvancedFieldText(file, field)
+  if (operator === 'equals') {
+    return caseInsensitive ? target.toLowerCase() === value.toLowerCase() : target === value
+  }
+  if (operator === 'regex') {
+    const regex = compileRegex(value, caseInsensitive)
+    return regex ? regex.test(target) : false
+  }
+
+  return mediaTextMatches(target, value, { useRegex: false, caseInsensitive })
+}
+
+function mediaAdvancedFieldText(file: MediaRecord, field: string) {
+  switch (field) {
+    case 'original_name':
+    case 'name':
+    case 'file_name':
+      return file.original_name
+    case 'extension':
+    case 'file_extension':
+      return file.extension
+    case 'comment':
+    case 'comments':
+      return file.comment || ''
+    case 'tag':
+    case 'tags':
+      return (file.tags || []).join(' ')
+    case 'mime_type':
+      return file.mime_type
+    default:
+      return file.original_name
+  }
+}
+
+function optionalParamExpression(value: unknown, name: string) {
+  return value === null || value === undefined || value === '' ? 'NONE' : `$${name}`
 }
 
 export async function mediaUniqueFolderSlug(db: Surreal, desired: string, currentRecordId?: string) {
@@ -351,23 +557,6 @@ function normalizeUploadMimeType(mimeType: string | undefined, extension: string
   }
 
   return getExpectedMimeType(extension) ?? 'application/octet-stream'
-}
-
-function mediaTypeCondition(type: string) {
-  switch (type) {
-    case 'image':
-      return 'is_image = true'
-    case 'video':
-      return "mime_type ~ '^video/'"
-    case 'document':
-      return "extension IN ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md']"
-    case 'archive':
-      return "extension IN ['zip', 'rar', '7z', 'tar', 'gz']"
-    case 'other':
-      return "is_image = false AND extension NOT IN ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'zip', 'rar', '7z', 'tar', 'gz']"
-    default:
-      return ''
-  }
 }
 
 function normalizeRecordIdArray(value: unknown) {

@@ -94,7 +94,7 @@ import { MermaidNode } from '~/extensions/mermaid'
 import { normalizeWikiTarget, WikiLinkNode } from '~/extensions/wikiLink'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import WikiLinkNodeView from '~/components/admin/editor/WikiLinkNodeView.vue'
-import MediaPicker from '~/components/admin/MediaPicker.vue'
+import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 
 const props = defineProps<{
   modelValue: JsonContent

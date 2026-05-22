@@ -48,6 +48,8 @@
 </template>
 
 <script setup lang="ts">
+import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
+import TiptapEditor from '~/components/admin/editor/TiptapEditor.vue'
 import type { JsonContent } from '~/types/content'
 
 definePageMeta({ layout: 'admin' })

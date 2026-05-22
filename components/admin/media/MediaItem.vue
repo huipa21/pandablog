@@ -2,9 +2,13 @@
   <button
     type="button"
     draggable="true"
+    :data-media-hash="file.hash"
     class="group relative overflow-hidden rounded-lg border bg-white p-2 text-left transition hover:border-teal-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
     :class="selected ? 'border-teal-500 ring-2 ring-teal-100' : 'border-stone-200'"
-    @click="emit('select', file)"
+    @click.shift.prevent="emit('range-select', file)"
+    @click.exact="emit('select', file)"
+    @click.ctrl="emit('toggle-select', file)"
+    @click.meta="emit('toggle-select', file)"
     @dragstart="handleDragStart"
   >
     <div class="relative aspect-square overflow-hidden rounded-md bg-stone-100">
@@ -18,8 +22,12 @@
       <div v-else class="flex h-full w-full items-center justify-center bg-stone-100">
         <UIcon :name="getFileIcon(file.extension, file.mime_type)" class="size-10 text-stone-500" />
       </div>
-      <div v-if="selected" class="absolute right-2 top-2 rounded-full bg-teal-600 p-1 text-white">
-        <UIcon name="i-lucide-check" class="size-3" />
+      <div
+        class="absolute left-2 top-2 flex size-5 items-center justify-center rounded border transition"
+        :class="selected ? 'border-teal-600 bg-teal-600' : 'border-stone-300 bg-white'"
+        @click.stop="handleSelectionClick"
+      >
+        <UIcon v-if="selected" name="i-lucide-check" class="size-3 text-white" />
       </div>
     </div>
 
@@ -43,6 +51,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'select': [file: MediaRecord]
+  'toggle-select': [file: MediaRecord]
+  'range-select': [file: MediaRecord]
 }>()
 
 const { formatFileSize, getFileIcon } = useMedia()
@@ -52,6 +62,14 @@ function handleDragStart(event: DragEvent) {
   event.dataTransfer?.setData('text/plain', props.file.hash)
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'copyMove'
+  }
+}
+
+function handleSelectionClick(event: MouseEvent) {
+  if (event.shiftKey) {
+    emit('range-select', props.file)
+  } else {
+    emit('toggle-select', props.file)
   }
 }
 </script>

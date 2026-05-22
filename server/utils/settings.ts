@@ -163,6 +163,7 @@ export interface MediaSettings {
   max_files_per_upload: number
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
+  download_cleanup_hours: number
 }
 
 const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
@@ -170,7 +171,8 @@ const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   max_file_size_mb: 10,
   max_files_per_upload: 5,
   enable_perceptual_dedup: true,
-  perceptual_dedup_threshold: 5
+  perceptual_dedup_threshold: 5,
+  download_cleanup_hours: 1
 }
 
 export async function getMediaSettings(): Promise<MediaSettings> {
@@ -193,12 +195,17 @@ export async function getMediaSettings(): Promise<MediaSettings> {
     max_file_size_mb: typeof settings.max_file_size_mb === 'number' ? settings.max_file_size_mb : DEFAULT_MEDIA_SETTINGS.max_file_size_mb,
     max_files_per_upload: typeof settings.max_files_per_upload === 'number' ? settings.max_files_per_upload : DEFAULT_MEDIA_SETTINGS.max_files_per_upload,
     enable_perceptual_dedup: settings.enable_perceptual_dedup === false ? false : DEFAULT_MEDIA_SETTINGS.enable_perceptual_dedup,
-    perceptual_dedup_threshold: typeof settings.perceptual_dedup_threshold === 'number' ? settings.perceptual_dedup_threshold : DEFAULT_MEDIA_SETTINGS.perceptual_dedup_threshold
+    perceptual_dedup_threshold: typeof settings.perceptual_dedup_threshold === 'number' ? settings.perceptual_dedup_threshold : DEFAULT_MEDIA_SETTINGS.perceptual_dedup_threshold,
+    download_cleanup_hours: typeof settings.download_cleanup_hours === 'number' ? settings.download_cleanup_hours : DEFAULT_MEDIA_SETTINGS.download_cleanup_hours
   }
 }
 
 export async function updateMediaSettings(settings: MediaSettings): Promise<void> {
   const db = await useDb()
+  // Remove any legacy record with a different ID that holds key='media' (fixes unique index conflict)
+  await queryDb(db, `DELETE FROM app_setting WHERE key = $key AND id != type::record($table, $id);`, {
+    table: 'app_setting', id: 'media', key: 'media'
+  })
   await queryDb(
     db,
     `UPSERT type::record($table, $id) CONTENT {

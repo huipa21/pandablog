@@ -104,7 +104,7 @@ const hideSidebar = computed(() => route.meta.adminHideSidebar === true)
 
 const sidebarOpen = ref(false)
 const loggingOut = ref(false)
-const mainClass = computed(() => route.meta.adminWide === true ? 'min-w-0' : 'mx-auto max-w-6xl px-5 py-8')
+const mainClass = computed(() => route.meta.adminWide === true ? 'min-w-0' : 'min-w-0 px-5 py-8')
 
 async function logout() {
   loggingOut.value = true

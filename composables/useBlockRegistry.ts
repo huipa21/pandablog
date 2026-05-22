@@ -98,7 +98,14 @@ const blockDefinitions: BlockDefinition[] = [
     category: 'media',
     keywords: ['photo', 'media', 'upload'],
     implemented: true,
-    supports: { align: true, spacing: true, border: true }
+    supports: { align: true, spacing: true, border: true },
+    createContent: () => ({
+      type: 'image',
+      attrs: {
+        src: '', alt: '', title: '', titlePosition: 'bottom',
+        width: null, height: null, lockAspect: true, align: 'center'
+      }
+    })
   },
   {
     name: 'mediaText',
@@ -110,32 +117,13 @@ const blockDefinitions: BlockDefinition[] = [
     implemented: true,
     supports: { spacing: true },
     createContent: () => ({
-      type: 'table',
-      content: [
-        {
-          type: 'tableRow',
-          content: [
-            {
-              type: 'tableCell',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [{ type: 'text', text: 'Add media URL or insert an image here.' }]
-                }
-              ]
-            },
-            {
-              type: 'tableCell',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [{ type: 'text', text: 'Write supporting text...' }]
-                }
-              ]
-            }
-          ]
-        }
-      ]
+      type: 'mediaText',
+      attrs: {
+        mediaSrc: '', mediaAlt: '', mediaTitle: '', mediaTitlePosition: 'bottom',
+        mediaWidth: null, mediaHeight: null, lockAspect: true,
+        mediaPosition: 'left', ratio: 0.5
+      },
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Write supporting text...' }] }]
     })
   },
   {
@@ -159,7 +147,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'codeBlock',
-      attrs: { language: 'ts' },
+      attrs: { language: 'text', theme: 'github-dark', lineNumbers: true },
       content: [{ type: 'text', text: '// Start typing code...' }]
     })
   },
@@ -216,9 +204,8 @@ const blockDefinitions: BlockDefinition[] = [
     implemented: true,
     supports: { spacing: true },
     createContent: () => ({
-      type: 'codeBlock',
-      attrs: { language: 'html' },
-      content: [{ type: 'text', text: '<div class="embed-card">Custom HTML</div>' }]
+      type: 'customHtml',
+      attrs: { html: '<div class="embed-card">Custom HTML</div>' }
     })
   },
   {

@@ -17,8 +17,10 @@ public/uploads/*
 !public/uploads/.gitkeep
 storage/uploads/*
 storage/thumbnails/*
+storage/downloads/*
 !storage/uploads/.gitkeep
 !storage/thumbnails/.gitkeep
+!storage/downloads/.gitkeep
 pandablog.code-workspace
 
 # Themes — keep default, ignore others

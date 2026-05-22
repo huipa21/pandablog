@@ -19,7 +19,8 @@ export function normalizeTag(record: Record<string, unknown>): TagRecord {
     id: stringifyRecordId(record.id),
     name: String(record.name ?? ''),
     slug: String(record.slug ?? ''),
-    post_count: Number(record.post_count ?? 0)
+    post_count: Number(record.post_count ?? 0),
+    media_count: Number(record.media_count ?? 0)
   }
 }
 
@@ -161,3 +162,4 @@ async function ensureTaxonomyIds(
 
   return Array.from(resolvedIds)
 }
+

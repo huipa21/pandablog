@@ -5,9 +5,14 @@
         <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close" @click="emit('close')" />
         <aside class="relative ml-auto flex h-full w-full max-w-xl flex-col bg-white shadow-xl">
           <header class="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
-            <div class="min-w-0">
-              <h2 class="truncate text-lg font-semibold text-stone-950">{{ file.original_name }}</h2>
-              <p class="truncate text-xs text-stone-500">{{ file.hash }}</p>
+            <div class="min-w-0 flex-1">
+              <UInput
+                v-model="displayName"
+                class="text-lg font-semibold"
+                variant="none"
+                :ui="{ base: 'text-lg font-semibold text-stone-950 px-0' }"
+                placeholder="File name"
+              />
             </div>
             <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="emit('close')" />
           </header>
@@ -18,6 +23,29 @@
               <div v-else class="flex h-44 items-center justify-center">
                 <UIcon :name="getFileIcon(file.extension, file.mime_type)" class="size-12 text-stone-500" />
               </div>
+            </div>
+
+            <div class="flex gap-2">
+              <UButton
+                type="button"
+                icon="i-lucide-external-link"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                @click="viewOriginal"
+              >
+                View original
+              </UButton>
+              <UButton
+                type="button"
+                icon="i-lucide-download"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                @click="downloadFile"
+              >
+                Download
+              </UButton>
             </div>
 
             <div class="grid grid-cols-2 gap-3 rounded-lg border border-stone-200 p-3 text-sm">
@@ -48,29 +76,15 @@
             </div>
 
             <div class="space-y-3">
-              <UFormField label="URL">
-                <div class="flex gap-2">
-                  <UInput :model-value="file.url" readonly class="flex-1" />
-                  <UButton type="button" icon="i-lucide-copy" color="neutral" variant="soft" @click="copyUrl" />
-                </div>
-              </UFormField>
-
               <UFormField label="Comment">
-                <UTextarea v-model="comment" :rows="4" />
+                <UTextarea v-model="comment" :rows="3" />
               </UFormField>
 
               <UFormField label="Tags">
-                <UInput v-model="tagsText" icon="i-lucide-tags" placeholder="comma separated" />
+                <div class="rounded-md border border-stone-300 px-2 py-1.5">
+                  <MediaTagInput v-model="tags" />
+                </div>
               </UFormField>
-
-              <div class="space-y-2">
-                <div class="text-sm font-medium text-stone-700">Folders</div>
-                <label v-for="folder in folders" :key="folder.id" class="flex items-center gap-2 text-sm text-stone-700">
-                  <input v-model="selectedFolders" type="checkbox" :value="folder.id" class="rounded border-stone-300">
-                  <span>{{ folder.name }}</span>
-                </label>
-                <p v-if="!folders.length" class="text-sm text-stone-500">No custom folders</p>
-              </div>
             </div>
           </div>
 
@@ -91,6 +105,7 @@
 
 <script setup lang="ts">
 import type { MediaFolderRecord, MediaRecord } from '~/types/content'
+import MediaTagInput from '~/components/admin/media/MediaTagInput.vue'
 
 const props = defineProps<{
   file: MediaRecord | null
@@ -104,26 +119,43 @@ const emit = defineEmits<{
 }>()
 
 const { formatFileSize, getFileIcon, updateMedia, deleteMedia } = useMedia()
+const displayName = ref('')
 const comment = ref('')
-const tagsText = ref('')
-const selectedFolders = ref<string[]>([])
+const tags = ref<string[]>([])
 const saving = ref(false)
 const deleting = ref(false)
 
 watch(() => props.file, (file) => {
+  displayName.value = file?.original_name || ''
   comment.value = file?.comment || ''
-  tagsText.value = (file?.tags || []).join(', ')
-  selectedFolders.value = [...(file?.folders || [])]
+  tags.value = [...(file?.tags || [])]
 }, { immediate: true })
+
+function viewOriginal() {
+  if (!props.file) return
+  const baseUrl = window.location.origin
+  const url = `${baseUrl}/api/media/file/${props.file.hash}`
+  window.open(url, '_blank')
+}
+
+function downloadFile() {
+  if (!props.file) return
+  const link = document.createElement('a')
+  link.href = `/api/media/file/${props.file.hash}?download=true`
+  link.download = props.file.original_name
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 async function save() {
   if (!props.file) return
   saving.value = true
   try {
     const updated = await updateMedia(props.file.id, {
+      original_name: displayName.value,
       comment: comment.value,
-      tags: tagsText.value.split(',').map((tag) => tag.trim()).filter(Boolean),
-      folders: selectedFolders.value
+      tags: tags.value
     })
     emit('updated', updated)
   } finally {
@@ -147,12 +179,6 @@ async function deleteFile() {
     window.alert(error?.statusMessage || error?.message || 'Delete failed')
   } finally {
     deleting.value = false
-  }
-}
-
-function copyUrl() {
-  if (props.file) {
-    void navigator.clipboard.writeText(props.file.url)
   }
 }
 

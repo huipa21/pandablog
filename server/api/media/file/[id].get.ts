@@ -20,10 +20,11 @@ export default defineEventHandler(async (event) => {
 
   try {
     const stats = await mediaStatUpload(file.storage_path || '')
+    const isDownload = getQuery(event).download === 'true'
     setResponseHeader(event, 'Content-Type', file.mime_type || 'application/octet-stream')
     setResponseHeader(event, 'Content-Length', stats.size)
-    setResponseHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
-    setResponseHeader(event, 'Content-Disposition', `inline; filename="${encodeHeaderValue(file.original_name)}"`)
+    setResponseHeader(event, 'Cache-Control', isDownload ? 'no-cache' : 'public, max-age=31536000, immutable')
+    setResponseHeader(event, 'Content-Disposition', `${isDownload ? 'attachment' : 'inline'}; filename="${encodeHeaderValue(file.original_name)}"`)
     return sendStream(event, mediaCreateUploadStream(file.storage_path || ''))
   } catch {
     throw createError({ statusCode: 404, message: 'File not found on disk' })

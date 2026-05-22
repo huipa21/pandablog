@@ -1,0 +1,273 @@
+/* ============================================================================
+   Code Block Themes
+   Maps `data-theme` values to highlight.js token styles, matching VS Code.
+   ============================================================================ */
+
+/* Default container colors per theme */
+[data-theme="github-dark"] { --code-bg: #0d1117; --code-fg: #e6edf3; --code-gutter: rgba(148, 163, 184, 0.12); }
+[data-theme="github-light"] { --code-bg: #ffffff; --code-fg: #1f2328; --code-gutter: rgba(31, 35, 40, 0.06); }
+[data-theme="vs-dark"] { --code-bg: #1e1e1e; --code-fg: #d4d4d4; --code-gutter: rgba(255, 255, 255, 0.04); }
+[data-theme="vs-light"] { --code-bg: #ffffff; --code-fg: #000000; --code-gutter: rgba(0, 0, 0, 0.04); }
+[data-theme="monokai"] { --code-bg: #272822; --code-fg: #f8f8f2; --code-gutter: rgba(255, 255, 255, 0.06); }
+[data-theme="dracula"] { --code-bg: #282a36; --code-fg: #f8f8f2; --code-gutter: rgba(255, 255, 255, 0.06); }
+[data-theme="one-dark"] { --code-bg: #282c34; --code-fg: #abb2bf; --code-gutter: rgba(255, 255, 255, 0.05); }
+[data-theme="solarized-dark"] { --code-bg: #002b36; --code-fg: #93a1a1; --code-gutter: rgba(255, 255, 255, 0.05); }
+[data-theme="solarized-light"] { --code-bg: #fdf6e3; --code-fg: #586e75; --code-gutter: rgba(0, 0, 0, 0.04); }
+[data-theme="nord"] { --code-bg: #2e3440; --code-fg: #d8dee9; --code-gutter: rgba(255, 255, 255, 0.05); }
+[data-theme="tomorrow-night"] { --code-bg: #1d1f21; --code-fg: #c5c8c6; --code-gutter: rgba(255, 255, 255, 0.05); }
+
+.codeblock-nodeview pre,
+pre.codeblock-public {
+  background: var(--code-bg) !important;
+  color: var(--code-fg) !important;
+}
+
+.codeblock-nodeview pre code,
+pre.codeblock-public code {
+  color: var(--code-fg) !important;
+  background: transparent !important;
+}
+
+/* ============================================================================
+   Highlight.js token classes per theme
+   ============================================================================ */
+
+/* GitHub Dark */
+[data-theme="github-dark"] .hljs-keyword,
+[data-theme="github-dark"] .hljs-meta .hljs-keyword,
+[data-theme="github-dark"] .hljs-tag { color: #ff7b72; }
+[data-theme="github-dark"] .hljs-string,
+[data-theme="github-dark"] .hljs-attr,
+[data-theme="github-dark"] .hljs-template-tag,
+[data-theme="github-dark"] .hljs-template-variable,
+[data-theme="github-dark"] .hljs-symbol { color: #a5d6ff; }
+[data-theme="github-dark"] .hljs-number,
+[data-theme="github-dark"] .hljs-literal { color: #79c0ff; }
+[data-theme="github-dark"] .hljs-comment,
+[data-theme="github-dark"] .hljs-quote { color: #8b949e; font-style: italic; }
+[data-theme="github-dark"] .hljs-function,
+[data-theme="github-dark"] .hljs-title,
+[data-theme="github-dark"] .hljs-title.function_ { color: #d2a8ff; }
+[data-theme="github-dark"] .hljs-variable,
+[data-theme="github-dark"] .hljs-name,
+[data-theme="github-dark"] .hljs-built_in { color: #ffa657; }
+[data-theme="github-dark"] .hljs-type,
+[data-theme="github-dark"] .hljs-class .hljs-title { color: #ffa657; }
+
+/* GitHub Light */
+[data-theme="github-light"] .hljs-keyword,
+[data-theme="github-light"] .hljs-tag { color: #cf222e; }
+[data-theme="github-light"] .hljs-string,
+[data-theme="github-light"] .hljs-attr { color: #0a3069; }
+[data-theme="github-light"] .hljs-number,
+[data-theme="github-light"] .hljs-literal { color: #0550ae; }
+[data-theme="github-light"] .hljs-comment { color: #6e7781; font-style: italic; }
+[data-theme="github-light"] .hljs-function,
+[data-theme="github-light"] .hljs-title { color: #8250df; }
+[data-theme="github-light"] .hljs-variable,
+[data-theme="github-light"] .hljs-built_in { color: #953800; }
+
+/* VS Code Dark */
+[data-theme="vs-dark"] .hljs-keyword,
+[data-theme="vs-dark"] .hljs-tag { color: #569cd6; }
+[data-theme="vs-dark"] .hljs-string,
+[data-theme="vs-dark"] .hljs-attr { color: #ce9178; }
+[data-theme="vs-dark"] .hljs-number,
+[data-theme="vs-dark"] .hljs-literal { color: #b5cea8; }
+[data-theme="vs-dark"] .hljs-comment { color: #6a9955; font-style: italic; }
+[data-theme="vs-dark"] .hljs-function,
+[data-theme="vs-dark"] .hljs-title { color: #dcdcaa; }
+[data-theme="vs-dark"] .hljs-type,
+[data-theme="vs-dark"] .hljs-class .hljs-title { color: #4ec9b0; }
+[data-theme="vs-dark"] .hljs-variable,
+[data-theme="vs-dark"] .hljs-built_in { color: #9cdcfe; }
+
+/* VS Code Light */
+[data-theme="vs-light"] .hljs-keyword,
+[data-theme="vs-light"] .hljs-tag { color: #0000ff; }
+[data-theme="vs-light"] .hljs-string,
+[data-theme="vs-light"] .hljs-attr { color: #a31515; }
+[data-theme="vs-light"] .hljs-number,
+[data-theme="vs-light"] .hljs-literal { color: #098658; }
+[data-theme="vs-light"] .hljs-comment { color: #008000; font-style: italic; }
+[data-theme="vs-light"] .hljs-function,
+[data-theme="vs-light"] .hljs-title { color: #795e26; }
+[data-theme="vs-light"] .hljs-type,
+[data-theme="vs-light"] .hljs-class .hljs-title { color: #267f99; }
+
+/* Monokai */
+[data-theme="monokai"] .hljs-keyword,
+[data-theme="monokai"] .hljs-tag { color: #f92672; }
+[data-theme="monokai"] .hljs-string,
+[data-theme="monokai"] .hljs-attr { color: #e6db74; }
+[data-theme="monokai"] .hljs-number,
+[data-theme="monokai"] .hljs-literal { color: #ae81ff; }
+[data-theme="monokai"] .hljs-comment { color: #75715e; font-style: italic; }
+[data-theme="monokai"] .hljs-function,
+[data-theme="monokai"] .hljs-title { color: #a6e22e; }
+[data-theme="monokai"] .hljs-type,
+[data-theme="monokai"] .hljs-class .hljs-title { color: #66d9ef; }
+
+/* Dracula */
+[data-theme="dracula"] .hljs-keyword,
+[data-theme="dracula"] .hljs-tag { color: #ff79c6; }
+[data-theme="dracula"] .hljs-string,
+[data-theme="dracula"] .hljs-attr { color: #f1fa8c; }
+[data-theme="dracula"] .hljs-number,
+[data-theme="dracula"] .hljs-literal { color: #bd93f9; }
+[data-theme="dracula"] .hljs-comment { color: #6272a4; font-style: italic; }
+[data-theme="dracula"] .hljs-function,
+[data-theme="dracula"] .hljs-title { color: #50fa7b; }
+[data-theme="dracula"] .hljs-type,
+[data-theme="dracula"] .hljs-class .hljs-title { color: #8be9fd; }
+
+/* One Dark Pro */
+[data-theme="one-dark"] .hljs-keyword,
+[data-theme="one-dark"] .hljs-tag { color: #c678dd; }
+[data-theme="one-dark"] .hljs-string,
+[data-theme="one-dark"] .hljs-attr { color: #98c379; }
+[data-theme="one-dark"] .hljs-number,
+[data-theme="one-dark"] .hljs-literal { color: #d19a66; }
+[data-theme="one-dark"] .hljs-comment { color: #5c6370; font-style: italic; }
+[data-theme="one-dark"] .hljs-function,
+[data-theme="one-dark"] .hljs-title { color: #61afef; }
+[data-theme="one-dark"] .hljs-type,
+[data-theme="one-dark"] .hljs-class .hljs-title { color: #e5c07b; }
+[data-theme="one-dark"] .hljs-variable,
+[data-theme="one-dark"] .hljs-built_in { color: #e06c75; }
+
+/* Solarized Dark */
+[data-theme="solarized-dark"] .hljs-keyword { color: #859900; }
+[data-theme="solarized-dark"] .hljs-string,
+[data-theme="solarized-dark"] .hljs-attr { color: #2aa198; }
+[data-theme="solarized-dark"] .hljs-number,
+[data-theme="solarized-dark"] .hljs-literal { color: #d33682; }
+[data-theme="solarized-dark"] .hljs-comment { color: #586e75; font-style: italic; }
+[data-theme="solarized-dark"] .hljs-function,
+[data-theme="solarized-dark"] .hljs-title { color: #268bd2; }
+[data-theme="solarized-dark"] .hljs-type,
+[data-theme="solarized-dark"] .hljs-class .hljs-title { color: #b58900; }
+
+/* Solarized Light */
+[data-theme="solarized-light"] .hljs-keyword { color: #859900; }
+[data-theme="solarized-light"] .hljs-string,
+[data-theme="solarized-light"] .hljs-attr { color: #2aa198; }
+[data-theme="solarized-light"] .hljs-number,
+[data-theme="solarized-light"] .hljs-literal { color: #d33682; }
+[data-theme="solarized-light"] .hljs-comment { color: #93a1a1; font-style: italic; }
+[data-theme="solarized-light"] .hljs-function,
+[data-theme="solarized-light"] .hljs-title { color: #268bd2; }
+[data-theme="solarized-light"] .hljs-type { color: #b58900; }
+
+/* Nord */
+[data-theme="nord"] .hljs-keyword,
+[data-theme="nord"] .hljs-tag { color: #81a1c1; }
+[data-theme="nord"] .hljs-string,
+[data-theme="nord"] .hljs-attr { color: #a3be8c; }
+[data-theme="nord"] .hljs-number,
+[data-theme="nord"] .hljs-literal { color: #b48ead; }
+[data-theme="nord"] .hljs-comment { color: #4c566a; font-style: italic; }
+[data-theme="nord"] .hljs-function,
+[data-theme="nord"] .hljs-title { color: #88c0d0; }
+[data-theme="nord"] .hljs-type,
+[data-theme="nord"] .hljs-class .hljs-title { color: #8fbcbb; }
+
+/* Tomorrow Night */
+[data-theme="tomorrow-night"] .hljs-keyword { color: #b294bb; }
+[data-theme="tomorrow-night"] .hljs-string,
+[data-theme="tomorrow-night"] .hljs-attr { color: #b5bd68; }
+[data-theme="tomorrow-night"] .hljs-number,
+[data-theme="tomorrow-night"] .hljs-literal { color: #de935f; }
+[data-theme="tomorrow-night"] .hljs-comment { color: #969896; font-style: italic; }
+[data-theme="tomorrow-night"] .hljs-function,
+[data-theme="tomorrow-night"] .hljs-title { color: #81a2be; }
+[data-theme="tomorrow-night"] .hljs-type { color: #f0c674; }
+
+/* ============================================================================
+   Public Display Code Block (with Copy button)
+   ============================================================================ */
+
+.codeblock-public-wrap {
+  position: relative;
+  margin: 1.5rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.codeblock-public-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.codeblock-public-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  cursor: pointer;
+  border: 0;
+  transition: background-color 120ms ease;
+}
+
+.codeblock-public-copy:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.codeblock-public {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.codeblock-public.with-line-numbers {
+  counter-reset: code-line;
+}
+
+.codeblock-public.with-line-numbers .code-line {
+  display: block;
+  padding-left: 3rem;
+  position: relative;
+}
+
+.codeblock-public.with-line-numbers .code-line::before {
+  counter-increment: code-line;
+  content: counter(code-line);
+  position: absolute;
+  left: 0;
+  width: 2.25rem;
+  text-align: right;
+  color: rgba(148, 163, 184, 0.55);
+  user-select: none;
+}
+
+/* Light theme adjustments for public header */
+[data-theme="github-light"] .codeblock-public-header,
+[data-theme="vs-light"] .codeblock-public-header,
+[data-theme="solarized-light"] .codeblock-public-header {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.6);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="github-light"] .codeblock-public-copy,
+[data-theme="vs-light"] .codeblock-public-copy,
+[data-theme="solarized-light"] .codeblock-public-copy {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.7);
+}
