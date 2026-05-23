@@ -1,45 +1,8 @@
-import type { JsonContent, PostRecord, PostStatus, PostVisibility } from '~/types/content'
+import type { PostRecord, PostStatus, PostVisibility } from '~/types/content'
+import { emptyDoc } from './blocks'
 import { stringifyRecordId } from './surrealResult'
 
 const allowedStatuses: PostStatus[] = ['draft', 'published', 'archived']
-
-export function emptyDoc(): JsonContent {
-  return {
-    type: 'doc',
-    content: [
-      {
-        type: 'paragraph',
-        content: []
-      }
-    ]
-  }
-}
-
-export function flattenContent(node: JsonContent | null | undefined): string {
-  if (!node) {
-    return ''
-  }
-
-  if (node.type === 'text') {
-    return node.text ?? ''
-  }
-
-  if (node.type === 'wikiLink') {
-    return stringAttr(node.attrs?.label) || stringAttr(node.attrs?.target)
-  }
-
-  if (node.type === 'mermaid') {
-    return stringAttr(node.attrs?.code)
-  }
-
-  if (node.type === 'image') {
-    return stringAttr(node.attrs?.alt) || stringAttr(node.attrs?.title)
-  }
-
-  const ownText = typeof node.text === 'string' ? node.text : ''
-  const childText = node.content?.map(flattenContent).filter(Boolean).join(' ') ?? ''
-  return [ownText, childText].filter(Boolean).join(' ')
-}
 
 export function slugify(value: string) {
   return value
@@ -55,14 +18,18 @@ export function cleanStatus(value: unknown): PostStatus {
   return allowedStatuses.includes(value as PostStatus) ? value as PostStatus : 'draft'
 }
 
+/**
+ * Convert a raw `post` row from SurrealDB into the public PostRecord shape.
+ * Block content is *not* loaded here — callers that need the rendered doc
+ * should also call `loadBlocksForPost` and set `content_json` accordingly.
+ */
 export function normalizePost(record: Record<string, unknown>): PostRecord {
   return {
     id: stringifyRecordId(record.id),
     title: String(record.title ?? ''),
     slug: String(record.slug ?? ''),
     summary: record.summary === undefined ? null : record.summary as string | null,
-    content_json: record.content_json as JsonContent ?? emptyDoc(),
-    content_text: String(record.content_text ?? ''),
+    content_json: emptyDoc(),
     status: cleanStatus(record.status),
     cover_image: record.cover_image === undefined ? null : record.cover_image as string | null,
     author_username: String(record.author_username ?? 'admin'),
@@ -87,11 +54,13 @@ export function serializeDate(value: unknown): string | null {
   return String(value)
 }
 
+/**
+ * Build the persisted post-meta payload from form input. Block content is
+ * handled separately by `syncPostBlocks` and is intentionally *not* included
+ * in the returned payload.
+ */
 export function buildPostPayload(input: Record<string, unknown>, authorUsername: string) {
   const title = String(input.title ?? '').trim()
-  const contentJson = (input.content_json && typeof input.content_json === 'object')
-    ? input.content_json as JsonContent
-    : emptyDoc()
   const status = cleanStatus(input.status)
   const now = new Date()
   const summary = stringOrNull(input.summary)
@@ -99,8 +68,6 @@ export function buildPostPayload(input: Record<string, unknown>, authorUsername:
   const payload: Record<string, unknown> = {
     title,
     slug: slugify(String(input.slug || title)),
-    content_json: contentJson,
-    content_text: flattenContent(contentJson),
     status,
     author_username: authorUsername,
     updated_at: now
@@ -128,10 +95,6 @@ export function stringOrNull(value: unknown): string | null {
 
   const trimmed = value.trim()
   return trimmed ? trimmed : null
-}
-
-function stringAttr(value: unknown) {
-  return typeof value === 'string' ? value.trim() : ''
 }
 
 function cleanVisibility(value: unknown): PostVisibility {

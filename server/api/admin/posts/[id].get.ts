@@ -3,6 +3,7 @@ import { normalizePost } from '../../../utils/content'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
 import { requireAdminUser } from '../../../utils/auth'
 import { readPostTaxonomy } from '../../../utils/taxonomy'
+import { buildDocFromBlocks, loadBlocksForPost } from '../../../utils/blocks'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
@@ -14,13 +15,17 @@ export default defineEventHandler(async (event) => {
     id
   })
   const post = firstRow<Record<string, unknown>>(response)
-
   if (!post) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }
 
+  const normalized = normalizePost(post)
+  const blocks = await loadBlocksForPost(db, normalized.id)
+
   return {
-    ...normalizePost(post),
+    ...normalized,
+    content_json: buildDocFromBlocks(blocks),
+    blocks,
     ...await readPostTaxonomy(db, id)
   }
 })

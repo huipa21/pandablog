@@ -1,13 +1,20 @@
--- ============ CLEANUP LEGACY TABLES ============
+-- ============ CLEANUP LEGACY TABLES & FIELDS ============
 REMOVE TABLE IF EXISTS asset;
 REMOVE TABLE IF EXISTS media;
+REMOVE TABLE IF EXISTS concept;
+REMOVE TABLE IF EXISTS mentions;
+REMOVE FIELD IF EXISTS content_json ON post;
+REMOVE FIELD IF EXISTS content_text ON post;
+REMOVE INDEX IF EXISTS post_content_fts ON post;
 
+-- ============ ANALYZER ============
+DEFINE ANALYZER IF NOT EXISTS blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ascii;
+
+-- ============ POST (metadata only — block content lives in `block` table) ============
 DEFINE TABLE IF NOT EXISTS post SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS title ON post TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON post TYPE string;
 DEFINE FIELD IF NOT EXISTS summary ON post TYPE option<string>;
-DEFINE FIELD OVERWRITE content_json ON post TYPE object FLEXIBLE;
-DEFINE FIELD IF NOT EXISTS content_text ON post TYPE string DEFAULT '';
 DEFINE FIELD IF NOT EXISTS status ON post TYPE string DEFAULT 'draft' ASSERT $value IN ['draft', 'published', 'archived'];
 DEFINE FIELD IF NOT EXISTS cover_image ON post TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS author_username ON post TYPE string DEFAULT 'admin';
@@ -18,6 +25,8 @@ DEFINE FIELD IF NOT EXISTS view_count ON post TYPE int DEFAULT 0;
 DEFINE INDEX IF NOT EXISTS post_slug_unique ON TABLE post COLUMNS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS post_status ON TABLE post COLUMNS status;
 DEFINE INDEX IF NOT EXISTS post_published_at ON TABLE post COLUMNS published_at;
+DEFINE INDEX IF NOT EXISTS post_title_fts ON TABLE post COLUMNS title FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
+DEFINE INDEX IF NOT EXISTS post_summary_fts ON TABLE post COLUMNS summary FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 
 DEFINE TABLE IF NOT EXISTS tag SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS name ON tag TYPE string;
@@ -30,21 +39,31 @@ DEFINE FIELD IF NOT EXISTS slug ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS description ON category TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS category_slug_unique ON TABLE category COLUMNS slug UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS concept SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS name ON concept TYPE string;
-DEFINE FIELD IF NOT EXISTS slug ON concept TYPE string;
-DEFINE FIELD IF NOT EXISTS description ON concept TYPE option<string>;
-DEFINE INDEX IF NOT EXISTS concept_slug_unique ON TABLE concept COLUMNS slug UNIQUE;
-
 DEFINE TABLE IF NOT EXISTS tagged TYPE RELATION FROM post TO tag;
 DEFINE TABLE IF NOT EXISTS categorized_as TYPE RELATION FROM post TO category;
-DEFINE TABLE IF NOT EXISTS mentions TYPE RELATION FROM post TO concept SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS context ON mentions TYPE option<string>;
 
-DEFINE ANALYZER IF NOT EXISTS blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ascii;
-DEFINE INDEX IF NOT EXISTS post_title_fts ON TABLE post COLUMNS title FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
-DEFINE INDEX IF NOT EXISTS post_summary_fts ON TABLE post COLUMNS summary FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
-DEFINE INDEX IF NOT EXISTS post_content_fts ON TABLE post COLUMNS content_text FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
+-- ============ BLOCK (top-level Tiptap node, one row per block) ============
+DEFINE TABLE IF NOT EXISTS block SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS type ON block TYPE string;
+DEFINE FIELD IF NOT EXISTS node ON block TYPE object FLEXIBLE;
+DEFINE FIELD IF NOT EXISTS text ON block TYPE string DEFAULT '';
+DEFINE FIELD IF NOT EXISTS content_hash ON block TYPE string DEFAULT '';
+DEFINE FIELD IF NOT EXISTS created_at ON block TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON block TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS block_type ON block FIELDS type;
+DEFINE INDEX IF NOT EXISTS block_text_fts ON TABLE block COLUMNS text FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
+
+-- ============ HAS_BLOCKS (post -> block edge with sequence) ============
+DEFINE TABLE IF NOT EXISTS has_blocks TYPE RELATION FROM post TO block SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS seq ON has_blocks TYPE int;
+DEFINE INDEX IF NOT EXISTS has_blocks_in_seq ON TABLE has_blocks FIELDS in, seq;
+DEFINE INDEX IF NOT EXISTS has_blocks_out ON TABLE has_blocks FIELDS out;
+
+-- ============ LINKS (post -> post bidirectional relation) ============
+DEFINE TABLE IF NOT EXISTS links TYPE RELATION FROM post TO post SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS created_at ON links TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS links_in ON TABLE links FIELDS in;
+DEFINE INDEX IF NOT EXISTS links_out ON TABLE links FIELDS out;
 
 -- ============ POST VISIBILITY (additions to existing post table) ============
 DEFINE FIELD IF NOT EXISTS visibility ON post TYPE string DEFAULT 'public' ASSERT $value IN ['public', 'private', 'password'];

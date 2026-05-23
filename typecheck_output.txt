@@ -1,2 +1,0 @@
-[36mΓä╣[39m Nuxt Icon server bundle mode is set to [36mlocal[39m
-[32mΓ£ö[39m Nuxt Icon discovered local-installed 1 collections: lucide

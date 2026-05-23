@@ -2,6 +2,7 @@ import { queryDb, useDb } from '../../utils/db'
 import { normalizePost } from '../../utils/content'
 import { firstRow, stringifyRecordId } from '../../utils/surrealResult'
 import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../utils/visibility'
+import { buildDocFromBlocks, loadBlocksForPost } from '../../utils/blocks'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
@@ -46,7 +47,15 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return normalizePost(sanitizePost(post))
+  const sanitized = sanitizePost(post)
+  const normalized = normalizePost(sanitized)
+  const blocks = await loadBlocksForPost(db, normalized.id)
+
+  return {
+    ...normalized,
+    content_json: buildDocFromBlocks(blocks),
+    blocks
+  }
 })
 
 function toPostVisibility(value: unknown): PostVisibility {

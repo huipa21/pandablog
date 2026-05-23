@@ -1,5 +1,5 @@
 <template>
-  <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer">
+  <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer" @click="onRootClick">
     <ClientOnly>
       <div class="relative">
         <InlineToolbar v-if="editor" :editor="editor" />
@@ -114,6 +114,19 @@
           @update:open="setMediaPickerOpen"
           @select="handleMediaPicked"
         />
+
+        <MediaPicker
+          :open="mediaTextPickerOpen"
+          return-value="url"
+          type-filter="all"
+          @update:open="setMediaTextPickerOpen"
+          @select="handleMediaTextPicked"
+        />
+
+        <RelatedPostPicker
+          v-model="relatedPostPickerOpen"
+          @confirm="onRelatedPostSelect"
+        />
       </div>
       <template #fallback>
         <div class="min-h-96 rounded-md border border-dashed border-stone-300 p-5 text-sm text-stone-500">Loading editor...</div>
@@ -140,6 +153,7 @@ import TableRow from '@tiptap/extension-table-row'
 import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import type { Editor } from '@tiptap/core'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import '~/assets/css/editor-craft.css'
 import '~/assets/css/code-themes.css'
 import type { EditorView } from '@tiptap/pm/view'
@@ -147,13 +161,13 @@ import { all, createLowlight } from 'lowlight'
 import type { JsonContent, MediaRecord } from '~/types/content'
 import { MermaidNode } from '~/extensions/mermaid'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
-import { normalizeWikiTarget, WikiLinkNode } from '~/extensions/wikiLink'
+import { RelatedPostNode } from '~/extensions/relatedPost'
 import { CodeBlockEnhanced } from '~/extensions/codeBlockEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
 import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
-import WikiLinkNodeView from '~/components/admin/editor/WikiLinkNodeView.vue'
+import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.vue'
 import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
@@ -166,6 +180,7 @@ import SlashCommandMenu from '~/components/admin/editor/SlashCommandMenu.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import BlockPopupToolbar from '~/components/admin/editor/BlockPopupToolbar.vue'
 import MediaPicker from '~/components/admin/media/MediaPicker.vue'
+import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 
 const props = defineProps<{
@@ -182,6 +197,13 @@ const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
 const editorContainer = ref<HTMLElement | null>(null)
 const mediaPickerOpen = ref(false)
+const mediaTextPickerOpen = ref(false)
+const mediaTextTargetPos = ref<number | null>(null)
+const relatedPostPickerOpen = ref(false)
+const relatedPostMode = ref<'inline' | 'at' | 'replace'>('inline')
+const relatedPostPendingPos = ref<number | null>(null)
+const relatedPostPendingRange = ref<{ from: number; to: number } | null>(null)
+let lastCtrlAStamp = 0
 
 // Active block tracking (for + button and drag handle placement)
 const activeBlockRect = ref<{ top: number; height: number } | null>(null)
@@ -285,7 +307,23 @@ const editor = useEditor({
       }
     }),
     Placeholder.configure({
-      placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : 'Type / to choose a block'
+      includeChildren: true,
+      showOnlyCurrent: false,
+      placeholder: ({ node }) => {
+        switch (node.type.name) {
+          case 'heading': {
+            const level = Number((node.attrs as { level?: number }).level ?? 1)
+            return `Heading ${level}`
+          }
+          case 'blockquote': return 'Quote'
+          case 'codeBlock': return 'Code'
+          case 'bulletList':
+          case 'orderedList':
+          case 'listItem': return 'List item'
+          case 'paragraph': return 'Type / to choose a block, or just start writing'
+          default: return ''
+        }
+      }
     }),
     TextAlign.configure({
       types: ['heading', 'paragraph']
@@ -301,9 +339,10 @@ const editor = useEditor({
         return VueNodeViewRenderer(MermaidNodeView)
       }
     }),
-    WikiLinkNode.extend({
+    // RelatedPost: same shape as the removed wikiLink node, but with a Vue NodeView and no input rule.
+    RelatedPostNode.extend({
       addNodeView() {
-        return VueNodeViewRenderer(WikiLinkNodeView)
+        return VueNodeViewRenderer(RelatedPostNodeView)
       }
     }),
     BlockReorderCommands
@@ -326,7 +365,37 @@ const editor = useEditor({
       }
       return false
     },
-    handleKeyDown(_view, event) {
+    handleKeyDown(view, event) {
+      // Ctrl/Cmd + A: first press selects current block, second within 400ms selects whole doc.
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'a' || event.key === 'A')) {
+        const now = Date.now()
+        const isDouble = now - lastCtrlAStamp < 400
+        lastCtrlAStamp = now
+        const state = view.state
+        if (isDouble) {
+          // Select everything
+          const tr = state.tr.setSelection(TextSelection.create(state.doc, 0, state.doc.content.size))
+          view.dispatch(tr)
+          event.preventDefault()
+          return true
+        }
+        // Select inside current top-level block only
+        const { $from } = state.selection
+        let blockDepth = 0
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
+        }
+        if (blockDepth > 0) {
+          const start = $from.start(blockDepth)
+          const end = $from.end(blockDepth)
+          const tr = state.tr.setSelection(TextSelection.create(state.doc, start, end))
+          view.dispatch(tr)
+          event.preventDefault()
+          return true
+        }
+        return false
+      }
+
       if (!slashOpen.value) return false
 
       if (event.key === 'Escape') {
@@ -366,7 +435,17 @@ const editor = useEditor({
     scheduleTrackActiveBlock(ed)
     syncSelectedBlock(ed)
   },
-  onBlur() {
+  onBlur({ event }) {
+    // If focus moved into our own popup toolbar / pickers, keep the active block visible
+    const next = event?.relatedTarget as HTMLElement | null
+    if (next && (
+      next.closest('[data-testid="block-popup-toolbar"]')
+      || next.closest('[data-testid="block-drag-handle"]')
+      || next.closest('[role="menu"]')
+      || next.closest('[data-floating-ui-portal]')
+    )) {
+      return
+    }
     window.setTimeout(() => {
       if (!editor.value?.isFocused) {
         activeBlockRect.value = null
@@ -398,6 +477,7 @@ watch(slashItems, (items) => {
 onMounted(() => {
   window.addEventListener('scroll', handleViewportChange, true)
   window.addEventListener('resize', handleViewportChange)
+  editorContainer.value?.addEventListener('mediatext-pick', onMediaTextPickEvent as EventListener)
   if (editor.value) {
     scheduleTrackActiveBlock(editor.value)
   }
@@ -406,6 +486,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleViewportChange, true)
   window.removeEventListener('resize', handleViewportChange)
+  editorContainer.value?.removeEventListener('mediatext-pick', onMediaTextPickEvent as EventListener)
   if (trackFrame !== null) {
     window.cancelAnimationFrame(trackFrame)
   }
@@ -710,8 +791,8 @@ function insertBlockAtPosition(name: string, pos: number) {
     return
   }
 
-  if (name === 'wikiLink') {
-    insertWikiLinkAtPosition(safePos)
+  if (name === 'relatedPost') {
+    insertRelatedPostAtPosition(safePos)
     return
   }
 
@@ -746,8 +827,8 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
     return
   }
 
-  if (name === 'wikiLink') {
-    insertWikiLinkReplacingRange(range)
+  if (name === 'relatedPost') {
+    insertRelatedPostReplacingRange(range)
     return
   }
 
@@ -864,43 +945,57 @@ function animateDroppedBlock(index: number) {
 
 // ─── UTILITY ─────────────────────────────────────────────────────────────────
 
-function insertWikiLink() {
-  const label = window.prompt('Wiki link label')?.trim()
-  if (!label) return
-  const target = normalizeWikiTarget(label)
-  if (!target) return
-  editor.value?.chain().focus().insertContent({
-    type: 'wikiLink',
-    attrs: { target, label }
-  }).insertContent(' ').run()
+function insertRelatedPost() {
+  relatedPostMode.value = 'inline'
+  relatedPostPendingPos.value = null
+  relatedPostPendingRange.value = null
+  relatedPostPickerOpen.value = true
 }
 
-function insertWikiLinkAtPosition(pos: number) {
-  const label = window.prompt('Wiki link label')?.trim()
-  if (!label) return
-  const target = normalizeWikiTarget(label)
-  if (!target) return
-  editor.value?.chain().focus().insertContentAt(pos, {
-    type: 'paragraph',
-    content: [
-      { type: 'wikiLink', attrs: { target, label } },
-      { type: 'text', text: ' ' }
-    ]
-  }).run()
+function insertRelatedPostAtPosition(pos: number) {
+  relatedPostMode.value = 'at'
+  relatedPostPendingPos.value = pos
+  relatedPostPendingRange.value = null
+  relatedPostPickerOpen.value = true
 }
 
-function insertWikiLinkReplacingRange(range: { from: number; to: number }) {
-  const label = window.prompt('Wiki link label')?.trim()
-  if (!label) return
-  const target = normalizeWikiTarget(label)
+function insertRelatedPostReplacingRange(range: { from: number; to: number }) {
+  relatedPostMode.value = 'replace'
+  relatedPostPendingPos.value = null
+  relatedPostPendingRange.value = range
+  relatedPostPickerOpen.value = true
+}
+
+function onRelatedPostSelect(item: { label: string; target: string }) {
+  const ed = editor.value
+  if (!ed) return
+  const target = (item.target || '').trim()
+  const label = (item.label || '').trim() || target
   if (!target) return
-  editor.value?.chain().focus().deleteRange(range).insertContent({
-    type: 'paragraph',
-    content: [
-      { type: 'wikiLink', attrs: { target, label } },
-      { type: 'text', text: ' ' }
-    ]
-  }).run()
+  if (relatedPostMode.value === 'inline') {
+    ed.chain().focus().insertContent({
+      type: 'relatedPost',
+      attrs: { target, label }
+    }).insertContent(' ').run()
+  } else if (relatedPostMode.value === 'at' && relatedPostPendingPos.value !== null) {
+    ed.chain().focus().insertContentAt(relatedPostPendingPos.value, {
+      type: 'paragraph',
+      content: [
+        { type: 'relatedPost', attrs: { target, label } },
+        { type: 'text', text: ' ' }
+      ]
+    }).run()
+  } else if (relatedPostMode.value === 'replace' && relatedPostPendingRange.value) {
+    ed.chain().focus().deleteRange(relatedPostPendingRange.value).insertContent({
+      type: 'paragraph',
+      content: [
+        { type: 'relatedPost', attrs: { target, label } },
+        { type: 'text', text: ' ' }
+      ]
+    }).run()
+  }
+  relatedPostPendingPos.value = null
+  relatedPostPendingRange.value = null
 }
 
 function createTableContent(): JsonContent {
@@ -978,6 +1073,121 @@ function setMediaPickerOpen(value: boolean) {
   }
 }
 
+// ─── MEDIA + TEXT PICKER FLOW ────────────────────────────────────────────────
+
+function setMediaTextPickerOpen(value: boolean) {
+  mediaTextPickerOpen.value = value
+  if (!value) mediaTextTargetPos.value = null
+}
+
+function onMediaTextPickEvent(event: Event) {
+  const e = event as CustomEvent<{ source: 'library' | 'upload' | 'url'; nodePos: number | null }>
+  const detail = e.detail
+  if (!detail) return
+  mediaTextTargetPos.value = detail.nodePos
+  if (detail.source === 'library') {
+    mediaTextPickerOpen.value = true
+  } else if (detail.source === 'upload') {
+    triggerLocalFileUploadForMediaText()
+  } else if (detail.source === 'url') {
+    promptRemoteUrlForMediaText()
+  }
+}
+
+function handleMediaTextPicked(files: MediaRecord[]) {
+  const ed = editor.value
+  const pos = mediaTextTargetPos.value
+  const file = files[0]
+  if (!ed || pos === null || !file) {
+    setMediaTextPickerOpen(false)
+    return
+  }
+  ed.chain().focus().command(({ tr }) => {
+    const node = tr.doc.nodeAt(pos)
+    if (!node || node.type.name !== 'mediaText') return false
+    tr.setNodeMarkup(pos, undefined, {
+      ...node.attrs,
+      mediaSrc: file.url,
+      mediaAlt: file.original_name ?? '',
+      mediaName: file.original_name ?? '',
+      mediaMime: file.mime_type ?? '',
+      mediaSize: typeof file.size === 'number' ? file.size : null,
+      mediaWidth: typeof file.width === 'number' ? file.width : null,
+      mediaHeight: typeof file.height === 'number' ? file.height : null
+    })
+    return true
+  }).run()
+  setMediaTextPickerOpen(false)
+}
+
+function triggerLocalFileUploadForMediaText() {
+  if (mediaTextTargetPos.value === null) return
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const asset = await $fetch<MediaRecord>('/api/admin/upload', { method: 'POST', body: formData })
+      if (asset?.url) {
+        handleMediaTextPicked([asset])
+      }
+    } catch {
+      debugEditor('Media+Text upload failed.')
+    }
+  }
+  input.click()
+}
+
+function promptRemoteUrlForMediaText() {
+  const url = window.prompt('Remote media URL')?.trim()
+  if (!url) return
+  // Best-effort fake MediaRecord shape so handleMediaTextPicked can apply it.
+  const name = url.split('/').pop()?.split('?')[0] ?? url
+  const ext = (name.split('.').pop() ?? '').toLowerCase()
+  const mimeGuess = (() => {
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg'].includes(ext)) return `image/${ext === 'jpg' ? 'jpeg' : ext}`
+    if (['mp4', 'webm', 'ogg'].includes(ext)) return `video/${ext}`
+    if (['mp3', 'wav', 'flac'].includes(ext)) return `audio/${ext === 'mp3' ? 'mpeg' : ext}`
+    if (ext === 'pdf') return 'application/pdf'
+    return ''
+  })()
+  handleMediaTextPicked([{
+    url,
+    original_name: name,
+    mime_type: mimeGuess
+  } as unknown as MediaRecord])
+}
+
+// ─── CLICK EMPTY AREA TO ADD A NEW LINE ──────────────────────────────────────
+
+function onRootClick(event: MouseEvent) {
+  const ed = editor.value
+  if (!ed) return
+  const target = event.target as HTMLElement | null
+  if (!target) return
+  // Only act when click happened on the editor wrapper itself (not on any text/block content).
+  if (target !== editorContainer.value && !target.classList.contains('block-editor-root')) {
+    // Also accept clicks on the ProseMirror root itself but below the last child
+    const root = editorContainer.value?.querySelector('.ProseMirror') as HTMLElement | null
+    if (!root || target !== root) return
+    const lastChild = root.lastElementChild as HTMLElement | null
+    if (!lastChild) return
+    const rect = lastChild.getBoundingClientRect()
+    if (event.clientY < rect.bottom) return
+  }
+  const docSize = ed.state.doc.content.size
+  // Avoid adding when last block is already an empty paragraph
+  const last = ed.state.doc.lastChild
+  if (last && last.type.name === 'paragraph' && last.content.size === 0) {
+    ed.chain().focus().setTextSelection(docSize).run()
+    return
+  }
+  ed.chain().focus().insertContentAt(docSize, { type: 'paragraph' }).run()
+}
+
 function debugEditor(message: string) {
   if (import.meta.dev) {
     console.warn(`[BlockEditor] ${message}`)
@@ -985,7 +1195,20 @@ function debugEditor(message: string) {
 }
 
 function syncSelectedBlock(ed: Editor) {
-  const { $from } = ed.state.selection
+  const sel = ed.state.selection
+  // Handle atom node selections (image, customHtml, mermaid, etc.) which don't have a parent block depth.
+  if (sel instanceof NodeSelection) {
+    const node = sel.node
+    const pos = sel.from
+    editorStore.selectBlock({
+      id: `${node.type.name}:${pos}`,
+      type: node.type.name,
+      attrs: node.attrs,
+      pos
+    })
+    return
+  }
+  const { $from } = sel
   for (let depth = $from.depth; depth > 0; depth--) {
     if ($from.node(depth - 1).type.name === 'doc') {
       const node = $from.node(depth)
@@ -1076,6 +1299,14 @@ function syncSelectedBlock(ed: Editor) {
   background: rgb(28 25 23);
   color: rgb(245 245 244);
   padding: 1rem;
+}
+
+/* Code block NodeView owns its own styling — do not override its inner <pre>. */
+:deep(.pandablog-block-editor .ProseMirror .codeblock-nodeview pre) {
+  background: transparent;
+  color: inherit;
+  padding: 0.75rem 1rem;
+  border-radius: 0;
 }
 
 :deep(.pandablog-block-editor .ProseMirror img) {

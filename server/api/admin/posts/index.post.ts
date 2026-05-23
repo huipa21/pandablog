@@ -3,11 +3,11 @@ import { buildPostPayload, normalizePost, stringOrNull } from '../../../utils/co
 import { firstRow } from '../../../utils/surrealResult'
 import { requireAdminUser } from '../../../utils/auth'
 import { uniquePostSlug } from '../../../utils/posts'
-import { syncPostMentions } from '../../../utils/wikiLinks'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
 import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
-import type { PostVisibility } from '~/types/content'
+import { buildDocFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks } from '../../../utils/blocks'
+import type { JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAdminUser(event)
@@ -25,7 +25,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const visibilityUpdates: Record<string, unknown> = { visibility }
-
   if (visibility === 'password') {
     visibilityUpdates.password_hint = stringOrNull(body.password_hint)
     visibilityUpdates.password_hash = await hashPostPassword(password)
@@ -47,13 +46,17 @@ export default defineEventHandler(async (event) => {
     }
   )
   const post = firstRow<Record<string, unknown>>(response)
-
   if (!post) {
     throw createError({ statusCode: 500, message: 'Post was not created' })
   }
 
   const normalizedPost = normalizePost(post)
-  await syncPostMentions(db, normalizedPost.id, normalizedPost.content_json)
+  const incomingDoc = parseDoc(body.content_json)
+  const incomingBlocks = extractBlocksFromDoc(incomingDoc)
+  const blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks)
+  const linkedSlugs = await syncPostLinks(db, normalizedPost.id, blocks)
+  const reassembledDoc = buildDocFromBlocks(blocks)
+
   await syncPostTaxonomy(
     db,
     normalizedPost.id,
@@ -62,17 +65,23 @@ export default defineEventHandler(async (event) => {
     body.tag_names,
     body.category_names
   )
-  await mediaSyncRecordReferences(db, normalizedPost.id, [], [normalizedPost.cover_image, normalizedPost.content_json])
+  await mediaSyncRecordReferences(db, normalizedPost.id, [], [normalizedPost.cover_image, reassembledDoc])
 
   return {
     ...normalizedPost,
+    content_json: reassembledDoc,
+    blocks,
+    linked_post_slugs: linkedSlugs,
     ...await readPostTaxonomy(db, normalizedPost.id)
   }
 })
 
 function normalizeVisibility(value: unknown): PostVisibility {
-  if (value === 'private' || value === 'password') {
-    return value
-  }
+  if (value === 'private' || value === 'password') return value
   return 'public'
+}
+
+function parseDoc(value: unknown): JsonContent | null {
+  if (value && typeof value === 'object') return value as JsonContent
+  return null
 }

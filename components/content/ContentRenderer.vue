@@ -5,7 +5,7 @@
   <NodeImage v-else-if="node.type === 'image'" :node="node" />
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
-  <NodeWikiLink v-else-if="node.type === 'wikiLink'" :node="node" />
+  <NodeRelatedPost v-else-if="node.type === 'relatedPost'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
@@ -20,7 +20,7 @@ import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeImage from './NodeImage.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
-import NodeWikiLink from './NodeWikiLink.vue'
+import NodeRelatedPost from './NodeRelatedPost.vue'
 
 const props = defineProps<{
   node: JsonContent

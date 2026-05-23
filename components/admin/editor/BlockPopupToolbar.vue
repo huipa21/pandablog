@@ -7,6 +7,7 @@
       :style="floatingStyles"
       contenteditable="false"
       data-testid="block-popup-toolbar"
+      @mousedown.prevent
     >
       <UDropdownMenu :items="transformItems">
         <button type="button" class="bpt-btn" title="Transform to...">
