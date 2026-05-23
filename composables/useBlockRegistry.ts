@@ -209,12 +209,12 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
-    name: 'wikiLink',
-    title: 'Wiki Link',
-    description: 'Insert an internal wiki-style link.',
-    icon: 'i-lucide-brackets',
+    name: 'relatedPost',
+    title: 'Related Post',
+    description: 'Insert a link to another post (bidirectional).',
+    icon: 'i-lucide-link',
     category: 'advanced',
-    keywords: ['concept', 'internal', 'link'],
+    keywords: ['related', 'link', 'post', 'wiki'],
     implemented: true,
     supports: {}
   }

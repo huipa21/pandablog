@@ -46,6 +46,7 @@
       <aside class="hidden space-y-6 md:block">
         <slot name="sidebar">
           <BlogOwnerBio />
+          <BlogSearchBar />
           <BlogTagCloud />
           <BlogCategoryList />
         </slot>

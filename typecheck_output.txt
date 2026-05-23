@@ -1,2 +1,21 @@
+
+> typecheck
+> nuxt typecheck
+
 [36mΓä╣[39m Nuxt Icon server bundle mode is set to [36mlocal[39m
 [32mΓ£ö[39m Nuxt Icon discovered local-installed 1 collections: lucide
+components/admin/editor/blocks/BlockEditor.vue(1035,26): error TS2339: Property 'setImage' does not exist on type 'ChainedCommands'.
+components/admin/editor/blocks/BlockEditor.vue(1059,29): error TS2339: Property 'setImage' does not exist on type 'ChainedCommands'.
+pages/admin/posts/index.vue(388,7): error TS2322: Type '"PUT"' is not assignable to type '"GET" | "get" | undefined'.
+pages/admin/posts/index.vue(509,9): error TS2322: Type '"DELETE"' is not assignable to type '"GET" | "get" | undefined'.
+
+ ERROR  Process exited with non-zero status (2)
+
+    at z._waitForOutput (/C:/other/pandablog/node_modules/tinyexec/dist/main.mjs:578:92)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Object.run (/C:/other/pandablog/node_modules/@nuxt/cli/dist/typecheck-DQJUWomH.mjs:36:52)
+    at async runCommand (/C:/other/pandablog/node_modules/@nuxt/cli/node_modules/citty/dist/index.mjs:228:47)
+    at async runCommand (/C:/other/pandablog/node_modules/@nuxt/cli/node_modules/citty/dist/index.mjs:217:5)
+    at async runMain (/C:/other/pandablog/node_modules/@nuxt/cli/node_modules/citty/dist/index.mjs:394:10) 
+
+

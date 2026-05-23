@@ -13,6 +13,9 @@
         </NuxtLink>
       </div>
       <div class="flex items-center gap-2">
+        <div class="hidden md:block">
+          <BlogSearchBar variant="header" placeholder="Search posts…" />
+        </div>
         <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-external-link" size="sm">
           View site
         </UButton>

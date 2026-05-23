@@ -253,6 +253,23 @@ async function archivePost() {
   await navigateTo('/admin/posts')
 }
 
+// 5-minute auto-save: triggers only when the page is mounted, when no manual
+// save is already in flight, and only saves as draft (never publishes).
+let autoSaveTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  autoSaveTimer = setInterval(() => {
+    if (savingAction.value) return
+    if (currentStatus.value === 'archived') return
+    void save(currentStatus.value === 'published' ? 'published' : 'draft', 'save-draft')
+  }, 5 * 60 * 1000)
+})
+onBeforeUnmount(() => {
+  if (autoSaveTimer) {
+    clearInterval(autoSaveTimer)
+    autoSaveTimer = null
+  }
+})
+
 function emptyDoc(): JsonContent {
   return {
     type: 'doc',

@@ -36,7 +36,9 @@
         <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="uploadAvatar">
 
         <UFormField label="Bio" name="owner_bio">
-          <TiptapEditor v-model="form.owner_bio" />
+          <div class="rounded-md border border-stone-200 bg-white p-3">
+            <BlockEditor v-model="form.owner_bio" />
+          </div>
         </UFormField>
 
         <div class="flex justify-end">
@@ -49,7 +51,7 @@
 
 <script setup lang="ts">
 import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
-import TiptapEditor from '~/components/admin/editor/TiptapEditor.vue'
+import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
 import type { JsonContent } from '~/types/content'
 
 definePageMeta({ layout: 'admin' })

@@ -12,13 +12,29 @@ export interface JsonContent {
 export type PostStatus = 'draft' | 'published' | 'archived'
 export type PostVisibility = 'public' | 'private' | 'password'
 
+/**
+ * Editor-facing block: a top-level Tiptap node that has been persisted
+ * as a row in the `block` table and connected to a post via `has_blocks`.
+ * The `blockId` attribute is mirrored onto the Tiptap node so the editor
+ * can track stable identity across edits.
+ */
+export interface BlockRecord {
+  id: string
+  type: string
+  node: JsonContent
+  text: string
+  seq: number
+}
+
 export interface PostRecord {
   id: string
   title: string
   slug: string
   summary?: string | null
+  /** Reassembled Tiptap doc, built on the server from the post's blocks. */
   content_json: JsonContent
-  content_text: string
+  /** Ordered blocks belonging to the post (with seq and stable id). */
+  blocks?: BlockRecord[]
   status: PostStatus
   cover_image?: string | null
   author_username: string
@@ -32,6 +48,8 @@ export interface PostRecord {
   category_ids?: string[]
   tags?: TagRecord[]
   categories?: CategoryRecord[]
+  /** Slugs of posts linked from this post (via the `links` edge). */
+  linked_post_slugs?: string[]
 }
 
 export interface PostListItem {
@@ -52,12 +70,31 @@ export interface PostLockedResponse {
   passwordHint?: string | null
 }
 
-export interface ConceptRecord {
-  id: string
-  name: string
-  slug: string
-  description?: string | null
+/** A single block match in a search result, with optional snippet highlight. */
+export interface SearchBlockMatch {
+  blockId: string
+  type: string
+  snippet: string
+  score: number
 }
+
+export interface SearchPostResult {
+  post: PostListItem
+  score: number
+  matches: SearchBlockMatch[]
+  totalMatches: number
+}
+
+export interface SearchResponse {
+  query: string
+  sort: SearchSort
+  limit: number
+  total: number
+  maxPerPost: number
+  results: SearchPostResult[]
+}
+
+export type SearchSort = 'relevance' | 'date_desc' | 'date_asc' | 'title'
 
 // ============ MEDIA LIBRARY ============
 

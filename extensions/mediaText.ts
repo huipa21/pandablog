@@ -49,6 +49,24 @@ export const MediaTextNode = Node.create({
           return Number.isFinite(v) ? v : 0.5
         },
         renderHTML: (attrs) => ({ 'data-ratio': String(attrs.ratio ?? 0.5) })
+      },
+      mediaMime: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-media-mime') ?? '',
+        renderHTML: (attrs) => (attrs.mediaMime ? { 'data-media-mime': String(attrs.mediaMime) } : {})
+      },
+      mediaName: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-media-name') ?? '',
+        renderHTML: (attrs) => (attrs.mediaName ? { 'data-media-name': String(attrs.mediaName) } : {})
+      },
+      mediaSize: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-media-size') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.mediaSize ? { 'data-media-size': String(attrs.mediaSize) } : {})
       }
     }
   },
@@ -63,3 +81,4 @@ export const MediaTextNode = Node.create({
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'media-text' }), 0]
   }
 })
+
