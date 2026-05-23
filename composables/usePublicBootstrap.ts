@@ -24,6 +24,7 @@ export interface PublicBootstrapResponse {
 
 export function usePublicBootstrap() {
   return useAsyncData('public-bootstrap', () => $fetch<PublicBootstrapResponse>('/api/site/bootstrap'), {
+    dedupe: 'defer',
     default: () => ({
       settings: {},
       tags: [],

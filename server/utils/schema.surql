@@ -161,7 +161,7 @@ DEFINE FIELD IF NOT EXISTS response_time_ms ON access_logs TYPE int;
 DEFINE FIELD IF NOT EXISTS ip ON access_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS user_agent ON access_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS request_id ON access_logs TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS query_params ON access_logs TYPE option<object>;
+DEFINE FIELD OVERWRITE query_params ON access_logs TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS referrer ON access_logs TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS access_logs_timestamp_desc ON access_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS access_logs_path ON access_logs FIELDS path;
@@ -173,7 +173,7 @@ DEFINE FIELD IF NOT EXISTS timestamp ON activity_logs TYPE datetime DEFAULT time
 DEFINE FIELD IF NOT EXISTS action ON activity_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS resource_type ON activity_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS resource_id ON activity_logs TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS metadata ON activity_logs TYPE option<object>;
+DEFINE FIELD OVERWRITE metadata ON activity_logs TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS ip ON activity_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS request_id ON activity_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS description ON activity_logs TYPE option<string>;
@@ -186,7 +186,7 @@ DEFINE FIELD IF NOT EXISTS timestamp ON error_logs TYPE datetime DEFAULT time::n
 DEFINE FIELD IF NOT EXISTS level ON error_logs TYPE string ASSERT $value IN ['debug', 'info', 'warn', 'error'];
 DEFINE FIELD IF NOT EXISTS message ON error_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS stack ON error_logs TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS context ON error_logs TYPE option<object>;
+DEFINE FIELD OVERWRITE context ON error_logs TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS request_id ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS path ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS method ON error_logs TYPE option<string>;

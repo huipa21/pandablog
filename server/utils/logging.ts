@@ -140,7 +140,8 @@ export async function initializeLoggingSettings() {
   } catch (error) {
     settingsCache = defaultLoggingSettings()
     if (!cacheInitialized) {
-      console.warn('[logging] failed to load settings from DB, falling back to defaults')
+      const message = error instanceof Error ? error.message : 'unknown error'
+      console.warn(`[logging] failed to load settings from DB, falling back to defaults (${message})`)
     }
   }
 
