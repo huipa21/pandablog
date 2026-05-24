@@ -224,6 +224,7 @@ function updateAttrs(nextAttrs: Record<string, unknown>) {
     return
   }
 
+<<<<<<< HEAD
   const state = activeEditor.state
   const targetPos = resolveSelectedBlockPos(activeEditor, activeBlockName, activeBlockPos)
   let updated = false
@@ -254,11 +255,152 @@ function updateAttrs(nextAttrs: Record<string, unknown>) {
     }
   } else {
     updated = activeEditor.chain().focus().updateAttributes(activeBlockName, nextAttrs).run()
+=======
+  const targetPos = resolveSelectedBlockPos(activeEditor, activeBlockName, activeBlockPos)
+  if (targetPos === null) {
+    return
+>>>>>>> copilot/fix-code-block-settings-issues
   }
 
-  if (updated) {
-    editorStore.mergeSelectedBlockAttrs(nextAttrs)
+  const { state } = activeEditor
+  const node = state.doc.nodeAt(targetPos)
+  if (!node || node.type.name !== activeBlockName) {
+    return
   }
+
+  const tr = state.tr.setNodeMarkup(targetPos, undefined, {
+    ...node.attrs,
+    ...nextAttrs
+  })
+  activeEditor.view.dispatch(tr)
+  editorStore.mergeSelectedBlockAttrs(nextAttrs)
+}
+
+function resolveSelectedBlockPos(editor: Editor, blockType: string, storePos: number | null) {
+  const candidates = new Set<number>()
+
+  if (typeof storePos === 'number') {
+    candidates.add(Math.max(0, Math.min(storePos, editor.state.doc.content.size)))
+  }
+
+  const selectionPos = topLevelSelectionPos(editor)
+  if (selectionPos !== null) {
+    candidates.add(selectionPos)
+  }
+
+  const idPos = selectedBlockIdPos()
+  if (idPos !== null) {
+    candidates.add(idPos)
+  }
+
+  for (const pos of candidates) {
+    const node = editor.state.doc.nodeAt(pos)
+    if (node?.type.name === blockType) {
+      return pos
+    }
+  }
+
+  return null
+}
+
+function selectedBlockIdPos() {
+  const id = editorStore.selectedBlockId
+  if (!id || typeof id !== 'string') {
+    return null
+  }
+
+  const match = id.match(/:(\d+)$/)
+  if (!match) {
+    return null
+  }
+
+  return Number(match[1])
+}
+
+function topLevelSelectionPos(editor: Editor) {
+  const { $from } = editor.state.selection
+
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    if ($from.node(depth - 1).type.name === 'doc') {
+      return $from.before(depth)
+    }
+  }
+
+  return null
+}
+
+function asSelectValue(value: unknown, fallback: string) {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (value && typeof value === 'object') {
+    const maybeValue = (value as { value?: unknown }).value
+    if (typeof maybeValue === 'string') {
+      return maybeValue
+    }
+  }
+
+  return fallback
+}
+
+function asInputValue(value: unknown, fallback = '') {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (value && typeof value === 'object') {
+    const target = (value as { target?: { value?: unknown } }).target
+    if (target && typeof target.value === 'string') {
+      return target.value
+    }
+    const maybeValue = (value as { value?: unknown }).value
+    if (typeof maybeValue === 'string') {
+      return maybeValue
+    }
+  }
+
+  return fallback
+}
+
+function asBooleanValue(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (value && typeof value === 'object') {
+    const target = (value as { target?: { checked?: unknown } }).target
+    if (target && typeof target.checked === 'boolean') {
+      return target.checked
+    }
+
+    const maybeChecked = (value as { checked?: unknown }).checked
+    if (typeof maybeChecked === 'boolean') {
+      return maybeChecked
+    }
+  }
+
+  return fallback
+}
+
+function setCodeFileName(value: unknown) {
+  updateAttrs({ fileName: asInputValue(value, '') })
+}
+
+function setCodeLanguage(value: unknown) {
+  updateAttrs({ language: asSelectValue(value, 'text') })
+}
+
+function setCodeTheme(value: unknown) {
+  updateAttrs({ theme: asSelectValue(value, 'github-dark') })
+}
+
+function setCodeLineNumbers(value: unknown) {
+  updateAttrs({ lineNumbers: asBooleanValue(value, true) })
+}
+
+function setCodeShowTotalLines(value: unknown) {
+  updateAttrs({ showTotalLines: asBooleanValue(value, false) })
 }
 
 function resolveSelectedBlockPos(editor: Editor, blockType: string, storePos: number | null) {

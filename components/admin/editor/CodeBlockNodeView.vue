@@ -180,7 +180,11 @@ pre :deep(code:empty::before) {
   padding: 0.75rem 0.5rem;
   font-size: 0.875rem;
   line-height: var(--code-line-height);
+<<<<<<< HEAD
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+=======
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+>>>>>>> copilot/fix-code-block-settings-issues
   color: rgba(127, 127, 127, 0.6);
   user-select: none;
   border-right: 1px solid rgba(127, 127, 127, 0.14);
@@ -197,7 +201,10 @@ pre :deep(code:empty::before) {
 
 .codeblock-gutter-line {
   display: block;
+<<<<<<< HEAD
   min-height: calc(1em * var(--code-line-height));
+=======
+>>>>>>> copilot/fix-code-block-settings-issues
   line-height: var(--code-line-height);
   text-align: right;
 }
