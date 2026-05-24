@@ -48,23 +48,30 @@
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
-import { CODE_BLOCK_LANGUAGES } from '~/extensions/codeBlockEnhanced'
+import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME } from '~/extensions/codeBlockEnhanced'
+import { all, createLowlight } from 'lowlight'
 
-type ShikiModule = typeof import('shiki')
-
-let shikiPromise: Promise<ShikiModule> | null = null
 const htmlCache = new Map<string, string>()
 const COLLAPSE_THRESHOLD = 300
+const lowlight = createLowlight(all)
 
 const props = defineProps<{
   node: JsonContent
 }>()
 
 const languageLabelMap = new Map<string, string>(CODE_BLOCK_LANGUAGES.map((item) => [item.value as string, item.label]))
+const supportedLanguages = new Set<string>(CODE_BLOCK_LANGUAGES.map((item) => item.value as string))
+const supportedThemes = new Set<string>(CODE_BLOCK_THEMES.map((item) => item.value as string))
 
 const code = computed(() => textContent(props.node))
-const language = computed(() => typeof props.node.attrs?.language === 'string' ? props.node.attrs.language : 'text')
-const theme = computed(() => typeof props.node.attrs?.theme === 'string' ? props.node.attrs.theme : 'github-dark')
+const language = computed(() => {
+  const value = typeof props.node.attrs?.language === 'string' ? props.node.attrs.language : 'text'
+  return supportedLanguages.has(value) ? value : 'text'
+})
+const theme = computed(() => {
+  const value = typeof props.node.attrs?.theme === 'string' ? props.node.attrs.theme : DEFAULT_CODE_THEME
+  return supportedThemes.has(value) ? value : DEFAULT_CODE_THEME
+})
 const lineNumbers = computed(() => props.node.attrs?.lineNumbers !== false)
 const fileName = computed(() => typeof props.node.attrs?.fileName === 'string' ? props.node.attrs.fileName : '')
 const showTotalLines = computed(() => props.node.attrs?.showTotalLines === true)
@@ -78,7 +85,7 @@ const fallbackHtml = computed(() => `<pre class="codeblock-public"><code>${escap
 // Collapse state
 const bodyEl = ref<HTMLElement | null>(null)
 const naturalHeight = ref(0)
-const collapsed = ref(true) // default collapsed per spec
+const collapsed = ref(false)
 const collapsible = computed(() => naturalHeight.value > COLLAPSE_THRESHOLD)
 const bodyStyle = computed(() => {
   if (!collapsible.value) return {}
@@ -107,21 +114,6 @@ const fileIcon = computed(() => {
   return map[ext] ?? 'i-lucide-file-code-2'
 })
 
-// Map our theme names to shiki bundled theme ids
-const themeMap: Record<string, string> = {
-  'github-dark': 'github-dark-default',
-  'github-light': 'github-light-default',
-  'vs-dark': 'dark-plus',
-  'vs-light': 'light-plus',
-  'monokai': 'monokai',
-  'dracula': 'dracula',
-  'one-dark': 'one-dark-pro',
-  'solarized-dark': 'solarized-dark',
-  'solarized-light': 'solarized-light',
-  'nord': 'nord',
-  'tomorrow-night': 'tokyo-night'
-}
-
 async function renderCode() {
   const cacheKey = `${theme.value}\u0000${language.value}\u0000${code.value}`
   const cached = htmlCache.get(cacheKey)
@@ -132,13 +124,7 @@ async function renderCode() {
     return
   }
 
-  const shiki = await loadShiki()
-  const lang = language.value in shiki.bundledLanguages ? language.value : 'text'
-  const shikiTheme = themeMap[theme.value] ?? 'github-dark-default'
-  const rendered = await shiki.codeToHtml(code.value, {
-    lang,
-    theme: shikiTheme
-  }).catch(() => fallbackHtml.value)
+  const rendered = renderLowlightHtml(code.value, language.value)
 
   htmlCache.set(cacheKey, rendered)
   highlightedHtml.value = rendered
@@ -172,9 +158,63 @@ async function copy() {
   }
 }
 
-function loadShiki() {
-  if (!shikiPromise) shikiPromise = import('shiki')
-  return shikiPromise
+function renderLowlightHtml(source: string, lang: string) {
+  const normalizedLang = lowlight.registered(lang) ? lang : 'plaintext'
+
+  try {
+    const tree = lowlight.highlight(normalizedLang, source)
+    const inner = serializeNodes(tree.children)
+    const lineWrapped = inner
+      .split('\n')
+      .map((line) => `<span class="line">${line || ' '}</span>`)
+      .join('\n')
+
+    return `<pre class="hljs"><code class="language-${escapeAttr(normalizedLang)}">${lineWrapped}</code></pre>`
+  } catch {
+    return fallbackHtml.value
+  }
+}
+
+function serializeNodes(nodes: Array<{ type: string, value?: string, tagName?: string, properties?: Record<string, unknown>, children?: any[] }>) {
+  return nodes.map((node) => serializeNode(node)).join('')
+}
+
+function serializeNode(node: { type: string, value?: string, tagName?: string, properties?: Record<string, unknown>, children?: any[] }): string {
+  if (node.type === 'text') {
+    return escapeHtml(node.value ?? '')
+  }
+
+  if (node.type !== 'element' || !node.tagName) {
+    return ''
+  }
+
+  const attrs = serializeAttributes(node.properties ?? {})
+  const children = serializeNodes((node.children ?? []) as Array<{ type: string, value?: string, tagName?: string, properties?: Record<string, unknown>, children?: any[] }>)
+  return `<${node.tagName}${attrs}>${children}</${node.tagName}>`
+}
+
+function serializeAttributes(properties: Record<string, unknown>) {
+  const attrs: string[] = []
+
+  for (const [name, value] of Object.entries(properties)) {
+    if (value === undefined || value === null || value === false) {
+      continue
+    }
+
+    if (Array.isArray(value)) {
+      attrs.push(`${name}="${escapeAttr(value.map(String).join(' '))}"`)
+      continue
+    }
+
+    if (value === true) {
+      attrs.push(name)
+      continue
+    }
+
+    attrs.push(`${name}="${escapeAttr(String(value))}"`)
+  }
+
+  return attrs.length ? ` ${attrs.join(' ')}` : ''
 }
 
 function textContent(node: JsonContent): string {
@@ -188,6 +228,10 @@ function escapeHtml(value: string) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+function escapeAttr(value: string) {
+  return escapeHtml(value).replace(/'/g, '&#39;')
 }
 </script>
 
@@ -321,6 +365,14 @@ function escapeHtml(value: string) {
   line-height: 1.55;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
   background: transparent !important;
+  color: inherit;
+}
+
+.codeblock-public-body .hljs,
+.codeblock-public-body .hljs code,
+.codeblock-public-body .line {
+  background: transparent !important;
+  color: inherit;
 }
 
 .codeblock-public-body.with-line-numbers pre code {
@@ -333,6 +385,7 @@ function escapeHtml(value: string) {
   width: 100%;
   padding-left: 3rem;
   position: relative;
+  line-height: 1.55;
 }
 
 .codeblock-public-body.with-line-numbers .line::before {

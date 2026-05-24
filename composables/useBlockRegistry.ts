@@ -148,7 +148,7 @@ const blockDefinitions: BlockDefinition[] = [
     createContent: () => ({
       type: 'codeBlock',
       attrs: { language: 'text', theme: 'github-dark', lineNumbers: true },
-      content: [{ type: 'text', text: '// Start typing code...' }]
+      content: []
     })
   },
   {

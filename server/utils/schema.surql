@@ -43,7 +43,7 @@ DEFINE TABLE IF NOT EXISTS tagged TYPE RELATION FROM post TO tag;
 DEFINE TABLE IF NOT EXISTS categorized_as TYPE RELATION FROM post TO category;
 
 -- ============ BLOCK (top-level Tiptap node, one row per block) ============
-DEFINE TABLE IF NOT EXISTS block SCHEMAFULL;
+DEFINE TABLE OVERWRITE block SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS type ON block TYPE string;
 DEFINE FIELD IF NOT EXISTS node ON block TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS text ON block TYPE string DEFAULT '';
@@ -91,7 +91,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON folder TYPE datetime DEFAULT time::now(
 DEFINE INDEX IF NOT EXISTS folder_slug_unique ON TABLE folder FIELDS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS folder_parent ON TABLE folder FIELDS parent;
 
-DEFINE TABLE IF NOT EXISTS files SCHEMAFULL;
+DEFINE TABLE OVERWRITE files SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS hash ON files TYPE string;
 DEFINE FIELD IF NOT EXISTS original_name ON files TYPE string;
 DEFINE FIELD IF NOT EXISTS stored_name ON files TYPE string;
@@ -123,7 +123,7 @@ DEFINE INDEX IF NOT EXISTS files_reference_count ON TABLE files FIELDS reference
 -- File tags are stored independently in files.tags and are not shared with post tags.
 
 -- ============ SMART FOLDERS ============
-DEFINE TABLE IF NOT EXISTS media_smart_folder SCHEMAFULL;
+DEFINE TABLE OVERWRITE media_smart_folder SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS name ON media_smart_folder TYPE string;
 DEFINE FIELD IF NOT EXISTS filters ON media_smart_folder TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS created_at ON media_smart_folder TYPE datetime DEFAULT time::now();
@@ -152,7 +152,7 @@ DEFINE FIELD IF NOT EXISTS cleanup_cron ON logging_settings TYPE string DEFAULT 
 DEFINE FIELD IF NOT EXISTS updated_at ON logging_settings TYPE datetime DEFAULT time::now();
 
 -- ============ ACCESS LOGS ============
-DEFINE TABLE IF NOT EXISTS access_logs SCHEMAFULL;
+DEFINE TABLE OVERWRITE access_logs SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS timestamp ON access_logs TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS method ON access_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS path ON access_logs TYPE string;
@@ -168,7 +168,7 @@ DEFINE INDEX IF NOT EXISTS access_logs_path ON access_logs FIELDS path;
 DEFINE INDEX IF NOT EXISTS access_logs_status_code ON access_logs FIELDS status_code;
 
 -- ============ ACTIVITY LOGS ============
-DEFINE TABLE IF NOT EXISTS activity_logs SCHEMAFULL;
+DEFINE TABLE OVERWRITE activity_logs SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS timestamp ON activity_logs TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS action ON activity_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS resource_type ON activity_logs TYPE string;
@@ -181,7 +181,7 @@ DEFINE INDEX IF NOT EXISTS activity_logs_timestamp_desc ON activity_logs FIELDS 
 DEFINE INDEX IF NOT EXISTS activity_logs_action ON activity_logs FIELDS action;
 
 -- ============ ERROR LOGS ============
-DEFINE TABLE IF NOT EXISTS error_logs SCHEMAFULL;
+DEFINE TABLE OVERWRITE error_logs SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS timestamp ON error_logs TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS level ON error_logs TYPE string ASSERT $value IN ['debug', 'info', 'warn', 'error'];
 DEFINE FIELD IF NOT EXISTS message ON error_logs TYPE string;

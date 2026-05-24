@@ -56,7 +56,33 @@ export function stringifyRecordPart(value: unknown): string {
 }
 
 export function recordIdPart(value: string, table: string) {
-  const decoded = decodeURIComponent(value)
+  const decoded = safeDecodeRecordId(value)
   const prefix = `${table}:`
-  return decoded.startsWith(prefix) ? decoded.slice(prefix.length) : decoded
+  let normalized = decoded.trim()
+
+  // Be forgiving with accidentally double-prefixed ids like "post:post:abc".
+  while (normalized.startsWith(prefix)) {
+    normalized = normalized.slice(prefix.length)
+  }
+
+  return normalized
+}
+
+function safeDecodeRecordId(value: string) {
+  let current = value
+
+  // Decode up to twice to handle values that were accidentally encoded more than once.
+  for (let i = 0; i < 2; i += 1) {
+    try {
+      const decoded = decodeURIComponent(current)
+      if (decoded === current) {
+        break
+      }
+      current = decoded
+    } catch {
+      break
+    }
+  }
+
+  return current
 }

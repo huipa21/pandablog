@@ -316,7 +316,7 @@ const editor = useEditor({
             return `Heading ${level}`
           }
           case 'blockquote': return 'Quote'
-          case 'codeBlock': return 'Code'
+          case 'codeBlock': return ''
           case 'bulletList':
           case 'orderedList':
           case 'listItem': return 'List item'
