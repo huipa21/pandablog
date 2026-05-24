@@ -84,7 +84,10 @@ const fileIcon = computed(() => {
 
 <style scoped>
 .codeblock-nodeview {
-  --code-line-height: 1.55;
+  /* Match the public renderer's code metrics for consistent alignment */
+  --code-font-size: 0.8125rem; /* 13px */
+  --code-line-height: 1.1875rem; /* 19px */
+  --code-block-padding-y: 0.125rem; /* 2px */
   background: var(--code-bg, #1e1e1e);
   color: var(--code-fg, #d4d4d4);
   border: 1px solid rgba(127, 127, 127, 0.18);
@@ -153,14 +156,15 @@ const fileIcon = computed(() => {
 .codeblock-pre,
 .codeblock-gutter {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--code-font-size);
   line-height: var(--code-line-height);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
+  padding-top: var(--code-block-padding-y);
+  padding-bottom: var(--code-block-padding-y);
 }
 
 .codeblock-pre {
+  margin: 0 !important;
   padding-left: 1rem;
   padding-right: 1rem;
   overflow: auto;
@@ -171,13 +175,26 @@ const fileIcon = computed(() => {
 .codeblock-pre :deep(code) {
   display: block;
   background: transparent;
-  white-space: pre;
+  white-space: pre !important;
   font-family: inherit;
   font-size: inherit;
-  line-height: inherit;
+  line-height: var(--code-line-height) !important;
   color: inherit;
   padding: 0;
   margin: 0;
+}
+
+.codeblock-pre :deep(code *) {
+  font-size: inherit !important;
+  font-family: inherit;
+  line-height: var(--code-line-height) !important;
+}
+
+.codeblock-pre :deep([data-node-view-content]),
+.codeblock-pre :deep([data-node-view-content] *) {
+  font-size: inherit !important;
+  font-family: inherit;
+  line-height: var(--code-line-height) !important;
 }
 
 .codeblock-pre :deep(code:empty::before) {
@@ -187,9 +204,19 @@ const fileIcon = computed(() => {
   pointer-events: none;
 }
 
+/* Override generic ProseMirror pre styling so gutter and code rows stay aligned. */
+.codeblock-nodeview .codeblock-pre {
+  margin: 0 !important;
+  padding-top: var(--code-block-padding-y) !important;
+  padding-bottom: var(--code-block-padding-y) !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  font-size: var(--code-font-size) !important;
+  line-height: var(--code-line-height) !important;
+}
+
 .codeblock-gutter {
-  display: flex;
-  flex-direction: column;
+  display: block;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
   color: rgba(127, 127, 127, 0.6);
@@ -208,9 +235,13 @@ const fileIcon = computed(() => {
 }
 
 .codeblock-gutter-line {
-  display: block;
-  height: calc(1em * var(--code-line-height));
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: var(--code-line-height);
   line-height: var(--code-line-height);
+  font-size: var(--code-font-size);
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 </style>

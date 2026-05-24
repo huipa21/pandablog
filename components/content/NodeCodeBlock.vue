@@ -26,12 +26,7 @@
       :class="{ 'is-collapsed': collapsible && collapsed }"
       :style="bodyStyle"
     >
-      <ClientOnly>
-        <div :class="['codeblock-public-body', lineNumbers ? 'with-line-numbers' : '']" v-html="highlightedHtml || fallbackHtml" />
-        <template #fallback>
-          <pre class="codeblock-public" v-html="fallbackHtml" />
-        </template>
-      </ClientOnly>
+      <div :class="['codeblock-public-body', lineNumbers ? 'with-line-numbers' : '']" v-html="highlightedHtml || fallbackHtml" />
       <div v-if="collapsible && collapsed" class="codeblock-public-fade" />
     </div>
     <button
@@ -79,7 +74,10 @@ const languageLabel = computed(() => languageLabelMap.get(language.value) ?? lan
 const lineCount = computed(() => Math.max((code.value ?? '').split('\n').length, 1))
 
 const copied = ref(false)
-const highlightedHtml = ref('')
+const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${code.value}`
+const initialRendered = renderLowlightHtml(code.value, language.value)
+htmlCache.set(initialCacheKey, initialRendered)
+const highlightedHtml = ref(initialRendered)
 const fallbackHtml = computed(() => `<pre class="codeblock-public"><code>${escapeHtml(code.value)}</code></pre>`)
 
 // Collapse state
@@ -167,7 +165,7 @@ function renderLowlightHtml(source: string, lang: string) {
     const lineWrapped = inner
       .split('\n')
       .map((line) => `<span class="line">${line || ' '}</span>`)
-      .join('\n')
+      .join('')
 
     return `<pre class="hljs"><code class="language-${escapeAttr(normalizedLang)}">${lineWrapped}</code></pre>`
   } catch {
@@ -197,21 +195,23 @@ function serializeAttributes(properties: Record<string, unknown>) {
   const attrs: string[] = []
 
   for (const [name, value] of Object.entries(properties)) {
+    const attrName = name === 'className' ? 'class' : name
+
     if (value === undefined || value === null || value === false) {
       continue
     }
 
     if (Array.isArray(value)) {
-      attrs.push(`${name}="${escapeAttr(value.map(String).join(' '))}"`)
+      attrs.push(`${attrName}="${escapeAttr(value.map(String).join(' '))}"`)
       continue
     }
 
     if (value === true) {
-      attrs.push(name)
+      attrs.push(attrName)
       continue
     }
 
-    attrs.push(`${name}="${escapeAttr(String(value))}"`)
+    attrs.push(`${attrName}="${escapeAttr(String(value))}"`)
   }
 
   return attrs.length ? ` ${attrs.join(' ')}` : ''
@@ -239,6 +239,10 @@ function escapeAttr(value: string) {
 @import '~/assets/css/code-themes.css';
 
 .codeblock-public-wrap {
+  /* Slightly smaller font and explicit line-height to match VS Code rhythm */
+  --code-font-size: 0.8125rem; /* 13px */
+  --code-line-height: 1.1875rem; /* 19px */
+  --code-block-padding-y: 0.125rem; /* 2px */
   margin: 1.5rem 0;
   border-radius: 0.5rem;
   overflow: hidden;
@@ -359,13 +363,19 @@ function escapeAttr(value: string) {
 
 .codeblock-public-body pre {
   margin: 0;
-  padding: 0.75rem 1rem;
+  padding: var(--code-block-padding-y) 1rem;
   overflow-x: auto;
-  font-size: 0.875rem;
-  line-height: 1.55;
+  font-size: var(--code-font-size);
+  line-height: var(--code-line-height);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
   background: transparent !important;
   color: inherit;
+}
+
+.codeblock-public-body pre code,
+.codeblock-public-body pre code * {
+  line-height: var(--code-line-height);
+  font-size: var(--code-font-size);
 }
 
 .codeblock-public-body .hljs,
@@ -381,11 +391,13 @@ function escapeAttr(value: string) {
 }
 
 .codeblock-public-body.with-line-numbers .line {
-  display: inline-block;
+  display: block;
   width: 100%;
   padding-left: 3rem;
   position: relative;
-  line-height: 1.55;
+  min-height: var(--code-line-height);
+  line-height: var(--code-line-height);
+  font-size: var(--code-font-size);
 }
 
 .codeblock-public-body.with-line-numbers .line::before {
@@ -393,10 +405,16 @@ function escapeAttr(value: string) {
   content: counter(code-line);
   position: absolute;
   left: 0;
+  top: 0;
   width: 2.25rem;
+  height: var(--code-line-height);
+  line-height: var(--code-line-height);
   text-align: right;
   color: rgba(148, 163, 184, 0.55);
   user-select: none;
   padding-right: 0.5rem;
+  display: inline-block;
+  font-size: var(--code-font-size);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
 }
 </style>

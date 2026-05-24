@@ -122,7 +122,7 @@ import type { AdminPostEditorForm } from '~/types/editor'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
 
-type BlockEditorInstance = InstanceType<typeof BlockEditor> & { editor?: Ref<Editor | undefined>, pickBlock?: (name: string) => void }
+type BlockEditorInstance = InstanceType<typeof BlockEditor> & { editor?: Editor, pickBlock?: (name: string) => void }
 const fetchTimeoutMs = 10_000
 
 const route = useRoute()
@@ -139,7 +139,7 @@ const editorStore = useEditorStore()
 function onInserterPick(name: string) {
   blockEditorRef.value?.pickBlock?.(name)
 }
-const activeEditor = computed(() => blockEditorRef.value?.editor?.value ?? null)
+const activeEditor = computed(() => blockEditorRef.value?.editor ?? null)
 
 const form = reactive<AdminPostEditorForm>({
   title: '',
