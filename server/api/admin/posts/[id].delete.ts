@@ -2,21 +2,36 @@ import { queryDb, useDb } from '../../../utils/db'
 import { normalizePost } from '../../../utils/content'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
 import { requireAdminUser } from '../../../utils/auth'
+import { buildDocFromBlocks, deleteAllBlocksForPost, loadBlocksForPost } from '../../../utils/blocks'
+import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
 
   const id = recordIdPart(getRouterParam(event, 'id') ?? '', 'post')
+  if (!id) {
+    throw createError({ statusCode: 400, message: 'Invalid post id' })
+  }
+
   const db = await useDb()
+  const currentResponse = await queryDb(
+    db,
+    'SELECT * FROM type::record($table, $id) LIMIT 1;',
+    { table: 'post', id }
+  )
+  const currentPost = firstRow<Record<string, unknown>>(currentResponse)
+
+  if (!currentPost) {
+    throw createError({ statusCode: 404, message: 'Post not found' })
+  }
+
+  if (currentPost.status === 'archived') {
+    await hardDeletePost(db, currentPost)
+    return { id: `post:${id}`, deleted: true, hard_deleted: true }
+  }
+
   try {
-    const response = await queryDb(
-      db,
-      'UPDATE type::record($table, $id) MERGE { status: "archived", published_at: NONE, updated_at: time::now() } RETURN AFTER;',
-      {
-        table: 'post',
-        id
-      }
-    )
+    const response = await archivePost(db, id)
     const post = firstRow<Record<string, unknown>>(response)
 
     if (!post) {
@@ -25,6 +40,21 @@ export default defineEventHandler(async (event) => {
 
     return normalizePost(post)
   } catch (error: any) {
+    if (isLegacyPostFieldError(error)) {
+      await queryDb(
+        db,
+        'UPDATE type::record($table, $id) UNSET content_json, content_text;',
+        { table: 'post', id }
+      )
+
+      const retryResponse = await archivePost(db, id)
+      const retriedPost = firstRow<Record<string, unknown>>(retryResponse)
+
+      if (retriedPost) {
+        return normalizePost(retriedPost)
+      }
+    }
+
     // If the write committed but the response path failed (connection reset/timeouts),
     // treat this as success to keep delete/archive idempotent for the UI.
     const archivedPost = await readArchivedPost(db, id)
@@ -36,6 +66,23 @@ export default defineEventHandler(async (event) => {
     throw error
   }
 })
+
+function archivePost(db: Awaited<ReturnType<typeof useDb>>, id: string) {
+  return queryDb(
+    db,
+    'UPDATE type::record($table, $id) MERGE { status: "archived", published_at: NONE, updated_at: time::now() } RETURN AFTER;',
+    {
+      table: 'post',
+      id
+    }
+  )
+}
+
+function isLegacyPostFieldError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return message.includes("Found field 'content_json', but no such field exists for table 'post'")
+    || message.includes("Found field 'content_text', but no such field exists for table 'post'")
+}
 
 async function readArchivedPost(db: Awaited<ReturnType<typeof useDb>>, id: string) {
   try {
@@ -55,4 +102,32 @@ async function readArchivedPost(db: Awaited<ReturnType<typeof useDb>>, id: strin
   } catch {
     return null
   }
+}
+
+async function hardDeletePost(db: Awaited<ReturnType<typeof useDb>>, record: Record<string, unknown>) {
+  const post = normalizePost(record)
+  const postId = recordIdPart(post.id, 'post')
+  const blocks = await loadBlocksForPost(db, post.id)
+  const doc = buildDocFromBlocks(blocks)
+
+  await mediaSyncRecordReferences(db, post.id, [post.cover_image, doc], [])
+
+  await queryDb(db, 'DELETE tagged WHERE in = type::record($table, $id);', {
+    table: 'post',
+    id: postId
+  })
+  await queryDb(db, 'DELETE categorized_as WHERE in = type::record($table, $id);', {
+    table: 'post',
+    id: postId
+  })
+  await queryDb(db, 'DELETE links WHERE in = type::record($table, $id) OR out = type::record($table, $id);', {
+    table: 'post',
+    id: postId
+  })
+
+  await deleteAllBlocksForPost(db, post.id)
+  await queryDb(db, 'DELETE FROM type::record($table, $id);', {
+    table: 'post',
+    id: postId
+  })
 }

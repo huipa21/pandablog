@@ -32,14 +32,22 @@
 
 <script setup lang="ts">
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { CODE_BLOCK_LANGUAGES, DEFAULT_CODE_THEME } from '~/extensions/codeBlockEnhanced'
+import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME } from '~/extensions/codeBlockEnhanced'
 
 const props = defineProps(nodeViewProps)
 
 const languageLabelMap = new Map<string, string>(CODE_BLOCK_LANGUAGES.map((item) => [item.value as string, item.label]))
+const supportedLanguages = new Set<string>(CODE_BLOCK_LANGUAGES.map((item) => item.value as string))
+const supportedThemes = new Set<string>(CODE_BLOCK_THEMES.map((item) => item.value as string))
 
-const language = computed(() => typeof props.node.attrs.language === 'string' ? props.node.attrs.language : 'text')
-const theme = computed(() => typeof props.node.attrs.theme === 'string' ? props.node.attrs.theme : DEFAULT_CODE_THEME)
+const language = computed(() => {
+  const value = typeof props.node.attrs.language === 'string' ? props.node.attrs.language : 'text'
+  return supportedLanguages.has(value) ? value : 'text'
+})
+const theme = computed(() => {
+  const value = typeof props.node.attrs.theme === 'string' ? props.node.attrs.theme : DEFAULT_CODE_THEME
+  return supportedThemes.has(value) ? value : DEFAULT_CODE_THEME
+})
 const lineNumbers = computed(() => props.node.attrs.lineNumbers !== false)
 const fileName = computed(() => typeof props.node.attrs.fileName === 'string' ? props.node.attrs.fileName : '')
 const showTotalLines = computed(() => props.node.attrs.showTotalLines === true)
@@ -76,6 +84,7 @@ const fileIcon = computed(() => {
 
 <style scoped>
 .codeblock-nodeview {
+  --code-line-height: 1.55;
   background: var(--code-bg, #1e1e1e);
   color: var(--code-fg, #d4d4d4);
   border: 1px solid rgba(127, 127, 127, 0.18);
@@ -146,7 +155,7 @@ pre {
   padding: 0.75rem 1rem;
   overflow: auto;
   font-size: 0.875rem;
-  line-height: 1.55;
+  line-height: var(--code-line-height);
   min-width: 0;
   background: transparent !important;
 }
@@ -159,11 +168,18 @@ pre :deep(code) {
   color: inherit;
 }
 
+pre :deep(code:empty::before) {
+  content: 'Start typing code...';
+  color: rgba(148, 163, 184, 0.75);
+  font-style: italic;
+  pointer-events: none;
+}
+
 .codeblock-gutter {
   display: block;
   padding: 0.75rem 0.5rem;
   font-size: 0.875rem;
-  line-height: 1.55;
+  line-height: var(--code-line-height);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: rgba(127, 127, 127, 0.6);
   user-select: none;
@@ -181,6 +197,8 @@ pre :deep(code) {
 
 .codeblock-gutter-line {
   display: block;
+  min-height: calc(1em * var(--code-line-height));
+  line-height: var(--code-line-height);
   text-align: right;
 }
 </style>
