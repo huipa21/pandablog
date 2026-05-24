@@ -25,7 +25,7 @@
       <div v-if="lineNumbers" class="codeblock-gutter" contenteditable="false" aria-hidden="true">
         <span v-for="n in lineCount" :key="n" class="codeblock-gutter-line">{{ n }}</span>
       </div>
-      <pre class="hljs"><NodeViewContent as="code" :class="`language-${language}`" /></pre>
+      <pre class="codeblock-pre hljs"><NodeViewContent as="code" :class="`language-${language}`" /></pre>
     </div>
   </NodeViewWrapper>
 </template>
@@ -150,25 +150,37 @@ const fileIcon = computed(() => {
   grid-template-columns: auto minmax(0, 1fr);
 }
 
-pre {
+.codeblock-pre,
+.codeblock-gutter {
   margin: 0;
-  padding: 0.75rem 1rem;
-  overflow: auto;
   font-size: 0.875rem;
   line-height: var(--code-line-height);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.codeblock-pre {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  overflow: auto;
   min-width: 0;
   background: transparent !important;
 }
 
-pre :deep(code) {
+.codeblock-pre :deep(code) {
   display: block;
   background: transparent;
   white-space: pre;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
   color: inherit;
+  padding: 0;
+  margin: 0;
 }
 
-pre :deep(code:empty::before) {
+.codeblock-pre :deep(code:empty::before) {
   content: 'Start typing code...';
   color: rgba(148, 163, 184, 0.75);
   font-style: italic;
@@ -176,20 +188,16 @@ pre :deep(code:empty::before) {
 }
 
 .codeblock-gutter {
-  display: block;
-  padding: 0.75rem 0.5rem;
-  font-size: 0.875rem;
-  line-height: var(--code-line-height);
-<<<<<<< HEAD
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-=======
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
->>>>>>> copilot/fix-code-block-settings-issues
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
   color: rgba(127, 127, 127, 0.6);
   user-select: none;
   border-right: 1px solid rgba(127, 127, 127, 0.14);
   min-width: 2.75rem;
   background: rgba(0, 0, 0, 0.12);
+  text-align: right;
 }
 
 .codeblock-nodeview[data-theme="github-light"] .codeblock-gutter,
@@ -201,11 +209,8 @@ pre :deep(code:empty::before) {
 
 .codeblock-gutter-line {
   display: block;
-<<<<<<< HEAD
-  min-height: calc(1em * var(--code-line-height));
-=======
->>>>>>> copilot/fix-code-block-settings-issues
+  height: calc(1em * var(--code-line-height));
   line-height: var(--code-line-height);
-  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 </style>
