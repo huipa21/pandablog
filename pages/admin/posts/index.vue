@@ -404,7 +404,8 @@ async function saveCurrentCell(options: { close?: boolean } = {}) {
   listError.value = ''
 
   try {
-    await $fetch(`/api/admin/posts/${encodeURIComponent(cell.postId)}`, {
+    const endpoint: string = `/api/admin/posts/${encodeURIComponent(cell.postId)}`
+    await $fetch(endpoint, {
       method: 'PUT',
       body
     })
@@ -511,7 +512,12 @@ async function editSelected() {
     return
   }
 
-  await navigateTo(`/admin/posts/${encodeURIComponent(selectedIds.value[0])}`)
+  const selectedId = selectedIds.value[0]
+  if (!selectedId) {
+    return
+  }
+
+  await navigateTo(`/admin/posts/${encodeURIComponent(selectedId)}`)
 }
 
 function toggleQuickEdit() {
@@ -540,7 +546,8 @@ async function deletePosts(ids: string[]) {
 
   try {
     for (const postId of uniqueIds) {
-      await $fetch(`/api/admin/posts/${encodeURIComponent(postId)}`, {
+      const endpoint: string = `/api/admin/posts/${encodeURIComponent(postId)}`
+      await $fetch(endpoint, {
         method: 'DELETE'
       })
     }

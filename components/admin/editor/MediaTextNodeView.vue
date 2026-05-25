@@ -1,5 +1,5 @@
 <template>
-  <NodeViewWrapper class="mediatext-nodeview my-4 overflow-hidden rounded-lg border border-stone-200" data-node-view-wrapper>
+  <NodeViewWrapper class="mediatext-nodeview my-4 overflow-hidden rounded-lg border border-stone-200" data-node-view-wrapper :style="blockStyle">
     <div ref="rowEl" class="mediatext-row" :data-media-position="mediaPosition">
       <div class="mediatext-media" :style="mediaStyle" contenteditable="false">
         <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
@@ -10,10 +10,10 @@
               ref="imgEl"
               :src="mediaSrc"
               :alt="mediaAlt"
-              :width="mediaWidth ?? undefined"
-              :height="mediaHeight ?? undefined"
+              :width="mediaDisplayWidthAttr ?? undefined"
+              :height="lockAspect ? undefined : (mediaHeight ?? undefined)"
               :style="mediaElementStyle"
-              class="block max-w-full rounded-md object-cover"
+              class="block max-w-full rounded-md"
               @load="onImageLoad"
             >
             <video
@@ -85,43 +85,132 @@
 </template>
 
 <script setup lang="ts">
+import type { CSSProperties } from 'vue'
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import { classifyMedia, mediaIcon, formatBytes } from '~/composables/useMediaKind'
-import { useMediaUrl } from '~/composables/useMediaUrl'
+import { extractMediaHash, useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
 const { resolveMediaUrl } = useMediaUrl()
 
-const mediaSrc = computed(() => resolveMediaUrl(String(props.node.attrs.mediaSrc ?? '')))
+const mediaSourceSize = computed(() => String(props.node.attrs.mediaSourceSize ?? 'full'))
+const baseMediaSrc = computed(() => resolveMediaUrl(String(props.node.attrs.mediaSrc ?? '')))
+const kind = computed(() => classifyMedia(mediaMime.value, baseMediaSrc.value))
+const icon = computed(() => mediaIcon(mediaMime.value, baseMediaSrc.value))
+const mediaSrc = computed(() => {
+  const raw = String(props.node.attrs.mediaSrc ?? '')
+  const resolved = baseMediaSrc.value
+  const hash = extractMediaHash(raw)
+  if (!hash) {
+    return resolved
+  }
+
+  if (kind.value === 'image' && mediaSourceSize.value === 'thumbnail') {
+    const encoded = encodeURIComponent(hash)
+    return `/api/media/variant/thumbnail/${encoded}`
+  }
+
+  if (kind.value === 'image' && mediaSourceSize.value === 'medium') {
+    const encoded = encodeURIComponent(hash)
+    return `/api/media/variant/medium/${encoded}`
+  }
+
+  if (kind.value === 'image' && mediaSourceSize.value === 'large') {
+    const encoded = encodeURIComponent(hash)
+    return `/api/media/variant/large/${encoded}`
+  }
+
+  return resolved
+})
 const mediaAlt = computed(() => String(props.node.attrs.mediaAlt ?? ''))
 const mediaTitle = computed(() => String(props.node.attrs.mediaTitle ?? ''))
 const mediaTitlePosition = computed(() => String(props.node.attrs.mediaTitlePosition ?? 'bottom'))
 const mediaWidth = computed(() => (props.node.attrs.mediaWidth as number | null) ?? null)
 const mediaHeight = computed(() => (props.node.attrs.mediaHeight as number | null) ?? null)
-const mediaWidthPercent = computed(() => {
-  const value = Number(props.node.attrs.mediaWidthPercent ?? 0)
-  return Number.isFinite(value) && value > 0 ? Math.min(200, value) : null
+const mediaDisplaySize = computed(() => {
+  const explicit = String(props.node.attrs.mediaDisplaySize ?? '')
+  if (explicit) {
+    if (explicit === 'viewport' || explicit === 'full-bleed') {
+      return 'fill-container'
+    }
+    return explicit
+  }
+
+  const widthPercent = Number(props.node.attrs.mediaWidthPercent ?? 0)
+  if (Number.isFinite(widthPercent) && widthPercent > 0 && widthPercent !== 100) {
+    return 'custom-percent'
+  }
+
+  return mediaWidth.value ? 'custom-px' : 'fill-container'
 })
+const mediaDisplayPercent = computed(() => {
+  const value = Number(props.node.attrs.mediaDisplayPercent ?? props.node.attrs.mediaWidthPercent ?? 0)
+  return Number.isFinite(value) && value > 0 ? Math.min(200, value) : 100
+})
+const mediaDisplayPx = computed(() => Number(props.node.attrs.mediaDisplayPx ?? props.node.attrs.mediaWidth ?? 0) || null)
+const mediaNaturalWidth = computed(() => Number(props.node.attrs.mediaNaturalWidth ?? 0) || null)
+const mediaNaturalHeight = computed(() => Number(props.node.attrs.mediaNaturalHeight ?? 0) || null)
+const lockAspect = computed(() => props.node.attrs.lockAspect !== false)
 const mediaPosition = computed(() => String(props.node.attrs.mediaPosition ?? 'left'))
 const mediaMime = computed(() => String(props.node.attrs.mediaMime ?? ''))
 const mediaName = computed(() => String(props.node.attrs.mediaName ?? ''))
 const mediaSize = computed(() => (props.node.attrs.mediaSize as number | null) ?? null)
+const blockWidth = computed(() => String(props.node.attrs.blockWidth ?? 'content'))
 const ratio = computed(() => Number(props.node.attrs.ratio ?? 0.5))
 
 const rowEl = ref<HTMLElement | null>(null)
 const imgEl = ref<HTMLImageElement | null>(null)
 
-const kind = computed(() => classifyMedia(mediaMime.value, mediaSrc.value))
-const icon = computed(() => mediaIcon(mediaMime.value, mediaSrc.value))
 const displayName = computed(() => {
-  const last = (mediaSrc.value.split('/').pop() ?? '').split('?')[0] ?? ''
+  const last = (baseMediaSrc.value.split('/').pop() ?? '').split('?')[0] ?? ''
   return last || 'Attachment'
 })
 
+const blockStyle = computed<CSSProperties>(() => {
+  switch (blockWidth.value) {
+    case 'wide':
+      return {
+        width: 'min(120%, 72rem)',
+        maxWidth: 'calc(100vw - 2rem)',
+        position: 'relative' as const,
+        left: '50%',
+        transform: 'translateX(-50%)'
+      }
+    case 'full-bleed':
+      return {
+        width: '100vw',
+        maxWidth: '100vw',
+        position: 'relative' as const,
+        left: '50%',
+        transform: 'translateX(-50%)'
+      }
+    case 'content':
+    default:
+      return { width: '100%', maxWidth: '100%' }
+  }
+})
+
+const mediaDisplayWidthAttr = computed(() => {
+  if (mediaDisplaySize.value === 'custom-px' || mediaDisplaySize.value === 'natural') {
+    return mediaDisplayPx.value ?? mediaWidth.value
+  }
+
+  return null
+})
+
 const mediaElementStyle = computed(() => ({
-  width: mediaWidthPercent.value ? `${mediaWidthPercent.value}%` : (mediaWidth.value ? `${mediaWidth.value}px` : '100%'),
+  width: mediaDisplaySize.value === 'natural'
+    ? 'auto'
+    : mediaDisplaySize.value === 'custom-percent'
+      ? `${mediaDisplayPercent.value}%`
+      : mediaDisplaySize.value === 'custom-px'
+        ? (mediaDisplayPx.value ? `${mediaDisplayPx.value}px` : '100%')
+        : '100%',
   maxWidth: '100%',
-  height: mediaHeight.value ? `${mediaHeight.value}px` : undefined
+  height: lockAspect.value ? 'auto' : (mediaHeight.value ? `${mediaHeight.value}px` : undefined),
+  aspectRatio: lockAspect.value && mediaNaturalWidth.value && mediaNaturalHeight.value
+    ? `${mediaNaturalWidth.value} / ${mediaNaturalHeight.value}`
+    : undefined
 }))
 
 const mediaStyle = computed(() => ({ flex: `0 0 ${(ratio.value * 100).toFixed(2)}%` }))
@@ -134,9 +223,10 @@ function onImageLoad() {
 
   if (props.node.attrs.mediaNaturalWidth == null) updates.mediaNaturalWidth = naturalWidth
   if (props.node.attrs.mediaNaturalHeight == null) updates.mediaNaturalHeight = naturalHeight
-  if (mediaWidth.value === null) updates.mediaWidth = naturalWidth
-  if (mediaHeight.value === null) updates.mediaHeight = naturalHeight
+  if (mediaDisplaySize.value === 'custom-px' && mediaWidth.value === null) updates.mediaWidth = naturalWidth
+  if (mediaDisplaySize.value === 'custom-px' && mediaHeight.value === null) updates.mediaHeight = naturalHeight
   if (props.node.attrs.mediaWidthPercent == null) updates.mediaWidthPercent = 100
+  if (props.node.attrs.mediaDisplayPercent == null) updates.mediaDisplayPercent = 100
 
   if (Object.keys(updates).length) {
     props.updateAttributes(updates)

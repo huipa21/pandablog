@@ -78,7 +78,7 @@
       />
 
       <main class="min-w-0 flex-1 px-4 py-6 md:px-6 lg:px-8">
-        <div class="mx-auto w-full max-w-6xl">
+        <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load this post" />
             <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
@@ -312,3 +312,9 @@ function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {
   })
 }
 </script>
+
+<style scoped>
+.pb-content-frame {
+  max-width: var(--pb-post-content-max-width);
+}
+</style>

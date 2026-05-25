@@ -24,7 +24,7 @@
           </div>
 
           <div class="min-h-0 flex-1 overflow-y-auto p-4">
-            <div v-if="tab === 'upload'" class="mx-auto max-w-3xl">
+            <div v-if="tab === 'upload'" class="w-full">
               <MediaUploader @upload-complete="handleUploadComplete" />
             </div>
 
@@ -171,6 +171,16 @@ function toggleSelection(file: MediaRecord) {
 function handleUploadComplete() {
   tab.value = 'browse'
   page.value = 1
+  filters.value = {
+    search: '',
+    type: props.typeFilter,
+    tag: '',
+    uploaded_from: '',
+    uploaded_to: '',
+    orphan: false,
+    search_regex: false,
+    case_insensitive: true
+  }
   void refresh()
 }
 

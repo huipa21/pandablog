@@ -152,20 +152,22 @@ Full-text indexes are defined on `post.title`, `post.summary`, `post.content_tex
 
 Admin media lives at `/admin/media` and is backed by [server/api/media](server/api/media). Uploads can start from the media library, the reusable [components/admin/MediaPicker.vue](components/admin/MediaPicker.vue), post editors, and existing settings upload fields.
 
-Files are hashed with SHA-256 and stored by hash prefix instead of date folders:
+Files are hashed with SHA-256 and stored in year/month folders:
 
 ```text
-storage/uploads/<hash[0:2]>/<hash[2:4]>/<hash>.<ext>
-storage/thumbnails/<hash[0:2]>/<hash[2:4]>/<hash>.webp
+storage/uploads/YYYY/MM/<hash>.<ext>
+storage/variants/thumbnail/YYYY/MM/<hash>.webp
+storage/variants/medium/YYYY/MM/<hash>.webp
+storage/variants/large/YYYY/MM/<hash>.webp
 ```
 
-The `files` record stores `hash`, `original_name`, `stored_name`, `mime_type`, `size`, `extension`, timestamps, optional `comment`, `is_image`, `image_meta`, `folders`, `tags`, `reference_count`, `referenced_by`, `storage_path`, and `thumbnail_path`. Duplicate uploads reuse the existing hash record and increment `reference_count`.
+The `files` record stores `hash`, `original_name`, `stored_name`, `mime_type`, `size`, `extension`, timestamps, optional `comment`, `is_image`, `image_meta`, `folders`, `tags`, `reference_count`, `referenced_by`, `original_path`, and `variants`. Duplicate uploads reuse the existing hash record and increment `reference_count`.
 
-Images are processed with `sharp` for metadata and 300x300 WebP thumbnails. File bytes are served from `/api/media/file/<hash>` and thumbnails from `/api/media/thumbnail/<hash>` with immutable cache headers.
+Images are processed with `sharp` for metadata and generated WebP variants (`thumbnail`, `medium`, `large`). File bytes are served from `/api/media/file/<hash>`, and variants from `/api/media/variant/<size>/<hash>` with immutable cache headers.
 
 Search supports combined filters for name/comment text, upload date range, type/MIME, custom folder, tag, and orphan state. Custom folder CRUD endpoints live under `/api/media/folders`; virtual month folders are computed from `uploaded_at` and never affect disk layout.
 
-Orphans are files where `reference_count = 0` and `referenced_by = []`. Use `GET /api/media/orphans` to list them and `POST /api/media/orphans/cleanup` to delete database records plus physical files/thumbnails. The admin UI requires confirmation for delete and orphan cleanup actions.
+Orphans are files where `reference_count = 0` and `referenced_by = []`. Use `GET /api/media/orphans` to list them and `POST /api/media/orphans/cleanup` to delete database records plus physical original/variant files. The admin UI requires confirmation for delete and orphan cleanup actions.
 
 Optional scheduled orphan cleanup is controlled by:
 

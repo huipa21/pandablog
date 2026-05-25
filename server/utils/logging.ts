@@ -122,6 +122,7 @@ export async function initializeLoggingSettings() {
 
   try {
     const db = await useDb()
+    await repairLegacyLoggingSettingsUpdatedAt(db)
     const response = await queryDb<[Array<Record<string, unknown>>]>(
       db,
       'SELECT * FROM logging_settings WHERE id = type::record($table, $id) LIMIT 1;',
@@ -412,7 +413,7 @@ async function persistLoggingSettings(settings: LoggingSettings) {
       id: LOGGING_SETTINGS_ID,
       settings: {
         ...settings,
-        updated_at: new Date().toISOString()
+        updated_at: new Date()
       }
     },
     { label: 'logging settings persist', timeoutMs: 10_000 }
@@ -440,10 +441,31 @@ function normalizeSettingsRecord(record: Record<string, unknown>): LoggingSettin
     console_output: asBoolean(record.console_output, defaults.console_output),
     cleanup_enabled: asBoolean(record.cleanup_enabled, defaults.cleanup_enabled),
     cleanup_cron: asCron(record.cleanup_cron, defaults.cleanup_cron),
-    updated_at: typeof record.updated_at === 'string' ? record.updated_at : new Date().toISOString()
+    updated_at: loggingSettingsUpdatedAt(record.updated_at)
   }
 
   return normalized
+}
+
+async function repairLegacyLoggingSettingsUpdatedAt(db: Awaited<ReturnType<typeof useDb>>) {
+  await queryDb(
+    db,
+    `UPDATE type::record($table, $id) SET updated_at = time::now();`,
+    { table: 'logging_settings', id: LOGGING_SETTINGS_ID },
+    { label: 'logging settings datetime repair', timeoutMs: 5_000, retryOnReconnect: false }
+  )
+}
+
+function loggingSettingsUpdatedAt(value: unknown) {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  return new Date().toISOString()
 }
 
 function fireAndForgetDbWrite(task: () => Promise<void>) {

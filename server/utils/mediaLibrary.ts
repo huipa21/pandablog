@@ -1,6 +1,6 @@
 import type { Surreal } from 'surrealdb'
 import { mediaHashBuffer } from './fileHash'
-import { mediaDeleteStoredObjects, mediaDeleteThumbnailPath, mediaStoredFilename, mediaUploadRelativePath, mediaWriteUploadBuffer } from './fileStorage'
+import { mediaDeleteStoredObjects, mediaOriginalRelativePath, mediaStoredFilename, mediaWriteOriginalBuffer } from './fileStorage'
 import { mediaProcessImageBuffer } from './imageProcessor'
 import { isSimilar } from './imageHash'
 import { queryDb } from './db'
@@ -8,7 +8,7 @@ import { slugify, serializeDate } from './content'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { getExpectedMimeType, getExtension, validateUpload } from './validateUpload'
 import type { MediaSettings } from './settings'
-import type { MediaFolderRecord, MediaRecord, UploadFileResult } from '~/types/content'
+import type { MediaFolderRecord, MediaRecord, MediaVariantRecord, MediaVariantSize, UploadFileResult } from '~/types/content'
 
 export interface MediaCreateUploadInput {
   originalName: string
@@ -57,12 +57,12 @@ export interface MediaAdvancedCondition {
 export function mediaNormalizeFileRecord(record: Record<string, unknown>): MediaRecord {
   const hash = String(record.hash ?? recordIdPart(stringifyRecordId(record.id), 'files'))
   const imageMeta = normalizeObject(record.image_meta)
-  const width = numberOrNull(imageMeta?.width ?? record.width)
-  const height = numberOrNull(imageMeta?.height ?? record.height)
+  const variants = normalizeVariants(record.variants, hash)
+  const width = numberOrNull(imageMeta?.width ?? variants?.large?.width ?? variants?.medium?.width ?? record.width)
+  const height = numberOrNull(imageMeta?.height ?? variants?.large?.height ?? variants?.medium?.height ?? record.height)
   const uploadedAt = serializeDate(record.uploaded_at ?? record.created_at) ?? new Date().toISOString()
   const updatedAt = serializeDate(record.updated_at) ?? uploadedAt
-  const storagePath = String(record.storage_path ?? record.path ?? '')
-  const thumbnailPath = stringOrNull(record.thumbnail_path)
+  const originalPath = String(record.original_path ?? '')
 
   return {
     id: stringifyRecordId(record.id),
@@ -72,11 +72,10 @@ export function mediaNormalizeFileRecord(record: Record<string, unknown>): Media
     extension: String(record.extension ?? ''),
     mime_type: String(record.mime_type ?? ''),
     size: Number(record.size ?? 0),
-    path: storagePath,
-    storage_path: storagePath,
+    original_path: originalPath,
     url: `/api/media/file/${encodeURIComponent(hash)}`,
-    thumbnail_path: thumbnailPath,
-    thumbnail_url: thumbnailPath ? `/api/media/thumbnail/${encodeURIComponent(hash)}` : null,
+    variants,
+    thumbnail_url: variants?.thumbnail?.url ?? null,
     width,
     height,
     is_image: Boolean(record.is_image),
@@ -134,13 +133,14 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
     }
   }
 
-  const image = await mediaProcessImageBuffer(input.data, hash, mimeType, settings.enable_perceptual_dedup)
+  const createdAt = new Date()
+  const image = await mediaProcessImageBuffer(input.data, hash, mimeType, settings.enable_perceptual_dedup, createdAt)
 
   if (image.perceptual_hash && settings.enable_perceptual_dedup) {
     const similar = await mediaFindSimilarImage(db, image.perceptual_hash, settings.perceptual_dedup_threshold)
 
     if (similar) {
-      await mediaDeleteThumbnailPath(image.thumbnail_path)
+      await mediaDeleteStoredObjects({ original_path: null, variants: image.variants ?? null })
       return {
         original_name: originalName,
         extension,
@@ -150,13 +150,13 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
     }
   }
 
-  let storagePath = ''
+  let originalPath = ''
 
   try {
-    storagePath = await mediaWriteUploadBuffer(hash, extension, input.data)
-    const now = new Date()
+    originalPath = await mediaWriteOriginalBuffer(hash, extension, input.data, createdAt)
+    const now = createdAt
     const imageMetaExpression = optionalParamExpression(image.image_meta, 'image_meta')
-    const thumbnailPathExpression = optionalParamExpression(image.thumbnail_path, 'thumbnail_path')
+    const variantsExpression = optionalParamExpression(image.variants, 'variants')
     const perceptualHashExpression = optionalParamExpression(image.perceptual_hash, 'perceptual_hash')
     const uploadedByExpression = optionalParamExpression(input.uploadedBy, 'uploaded_by')
     const createResponse = await queryDb(
@@ -177,8 +177,8 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
         tags: [],
         reference_count: 0,
         referenced_by: [],
-        storage_path: $storage_path,
-        thumbnail_path: ${thumbnailPathExpression},
+        original_path: $original_path,
+        variants: ${variantsExpression},
         perceptual_hash: ${perceptualHashExpression},
         uploaded_by: ${uploadedByExpression}
       };`,
@@ -194,8 +194,8 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
         now,
         is_image: image.is_image,
         image_meta: image.image_meta,
-        storage_path: storagePath,
-        thumbnail_path: image.thumbnail_path,
+        original_path: originalPath,
+        variants: image.variants,
         perceptual_hash: image.perceptual_hash,
         uploaded_by: input.uploadedBy ?? null
       }
@@ -213,7 +213,10 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
       record: mediaNormalizeFileRecord(created)
     }
   } catch (error) {
-    await mediaDeleteStoredObjects({ storage_path: storagePath || mediaUploadRelativePath(hash, extension), thumbnail_path: image.thumbnail_path })
+    await mediaDeleteStoredObjects({
+      original_path: originalPath || mediaOriginalRelativePath(hash, extension, createdAt),
+      variants: image.variants ?? null
+    })
     throw error
   }
 }
@@ -579,6 +582,38 @@ function normalizeObject(value: unknown) {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null
+}
+
+function normalizeVariants(value: unknown, hash: string) {
+  const input = normalizeObject(value)
+  if (!input) {
+    return undefined
+  }
+
+  const sizes: MediaVariantSize[] = ['thumbnail', 'medium', 'large']
+  const output: Partial<Record<MediaVariantSize, MediaVariantRecord>> = {}
+
+  for (const size of sizes) {
+    const raw = normalizeObject(input[size])
+    if (!raw) {
+      continue
+    }
+    const path = raw ? stringOrNull(raw.path) : null
+    if (!path) {
+      continue
+    }
+
+    output[size] = {
+      path,
+      url: `/api/media/variant/${size}/${encodeURIComponent(hash)}`,
+      mime_type: stringOrNull(raw.mime_type) ?? 'image/webp',
+      width: numberOrNull(raw.width),
+      height: numberOrNull(raw.height),
+      size: numberOrNull(raw.size)
+    }
+  }
+
+  return Object.keys(output).length ? output : undefined
 }
 
 function numberOrNull(value: unknown) {

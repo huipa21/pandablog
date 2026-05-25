@@ -16,6 +16,55 @@ export const MediaTextNode = Node.create({
         parseHTML: (el) => el.getAttribute('data-media-title-position') ?? 'bottom',
         renderHTML: (attrs) => ({ 'data-media-title-position': attrs.mediaTitlePosition ?? 'bottom' })
       },
+      mediaSourceSize: {
+        default: 'full',
+        parseHTML: (el) => {
+          const value = el.getAttribute('data-media-source-size')
+          return value === 'thumbnail' || value === 'medium' || value === 'large' || value === 'full'
+            ? value
+            : 'full'
+        },
+        renderHTML: (attrs) => ({ 'data-media-source-size': attrs.mediaSourceSize ?? 'full' })
+      },
+      mediaDisplaySize: {
+        default: 'fill-container',
+        parseHTML: (el) => {
+          const value = el.getAttribute('data-media-display-size')
+          return value === 'natural'
+            || value === 'fill-container'
+            || value === 'custom-percent'
+            || value === 'custom-px'
+            || value === 'viewport'
+            || value === 'full-bleed'
+            ? value
+            : 'fill-container'
+        },
+        renderHTML: (attrs) => ({ 'data-media-display-size': attrs.mediaDisplaySize ?? 'fill-container' })
+      },
+      mediaDisplayPercent: {
+        default: 100,
+        parseHTML: (el) => {
+          const n = parseFloat(el.getAttribute('data-media-display-percent') ?? '')
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.mediaDisplayPercent ? { 'data-media-display-percent': String(attrs.mediaDisplayPercent) } : {})
+      },
+      mediaDisplayPx: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-media-display-px') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.mediaDisplayPx ? { 'data-media-display-px': String(attrs.mediaDisplayPx) } : {})
+      },
+      blockWidth: {
+        default: 'content',
+        parseHTML: (el) => {
+          const value = el.getAttribute('data-block-width')
+          return value === 'content' || value === 'wide' || value === 'full-bleed' ? value : 'content'
+        },
+        renderHTML: (attrs) => ({ 'data-block-width': attrs.blockWidth ?? 'content' })
+      },
       mediaWidth: {
         default: null,
         parseHTML: (el) => {

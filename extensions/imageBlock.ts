@@ -5,6 +5,10 @@ export interface ImageBlockAttrs {
   alt: string
   title: string
   titlePosition: 'none' | 'top' | 'bottom'
+  sourceSize: 'thumbnail' | 'medium' | 'large' | 'full'
+  displaySize: 'natural' | 'fill-container' | 'custom-percent' | 'custom-px' | 'viewport' | 'full-bleed'
+  displayPercent: number | null
+  displayPx: number | null
   width: number | null
   height: number | null
   widthPercent: number | null
@@ -30,6 +34,47 @@ export const ImageBlockNode = Node.create({
         default: 'bottom',
         parseHTML: (el) => (el.getAttribute('data-title-position') as ImageBlockAttrs['titlePosition']) ?? 'bottom',
         renderHTML: (attrs) => ({ 'data-title-position': attrs.titlePosition ?? 'bottom' })
+      },
+      sourceSize: {
+        default: 'full',
+        parseHTML: (el) => {
+          const value = el.getAttribute('data-source-size')
+          return value === 'thumbnail' || value === 'medium' || value === 'large' || value === 'full'
+            ? value
+            : 'full'
+        },
+        renderHTML: (attrs) => ({ 'data-source-size': attrs.sourceSize ?? 'full' })
+      },
+      displaySize: {
+        default: 'fill-container',
+        parseHTML: (el) => {
+          const value = el.getAttribute('data-display-size')
+          return value === 'natural'
+            || value === 'fill-container'
+            || value === 'custom-percent'
+            || value === 'custom-px'
+            || value === 'viewport'
+            || value === 'full-bleed'
+            ? value
+            : 'fill-container'
+        },
+        renderHTML: (attrs) => ({ 'data-display-size': attrs.displaySize ?? 'fill-container' })
+      },
+      displayPercent: {
+        default: 100,
+        parseHTML: (el) => {
+          const n = parseFloat(el.getAttribute('data-display-percent') ?? '')
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.displayPercent ? { 'data-display-percent': String(attrs.displayPercent) } : {})
+      },
+      displayPx: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-display-px') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.displayPx ? { 'data-display-px': String(attrs.displayPx) } : {})
       },
       width: {
         default: null,

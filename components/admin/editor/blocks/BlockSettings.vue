@@ -43,30 +43,44 @@
               @update:model-value="updateAttrs({ titlePosition: String($event) })"
             />
           </UFormField>
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Width (px)">
-              <UInput type="number" :model-value="(attrs.width as number | null) ?? undefined" @update:model-value="setImageWidth" />
+          <UFormField label="Source size">
+            <USelect
+              :model-value="imageSourceSize"
+              :items="sourceSizeItems"
+              @update:model-value="setImageSourceSize"
+            />
+          </UFormField>
+          <UFormField label="Display size">
+            <USelect
+              :model-value="imageDisplaySize"
+              :items="displaySizeItems"
+              @update:model-value="setImageDisplaySize"
+            />
+          </UFormField>
+          <div v-if="imageDisplaySize === 'custom-px'" class="grid grid-cols-2 gap-2">
+            <UFormField label="Display width (px)">
+              <UInput type="number" :model-value="(attrs.displayPx as number | null) ?? (attrs.width as number | null) ?? undefined" @update:model-value="setImageWidth" />
             </UFormField>
-            <UFormField label="Height (px)">
+            <UFormField label="Display height (px)">
               <UInput type="number" :model-value="(attrs.height as number | null) ?? undefined" @update:model-value="setImageHeight" />
             </UFormField>
           </div>
-          <UFormField label="Size (%)">
+          <UFormField v-if="imageDisplaySize === 'custom-percent'" label="Display size (%)">
             <div class="space-y-2">
               <input
                 type="range"
                 min="1"
                 max="200"
-                :value="Number(attrs.widthPercent ?? 100)"
+                :value="Number(attrs.displayPercent ?? attrs.widthPercent ?? 100)"
                 class="w-full"
-                @input="setImageWidthPercent(($event.target as HTMLInputElement).value)"
+                @input="setImageDisplayPercent(($event.target as HTMLInputElement).value)"
               >
               <UInput
                 type="number"
                 min="1"
                 max="200"
-                :model-value="(attrs.widthPercent as number | null) ?? 100"
-                @update:model-value="setImageWidthPercent"
+                :model-value="(attrs.displayPercent as number | null) ?? (attrs.widthPercent as number | null) ?? 100"
+                @update:model-value="setImageDisplayPercent"
               />
             </div>
           </UFormField>
@@ -113,30 +127,51 @@
               @update:model-value="updateAttrs({ mediaTitlePosition: String($event) })"
             />
           </UFormField>
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Width (px)">
-              <UInput type="number" :model-value="(attrs.mediaWidth as number | null) ?? undefined" @update:model-value="setMediaWidth" />
+          <UFormField label="Whole block width">
+            <USelect
+              :model-value="String(attrs.blockWidth ?? 'content')"
+              :items="blockWidthItems"
+              @update:model-value="updateAttrs({ blockWidth: String($event) })"
+            />
+          </UFormField>
+          <UFormField label="Media source size">
+            <USelect
+              :model-value="mediaSourceSize"
+              :items="sourceSizeItems"
+              @update:model-value="setMediaSourceSize"
+            />
+          </UFormField>
+          <UFormField label="Media display size">
+            <USelect
+              :model-value="mediaDisplaySize"
+              :items="displaySizeItems"
+              @update:model-value="setMediaDisplaySize"
+            />
+          </UFormField>
+          <div v-if="mediaDisplaySize === 'custom-px'" class="grid grid-cols-2 gap-2">
+            <UFormField label="Media width (px)">
+              <UInput type="number" :model-value="(attrs.mediaDisplayPx as number | null) ?? (attrs.mediaWidth as number | null) ?? undefined" @update:model-value="setMediaWidth" />
             </UFormField>
-            <UFormField label="Height (px)">
+            <UFormField label="Media height (px)">
               <UInput type="number" :model-value="(attrs.mediaHeight as number | null) ?? undefined" @update:model-value="setMediaHeight" />
             </UFormField>
           </div>
-          <UFormField label="Size (%)">
+          <UFormField v-if="mediaDisplaySize === 'custom-percent'" label="Media size (%)">
             <div class="space-y-2">
               <input
                 type="range"
                 min="1"
                 max="200"
-                :value="Number(attrs.mediaWidthPercent ?? 100)"
+                :value="Number(attrs.mediaDisplayPercent ?? attrs.mediaWidthPercent ?? 100)"
                 class="w-full"
-                @input="setMediaWidthPercent(($event.target as HTMLInputElement).value)"
+                @input="setMediaDisplayPercent(($event.target as HTMLInputElement).value)"
               >
               <UInput
                 type="number"
                 min="1"
                 max="200"
-                :model-value="(attrs.mediaWidthPercent as number | null) ?? 100"
-                @update:model-value="setMediaWidthPercent"
+                :model-value="(attrs.mediaDisplayPercent as number | null) ?? (attrs.mediaWidthPercent as number | null) ?? 100"
+                @update:model-value="setMediaDisplayPercent"
               />
             </div>
           </UFormField>
@@ -145,6 +180,13 @@
               :model-value="attrs.lockAspect !== false"
               label="Maintain aspect ratio"
               @update:model-value="setMediaLockAspect"
+            />
+          </UFormField>
+          <UFormField label="Media / Text ratio">
+            <USelect
+              :model-value="String(Math.round(Number(attrs.ratio ?? 0.5) * 100))"
+              :items="ratioPresetItems"
+              @update:model-value="setMediaRatioPreset"
             />
           </UFormField>
           <UFormField :label="`Column split (${Math.round(Number(attrs.ratio ?? 0.5) * 100)}% / ${100 - Math.round(Number(attrs.ratio ?? 0.5) * 100)}%)`">
@@ -242,6 +284,62 @@ const headingLevelItems = [
 
 const languageItems = CODE_BLOCK_LANGUAGES.map((l) => ({ label: l.label, value: l.value as string }))
 const themeItems = CODE_BLOCK_THEMES.map((t) => ({ label: t.label, value: t.value as string }))
+const sourceSizeItems = [
+  { label: 'Thumbnail', value: 'thumbnail' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'Large', value: 'large' },
+  { label: 'Full / Original', value: 'full' }
+]
+const displaySizeItems = [
+  { label: 'Natural / Auto', value: 'natural' },
+  { label: 'Fill container', value: 'fill-container' },
+  { label: 'Custom percent', value: 'custom-percent' },
+  { label: 'Custom px', value: 'custom-px' }
+]
+const blockWidthItems = [
+  { label: 'Content', value: 'content' },
+  { label: 'Wide', value: 'wide' },
+  { label: 'Full bleed', value: 'full-bleed' }
+]
+const ratioPresetItems = [
+  { label: '30 / 70', value: '30' },
+  { label: '40 / 60', value: '40' },
+  { label: '50 / 50', value: '50' },
+  { label: '60 / 40', value: '60' },
+  { label: '70 / 30', value: '70' }
+]
+
+const imageSourceSize = computed(() => String(attrs.value.sourceSize ?? 'full'))
+const imageDisplaySize = computed(() => {
+  const explicit = String(attrs.value.displaySize ?? '')
+  if (explicit) {
+    return explicit
+  }
+
+  const percent = Number(attrs.value.widthPercent ?? 0)
+  if (Number.isFinite(percent) && percent > 0 && percent !== 100) {
+    return 'custom-percent'
+  }
+
+  const width = numberOrNull(attrs.value.width)
+  return width ? 'custom-px' : 'fill-container'
+})
+
+const mediaSourceSize = computed(() => String(attrs.value.mediaSourceSize ?? 'full'))
+const mediaDisplaySize = computed(() => {
+  const explicit = String(attrs.value.mediaDisplaySize ?? '')
+  if (explicit) {
+    return explicit
+  }
+
+  const percent = Number(attrs.value.mediaWidthPercent ?? 0)
+  if (Number.isFinite(percent) && percent > 0 && percent !== 100) {
+    return 'custom-percent'
+  }
+
+  const width = numberOrNull(attrs.value.mediaWidth)
+  return width ? 'custom-px' : 'fill-container'
+})
 
 function updateAttrs(nextAttrs: Record<string, unknown>) {
   const activeEditor = props.editor
@@ -453,6 +551,15 @@ function mediaNaturalDims() {
   return { mediaNaturalWidth, mediaNaturalHeight }
 }
 
+function setImageSourceSize(value: unknown) {
+  updateAttrs({ sourceSize: asSelectValue(value, 'full') })
+}
+
+function setImageDisplaySize(value: unknown) {
+  const displaySize = asSelectValue(value, 'fill-container')
+  updateAttrs({ displaySize })
+}
+
 function setImageWidth(value: unknown) {
   const width = numberOrNull(value)
   const lockAspect = attrs.value.lockAspect !== false
@@ -462,8 +569,11 @@ function setImageWidth(value: unknown) {
   if (lockAspect && width && ratio) {
     const height = Math.round(width / ratio)
     updateAttrs({
+      displaySize: 'custom-px',
+      displayPx: width,
       width,
       height,
+      displayPercent: derivePercent(width, naturalWidth),
       widthPercent: derivePercent(width, naturalWidth),
       naturalWidth: naturalWidth ?? width,
       naturalHeight: naturalHeight ?? height
@@ -472,7 +582,10 @@ function setImageWidth(value: unknown) {
   }
 
   updateAttrs({
+    displaySize: 'custom-px',
+    displayPx: width,
     width,
+    displayPercent: derivePercent(width, naturalWidth),
     widthPercent: derivePercent(width, naturalWidth),
     naturalWidth: naturalWidth ?? width
   })
@@ -487,8 +600,11 @@ function setImageHeight(value: unknown) {
   if (lockAspect && height && ratio) {
     const width = Math.round(height * ratio)
     updateAttrs({
+      displaySize: 'custom-px',
+      displayPx: width,
       height,
       width,
+      displayPercent: derivePercent(width, naturalWidth),
       widthPercent: derivePercent(width, naturalWidth),
       naturalHeight: naturalHeight ?? height,
       naturalWidth: naturalWidth ?? width
@@ -497,13 +613,15 @@ function setImageHeight(value: unknown) {
   }
 
   updateAttrs({
+    displaySize: 'custom-px',
     height,
+    displayPercent: derivePercent(height, naturalHeight),
     widthPercent: derivePercent(height, naturalHeight),
     naturalHeight: naturalHeight ?? height
   })
 }
 
-function setImageWidthPercent(value: unknown) {
+function setImageDisplayPercent(value: unknown) {
   const widthPercent = percentOrNull(value)
   if (!widthPercent) {
     return
@@ -511,13 +629,30 @@ function setImageWidthPercent(value: unknown) {
 
   const { naturalWidth, naturalHeight } = imageNaturalDims()
   if (!naturalWidth || !naturalHeight) {
-    updateAttrs({ widthPercent })
+    updateAttrs({ displaySize: 'custom-percent', displayPercent: widthPercent, widthPercent })
     return
   }
 
   const width = Math.round((naturalWidth * widthPercent) / 100)
   const height = Math.round((naturalHeight * widthPercent) / 100)
-  updateAttrs({ widthPercent, width, height, naturalWidth, naturalHeight })
+  updateAttrs({
+    displaySize: 'custom-percent',
+    displayPercent: widthPercent,
+    widthPercent,
+    width,
+    height,
+    naturalWidth,
+    naturalHeight
+  })
+}
+
+function setMediaSourceSize(value: unknown) {
+  updateAttrs({ mediaSourceSize: asSelectValue(value, 'full') })
+}
+
+function setMediaDisplaySize(value: unknown) {
+  const mediaDisplaySize = asSelectValue(value, 'fill-container')
+  updateAttrs({ mediaDisplaySize })
 }
 
 function setMediaWidth(value: unknown) {
@@ -529,8 +664,11 @@ function setMediaWidth(value: unknown) {
   if (lockAspect && mediaWidth && ratio) {
     const mediaHeight = Math.round(mediaWidth / ratio)
     updateAttrs({
+      mediaDisplaySize: 'custom-px',
+      mediaDisplayPx: mediaWidth,
       mediaWidth,
       mediaHeight,
+      mediaDisplayPercent: derivePercent(mediaWidth, mediaNaturalWidth),
       mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
       mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth,
       mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight
@@ -539,7 +677,10 @@ function setMediaWidth(value: unknown) {
   }
 
   updateAttrs({
+    mediaDisplaySize: 'custom-px',
+    mediaDisplayPx: mediaWidth,
     mediaWidth,
+    mediaDisplayPercent: derivePercent(mediaWidth, mediaNaturalWidth),
     mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
     mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth
   })
@@ -554,8 +695,11 @@ function setMediaHeight(value: unknown) {
   if (lockAspect && mediaHeight && ratio) {
     const mediaWidth = Math.round(mediaHeight * ratio)
     updateAttrs({
+      mediaDisplaySize: 'custom-px',
+      mediaDisplayPx: mediaWidth,
       mediaHeight,
       mediaWidth,
+      mediaDisplayPercent: derivePercent(mediaWidth, mediaNaturalWidth),
       mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
       mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight,
       mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth
@@ -564,13 +708,15 @@ function setMediaHeight(value: unknown) {
   }
 
   updateAttrs({
+    mediaDisplaySize: 'custom-px',
     mediaHeight,
+    mediaDisplayPercent: derivePercent(mediaHeight, mediaNaturalHeight),
     mediaWidthPercent: derivePercent(mediaHeight, mediaNaturalHeight),
     mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight
   })
 }
 
-function setMediaWidthPercent(value: unknown) {
+function setMediaDisplayPercent(value: unknown) {
   const mediaWidthPercent = percentOrNull(value)
   if (!mediaWidthPercent) {
     return
@@ -578,13 +724,31 @@ function setMediaWidthPercent(value: unknown) {
 
   const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
   if (!mediaNaturalWidth || !mediaNaturalHeight) {
-    updateAttrs({ mediaWidthPercent })
+    updateAttrs({ mediaDisplaySize: 'custom-percent', mediaDisplayPercent: mediaWidthPercent, mediaWidthPercent })
     return
   }
 
   const mediaWidth = Math.round((mediaNaturalWidth * mediaWidthPercent) / 100)
   const mediaHeight = Math.round((mediaNaturalHeight * mediaWidthPercent) / 100)
-  updateAttrs({ mediaWidthPercent, mediaWidth, mediaHeight, mediaNaturalWidth, mediaNaturalHeight })
+  updateAttrs({
+    mediaDisplaySize: 'custom-percent',
+    mediaDisplayPercent: mediaWidthPercent,
+    mediaWidthPercent,
+    mediaWidth,
+    mediaHeight,
+    mediaNaturalWidth,
+    mediaNaturalHeight
+  })
+}
+
+function setMediaRatioPreset(value: unknown) {
+  const raw = Number(asSelectValue(value, '50'))
+  if (!Number.isFinite(raw)) {
+    return
+  }
+
+  const ratio = Math.max(15, Math.min(85, Math.round(raw))) / 100
+  updateAttrs({ ratio })
 }
 
 function setImageLockAspect(value: unknown) {

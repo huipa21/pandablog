@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { requireAdminUser } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
-import { mediaResolveUploadPath } from '../../utils/fileStorage'
+import { mediaResolveOriginalPath } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
 import { queryRows } from '../../utils/surrealResult'
 
@@ -55,8 +55,8 @@ export default defineEventHandler(async (event) => {
           const rows = queryRows<Record<string, unknown>>(response)
           if (!rows.length || !rows[0]) continue
           const file = mediaNormalizeFileRecord(rows[0])
-          if (!file.storage_path) continue
-          const absolutePath = mediaResolveUploadPath(file.storage_path)
+          if (!file.original_path) continue
+          const absolutePath = mediaResolveOriginalPath(file.original_path)
           archive.file(absolutePath, { name: file.original_name })
         } catch {
           // Skip files that can't be read

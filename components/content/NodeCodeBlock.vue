@@ -184,14 +184,14 @@ function renderLowlightHtml(source: string, lang: string) {
       .map((line, index) => {
         const safeLine = line || ' '
         if (!lineNumbers.value) {
-          return `<span class="line" style="display:block;width:100%;min-height:19px;line-height:19px;font-size:13px;">${safeLine}</span>`
+          return `<span class="line">${safeLine}</span>`
         }
 
-        return `<span class="line" style="display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;width:100%;min-height:19px;line-height:19px;font-size:13px;"><span class="ln" style="display:inline-block;height:19px;line-height:19px;text-align:right;color:rgba(148,163,184,.55);padding-right:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Cascadia Code',monospace;user-select:none;">${index + 1}</span><span class="lc">${safeLine}</span></span>`
+        return `<span class="line line-numbered"><span class="ln">${index + 1}</span><span class="lc">${safeLine}</span></span>`
       })
       .join('')
 
-    return `<pre class="hljs" style="margin:0;padding:2px 16px;overflow-x:auto;font-size:13px;line-height:19px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Cascadia Code',monospace;background:transparent;"><code class="language-${escapeAttr(normalizedLang)}" style="display:block;font-size:13px;line-height:19px;">${lines}</code></pre>`
+    return `<pre class="hljs"><code class="language-${escapeAttr(normalizedLang)}">${lines}</code></pre>`
   } catch {
     return fallbackHtml.value
   }
@@ -264,9 +264,10 @@ function escapeAttr(value: string) {
 
 .codeblock-public-wrap {
   /* Slightly smaller font and explicit line-height to match VS Code rhythm */
-  --code-font-size: 13px;
-  --code-line-height: 19px;
-  --code-block-padding-y: 2px;
+  --code-font-size: var(--pb-code-font-size);
+  --code-line-height: var(--pb-code-line-height);
+  --code-block-padding-y: var(--pb-code-block-padding-y);
+  --code-line-number-gutter-width: var(--pb-code-line-number-gutter-width);
   margin: 1.5rem 0;
   border-radius: 0.5rem;
   overflow: hidden;
@@ -409,15 +410,47 @@ function escapeAttr(value: string) {
   color: inherit;
 }
 
+.codeblock-public-body .line {
+  display: block;
+  width: 100%;
+  min-height: var(--code-line-height);
+  line-height: var(--code-line-height);
+  font-size: var(--code-font-size);
+}
+
 .codeblock-public-body.with-line-numbers pre code {
   counter-reset: code-line;
   display: block;
 }
 
+.codeblock-public-body.with-line-numbers .line.line-numbered {
+  display: grid;
+  grid-template-columns: var(--code-line-number-gutter-width) minmax(0, 1fr);
+  align-items: start;
+}
+
+.codeblock-public-body.with-line-numbers .line.line-numbered .ln {
+  display: inline-block;
+  height: var(--code-line-height);
+  line-height: var(--code-line-height);
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  text-align: right;
+  color: rgba(127, 127, 127, 0.6);
+  font-size: var(--code-font-size);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.codeblock-public-body.with-line-numbers .line.line-numbered .lc {
+  min-width: 0;
+}
+
 .codeblock-public-body.with-line-numbers .line:not(:has(.ln)) {
   display: block;
   width: 100%;
-  padding-left: 3rem;
+  padding-left: var(--code-line-number-gutter-width);
   position: relative;
   min-height: var(--code-line-height);
   line-height: var(--code-line-height);
@@ -430,16 +463,18 @@ function escapeAttr(value: string) {
   position: absolute;
   left: 0;
   top: 0;
-  width: 2.25rem;
+  width: var(--code-line-number-gutter-width);
   height: var(--code-line-height);
   line-height: var(--code-line-height);
   text-align: right;
-  color: rgba(148, 163, 184, 0.55);
+  color: rgba(127, 127, 127, 0.6);
   user-select: none;
+  padding-left: 0.5rem;
   padding-right: 0.5rem;
   display: inline-block;
   font-size: var(--code-font-size);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 /* When server-rendered HTML includes explicit .ln nodes, disable pseudo-counter numbers. */

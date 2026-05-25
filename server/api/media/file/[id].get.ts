@@ -1,5 +1,5 @@
 import { queryDb, useDb } from '../../../utils/db'
-import { mediaCreateUploadStream, mediaStatUpload } from '../../../utils/fileStorage'
+import { mediaCreateOriginalStream, mediaStatOriginal } from '../../../utils/fileStorage'
 import { assertLocalMediaRequest } from '../../../utils/mediaAccess'
 import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../../utils/mediaLibrary'
 import { firstRow } from '../../../utils/surrealResult'
@@ -22,13 +22,13 @@ export default defineEventHandler(async (event) => {
   const file = mediaNormalizeFileRecord(record)
 
   try {
-    const stats = await mediaStatUpload(file.storage_path || '')
+    const stats = await mediaStatOriginal(file.original_path || '')
     const isDownload = getQuery(event).download === 'true'
     setResponseHeader(event, 'Content-Type', file.mime_type || 'application/octet-stream')
     setResponseHeader(event, 'Content-Length', stats.size)
     setResponseHeader(event, 'Cache-Control', isDownload ? 'no-cache' : 'public, max-age=31536000, immutable')
     setResponseHeader(event, 'Content-Disposition', `${isDownload ? 'attachment' : 'inline'}; filename="${encodeHeaderValue(file.original_name)}"`)
-    return sendStream(event, mediaCreateUploadStream(file.storage_path || ''))
+    return sendStream(event, mediaCreateOriginalStream(file.original_path || ''))
   } catch {
     throw createError({ statusCode: 404, message: 'File not found on disk' })
   }

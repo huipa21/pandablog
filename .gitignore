@@ -16,10 +16,9 @@ pnpm-debug.log*
 public/uploads/*
 !public/uploads/.gitkeep
 storage/uploads/*
-storage/thumbnails/*
+storage/variants/*
 storage/downloads/*
 !storage/uploads/.gitkeep
-!storage/thumbnails/.gitkeep
 !storage/downloads/.gitkeep
 pandablog.code-workspace
 
@@ -33,3 +32,4 @@ tests
 test-results
 .playwright-mcp/
 .vscode/
+.github/

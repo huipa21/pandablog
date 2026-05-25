@@ -119,7 +119,7 @@ function collectHashes(value: unknown, hashes: Set<string>) {
 function parseHashesFromString(value: string) {
   const decoded = decodeURIComponent(value)
   const hashes = new Set<string>()
-  const mediaUrlPattern = /\/api\/media\/(?:file|thumbnail)\/(?:files:)?([a-f0-9]{64})/gi
+  const mediaUrlPattern = /\/api\/media\/(?:file|thumbnail|variant\/(?:thumbnail|medium|large))\/(?:files:)?([a-f0-9]{64})/gi
   const recordPattern = /\bfiles:([a-f0-9]{64})\b/gi
   const storagePattern = /(?:^|[\/\\])([a-f0-9]{64})(?:\.[a-z0-9]+)?(?:$|[?#])/gi
 

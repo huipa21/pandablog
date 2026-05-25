@@ -85,9 +85,10 @@ const fileIcon = computed(() => {
 <style scoped>
 .codeblock-nodeview {
   /* Match the public renderer's code metrics for consistent alignment */
-  --code-font-size: 0.8125rem; /* 13px */
-  --code-line-height: 1.25rem; /* 20px */
-  --code-block-padding-y: 0.375rem; /* 6px */
+  --code-font-size: var(--pb-code-font-size);
+  --code-line-height: var(--pb-code-line-height);
+  --code-block-padding-y: var(--pb-code-block-padding-y);
+  --code-line-number-gutter-width: var(--pb-code-line-number-gutter-width);
   background: var(--code-bg, #1e1e1e);
   color: var(--code-fg, #d4d4d4);
   border: 1px solid rgba(127, 127, 127, 0.18);
@@ -201,7 +202,7 @@ const fileIcon = computed(() => {
   color: rgba(127, 127, 127, 0.6);
   user-select: none;
   border-right: 1px solid rgba(127, 127, 127, 0.14);
-  min-width: 2.75rem;
+  min-width: var(--code-line-number-gutter-width);
   background: rgba(0, 0, 0, 0.12);
   text-align: right;
 }

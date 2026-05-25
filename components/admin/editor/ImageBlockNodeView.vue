@@ -30,7 +30,7 @@
         </div>
 
         <!-- Resize handles -->
-        <template v-if="src">
+        <template v-if="src && resizeEnabled">
           <div class="imageblock-handle e" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'e')" />
           <div class="imageblock-handle s" contenteditable="false" @mousedown.stop.prevent="startResize($event, 's')" />
           <div class="imageblock-handle se" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'se')" />
@@ -42,18 +42,61 @@
 </template>
 
 <script setup lang="ts">
+import type { CSSProperties } from 'vue'
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { useMediaUrl } from '~/composables/useMediaUrl'
+import { extractMediaHash, useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
 const { resolveMediaUrl } = useMediaUrl()
 
-const src = computed(() => resolveMediaUrl(String(props.node.attrs.src ?? '')))
+const sourceSize = computed(() => String(props.node.attrs.sourceSize ?? 'full'))
+const src = computed(() => {
+  const raw = String(props.node.attrs.src ?? '')
+  const resolved = resolveMediaUrl(raw)
+  const hash = extractMediaHash(raw)
+  if (!hash) {
+    return resolved
+  }
+
+  const encoded = encodeURIComponent(hash)
+  if (sourceSize.value === 'thumbnail') {
+    return `/api/media/variant/thumbnail/${encoded}`
+  }
+  if (sourceSize.value === 'medium') {
+    return `/api/media/variant/medium/${encoded}`
+  }
+  if (sourceSize.value === 'large') {
+    return `/api/media/variant/large/${encoded}`
+  }
+
+  return resolved
+})
 const alt = computed(() => String(props.node.attrs.alt ?? ''))
 const title = computed(() => String(props.node.attrs.title ?? ''))
 const titlePosition = computed(() => (props.node.attrs.titlePosition as string) ?? 'bottom')
 const width = computed(() => (props.node.attrs.width as number | null) ?? null)
 const height = computed(() => (props.node.attrs.height as number | null) ?? null)
+const displaySize = computed(() => {
+  const explicit = String(props.node.attrs.displaySize ?? '')
+  if (explicit) {
+    if (explicit === 'viewport' || explicit === 'full-bleed') {
+      return 'fill-container'
+    }
+    return explicit
+  }
+
+  const widthPercent = Number(props.node.attrs.widthPercent ?? 0)
+  if (Number.isFinite(widthPercent) && widthPercent > 0 && widthPercent !== 100) {
+    return 'custom-percent'
+  }
+
+  return width.value ? 'custom-px' : 'fill-container'
+})
+const displayPercent = computed(() => {
+  const value = Number(props.node.attrs.displayPercent ?? props.node.attrs.widthPercent ?? 0)
+  return Number.isFinite(value) && value > 0 ? Math.min(200, value) : 100
+})
+const displayPx = computed(() => Number(props.node.attrs.displayPx ?? props.node.attrs.width ?? 0) || null)
 const lockAspect = computed(() => props.node.attrs.lockAspect !== false)
 const align = computed(() => (props.node.attrs.align as string) ?? 'center')
 
@@ -70,16 +113,32 @@ const imgEl = ref<HTMLImageElement | null>(null)
 const previewWidth = ref<number | null>(null)
 const previewHeight = ref<number | null>(null)
 
-const displayWidth = computed(() => previewWidth.value ?? width.value)
+const resizeEnabled = computed(() => displaySize.value === 'custom-px')
+const displayWidth = computed(() => {
+  if (displaySize.value !== 'custom-px' && displaySize.value !== 'natural') {
+    return null
+  }
+
+  return previewWidth.value ?? displayPx.value ?? width.value
+})
 const displayHeight = computed(() => previewHeight.value ?? height.value)
 
-const figureStyle = computed(() => ({
-  width: displayWidth.value ? `${displayWidth.value}px` : 'auto',
-  maxWidth: '100%'
-}))
+const figureStyle = computed<CSSProperties>(() => {
+  switch (displaySize.value) {
+    case 'custom-percent':
+      return { width: `${displayPercent.value}%`, maxWidth: '100%' }
+    case 'custom-px':
+      return { width: displayWidth.value ? `${displayWidth.value}px` : 'auto', maxWidth: '100%' }
+    case 'natural':
+      return { width: 'auto', maxWidth: '100%' }
+    case 'fill-container':
+    default:
+      return { width: '100%', maxWidth: '100%' }
+  }
+})
 
 const imgStyle = computed(() => ({
-  width: displayWidth.value ? `${displayWidth.value}px` : undefined,
+  width: displaySize.value === 'natural' ? 'auto' : '100%',
   maxWidth: '100%',
   height: lockAspect.value ? 'auto' : (displayHeight.value ? `${displayHeight.value}px` : undefined)
 }))
@@ -92,9 +151,10 @@ function onImageLoad() {
   const updates: Record<string, unknown> = {}
   if (props.node.attrs.naturalWidth == null) updates.naturalWidth = naturalWidth
   if (props.node.attrs.naturalHeight == null) updates.naturalHeight = naturalHeight
-  if (width.value === null) updates.width = naturalWidth
-  if (height.value === null) updates.height = naturalHeight
+  if (displaySize.value === 'custom-px' && width.value === null) updates.width = naturalWidth
+  if (displaySize.value === 'custom-px' && height.value === null) updates.height = naturalHeight
   if (props.node.attrs.widthPercent == null) updates.widthPercent = 100
+  if (props.node.attrs.displayPercent == null) updates.displayPercent = 100
 
   if (Object.keys(updates).length) {
     props.updateAttributes(updates)
@@ -113,6 +173,7 @@ interface ResizeState {
 let resizeState: ResizeState | null = null
 
 function startResize(event: MouseEvent, dir: 'e' | 's' | 'se') {
+  if (!resizeEnabled.value) return
   const w = imgEl.value?.getBoundingClientRect().width ?? width.value ?? 0
   const h = imgEl.value?.getBoundingClientRect().height ?? height.value ?? 0
   if (!w || !h) return
@@ -170,6 +231,9 @@ function onResizeEnd() {
       : 100
 
     props.updateAttributes({
+      displaySize: 'custom-px',
+      displayPx: previewWidth.value,
+      displayPercent: widthPercentNext,
       width: previewWidth.value,
       height: previewHeight.value,
       widthPercent: widthPercentNext

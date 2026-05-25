@@ -1,18 +1,34 @@
 import { createReadStream } from 'node:fs'
 import { access, mkdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import type { MediaVariantSize } from '~/types/content'
 
-const mediaUploadsRoot = resolve(process.cwd(), 'storage/uploads')
-const mediaThumbnailsRoot = resolve(process.cwd(), 'storage/thumbnails')
+const mediaOriginalsRoot = resolve(process.cwd(), 'storage/uploads')
+const mediaVariantsRoot = resolve(process.cwd(), 'storage/variants')
 
-export interface MediaStoredObjectPaths {
-  storage_path?: string | null
-  thumbnail_path?: string | null
+interface MediaVariantPathHolder {
+  path?: string | null
 }
 
-export function mediaShardPath(hash: string) {
+interface MediaStoredVariantMap {
+  [key: string]: MediaVariantPathHolder | null | undefined
+}
+
+export interface MediaStoredObjectPaths {
+  original_path?: string | null
+  variants?: MediaStoredVariantMap | null
+}
+
+function mediaDatePathParts(date = new Date()) {
+  const year = String(date.getUTCFullYear())
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  return { year, month }
+}
+
+function mediaYearMonthPath(hash: string, date = new Date()) {
   assertMediaHash(hash)
-  return `${hash.slice(0, 2)}/${hash.slice(2, 4)}`
+  const { year, month } = mediaDatePathParts(date)
+  return `${year}/${month}`
 }
 
 export function mediaStoredFilename(hash: string, extension: string) {
@@ -21,17 +37,18 @@ export function mediaStoredFilename(hash: string, extension: string) {
   return cleanExtension ? `${hash}.${cleanExtension}` : hash
 }
 
-export function mediaUploadRelativePath(hash: string, extension: string) {
-  return `${mediaShardPath(hash)}/${mediaStoredFilename(hash, extension)}`
+export function mediaOriginalRelativePath(hash: string, extension: string, date = new Date()) {
+  return `${mediaYearMonthPath(hash, date)}/${mediaStoredFilename(hash, extension)}`
 }
 
-export function mediaThumbnailRelativePath(hash: string) {
-  return `${mediaShardPath(hash)}/${hash}.webp`
+export function mediaVariantRelativePath(hash: string, size: MediaVariantSize, extension: string, date = new Date()) {
+  const cleanExtension = mediaCleanExtension(extension) || 'webp'
+  return `${size}/${mediaYearMonthPath(hash, date)}/${hash}.${cleanExtension}`
 }
 
-export async function mediaWriteUploadBuffer(hash: string, extension: string, buffer: Buffer) {
-  const relativePath = mediaUploadRelativePath(hash, extension)
-  const absolutePath = mediaResolveUploadPath(relativePath)
+export async function mediaWriteOriginalBuffer(hash: string, extension: string, buffer: Buffer, date = new Date()) {
+  const relativePath = mediaOriginalRelativePath(hash, extension, date)
+  const absolutePath = mediaResolveOriginalPath(relativePath)
 
   await mkdir(dirname(absolutePath), { recursive: true })
   await writeFile(absolutePath, buffer)
@@ -39,9 +56,9 @@ export async function mediaWriteUploadBuffer(hash: string, extension: string, bu
   return relativePath
 }
 
-export async function mediaWriteThumbnailBuffer(hash: string, buffer: Buffer) {
-  const relativePath = mediaThumbnailRelativePath(hash)
-  const absolutePath = mediaResolveThumbnailPath(relativePath)
+export async function mediaWriteVariantBuffer(hash: string, size: MediaVariantSize, extension: string, buffer: Buffer, date = new Date()) {
+  const relativePath = mediaVariantRelativePath(hash, size, extension, date)
+  const absolutePath = mediaResolveVariantPath(relativePath)
 
   await mkdir(dirname(absolutePath), { recursive: true })
   await writeFile(absolutePath, buffer)
@@ -49,50 +66,53 @@ export async function mediaWriteThumbnailBuffer(hash: string, buffer: Buffer) {
   return relativePath
 }
 
-export function mediaResolveUploadPath(relativePath: string) {
-  return assertPathInside(mediaUploadsRoot, relativePath)
+export function mediaResolveOriginalPath(relativePath: string) {
+  return assertPathInside(mediaOriginalsRoot, relativePath)
 }
 
-export function mediaResolveThumbnailPath(relativePath: string) {
-  return assertPathInside(mediaThumbnailsRoot, normalizeThumbnailPath(relativePath))
+export function mediaResolveVariantPath(relativePath: string) {
+  return assertPathInside(mediaVariantsRoot, normalizeVariantPath(relativePath))
 }
 
-export function mediaCreateUploadStream(relativePath: string) {
-  return createReadStream(mediaResolveUploadPath(relativePath))
+export function mediaCreateOriginalStream(relativePath: string) {
+  return createReadStream(mediaResolveOriginalPath(relativePath))
 }
 
-export function mediaCreateThumbnailStream(relativePath: string) {
-  return createReadStream(mediaResolveThumbnailPath(relativePath))
+export function mediaCreateVariantStream(relativePath: string) {
+  return createReadStream(mediaResolveVariantPath(relativePath))
 }
 
-export async function mediaStatUpload(relativePath: string) {
-  return await stat(mediaResolveUploadPath(relativePath))
+export async function mediaStatOriginal(relativePath: string) {
+  return await stat(mediaResolveOriginalPath(relativePath))
 }
 
-export async function mediaStatThumbnail(relativePath: string) {
-  return await stat(mediaResolveThumbnailPath(relativePath))
+export async function mediaStatVariant(relativePath: string) {
+  return await stat(mediaResolveVariantPath(relativePath))
 }
 
-export async function mediaDeleteUploadPath(relativePath?: string | null) {
+export async function mediaDeleteOriginalPath(relativePath?: string | null) {
   if (!relativePath) {
     return
   }
 
-  await unlinkIfExists(mediaResolveUploadPath(relativePath))
+  await unlinkIfExists(mediaResolveOriginalPath(relativePath))
 }
 
-export async function mediaDeleteThumbnailPath(relativePath?: string | null) {
+export async function mediaDeleteVariantPath(relativePath?: string | null) {
   if (!relativePath) {
     return
   }
 
-  await unlinkIfExists(mediaResolveThumbnailPath(relativePath))
+  await unlinkIfExists(mediaResolveVariantPath(relativePath))
 }
 
 export async function mediaDeleteStoredObjects(paths: MediaStoredObjectPaths) {
+  const variantDeletes = Object.values(paths.variants || {})
+    .map((variant) => mediaDeleteVariantPath(variant?.path || null))
+
   await Promise.all([
-    mediaDeleteUploadPath(paths.storage_path),
-    mediaDeleteThumbnailPath(paths.thumbnail_path)
+    mediaDeleteOriginalPath(paths.original_path),
+    ...variantDeletes
   ])
 }
 
@@ -100,8 +120,8 @@ function mediaCleanExtension(extension: string) {
   return extension.trim().toLowerCase().replace(/^\.+/, '').replace(/[^a-z0-9]/g, '')
 }
 
-function normalizeThumbnailPath(relativePath: string) {
-  return relativePath.replace(/^thumbnails[\\/]/, '')
+function normalizeVariantPath(relativePath: string) {
+  return relativePath.replace(/^variants[\/]/, '')
 }
 
 function assertMediaHash(hash: string) {

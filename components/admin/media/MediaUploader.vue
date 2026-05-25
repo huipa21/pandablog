@@ -10,10 +10,10 @@
       <UIcon name="i-lucide-cloud-upload" class="mx-auto mb-3 size-9 text-stone-400" />
       <div class="text-sm font-medium text-stone-800">Drop files here</div>
       <div class="mt-1 text-xs text-stone-500">{{ mediaConfig.getMaxFileSizeDisplay() }} per file, {{ mediaConfig.getMaxFilesPerUpload() }} at a time</div>
-      <UButton type="button" icon="i-lucide-folder-open" size="sm" class="mt-4" @click="fileInput?.click()">
+      <UButton type="button" icon="i-lucide-folder-open" size="sm" class="mt-4" @click="openFileDialog">
         Select files
       </UButton>
-      <input ref="fileInput" type="file" multiple class="hidden" @change="handleFileSelect">
+      <input ref="fileInput" type="file" multiple class="sr-only" @change="handleFileSelect">
     </div>
 
     <div v-if="items.length" class="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
@@ -28,43 +28,67 @@
         </UFormField>
       </div>
 
-      <div class="space-y-3">
-        <div
-          v-for="item in items"
-          :key="item.id"
-          class="grid gap-3 rounded-lg border border-stone-200 p-3 lg:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto]"
-        >
-          <div class="min-w-0 space-y-1">
-            <div class="flex min-w-0 items-center gap-2 text-sm text-stone-700">
-              <UIcon :name="getFileIcon(extensionFor(item.file.name), item.file.type)" class="size-4 shrink-0 text-stone-500" />
-              <span class="truncate">{{ item.file.name }}</span>
-            </div>
-            <div class="text-xs text-stone-500">{{ formatFileSize(item.file.size) }}</div>
-            <UInput v-model="item.displayName" size="sm" />
-          </div>
-
-          <UFormField label="Comment override">
-            <UTextarea v-model="item.comment" :rows="2" />
-          </UFormField>
-
-          <UFormField label="Tag override">
-            <div class="rounded-md border border-stone-300 px-2 py-1.5">
-              <MediaTagInput v-model="item.tags" />
-            </div>
-          </UFormField>
-
-          <div class="flex items-start justify-end">
-            <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" :disabled="uploading" @click="removeItem(item.id)" />
-          </div>
-
-          <div v-if="uploading" class="lg:col-span-4">
-            <div class="mb-1 flex justify-between text-xs text-stone-500">
-              <span>Upload progress</span>
-              <span>{{ item.progress }}%</span>
-            </div>
-            <UProgress :value="item.progress" class="h-1" />
-          </div>
-        </div>
+      <div class="overflow-x-auto rounded-lg border border-stone-200">
+        <table class="min-w-full table-fixed divide-y divide-stone-200 text-sm">
+          <colgroup>
+            <col class="w-20">
+            <col class="w-44">
+            <col class="w-36">
+            <col class="w-64">
+            <col class="w-56">
+            <col class="w-36">
+            <col class="w-20">
+          </colgroup>
+          <thead class="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+            <tr>
+              <th class="px-3 py-2 text-left">Preview</th>
+              <th class="px-3 py-2 text-left">File</th>
+              <th class="px-3 py-2 text-left">Name</th>
+              <th class="px-3 py-2 text-left">Comment override</th>
+              <th class="px-3 py-2 text-left">Tag override</th>
+              <th class="px-3 py-2 text-left">Progress</th>
+              <th class="px-3 py-2 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-200 bg-white">
+            <tr v-for="item in items" :key="item.id" class="align-top">
+              <td class="px-3 py-2">
+                <div class="flex size-14 items-center justify-center overflow-hidden rounded border border-stone-200 bg-stone-100">
+                  <img v-if="item.previewUrl" :src="item.previewUrl" :alt="item.file.name" class="h-full w-full object-cover">
+                  <UIcon v-else :name="getFileIcon(extensionFor(item.file.name), item.file.type)" class="size-6 text-stone-500" />
+                </div>
+              </td>
+              <td class="px-3 py-2">
+                <div class="min-w-0">
+                  <div class="truncate font-medium text-stone-900">{{ item.file.name }}</div>
+                  <div class="text-xs text-stone-500">{{ formatFileSize(item.file.size) }}</div>
+                </div>
+              </td>
+              <td class="px-3 py-2">
+                <UInput v-model="item.displayName" size="sm" />
+              </td>
+              <td class="px-3 py-2">
+                <UTextarea v-model="item.comment" :rows="2" class="min-w-56" />
+              </td>
+              <td class="px-3 py-2">
+                <div class="rounded-md border border-stone-300 px-2 py-1.5">
+                  <MediaTagInput v-model="item.tags" />
+                </div>
+              </td>
+              <td class="px-3 py-2">
+                <div class="w-28 space-y-1">
+                  <div class="text-xs text-stone-500">{{ uploading ? `${item.progress}%` : 'Waiting' }}</div>
+                  <div class="h-1 w-full overflow-hidden rounded bg-stone-200">
+                    <div class="h-full rounded bg-teal-500 transition-[width] duration-150" :style="{ width: `${uploading ? item.progress : 0}%` }" />
+                  </div>
+                </div>
+              </td>
+              <td class="px-3 py-2 text-right">
+                <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" :disabled="uploading" @click="removeItem(item.id)" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="flex justify-end gap-2">
@@ -82,6 +106,12 @@
         class="flex items-start gap-3 rounded-lg border p-3 text-sm"
         :class="resultClass(result.status)"
       >
+        <img
+          v-if="(result.record || result.similar_to)?.is_image && ((result.record || result.similar_to)?.thumbnail_url || (result.record || result.similar_to)?.url)"
+          :src="(result.record || result.similar_to)?.thumbnail_url || (result.record || result.similar_to)?.url"
+          alt="preview"
+          class="size-10 rounded border border-white/40 object-cover"
+        >
         <UIcon :name="resultIcon(result.status)" class="mt-0.5 size-5 shrink-0" />
         <div class="min-w-0 flex-1">
           <div class="truncate font-medium">{{ result.original_name || result.record?.original_name || 'File' }}</div>
@@ -111,6 +141,7 @@ interface UploadQueueItem {
   comment: string
   tags: string[]
   progress: number
+  previewUrl: string | null
 }
 
 const emit = defineEmits<{
@@ -140,6 +171,24 @@ function handleFileSelect(event: Event) {
   resetInput()
 }
 
+function openFileDialog() {
+  const input = fileInput.value
+  if (!input) return
+
+  // showPicker is the most reliable way in Chromium-based browsers.
+  const maybePicker = input as HTMLInputElement & { showPicker?: () => void }
+  if (typeof maybePicker.showPicker === 'function') {
+    try {
+      maybePicker.showPicker()
+      return
+    } catch {
+      // Fall back to click when showPicker is unsupported or blocked.
+    }
+  }
+
+  input.click()
+}
+
 function addFiles(files: File[]) {
   uploadResults.value = []
   const remainingSlots = mediaConfig.getMaxFilesPerUpload() - items.value.length
@@ -158,7 +207,8 @@ function addFiles(files: File[]) {
       displayName: file.name,
       comment: '',
       tags: [],
-      progress: 0
+      progress: 0,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
     })
   }
 
@@ -171,10 +221,19 @@ function addFiles(files: File[]) {
 }
 
 function removeItem(id: string) {
+  const target = items.value.find((item) => item.id === id)
+  if (target?.previewUrl) {
+    URL.revokeObjectURL(target.previewUrl)
+  }
   items.value = items.value.filter((item) => item.id !== id)
 }
 
 function clearQueue() {
+  for (const item of items.value) {
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl)
+    }
+  }
   items.value = []
   generalComment.value = ''
   generalTags.value = []
@@ -208,7 +267,7 @@ async function uploadQueuedFiles() {
       uploadResults.value.push(result)
     }
 
-    items.value = []
+    clearQueue()
     emit('upload-complete', results)
   } finally {
     uploading.value = false
@@ -263,4 +322,8 @@ function resultText(result: UploadFileResult) {
   if (result.status === 'similar') return 'Similar image already exists'
   return result.reason || 'Upload rejected'
 }
+
+onBeforeUnmount(() => {
+  clearQueue()
+})
 </script>

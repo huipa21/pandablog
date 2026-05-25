@@ -107,10 +107,12 @@ DEFINE FIELD IF NOT EXISTS folders ON files TYPE array<record<folder>> DEFAULT [
 DEFINE FIELD IF NOT EXISTS tags ON files TYPE array<string> DEFAULT [];
 DEFINE FIELD IF NOT EXISTS reference_count ON files TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS referenced_by ON files TYPE array<record> DEFAULT [];
-DEFINE FIELD IF NOT EXISTS storage_path ON files TYPE string;
-DEFINE FIELD IF NOT EXISTS thumbnail_path ON files TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS original_path ON files TYPE string;
+DEFINE FIELD IF NOT EXISTS variants ON files TYPE option<object> FLEXIBLE DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS perceptual_hash ON files TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS uploaded_by ON files TYPE option<string> DEFAULT NONE;
+DEFINE FIELD OVERWRITE storage_path ON files TYPE option<string> DEFAULT NONE;
+DEFINE FIELD OVERWRITE thumbnail_path ON files TYPE option<string> DEFAULT NONE;
 DEFINE INDEX IF NOT EXISTS files_hash_unique ON TABLE files FIELDS hash UNIQUE;
 DEFINE INDEX IF NOT EXISTS files_original_name_fts ON TABLE files COLUMNS original_name FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 DEFINE INDEX IF NOT EXISTS files_comment_fts ON TABLE files COLUMNS comment FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;

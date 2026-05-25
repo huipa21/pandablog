@@ -804,8 +804,17 @@ async function assignFileToFolder(hash: string, folderId: string) {
   notice.value = 'File assigned to folder'
 }
 
-async function handleUploadComplete() {
+async function handleUploadComplete(results: Array<{ status: string }>) {
+  mode.value = 'all'
+  selectedFolder.value = ''
+  selectedSmartFolder.value = ''
+  selectedMediaTags.value = []
+  filters.value = defaultFilters()
   page.value = 1
+  const createdCount = results.filter((result) => result.status === 'created').length
+  if (createdCount > 0) {
+    notice.value = `Uploaded ${createdCount} file${createdCount === 1 ? '' : 's'}.`
+  }
   await loadMedia()
   await loadMediaTags()
 }

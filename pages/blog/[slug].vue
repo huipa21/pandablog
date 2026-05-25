@@ -13,7 +13,7 @@
       </template>
     </template>
 
-    <div>
+    <div class="pb-content-frame mx-auto">
       <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" class="mb-6">
         Back
       </UButton>
@@ -89,3 +89,9 @@ function isLocked(value: PostRecord | PostLockedResponse): value is PostLockedRe
   return (value as PostLockedResponse).locked === true
 }
 </script>
+
+<style scoped>
+.pb-content-frame {
+  max-width: var(--pb-post-content-max-width);
+}
+</style>

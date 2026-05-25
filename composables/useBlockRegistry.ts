@@ -103,6 +103,7 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'image',
       attrs: {
         src: '', alt: '', title: '', titlePosition: 'bottom',
+        sourceSize: 'full', displaySize: 'fill-container', displayPercent: 100, displayPx: null,
         width: null, height: null, widthPercent: 100,
         naturalWidth: null, naturalHeight: null,
         lockAspect: true, align: 'center'
@@ -122,6 +123,8 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'mediaText',
       attrs: {
         mediaSrc: '', mediaAlt: '', mediaTitle: '', mediaTitlePosition: 'bottom',
+        mediaSourceSize: 'full', mediaDisplaySize: 'fill-container', mediaDisplayPercent: 100, mediaDisplayPx: null,
+        blockWidth: 'content',
         mediaWidth: null, mediaHeight: null, mediaWidthPercent: 100,
         mediaNaturalWidth: null, mediaNaturalHeight: null,
         lockAspect: true,

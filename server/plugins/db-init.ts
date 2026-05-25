@@ -6,11 +6,13 @@ import { initializeLoggingSettings } from '../utils/logging'
 import { firstRow } from '../utils/surrealResult'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
+const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
+const MEDIA_STORAGE_VERSION = '2026-05-image-variants-v2'
 const DEFAULT_MEDIA_SETTINGS = {
   allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z'],
   max_file_size_mb: 10,
   max_files_per_upload: 5,
-  enable_perceptual_dedup: true,
+  enable_perceptual_dedup: false,
   perceptual_dedup_threshold: 5
 }
 
@@ -21,23 +23,10 @@ export default defineNitroPlugin(async () => {
 
   if (!await hasCurrentSchemaHash(db, schemaHash)) {
     await queryDb(db, schema, undefined, { label: 'schema initialization', timeoutMs: 30_000 })
-    await queryDb(
-      db,
-      `UPSERT type::record($table, $id) CONTENT {
-        key: $key,
-        value: $value,
-        updated_at: time::now()
-      };`,
-      {
-        table: 'app_setting',
-        id: SCHEMA_HASH_KEY,
-        key: SCHEMA_HASH_KEY,
-        value: schemaHash
-      },
-      { label: 'schema hash update', timeoutMs: 10_000 }
-    )
+    await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
   }
 
+  await ensureMediaStorageVersion(db)
   await ensureDefaultMediaSettings(db)
   await ensureDefaultFolder(db)
   await initializeLoggingSettings()
@@ -70,21 +59,7 @@ async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>)
     return
   }
 
-  await queryDb(
-    db,
-    `UPSERT type::record($table, $id) CONTENT {
-      key: $key,
-      value: $value,
-      updated_at: time::now()
-    };`,
-    {
-      table: 'app_setting',
-      id: 'media',
-      key: 'media',
-      value: DEFAULT_MEDIA_SETTINGS
-    },
-    { label: 'media settings init', timeoutMs: 10_000 }
-  )
+  await setAppSetting(db, 'media', DEFAULT_MEDIA_SETTINGS, 'media settings init')
 }
 
 async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {
@@ -110,5 +85,108 @@ async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {
     };`,
     undefined,
     { label: 'default folder init', timeoutMs: 10_000 }
+  )
+}
+
+async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) {
+  const response = await queryDb(
+    db,
+    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    { key: MEDIA_STORAGE_VERSION_KEY },
+    { label: 'media storage version lookup', timeoutMs: 5_000 }
+  )
+  const current = firstRow<{ value?: string }>(response)?.value
+
+  if (current === MEDIA_STORAGE_VERSION) {
+    return
+  }
+
+  await queryDb(db, 'DELETE FROM files;', undefined, { label: 'media storage schema reset', timeoutMs: 30_000 })
+  await queryDb(
+    db,
+    `UPDATE app_setting SET
+      value = $value,
+      updated_at = time::now()
+    WHERE key = $key;`,
+    {
+      key: 'media',
+      value: DEFAULT_MEDIA_SETTINGS
+    },
+    { label: 'media settings reset', timeoutMs: 10_000 }
+  )
+  const versionRow = await queryDb(
+    db,
+    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    { key: MEDIA_STORAGE_VERSION_KEY },
+    { label: 'media storage version row check', timeoutMs: 5_000 }
+  )
+  const hasVersionRow = firstRow(versionRow)
+
+  if (hasVersionRow) {
+    await queryDb(
+      db,
+      `UPDATE app_setting SET
+        value = $value,
+        updated_at = time::now()
+      WHERE key = $key;`,
+      {
+        key: MEDIA_STORAGE_VERSION_KEY,
+        value: MEDIA_STORAGE_VERSION
+      },
+      { label: 'media storage version update', timeoutMs: 10_000 }
+    )
+    return
+  }
+
+  await queryDb(
+    db,
+    `CREATE app_setting CONTENT {
+      key: $key,
+      value: $value,
+      updated_at: time::now()
+    };`,
+    {
+      key: MEDIA_STORAGE_VERSION_KEY,
+      value: MEDIA_STORAGE_VERSION
+    },
+    { label: 'media storage version create', timeoutMs: 10_000 }
+  )
+}
+
+async function setAppSetting(
+  db: Awaited<ReturnType<typeof useDb>>,
+  key: string,
+  value: unknown,
+  label: string
+) {
+  const existing = await queryDb(
+    db,
+    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    { key },
+    { label: `${label} lookup`, timeoutMs: 5_000 }
+  )
+
+  if (firstRow(existing)) {
+    await queryDb(
+      db,
+      `UPDATE app_setting SET
+        value = $value,
+        updated_at = time::now()
+      WHERE key = $key;`,
+      { key, value },
+      { label: `${label} update`, timeoutMs: 10_000 }
+    )
+    return
+  }
+
+  await queryDb(
+    db,
+    `CREATE app_setting CONTENT {
+      key: $key,
+      value: $value,
+      updated_at: time::now()
+    };`,
+    { key, value },
+    { label: `${label} create`, timeoutMs: 10_000 }
   )
 }

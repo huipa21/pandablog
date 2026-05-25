@@ -1037,8 +1037,12 @@ function handleMediaPicked(files: MediaRecord[]) {
     attrs: {
       src: toPublicMediaUrl(file.hash || file.id || file.url),
       alt: file.original_name,
-      width: typeof file.width === 'number' ? file.width : null,
-      height: typeof file.height === 'number' ? file.height : null,
+      sourceSize: 'full',
+      displaySize: 'fill-container',
+      displayPercent: 100,
+      displayPx: null,
+      width: null,
+      height: null,
       naturalWidth: typeof file.width === 'number' ? file.width : null,
       naturalHeight: typeof file.height === 'number' ? file.height : null,
       widthPercent: 100
@@ -1049,7 +1053,8 @@ function handleMediaPicked(files: MediaRecord[]) {
     ed.chain().focus().insertContentAt(insertPos, content).run()
   } else {
     for (const node of content) {
-      ed.chain().focus().setImage(node.attrs).run()
+      const chain = ed.chain().focus() as any
+      chain.setImage(node.attrs).run()
     }
   }
 
@@ -1074,11 +1079,24 @@ async function uploadImage(file: File) {
           attrs: {
             src: imageSrc,
             alt: file.name,
+            sourceSize: 'full',
+            displaySize: 'fill-container',
+            displayPercent: 100,
+            displayPx: null,
             widthPercent: 100
           }
         }).run()
       } else {
-        ed?.chain().focus().setImage({ src: imageSrc, alt: file.name, widthPercent: 100 }).run()
+        const chain = ed?.chain().focus() as any
+        chain?.setImage({
+          src: imageSrc,
+          alt: file.name,
+          sourceSize: 'full',
+          displaySize: 'fill-container',
+          displayPercent: 100,
+          displayPx: null,
+          widthPercent: 100
+        }).run()
       }
     }
   } catch {
@@ -1134,8 +1152,13 @@ function handleMediaTextPicked(files: MediaRecord[]) {
       mediaName: file.original_name ?? '',
       mediaMime: file.mime_type ?? '',
       mediaSize: typeof file.size === 'number' ? file.size : null,
-      mediaWidth: typeof file.width === 'number' ? file.width : null,
-      mediaHeight: typeof file.height === 'number' ? file.height : null,
+      mediaSourceSize: 'full',
+      mediaDisplaySize: 'fill-container',
+      mediaDisplayPercent: 100,
+      mediaDisplayPx: null,
+      blockWidth: node.attrs.blockWidth ?? 'content',
+      mediaWidth: null,
+      mediaHeight: null,
       mediaNaturalWidth: typeof file.width === 'number' ? file.width : null,
       mediaNaturalHeight: typeof file.height === 'number' ? file.height : null,
       mediaWidthPercent: 100
@@ -1334,20 +1357,12 @@ function syncSelectedBlock(ed: Editor) {
   padding-left: 1rem;
 }
 
-:deep(.pandablog-block-editor .ProseMirror pre) {
+:deep(.pandablog-block-editor .ProseMirror pre:not(.codeblock-pre)) {
   overflow-x: auto;
   border-radius: 0.5rem;
   background: rgb(28 25 23);
   color: rgb(245 245 244);
   padding: 1rem;
-}
-
-/* Code block NodeView owns its own styling — do not override its inner <pre>. */
-:deep(.pandablog-block-editor .ProseMirror .codeblock-nodeview pre) {
-  background: transparent;
-  color: inherit;
-  padding: 0.75rem 1rem;
-  border-radius: 0;
 }
 
 :deep(.pandablog-block-editor .ProseMirror img) {

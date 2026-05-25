@@ -4,6 +4,10 @@ function normalizeServiceFqdn(value: unknown) {
   return raw.replace(/\/+$/, '')
 }
 
+function looksLikeMediaHash(value: string) {
+  return /^[a-f0-9]{64}$/i.test(value)
+}
+
 export function extractMediaHash(value: string) {
   const input = String(value || '').trim()
   if (!input) return ''
@@ -13,6 +17,8 @@ export function extractMediaHash(value: string) {
 
   const mediaMatch = input.match(/\/media\/([^/?#]+)/)
   if (mediaMatch?.[1]) return decodeURIComponent(mediaMatch[1])
+
+  if (looksLikeMediaHash(input)) return input
 
   return ''
 }
@@ -37,6 +43,7 @@ export function useMediaUrl() {
 
     const hash = extractMediaHash(value)
       || (value.startsWith('files:') ? value.slice('files:'.length) : '')
+      || (looksLikeMediaHash(value) ? value : '')
 
     if (!hash) {
       return value
@@ -54,6 +61,8 @@ export function useMediaUrl() {
     }
 
     const hash = extractMediaHash(source)
+      || (source.startsWith('files:') ? source.slice('files:'.length) : '')
+      || (looksLikeMediaHash(source) ? source : '')
     if (!hash) {
       return source
     }

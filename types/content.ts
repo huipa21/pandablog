@@ -108,6 +108,17 @@ export interface MediaImageMeta {
   exif?: Record<string, unknown> | null
 }
 
+export type MediaVariantSize = 'thumbnail' | 'medium' | 'large'
+
+export interface MediaVariantRecord {
+  path: string
+  url: string
+  mime_type: string
+  width?: number | null
+  height?: number | null
+  size?: number | null
+}
+
 export interface MediaFolderRecord {
   id: string
   name: string
@@ -133,9 +144,9 @@ export interface MediaRecord {
   mime_type: string
   size: number
   hash: string
-  path?: string
-  storage_path?: string
+  original_path?: string
   url: string
+  variants?: Partial<Record<MediaVariantSize, MediaVariantRecord>>
   width?: number | null
   height?: number | null
   is_image?: boolean
@@ -145,7 +156,6 @@ export interface MediaRecord {
   comment?: string | null
   reference_count?: number
   referenced_by?: string[]
-  thumbnail_path?: string | null
   thumbnail_url?: string | null
   perceptual_hash?: string | null
   created_at: string
