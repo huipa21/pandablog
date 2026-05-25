@@ -1,9 +1,12 @@
 import { queryDb, useDb } from '../../../utils/db'
 import { mediaCreateUploadStream, mediaStatUpload } from '../../../utils/fileStorage'
+import { assertLocalMediaRequest } from '../../../utils/mediaAccess'
 import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../../utils/mediaLibrary'
 import { firstRow } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
+  assertLocalMediaRequest(event)
+
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const db = await useDb()
   const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {

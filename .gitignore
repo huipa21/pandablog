@@ -31,3 +31,5 @@ themes/*
 
 tests
 test-results
+.playwright-mcp/
+.vscode/

@@ -32,6 +32,30 @@ export const MediaTextNode = Node.create({
         },
         renderHTML: (attrs) => (attrs.mediaHeight ? { 'data-media-height': String(attrs.mediaHeight) } : {})
       },
+      mediaWidthPercent: {
+        default: 100,
+        parseHTML: (el) => {
+          const n = parseFloat(el.getAttribute('data-media-width-percent') ?? '')
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.mediaWidthPercent ? { 'data-media-width-percent': String(attrs.mediaWidthPercent) } : {})
+      },
+      mediaNaturalWidth: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-media-natural-width') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.mediaNaturalWidth ? { 'data-media-natural-width': String(attrs.mediaNaturalWidth) } : {})
+      },
+      mediaNaturalHeight: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-media-natural-height') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.mediaNaturalHeight ? { 'data-media-natural-height': String(attrs.mediaNaturalHeight) } : {})
+      },
       lockAspect: {
         default: true,
         parseHTML: (el) => el.getAttribute('data-lock-aspect') !== 'false',

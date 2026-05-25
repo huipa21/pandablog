@@ -15,19 +15,10 @@
         </div>
       </div>
 
-      <details open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Layout</summary>
+      <details v-if="blockName === 'heading'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Heading</summary>
         <div class="mt-3 space-y-3">
-          <div v-if="supportsAlignment" class="space-y-2">
-            <label class="text-xs font-medium uppercase tracking-wider text-stone-500">Alignment</label>
-            <div class="flex gap-1">
-              <UButton type="button" icon="i-lucide-align-left" size="xs" color="neutral" variant="soft" @click="setTextAlign('left')" />
-              <UButton type="button" icon="i-lucide-align-center" size="xs" color="neutral" variant="soft" @click="setTextAlign('center')" />
-              <UButton type="button" icon="i-lucide-align-right" size="xs" color="neutral" variant="soft" @click="setTextAlign('right')" />
-            </div>
-          </div>
-
-          <UFormField v-if="blockName === 'heading'" label="Heading level">
+          <UFormField label="Heading level">
             <USelect :model-value="String(attrs.level ?? 2)" :items="headingLevelItems" @update:model-value="setHeadingLevel" />
           </UFormField>
         </div>
@@ -54,17 +45,36 @@
           </UFormField>
           <div class="grid grid-cols-2 gap-2">
             <UFormField label="Width (px)">
-              <UInput type="number" :model-value="(attrs.width as number | null) ?? undefined" @update:model-value="updateAttrs({ width: Number($event) || null })" />
+              <UInput type="number" :model-value="(attrs.width as number | null) ?? undefined" @update:model-value="setImageWidth" />
             </UFormField>
             <UFormField label="Height (px)">
-              <UInput type="number" :model-value="(attrs.height as number | null) ?? undefined" @update:model-value="updateAttrs({ height: Number($event) || null })" />
+              <UInput type="number" :model-value="(attrs.height as number | null) ?? undefined" @update:model-value="setImageHeight" />
             </UFormField>
           </div>
+          <UFormField label="Size (%)">
+            <div class="space-y-2">
+              <input
+                type="range"
+                min="1"
+                max="200"
+                :value="Number(attrs.widthPercent ?? 100)"
+                class="w-full"
+                @input="setImageWidthPercent(($event.target as HTMLInputElement).value)"
+              >
+              <UInput
+                type="number"
+                min="1"
+                max="200"
+                :model-value="(attrs.widthPercent as number | null) ?? 100"
+                @update:model-value="setImageWidthPercent"
+              />
+            </div>
+          </UFormField>
           <UFormField>
             <UCheckbox
               :model-value="attrs.lockAspect !== false"
               label="Maintain aspect ratio"
-              @update:model-value="updateAttrs({ lockAspect: Boolean($event) })"
+              @update:model-value="setImageLockAspect"
             />
           </UFormField>
           <UFormField label="Alignment">
@@ -105,17 +115,36 @@
           </UFormField>
           <div class="grid grid-cols-2 gap-2">
             <UFormField label="Width (px)">
-              <UInput type="number" :model-value="(attrs.mediaWidth as number | null) ?? undefined" @update:model-value="updateAttrs({ mediaWidth: Number($event) || null })" />
+              <UInput type="number" :model-value="(attrs.mediaWidth as number | null) ?? undefined" @update:model-value="setMediaWidth" />
             </UFormField>
             <UFormField label="Height (px)">
-              <UInput type="number" :model-value="(attrs.mediaHeight as number | null) ?? undefined" @update:model-value="updateAttrs({ mediaHeight: Number($event) || null })" />
+              <UInput type="number" :model-value="(attrs.mediaHeight as number | null) ?? undefined" @update:model-value="setMediaHeight" />
             </UFormField>
           </div>
+          <UFormField label="Size (%)">
+            <div class="space-y-2">
+              <input
+                type="range"
+                min="1"
+                max="200"
+                :value="Number(attrs.mediaWidthPercent ?? 100)"
+                class="w-full"
+                @input="setMediaWidthPercent(($event.target as HTMLInputElement).value)"
+              >
+              <UInput
+                type="number"
+                min="1"
+                max="200"
+                :model-value="(attrs.mediaWidthPercent as number | null) ?? 100"
+                @update:model-value="setMediaWidthPercent"
+              />
+            </div>
+          </UFormField>
           <UFormField>
             <UCheckbox
               :model-value="attrs.lockAspect !== false"
               label="Maintain aspect ratio"
-              @update:model-value="updateAttrs({ lockAspect: Boolean($event) })"
+              @update:model-value="setMediaLockAspect"
             />
           </UFormField>
           <UFormField :label="`Column split (${Math.round(Number(attrs.ratio ?? 0.5) * 100)}% / ${100 - Math.round(Number(attrs.ratio ?? 0.5) * 100)}%)`">
@@ -201,7 +230,6 @@ const blockRegistry = useBlockRegistry()
 const blockName = computed(() => editorStore.selectedBlockType)
 const attrs = computed(() => editorStore.selectedBlockAttrs)
 const blockDefinition = computed(() => blockName.value ? blockRegistry.getBlockDefinition(blockName.value) : null)
-const supportsAlignment = computed(() => Boolean(blockDefinition.value?.supports.align) || blockName.value === 'paragraph' || blockName.value === 'heading')
 
 const headingLevelItems = [
   { label: 'Heading 1', value: '1' },
@@ -377,13 +405,232 @@ function setHeadingLevel(value: string | number) {
   updateAttrs({ level: Number(value) })
 }
 
-function setTextAlign(value: 'left' | 'center' | 'right') {
-  const activeEditor = props.editor
-  if (!activeEditor) {
+function numberOrNull(value: unknown) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) {
+    return null
+  }
+
+  return n
+}
+
+function percentOrNull(value: unknown) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) {
+    return null
+  }
+
+  return Math.max(1, Math.min(200, Math.round(n)))
+}
+
+function aspectRatioFrom(currentWidth: unknown, currentHeight: unknown) {
+  const width = numberOrNull(currentWidth)
+  const height = numberOrNull(currentHeight)
+  if (!width || !height) {
+    return null
+  }
+
+  return width / height
+}
+
+function derivePercent(size: number | null, natural: number | null) {
+  if (!size || !natural || natural <= 0) {
+    return 100
+  }
+
+  return Math.max(1, Math.min(200, Math.round((size / natural) * 100)))
+}
+
+function imageNaturalDims() {
+  const naturalWidth = numberOrNull(attrs.value.naturalWidth ?? attrs.value.width)
+  const naturalHeight = numberOrNull(attrs.value.naturalHeight ?? attrs.value.height)
+  return { naturalWidth, naturalHeight }
+}
+
+function mediaNaturalDims() {
+  const mediaNaturalWidth = numberOrNull(attrs.value.mediaNaturalWidth ?? attrs.value.mediaWidth)
+  const mediaNaturalHeight = numberOrNull(attrs.value.mediaNaturalHeight ?? attrs.value.mediaHeight)
+  return { mediaNaturalWidth, mediaNaturalHeight }
+}
+
+function setImageWidth(value: unknown) {
+  const width = numberOrNull(value)
+  const lockAspect = attrs.value.lockAspect !== false
+  const ratio = aspectRatioFrom(attrs.value.naturalWidth, attrs.value.naturalHeight) ?? aspectRatioFrom(attrs.value.width, attrs.value.height)
+  const { naturalWidth, naturalHeight } = imageNaturalDims()
+
+  if (lockAspect && width && ratio) {
+    const height = Math.round(width / ratio)
+    updateAttrs({
+      width,
+      height,
+      widthPercent: derivePercent(width, naturalWidth),
+      naturalWidth: naturalWidth ?? width,
+      naturalHeight: naturalHeight ?? height
+    })
     return
   }
 
-  ;(activeEditor.chain().focus() as any).setTextAlign(value).run()
+  updateAttrs({
+    width,
+    widthPercent: derivePercent(width, naturalWidth),
+    naturalWidth: naturalWidth ?? width
+  })
+}
+
+function setImageHeight(value: unknown) {
+  const height = numberOrNull(value)
+  const lockAspect = attrs.value.lockAspect !== false
+  const ratio = aspectRatioFrom(attrs.value.naturalWidth, attrs.value.naturalHeight) ?? aspectRatioFrom(attrs.value.width, attrs.value.height)
+  const { naturalWidth, naturalHeight } = imageNaturalDims()
+
+  if (lockAspect && height && ratio) {
+    const width = Math.round(height * ratio)
+    updateAttrs({
+      height,
+      width,
+      widthPercent: derivePercent(width, naturalWidth),
+      naturalHeight: naturalHeight ?? height,
+      naturalWidth: naturalWidth ?? width
+    })
+    return
+  }
+
+  updateAttrs({
+    height,
+    widthPercent: derivePercent(height, naturalHeight),
+    naturalHeight: naturalHeight ?? height
+  })
+}
+
+function setImageWidthPercent(value: unknown) {
+  const widthPercent = percentOrNull(value)
+  if (!widthPercent) {
+    return
+  }
+
+  const { naturalWidth, naturalHeight } = imageNaturalDims()
+  if (!naturalWidth || !naturalHeight) {
+    updateAttrs({ widthPercent })
+    return
+  }
+
+  const width = Math.round((naturalWidth * widthPercent) / 100)
+  const height = Math.round((naturalHeight * widthPercent) / 100)
+  updateAttrs({ widthPercent, width, height, naturalWidth, naturalHeight })
+}
+
+function setMediaWidth(value: unknown) {
+  const mediaWidth = numberOrNull(value)
+  const lockAspect = attrs.value.lockAspect !== false
+  const ratio = aspectRatioFrom(attrs.value.mediaNaturalWidth, attrs.value.mediaNaturalHeight) ?? aspectRatioFrom(attrs.value.mediaWidth, attrs.value.mediaHeight)
+  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
+
+  if (lockAspect && mediaWidth && ratio) {
+    const mediaHeight = Math.round(mediaWidth / ratio)
+    updateAttrs({
+      mediaWidth,
+      mediaHeight,
+      mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
+      mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth,
+      mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight
+    })
+    return
+  }
+
+  updateAttrs({
+    mediaWidth,
+    mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
+    mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth
+  })
+}
+
+function setMediaHeight(value: unknown) {
+  const mediaHeight = numberOrNull(value)
+  const lockAspect = attrs.value.lockAspect !== false
+  const ratio = aspectRatioFrom(attrs.value.mediaNaturalWidth, attrs.value.mediaNaturalHeight) ?? aspectRatioFrom(attrs.value.mediaWidth, attrs.value.mediaHeight)
+  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
+
+  if (lockAspect && mediaHeight && ratio) {
+    const mediaWidth = Math.round(mediaHeight * ratio)
+    updateAttrs({
+      mediaHeight,
+      mediaWidth,
+      mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
+      mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight,
+      mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth
+    })
+    return
+  }
+
+  updateAttrs({
+    mediaHeight,
+    mediaWidthPercent: derivePercent(mediaHeight, mediaNaturalHeight),
+    mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight
+  })
+}
+
+function setMediaWidthPercent(value: unknown) {
+  const mediaWidthPercent = percentOrNull(value)
+  if (!mediaWidthPercent) {
+    return
+  }
+
+  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
+  if (!mediaNaturalWidth || !mediaNaturalHeight) {
+    updateAttrs({ mediaWidthPercent })
+    return
+  }
+
+  const mediaWidth = Math.round((mediaNaturalWidth * mediaWidthPercent) / 100)
+  const mediaHeight = Math.round((mediaNaturalHeight * mediaWidthPercent) / 100)
+  updateAttrs({ mediaWidthPercent, mediaWidth, mediaHeight, mediaNaturalWidth, mediaNaturalHeight })
+}
+
+function setImageLockAspect(value: unknown) {
+  const lockAspect = asBooleanValue(value, true)
+  if (!lockAspect) {
+    updateAttrs({ lockAspect })
+    return
+  }
+
+  const { naturalWidth, naturalHeight } = imageNaturalDims()
+  const width = numberOrNull(attrs.value.width)
+  if (naturalWidth && naturalHeight && width) {
+    updateAttrs({
+      lockAspect,
+      height: Math.round((width / naturalWidth) * naturalHeight),
+      widthPercent: derivePercent(width, naturalWidth),
+      naturalWidth,
+      naturalHeight
+    })
+    return
+  }
+
+  updateAttrs({ lockAspect })
+}
+
+function setMediaLockAspect(value: unknown) {
+  const lockAspect = asBooleanValue(value, true)
+  if (!lockAspect) {
+    updateAttrs({ lockAspect })
+    return
+  }
+
+  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
+  const mediaWidth = numberOrNull(attrs.value.mediaWidth)
+  if (mediaNaturalWidth && mediaNaturalHeight && mediaWidth) {
+    updateAttrs({
+      lockAspect,
+      mediaHeight: Math.round((mediaWidth / mediaNaturalWidth) * mediaNaturalHeight),
+      mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
+      mediaNaturalWidth,
+      mediaNaturalHeight
+    })
+    return
+  }
+
+  updateAttrs({ lockAspect })
 }
 
 function runTableCommand(command: 'addColumnAfter' | 'addRowAfter' | 'deleteColumn' | 'deleteRow') {

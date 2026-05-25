@@ -37,6 +37,7 @@
         {{ formatFileSize(file.size) }}
         <template v-if="file.width && file.height"> · {{ file.width }}×{{ file.height }}</template>
       </div>
+      <div class="truncate font-mono text-[11px] text-stone-400" :title="file.hash">ID: {{ file.hash }}</div>
     </div>
   </button>
 </template>

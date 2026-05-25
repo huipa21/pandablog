@@ -182,6 +182,7 @@ import BlockPopupToolbar from '~/components/admin/editor/BlockPopupToolbar.vue'
 import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
+import { useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps<{
   modelValue: JsonContent
@@ -216,6 +217,7 @@ const dropIndicators = ref<Array<{ index: number; top: number }>>([])
 
 // Auto-scroll during drag
 const autoScroll = useAutoScroll()
+const { toPublicMediaUrl, resolveMediaUrl } = useMediaUrl()
 
 // Block actions menu state
 const actionsMenuVisible = ref(false)
@@ -425,10 +427,17 @@ const editor = useEditor({
     }
   },
   onUpdate({ editor: ed }) {
+    if (ensureTrailingParagraph(ed)) {
+      return
+    }
+
     refreshSlashQuery(ed)
     scheduleTrackActiveBlock(ed)
     emit('update:modelValue', ed.getJSON() as JsonContent)
     syncSelectedBlock(ed)
+  },
+  onCreate({ editor: ed }) {
+    ensureTrailingParagraph(ed)
   },
   onSelectionUpdate({ editor: ed }) {
     refreshSlashQuery(ed)
@@ -1025,7 +1034,15 @@ function handleMediaPicked(files: MediaRecord[]) {
   const insertPos = pendingImageInsertPos.value
   const content = files.map((file) => ({
     type: 'image',
-    attrs: { src: file.url, alt: file.original_name }
+    attrs: {
+      src: toPublicMediaUrl(file.hash || file.id || file.url),
+      alt: file.original_name,
+      width: typeof file.width === 'number' ? file.width : null,
+      height: typeof file.height === 'number' ? file.height : null,
+      naturalWidth: typeof file.width === 'number' ? file.width : null,
+      naturalHeight: typeof file.height === 'number' ? file.height : null,
+      widthPercent: 100
+    }
   }))
 
   if (insertPos !== null) {
@@ -1043,20 +1060,25 @@ async function uploadImage(file: File) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const asset = await $fetch<{ url: string }>('/api/admin/upload', {
+    const asset = await $fetch<MediaRecord>('/api/admin/upload', {
       method: 'POST',
       body: formData
     })
     if (asset.url) {
+      const imageSrc = toPublicMediaUrl(asset.hash || asset.url)
       const ed = editor.value
       const insertPos = pendingImageInsertPos.value
       if (ed && insertPos !== null) {
         ed.chain().focus().insertContentAt(insertPos, {
           type: 'image',
-          attrs: { src: asset.url, alt: file.name }
+          attrs: {
+            src: imageSrc,
+            alt: file.name,
+            widthPercent: 100
+          }
         }).run()
       } else {
-        ed?.chain().focus().setImage({ src: asset.url, alt: file.name }).run()
+        ed?.chain().focus().setImage({ src: imageSrc, alt: file.name, widthPercent: 100 }).run()
       }
     }
   } catch {
@@ -1107,13 +1129,16 @@ function handleMediaTextPicked(files: MediaRecord[]) {
     if (!node || node.type.name !== 'mediaText') return false
     tr.setNodeMarkup(pos, undefined, {
       ...node.attrs,
-      mediaSrc: file.url,
+      mediaSrc: toPublicMediaUrl(file.hash || file.id || file.url),
       mediaAlt: file.original_name ?? '',
       mediaName: file.original_name ?? '',
       mediaMime: file.mime_type ?? '',
       mediaSize: typeof file.size === 'number' ? file.size : null,
       mediaWidth: typeof file.width === 'number' ? file.width : null,
-      mediaHeight: typeof file.height === 'number' ? file.height : null
+      mediaHeight: typeof file.height === 'number' ? file.height : null,
+      mediaNaturalWidth: typeof file.width === 'number' ? file.width : null,
+      mediaNaturalHeight: typeof file.height === 'number' ? file.height : null,
+      mediaWidthPercent: 100
     })
     return true
   }).run()
@@ -1132,7 +1157,7 @@ function triggerLocalFileUploadForMediaText() {
       formData.append('file', file)
       const asset = await $fetch<MediaRecord>('/api/admin/upload', { method: 'POST', body: formData })
       if (asset?.url) {
-        handleMediaTextPicked([asset])
+        handleMediaTextPicked([{ ...asset, url: resolveMediaUrl(asset.url) }])
       }
     } catch {
       debugEditor('Media+Text upload failed.')
@@ -1159,6 +1184,22 @@ function promptRemoteUrlForMediaText() {
     original_name: name,
     mime_type: mimeGuess
   } as unknown as MediaRecord])
+}
+
+function ensureTrailingParagraph(ed: Editor) {
+  const last = ed.state.doc.lastChild
+  if (last && last.type.name === 'paragraph' && last.content.size === 0) {
+    return false
+  }
+
+  const paragraph = ed.schema.nodes.paragraph?.createAndFill()
+  if (!paragraph) {
+    return false
+  }
+
+  const tr = ed.state.tr.insert(ed.state.doc.content.size, paragraph)
+  ed.view.dispatch(tr)
+  return true
 }
 
 // ─── CLICK EMPTY AREA TO ADD A NEW LINE ──────────────────────────────────────

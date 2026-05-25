@@ -57,6 +57,7 @@ export default defineNuxtConfig({
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
     mediaOrphanCleanupEnabled: env('MEDIA_ORPHAN_CLEANUP_ENABLED', 'false') === 'true',
+    mediaLocalOnly: env('MEDIA_LOCAL_ONLY', 'false') === 'true',
     mediaOrphanCleanupDays: Number(env('MEDIA_ORPHAN_CLEANUP_DAYS', '30')),
     mediaOrphanCleanupCron: env('MEDIA_ORPHAN_CLEANUP_CRON', '0 4 * * *'),
     adminUsername: env('ADMIN_USERNAME', env('APP_LOGIN_USERNAME', 'admin')),
@@ -79,6 +80,8 @@ export default defineNuxtConfig({
       ownerName: env('APP_OWNER_NAME', ''),
       ownerBio: env('APP_OWNER_BIO', ''),
       ownerAvatar: env('APP_OWNER_AVATAR', ''),
+      mediaServiceFqdn: env('APP_MEDIA_SERVICE_FQDN', env('APP_SERVICE_FQDN', env('SERVICE_FQDN'))),
+      serviceFqdn: env('APP_SERVICE_FQDN', env('SERVICE_FQDN')),
       appEnv
     }
   },

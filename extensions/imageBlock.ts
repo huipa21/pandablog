@@ -7,6 +7,9 @@ export interface ImageBlockAttrs {
   titlePosition: 'none' | 'top' | 'bottom'
   width: number | null
   height: number | null
+  widthPercent: number | null
+  naturalWidth: number | null
+  naturalHeight: number | null
   lockAspect: boolean
   align: 'left' | 'center' | 'right'
 }
@@ -45,6 +48,30 @@ export const ImageBlockNode = Node.create({
           return Number.isFinite(n) ? n : null
         },
         renderHTML: (attrs) => (attrs.height ? { height: String(attrs.height) } : {})
+      },
+      widthPercent: {
+        default: 100,
+        parseHTML: (el) => {
+          const n = parseFloat(el.getAttribute('data-width-percent') ?? '')
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.widthPercent ? { 'data-width-percent': String(attrs.widthPercent) } : {})
+      },
+      naturalWidth: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-natural-width') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.naturalWidth ? { 'data-natural-width': String(attrs.naturalWidth) } : {})
+      },
+      naturalHeight: {
+        default: null,
+        parseHTML: (el) => {
+          const n = parseInt(el.getAttribute('data-natural-height') ?? '', 10)
+          return Number.isFinite(n) ? n : null
+        },
+        renderHTML: (attrs) => (attrs.naturalHeight ? { 'data-natural-height': String(attrs.naturalHeight) } : {})
       },
       lockAspect: {
         default: true,

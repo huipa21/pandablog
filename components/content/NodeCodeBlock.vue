@@ -4,17 +4,26 @@
     :data-theme="theme"
     :data-language="language"
   >
-    <div class="codeblock-public-header">
-      <div class="codeblock-public-header-left">
+    <div
+      class="codeblock-public-header"
+      style="padding:6px 12px;font-size:12px;line-height:18px;min-height:44px;"
+    >
+      <div class="codeblock-public-header-left" style="line-height:18px;">
         <UIcon :name="fileIcon" class="size-3.5 shrink-0" />
         <span v-if="fileName" class="truncate font-medium">{{ fileName }}</span>
         <span v-else class="truncate opacity-60">untitled</span>
         <span v-if="showTotalLines" class="opacity-50">·</span>
         <span v-if="showTotalLines" class="opacity-70">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
       </div>
-      <div class="codeblock-public-header-right">
-        <span class="codeblock-lang-pill">{{ languageLabel }}</span>
-        <button type="button" class="codeblock-public-copy" :title="copied ? 'Copied!' : 'Copy code'" @click="copy">
+      <div class="codeblock-public-header-right" style="line-height:18px;">
+        <span class="codeblock-lang-pill" style="font-size:11px;line-height:16px;">{{ languageLabel }}</span>
+        <button
+          type="button"
+          class="codeblock-public-copy"
+          style="font-size:11px;line-height:16px;padding:2px 8px;"
+          :title="copied ? 'Copied!' : 'Copy code'"
+          @click="copy"
+        >
           <UIcon :name="copied ? 'i-lucide-check' : 'i-lucide-copy'" class="size-3" />
           <span>{{ copied ? 'Copied' : 'Copy' }}</span>
         </button>
@@ -83,7 +92,7 @@ const fallbackHtml = computed(() => `<pre class="codeblock-public"><code>${escap
 // Collapse state
 const bodyEl = ref<HTMLElement | null>(null)
 const naturalHeight = ref(0)
-const collapsed = ref(false)
+const collapsed = ref(true)
 const collapsible = computed(() => naturalHeight.value > COLLAPSE_THRESHOLD)
 const bodyStyle = computed(() => {
   if (!collapsible.value) return {}
@@ -116,7 +125,10 @@ async function renderCode() {
   const cacheKey = `${theme.value}\u0000${language.value}\u0000${code.value}`
   const cached = htmlCache.get(cacheKey)
   if (cached) {
-    highlightedHtml.value = cached
+    // Only update the DOM if the cached HTML differs from what's already rendered.
+    if (highlightedHtml.value !== cached) {
+      highlightedHtml.value = cached
+    }
     await nextTick()
     measure()
     return
@@ -143,7 +155,12 @@ function measure() {
   }
 }
 
-onMounted(() => { void renderCode() })
+onMounted(async () => {
+  // Don't re-render the highlighted HTML on mount if we already have server-rendered HTML.
+  // Just measure the rendered content to compute collapsing behavior.
+  await nextTick()
+  measure()
+})
 watch([code, language, theme], () => { void renderCode() })
 
 async function copy() {
@@ -162,12 +179,19 @@ function renderLowlightHtml(source: string, lang: string) {
   try {
     const tree = lowlight.highlight(normalizedLang, source)
     const inner = serializeNodes(tree.children)
-    const lineWrapped = inner
+    const lines = inner
       .split('\n')
-      .map((line) => `<span class="line">${line || ' '}</span>`)
+      .map((line, index) => {
+        const safeLine = line || ' '
+        if (!lineNumbers.value) {
+          return `<span class="line" style="display:block;width:100%;min-height:19px;line-height:19px;font-size:13px;">${safeLine}</span>`
+        }
+
+        return `<span class="line" style="display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;width:100%;min-height:19px;line-height:19px;font-size:13px;"><span class="ln" style="display:inline-block;height:19px;line-height:19px;text-align:right;color:rgba(148,163,184,.55);padding-right:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Cascadia Code',monospace;user-select:none;">${index + 1}</span><span class="lc">${safeLine}</span></span>`
+      })
       .join('')
 
-    return `<pre class="hljs"><code class="language-${escapeAttr(normalizedLang)}">${lineWrapped}</code></pre>`
+    return `<pre class="hljs" style="margin:0;padding:2px 16px;overflow-x:auto;font-size:13px;line-height:19px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Cascadia Code',monospace;background:transparent;"><code class="language-${escapeAttr(normalizedLang)}" style="display:block;font-size:13px;line-height:19px;">${lines}</code></pre>`
   } catch {
     return fallbackHtml.value
   }
@@ -240,9 +264,9 @@ function escapeAttr(value: string) {
 
 .codeblock-public-wrap {
   /* Slightly smaller font and explicit line-height to match VS Code rhythm */
-  --code-font-size: 0.8125rem; /* 13px */
-  --code-line-height: 1.1875rem; /* 19px */
-  --code-block-padding-y: 0.125rem; /* 2px */
+  --code-font-size: 13px;
+  --code-line-height: 19px;
+  --code-block-padding-y: 2px;
   margin: 1.5rem 0;
   border-radius: 0.5rem;
   overflow: hidden;
@@ -390,7 +414,7 @@ function escapeAttr(value: string) {
   display: block;
 }
 
-.codeblock-public-body.with-line-numbers .line {
+.codeblock-public-body.with-line-numbers .line:not(:has(.ln)) {
   display: block;
   width: 100%;
   padding-left: 3rem;
@@ -400,7 +424,7 @@ function escapeAttr(value: string) {
   font-size: var(--code-font-size);
 }
 
-.codeblock-public-body.with-line-numbers .line::before {
+.codeblock-public-body.with-line-numbers .line:not(:has(.ln))::before {
   counter-increment: code-line;
   content: counter(code-line);
   position: absolute;
@@ -416,5 +440,17 @@ function escapeAttr(value: string) {
   display: inline-block;
   font-size: var(--code-font-size);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+}
+
+/* When server-rendered HTML includes explicit .ln nodes, disable pseudo-counter numbers. */
+.codeblock-public-body.with-line-numbers .line:has(.ln)::before {
+  content: none;
+  counter-increment: none;
+  display: none;
+}
+
+.codeblock-public-body.with-line-numbers .line:has(.ln) {
+  padding-left: 0;
+  position: static;
 }
 </style>

@@ -9,7 +9,7 @@
       ref="figureEl"
       class="imageblock-figure relative inline-block"
       :class="{ 'is-selected': selected }"
-      :style="{ width: width ? `${width}px` : 'auto' }"
+      :style="figureStyle"
     >
       <figcaption v-if="title && titlePosition === 'top'" class="text-center text-sm text-stone-500" contenteditable="false">{{ title }}</figcaption>
       <div class="relative inline-block w-full">
@@ -18,8 +18,9 @@
           ref="imgEl"
           :src="src"
           :alt="alt"
-          :width="width ?? undefined"
-          :height="height ?? undefined"
+          :width="displayWidth ?? undefined"
+          :height="lockAspect ? undefined : (displayHeight ?? undefined)"
+          :style="imgStyle"
           draggable="false"
           class="block max-w-full rounded-md"
           @load="onImageLoad"
@@ -42,10 +43,12 @@
 
 <script setup lang="ts">
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
+import { useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
+const { resolveMediaUrl } = useMediaUrl()
 
-const src = computed(() => String(props.node.attrs.src ?? ''))
+const src = computed(() => resolveMediaUrl(String(props.node.attrs.src ?? '')))
 const alt = computed(() => String(props.node.attrs.alt ?? ''))
 const title = computed(() => String(props.node.attrs.title ?? ''))
 const titlePosition = computed(() => (props.node.attrs.titlePosition as string) ?? 'bottom')
@@ -64,14 +67,37 @@ const alignClass = computed(() => {
 
 const figureEl = ref<HTMLElement | null>(null)
 const imgEl = ref<HTMLImageElement | null>(null)
+const previewWidth = ref<number | null>(null)
+const previewHeight = ref<number | null>(null)
+
+const displayWidth = computed(() => previewWidth.value ?? width.value)
+const displayHeight = computed(() => previewHeight.value ?? height.value)
+
+const figureStyle = computed(() => ({
+  width: displayWidth.value ? `${displayWidth.value}px` : 'auto',
+  maxWidth: '100%'
+}))
+
+const imgStyle = computed(() => ({
+  width: displayWidth.value ? `${displayWidth.value}px` : undefined,
+  maxWidth: '100%',
+  height: lockAspect.value ? 'auto' : (displayHeight.value ? `${displayHeight.value}px` : undefined)
+}))
 
 function onImageLoad() {
   if (!imgEl.value) return
-  if (width.value === null) {
-    props.updateAttributes({
-      width: imgEl.value.naturalWidth,
-      height: imgEl.value.naturalHeight
-    })
+  const naturalWidth = imgEl.value.naturalWidth
+  const naturalHeight = imgEl.value.naturalHeight
+
+  const updates: Record<string, unknown> = {}
+  if (props.node.attrs.naturalWidth == null) updates.naturalWidth = naturalWidth
+  if (props.node.attrs.naturalHeight == null) updates.naturalHeight = naturalHeight
+  if (width.value === null) updates.width = naturalWidth
+  if (height.value === null) updates.height = naturalHeight
+  if (props.node.attrs.widthPercent == null) updates.widthPercent = 100
+
+  if (Object.keys(updates).length) {
+    props.updateAttributes(updates)
   }
 }
 
@@ -132,10 +158,26 @@ function onResizeMove(event: MouseEvent) {
     }
   }
 
-  props.updateAttributes({ width: Math.round(newW), height: Math.round(newH) })
+  previewWidth.value = Math.round(newW)
+  previewHeight.value = Math.round(newH)
 }
 
 function onResizeEnd() {
+  if (resizeState && previewWidth.value && previewHeight.value) {
+    const naturalWidth = Number(props.node.attrs.naturalWidth ?? 0)
+    const widthPercentNext = Number.isFinite(naturalWidth) && naturalWidth > 0
+      ? Math.max(1, Math.min(200, Math.round((previewWidth.value / naturalWidth) * 100)))
+      : 100
+
+    props.updateAttributes({
+      width: previewWidth.value,
+      height: previewHeight.value,
+      widthPercent: widthPercentNext
+    })
+  }
+
+  previewWidth.value = null
+  previewHeight.value = null
   resizeState = null
   window.removeEventListener('mousemove', onResizeMove)
   window.removeEventListener('mouseup', onResizeEnd)

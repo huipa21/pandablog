@@ -69,6 +69,10 @@
                 <div class="text-xs text-stone-500">References</div>
                 <div class="font-medium text-stone-900">{{ file.reference_count || 0 }}</div>
               </div>
+              <div class="col-span-2">
+                <div class="text-xs text-stone-500">Hash ID</div>
+                <div class="break-all font-mono text-xs text-stone-900">{{ file.hash }}</div>
+              </div>
               <div v-if="file.image_meta?.format">
                 <div class="text-xs text-stone-500">Image format</div>
                 <div class="font-medium text-stone-900">{{ file.image_meta.format }}</div>
@@ -134,14 +138,14 @@ watch(() => props.file, (file) => {
 function viewOriginal() {
   if (!props.file) return
   const baseUrl = window.location.origin
-  const url = `${baseUrl}/api/media/file/${props.file.hash}`
+  const url = `${baseUrl}/media/${props.file.hash}`
   window.open(url, '_blank')
 }
 
 function downloadFile() {
   if (!props.file) return
   const link = document.createElement('a')
-  link.href = `/api/media/file/${props.file.hash}?download=true`
+  link.href = `/media/${props.file.hash}?download=true`
   link.download = props.file.original_name
   document.body.appendChild(link)
   link.click()

@@ -34,6 +34,7 @@
 
     <div class="min-w-0 flex-1">
       <div class="truncate text-sm font-medium text-stone-900">{{ file.original_name }}</div>
+      <div class="truncate font-mono text-[11px] text-stone-400" :title="file.hash">ID: {{ file.hash }}</div>
     </div>
 
     <div class="hidden w-20 shrink-0 text-xs text-stone-500 sm:block">{{ file.mime_type?.split('/')[1] || file.extension }}</div>

@@ -12,16 +12,13 @@
           size="sm"
           class="w-44"
         />
-        <UButton
-          v-if="selectedIds.length"
-          icon="i-lucide-trash-2"
-          color="error"
-          variant="soft"
-          :loading="bulkDeleting"
-          @click="deleteSelected"
-        >
-          Delete selected ({{ selectedIds.length }})
-        </UButton>
+        <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ selectedIds.length }} selected</UBadge>
+        <UDropdownMenu v-if="selectedIds.length" :items="actionsMenuItems">
+          <UButton icon="i-lucide-list-checks" color="neutral" variant="soft">
+            Actions
+          </UButton>
+        </UDropdownMenu>
+        <UBadge v-if="quickEditEnabled" color="primary" variant="subtle">Quick Edit ON</UBadge>
         <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
           New post
         </UButton>
@@ -67,14 +64,14 @@
               :key="post.id"
               class="cursor-default hover:bg-stone-50"
               :class="editingCell?.postId === post.id ? 'bg-teal-50/40' : ''"
-              @click="queueRowEdit(post)"
+              @click="quickEditEnabled ? queueRowEdit(post) : undefined"
               @dblclick="openPost(post)"
             >
               <td class="px-4 py-3 align-top" @click.stop>
                 <input v-model="selectedIds" type="checkbox" :value="post.id" class="rounded border-stone-300">
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="startCellEdit(post, 'title')">
+              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'title') : undefined">
                 <input
                   v-if="isEditing(post, 'title')"
                   v-model="draft.title"
@@ -90,7 +87,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="startCellEdit(post, 'slug')">
+              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'slug') : undefined">
                 <input
                   v-if="isEditing(post, 'slug')"
                   v-model="draft.slug"
@@ -106,7 +103,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="startCellEdit(post, 'tags')">
+              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'tags') : undefined">
                 <div
                   v-if="isEditing(post, 'tags')"
                   :data-inline-editor="inlineEditorKey(post.id, 'tags')"
@@ -138,7 +135,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="startCellEdit(post, 'categories')">
+              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'categories') : undefined">
                 <div
                   v-if="isEditing(post, 'categories')"
                   :data-inline-editor="inlineEditorKey(post.id, 'categories')"
@@ -170,7 +167,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="startCellEdit(post, 'visibility')">
+              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'visibility') : undefined">
                 <select
                   v-if="isEditing(post, 'visibility')"
                   v-model="draft.visibility"
@@ -191,7 +188,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="startCellEdit(post, 'status')">
+              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'status') : undefined">
                 <select
                   v-if="isEditing(post, 'status')"
                   v-model="draft.status"
@@ -268,6 +265,7 @@ const createError = ref('')
 const listError = ref('')
 const bulkDeleting = ref(false)
 const selectedIds = ref<string[]>([])
+const quickEditEnabled = ref(false)
 const editingCell = ref<{ postId: string, field: EditableField } | null>(null)
 const savingCellKey = ref('')
 const rowClickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -285,6 +283,24 @@ const draft = reactive({
 
 const allVisibleSelected = computed(() => posts.value.length > 0 && posts.value.every((post) => selectedIds.value.includes(post.id)))
 const someVisibleSelected = computed(() => !allVisibleSelected.value && posts.value.some((post) => selectedIds.value.includes(post.id)))
+const actionsMenuItems = computed(() => [[
+  {
+    label: 'Delete',
+    icon: 'i-lucide-trash-2',
+    color: 'error' as const,
+    onSelect: deleteSelected
+  },
+  {
+    label: 'Edit',
+    icon: 'i-lucide-square-pen',
+    onSelect: editSelected
+  },
+  {
+    label: quickEditEnabled.value ? 'Disable Quick Edit' : 'Quick Edit',
+    icon: quickEditEnabled.value ? 'i-lucide-square-x' : 'i-lucide-file-pen-line',
+    onSelect: toggleQuickEdit
+  }
+]])
 
 onBeforeUnmount(() => {
   clearRowClickTimer()
@@ -321,6 +337,10 @@ async function openPost(post: PostRecord) {
 }
 
 function startCellEdit(post: PostRecord, field: EditableField) {
+  if (!quickEditEnabled.value) {
+    return
+  }
+
   clearRowClickTimer()
   listError.value = ''
   editingCell.value = { postId: post.id, field }
@@ -484,6 +504,21 @@ async function deleteSelected() {
   bulkDeleting.value = true
   await deletePosts([...selectedIds.value])
   bulkDeleting.value = false
+}
+
+async function editSelected() {
+  if (!selectedIds.value.length) {
+    return
+  }
+
+  await navigateTo(`/admin/posts/${encodeURIComponent(selectedIds.value[0])}`)
+}
+
+function toggleQuickEdit() {
+  quickEditEnabled.value = !quickEditEnabled.value
+  if (!quickEditEnabled.value) {
+    cancelCellEdit()
+  }
 }
 
 async function deletePosts(ids: string[]) {

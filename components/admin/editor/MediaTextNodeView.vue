@@ -12,26 +12,30 @@
               :alt="mediaAlt"
               :width="mediaWidth ?? undefined"
               :height="mediaHeight ?? undefined"
-              class="block w-full rounded-md object-cover"
+              :style="mediaElementStyle"
+              class="block max-w-full rounded-md object-cover"
               @load="onImageLoad"
             >
             <video
               v-else-if="kind === 'video'"
               :src="mediaSrc"
               controls
-              class="block w-full rounded-md"
+              :style="mediaElementStyle"
+              class="block max-w-full rounded-md"
             />
             <audio
               v-else-if="kind === 'audio'"
               :src="mediaSrc"
               controls
-              class="block w-full"
+              :style="mediaElementStyle"
+              class="block max-w-full"
             />
             <embed
               v-else-if="kind === 'pdf'"
               :src="mediaSrc"
               type="application/pdf"
-              class="block h-72 w-full rounded-md"
+              :style="mediaElementStyle"
+              class="block max-w-full rounded-md"
             >
             <a
               v-else
@@ -83,15 +87,21 @@
 <script setup lang="ts">
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import { classifyMedia, mediaIcon, formatBytes } from '~/composables/useMediaKind'
+import { useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
+const { resolveMediaUrl } = useMediaUrl()
 
-const mediaSrc = computed(() => String(props.node.attrs.mediaSrc ?? ''))
+const mediaSrc = computed(() => resolveMediaUrl(String(props.node.attrs.mediaSrc ?? '')))
 const mediaAlt = computed(() => String(props.node.attrs.mediaAlt ?? ''))
 const mediaTitle = computed(() => String(props.node.attrs.mediaTitle ?? ''))
 const mediaTitlePosition = computed(() => String(props.node.attrs.mediaTitlePosition ?? 'bottom'))
 const mediaWidth = computed(() => (props.node.attrs.mediaWidth as number | null) ?? null)
 const mediaHeight = computed(() => (props.node.attrs.mediaHeight as number | null) ?? null)
+const mediaWidthPercent = computed(() => {
+  const value = Number(props.node.attrs.mediaWidthPercent ?? 0)
+  return Number.isFinite(value) && value > 0 ? Math.min(200, value) : null
+})
 const mediaPosition = computed(() => String(props.node.attrs.mediaPosition ?? 'left'))
 const mediaMime = computed(() => String(props.node.attrs.mediaMime ?? ''))
 const mediaName = computed(() => String(props.node.attrs.mediaName ?? ''))
@@ -108,15 +118,28 @@ const displayName = computed(() => {
   return last || 'Attachment'
 })
 
+const mediaElementStyle = computed(() => ({
+  width: mediaWidthPercent.value ? `${mediaWidthPercent.value}%` : (mediaWidth.value ? `${mediaWidth.value}px` : '100%'),
+  maxWidth: '100%',
+  height: mediaHeight.value ? `${mediaHeight.value}px` : undefined
+}))
+
 const mediaStyle = computed(() => ({ flex: `0 0 ${(ratio.value * 100).toFixed(2)}%` }))
 
 function onImageLoad() {
   if (!imgEl.value) return
-  if (mediaWidth.value === null) {
-    props.updateAttributes({
-      mediaWidth: imgEl.value.naturalWidth,
-      mediaHeight: imgEl.value.naturalHeight
-    })
+  const naturalWidth = imgEl.value.naturalWidth
+  const naturalHeight = imgEl.value.naturalHeight
+  const updates: Record<string, unknown> = {}
+
+  if (props.node.attrs.mediaNaturalWidth == null) updates.mediaNaturalWidth = naturalWidth
+  if (props.node.attrs.mediaNaturalHeight == null) updates.mediaNaturalHeight = naturalHeight
+  if (mediaWidth.value === null) updates.mediaWidth = naturalWidth
+  if (mediaHeight.value === null) updates.mediaHeight = naturalHeight
+  if (props.node.attrs.mediaWidthPercent == null) updates.mediaWidthPercent = 100
+
+  if (Object.keys(updates).length) {
+    props.updateAttributes(updates)
   }
 }
 
