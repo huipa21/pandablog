@@ -9,6 +9,9 @@ interface QueryOptions {
 let client: Surreal | null = null
 let connectionPromise: Promise<Surreal> | null = null
 let connectionGeneration = 0
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null
+
+const KEEP_ALIVE_INTERVAL_MS = 30_000
 
 async function connectDb(generation: number) {
   const config = useRuntimeConfig()
@@ -30,7 +33,41 @@ async function connectDb(generation: number) {
   }
 
   client = db
+  startKeepAlive()
   return db
+}
+
+function startKeepAlive() {
+  if (keepAliveTimer) {
+    return
+  }
+
+  keepAliveTimer = setInterval(async () => {
+    if (!client) {
+      stopKeepAlive()
+      return
+    }
+
+    try {
+      await withTimeout(client.query('RETURN 1'), 5_000, 'keep-alive timed out')
+    } catch (error: any) {
+      if (import.meta.dev) {
+        console.warn('[db] keep-alive failed, resetting connection:', error?.message)
+      }
+
+      await discardDbConnection(client)
+      stopKeepAlive()
+      // Proactively reconnect so the next request doesn't pay the reconnect cost.
+      useDb().catch(() => {})
+    }
+  }, KEEP_ALIVE_INTERVAL_MS)
+}
+
+function stopKeepAlive() {
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer)
+    keepAliveTimer = null
+  }
 }
 
 export async function useDb() {
@@ -119,6 +156,7 @@ async function discardDbConnection(staleClient?: Surreal | null) {
   connectionGeneration += 1
   client = null
   connectionPromise = null
+  stopKeepAlive()
   await closeDbClient(activeClient)
 }
 
@@ -146,7 +184,9 @@ function isConnectionError(error: unknown) {
     .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
     .join(' ')
 
-  return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound)/i.test(message)
+  // Also matches the SurrealDB SDK's own phrasing:
+  // "You must be connected to a SurrealDB instance before performing this operation"
+  return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound|must be connected|not connected)/i.test(message)
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {

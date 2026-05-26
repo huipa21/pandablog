@@ -2,21 +2,26 @@
   <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer" @click="onRootClick">
     <ClientOnly>
       <div class="relative">
-        <InlineToolbar v-if="editor" :editor="editor" />
-
         <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor tiptap-editor" />
 
-        <!-- Block popup toolbar (transform, drag, move, align, more) -->
-        <BlockPopupToolbar
+        <!-- Unified block toolbar (block actions + inline formatting when text selected) -->
+        <BlockToolbar
           v-if="editor"
           :editor="editor"
           :reference-el="actionsMenuReferenceEl"
-          :visible="actionsMenuVisible"
+          :visible="actionsMenuVisible && activeBlockHasContent"
           :block-type="editorStore.selectedBlockType"
+          :has-text-selection="hasTextSelection"
           @move-up="runMoveUp"
           @move-down="runMoveDown"
           @duplicate="runDuplicate"
           @delete="runDelete"
+          @copy-block="runCopyBlock"
+          @cut-block="runCutBlock"
+          @add-before="runAddBefore"
+          @add-after="runAddAfter"
+          @edit-html="runEditHtml"
+          @add-footnote="runAddFootnote"
           @transform="runTransform"
           @dragstart="onBlockDragStart"
           @dragend="onBlockDragEnd"
@@ -57,15 +62,15 @@
             </svg>
           </button>
 
-          <!-- + button on the right (after the block) -->
+          <!-- + button on the right (inside the block) -->
           <button
             type="button"
-            class="pointer-events-auto absolute -right-10 top-1 flex size-7 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+            class="pointer-events-auto absolute right-2 top-1 flex size-6 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
             title="Add block below"
             data-testid="block-add-button"
             @click.stop.prevent="addBlockAfterCurrent"
           >
-            <UIcon name="i-lucide-plus" class="size-4" />
+            <UIcon name="i-lucide-plus" class="size-3.5" />
           </button>
         </div>
 
@@ -143,7 +148,6 @@ import Dropcursor from '@tiptap/extension-dropcursor'
 import FontFamily from '@tiptap/extension-font-family'
 import GapCursor from '@tiptap/extension-gapcursor'
 import Highlight from '@tiptap/extension-highlight'
-import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import Table from '@tiptap/extension-table'
@@ -152,7 +156,12 @@ import TableHeader from '@tiptap/extension-table-header'
 import TableRow from '@tiptap/extension-table-row'
 import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
+import Subscript from '@tiptap/extension-subscript'
+import Superscript from '@tiptap/extension-superscript'
 import type { Editor } from '@tiptap/core'
+import { Footnote } from '~/extensions/footnote'
+import { PreformattedNode } from '~/extensions/preformatted'
+import { SeparatorNode } from '~/extensions/separator'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import '~/assets/css/editor-craft.css'
 import '~/assets/css/code-themes.css'
@@ -172,13 +181,13 @@ import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
 import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
+import PreformattedNodeView from '~/components/admin/editor/PreformattedNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
 // would not auto-resolve. Importing them directly guarantees they render.
-import InlineToolbar from '~/components/admin/editor/InlineToolbar.vue'
 import SlashCommandMenu from '~/components/admin/editor/SlashCommandMenu.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
-import BlockPopupToolbar from '~/components/admin/editor/BlockPopupToolbar.vue'
+import BlockToolbar from '~/components/admin/editor/BlockToolbar.vue'
 import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
@@ -223,6 +232,20 @@ const { toPublicMediaUrl, resolveMediaUrl } = useMediaUrl()
 const actionsMenuVisible = ref(false)
 const actionsMenuReferenceEl = ref<HTMLElement | null>(null)
 const dragHandleRef = ref<HTMLElement | null>(null)
+
+// Text selection state for inline formatting.
+// TipTap editor internals are not Vue-reactive, so keep this in a ref and
+// update it from editor lifecycle callbacks.
+const hasTextSelection = ref(false)
+
+// Whether active block has content (toolbar only shows for non-empty blocks)
+const activeBlockHasContent = computed(() => {
+  const ed = editor.value
+  if (!ed || activeBlockIndex.value < 0) return false
+  const doc = ed.state.doc
+  const child = doc.maybeChild(activeBlockIndex.value)
+  return child ? child.textContent.length > 0 : false
+})
 
 watch([activeBlockIndex, dragHandleRef], () => {
   if (activeBlockIndex.value >= 0 && dragHandleRef.value) {
@@ -275,7 +298,7 @@ const editor = useEditor({
     Color,
     Highlight.configure({ multicolor: true }),
     FontFamily,
-    HorizontalRule,
+    SeparatorNode,
     Dropcursor.configure({ color: '#0f766e', width: 2 }),
     CodeBlockEnhanced.configure({
       lowlight,
@@ -347,7 +370,15 @@ const editor = useEditor({
         return VueNodeViewRenderer(RelatedPostNodeView)
       }
     }),
-    BlockReorderCommands
+    BlockReorderCommands,
+    Subscript,
+    Superscript,
+    Footnote,
+    PreformattedNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(PreformattedNodeView)
+      }
+    })
   ],
   editorProps: {
     attributes: {
@@ -360,6 +391,45 @@ const editor = useEditor({
       const handled = uploadImagesFromList(event.dataTransfer?.files)
       if (handled) event.preventDefault()
       return handled
+    },
+    handleClick(view, _pos, event) {
+      const target = event.target as HTMLElement | null
+      const anchor = target?.closest('a[href^="#fn-"] , a[href^="#fnref-"]') as HTMLAnchorElement | null
+      const footnoteSup = target?.closest('.footnote-ref') as HTMLElement | null
+
+      if (!anchor && footnoteSup) {
+        const id = String(footnoteSup.getAttribute('data-footnote-id') ?? '')
+        const index = Number(footnoteSup.getAttribute('data-footnote-index') ?? id.replace('fn-', ''))
+        if (Number.isFinite(index) && index > 0) {
+          event.preventDefault()
+          return jumpToFootnoteItem(view, index)
+        }
+      }
+
+      if (!anchor) return false
+
+      const href = anchor.getAttribute('href') ?? ''
+      if (!href.startsWith('#')) return false
+
+      event.preventDefault()
+      const id = href.slice(1)
+
+      if (id.startsWith('fnref-')) {
+        const index = Number(id.replace('fnref-fn-', ''))
+        if (Number.isFinite(index) && index > 0) {
+          return jumpToFootnoteReference(view, index)
+        }
+        return false
+      }
+
+      if (id.startsWith('fn-')) {
+        const index = Number(id.replace('fn-', ''))
+        if (Number.isFinite(index) && index > 0) {
+          return jumpToFootnoteItem(view, index)
+        }
+      }
+
+      return false
     },
     handleTextInput(view, from, _to, text) {
       if (text === '/' && isAtBlockStart(view, from)) {
@@ -431,6 +501,7 @@ const editor = useEditor({
       return
     }
 
+    updateSelectionState(ed)
     refreshSlashQuery(ed)
     scheduleTrackActiveBlock(ed)
     emit('update:modelValue', ed.getJSON() as JsonContent)
@@ -438,8 +509,10 @@ const editor = useEditor({
   },
   onCreate({ editor: ed }) {
     ensureTrailingParagraph(ed)
+    updateSelectionState(ed)
   },
   onSelectionUpdate({ editor: ed }) {
+    updateSelectionState(ed)
     refreshSlashQuery(ed)
     scheduleTrackActiveBlock(ed)
     syncSelectedBlock(ed)
@@ -460,12 +533,18 @@ const editor = useEditor({
         activeBlockRect.value = null
       }
     }, 150)
+    hasTextSelection.value = false
     closeSlashMenu()
   },
   onFocus({ editor: ed }) {
+    updateSelectionState(ed)
     scheduleTrackActiveBlock(ed)
   }
 })
+
+function updateSelectionState(ed: Editor) {
+  hasTextSelection.value = !ed.state.selection.empty && !ed.isActive('codeBlock')
+}
 
 defineExpose({ editor, openInserter: () => { inserterOpen.value = true }, closeInserter, pickBlock: handleInserterPick })
 
@@ -690,8 +769,235 @@ function runTransform(target: string) {
     case 'orderedList': chain.toggleOrderedList().run(); break
     case 'blockquote': chain.toggleBlockquote().run(); break
     case 'codeBlock': chain.toggleCodeBlock().run(); break
+    case 'preformatted': chain.setNode('preformatted').run(); break
+    case 'horizontalRule': chain.insertContent({ type: 'horizontalRule' }).run(); break
   }
   actionsMenuVisible.value = false
+}
+
+function getActiveBlockRange() {
+  const ed = editor.value
+  if (!ed) return null
+  const { $from } = ed.state.selection
+  let blockDepth = 0
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
+  }
+  if (blockDepth === 0) return null
+  return { from: $from.before(blockDepth), to: $from.after(blockDepth) }
+}
+
+function runCopyBlock() {
+  const ed = editor.value
+  const range = getActiveBlockRange()
+  if (!ed || !range) return
+  const slice = ed.state.doc.slice(range.from, range.to)
+  const text = slice.content.textBetween(0, slice.content.size, '\n')
+  navigator.clipboard.writeText(text)
+  actionsMenuVisible.value = false
+}
+
+function runCutBlock() {
+  const ed = editor.value
+  const range = getActiveBlockRange()
+  if (!ed || !range) return
+  const slice = ed.state.doc.slice(range.from, range.to)
+  const text = slice.content.textBetween(0, slice.content.size, '\n')
+  navigator.clipboard.writeText(text)
+  ed.chain().focus().deleteRange(range).run()
+  actionsMenuVisible.value = false
+}
+
+function runAddBefore() {
+  const ed = editor.value
+  const range = getActiveBlockRange()
+  if (!ed || !range) return
+  ed.chain().focus().insertContentAt(range.from, { type: 'paragraph' }).run()
+  actionsMenuVisible.value = false
+}
+
+function runAddAfter() {
+  const ed = editor.value
+  const range = getActiveBlockRange()
+  if (!ed || !range) return
+  ed.chain().focus().insertContentAt(range.to, { type: 'paragraph' }).run()
+  actionsMenuVisible.value = false
+}
+
+async function runEditHtml() {
+  const ed = editor.value
+  const range = getActiveBlockRange()
+  if (!ed || !range) return
+  const slice = ed.state.doc.slice(range.from, range.to)
+  const div = document.createElement('div')
+  const fragment = slice.content
+  const { DOMSerializer } = await import('@tiptap/pm/model')
+  const serializer = DOMSerializer.fromSchema(ed.schema)
+  const dom = serializer.serializeFragment(fragment)
+  div.appendChild(dom)
+  const html = div.innerHTML
+  const newHtml = window.prompt('Edit HTML:', html)
+  if (newHtml !== null && newHtml !== html) {
+    ed.chain().focus().deleteRange(range).insertContentAt(range.from, newHtml).run()
+  }
+  actionsMenuVisible.value = false
+}
+
+function runAddFootnote() {
+  const ed = editor.value
+  if (!ed) return
+
+  const nextIndex = getNextFootnoteIndex(ed)
+  const id = `fn-${nextIndex}`
+  const markerText = String(nextIndex)
+  const { state, view } = ed
+  const insertPos = state.selection.to
+  const footnoteMark = state.schema.marks.footnote?.create({ id, index: nextIndex })
+  if (!footnoteMark) return
+
+  const textNode = state.schema.text(markerText, [footnoteMark])
+  let tr = state.tr.insert(insertPos, textNode)
+  const nextPos = insertPos + markerText.length
+  tr = tr.setSelection(TextSelection.create(tr.doc, nextPos))
+  tr = tr.setStoredMarks([])
+  view.dispatch(tr)
+  ed.view.focus()
+
+  appendFootnoteListItem(ed, nextIndex, id)
+  ed.chain().focus().setTextSelection(Math.max(1, Math.min(nextPos, ed.state.doc.content.size))).run()
+}
+
+function getNextFootnoteIndex(ed: Editor) {
+  let maxIndex = 0
+  ed.state.doc.descendants((node) => {
+    if (!node.marks?.length) return
+    for (const mark of node.marks) {
+      if (mark.type.name !== 'footnote') continue
+      const index = Number(mark.attrs.index ?? 0)
+      if (Number.isFinite(index)) {
+        maxIndex = Math.max(maxIndex, index)
+      }
+    }
+  })
+  return maxIndex + 1
+}
+
+function appendFootnoteListItem(ed: Editor, index: number, id: string) {
+  const scaffold = findFootnoteScaffold(ed)
+  const itemContent = {
+    type: 'listItem',
+    content: [{
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: `Footnote ${index} ` },
+        { type: 'text', text: '↩', marks: [{ type: 'link', attrs: { href: `#fnref-${id}` } }] }
+      ]
+    }]
+  }
+
+  if (!scaffold) {
+    const endPos = footnoteInsertPos(ed)
+    ed.chain().focus().insertContentAt(endPos, [
+      { type: 'paragraph', content: [{ type: 'text', text: 'Footnotes' }] },
+      { type: 'orderedList', content: [itemContent] }
+    ]).run()
+    return
+  }
+
+  const appendPos = scaffold.listPos + scaffold.listNode.nodeSize - 1
+  ed.chain().focus().insertContentAt(appendPos, itemContent).run()
+}
+
+function findFootnoteScaffold(ed: Editor) {
+  const children: Array<{ node: any, pos: number, index: number }> = []
+  ed.state.doc.forEach((node, pos, index) => {
+    children.push({ node, pos, index })
+  })
+
+  if (children.length < 2) return null
+
+  for (let i = children.length - 1; i >= 1; i -= 1) {
+    const list = children[i]
+    const heading = children[i - 1]
+    if (!heading || !list) continue
+    if (heading.node.type.name !== 'paragraph' || list.node.type.name !== 'orderedList') continue
+
+    const label = heading.node.textContent.trim().toLowerCase()
+    if (label !== 'footnotes') continue
+
+    return {
+      headingPos: heading.pos,
+      listPos: list.pos,
+      listNode: list.node
+    }
+  }
+
+  return null
+}
+
+function footnoteInsertPos(ed: Editor) {
+  const last = ed.state.doc.lastChild
+  if (last && last.type.name === 'paragraph' && last.content.size === 0) {
+    return ed.state.doc.content.size - last.nodeSize
+  }
+  return ed.state.doc.content.size
+}
+
+function jumpToFootnoteItem(view: EditorView, index: number) {
+  const ed = editor.value
+  if (!ed) return false
+  const scaffold = findFootnoteScaffold(ed)
+  if (!scaffold) return false
+
+  let targetPos: number | null = null
+  scaffold.listNode.forEach((_node: any, offset: number, childIndex: number) => {
+    if (childIndex === index - 1) {
+      targetPos = scaffold.listPos + 1 + offset + 1
+    }
+  })
+
+  if (targetPos === null) return false
+  const tr = view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(targetPos)))
+  view.dispatch(tr)
+  view.focus()
+  highlightFootnoteTarget(targetPos)
+  return true
+}
+
+function jumpToFootnoteReference(view: EditorView, index: number) {
+  let targetPos: number | null = null
+  view.state.doc.descendants((node, pos) => {
+    if (!node.marks?.length) return
+    for (const mark of node.marks) {
+      if (mark.type.name !== 'footnote') continue
+      if (Number(mark.attrs.index ?? 0) === index) {
+        targetPos = pos + node.nodeSize
+      }
+    }
+  })
+
+  if (targetPos === null) return false
+  const tr = view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(targetPos)))
+  view.dispatch(tr)
+  view.focus()
+  highlightFootnoteTarget(targetPos)
+  return true
+}
+
+function highlightFootnoteTarget(pos: number) {
+  const view = editor.value?.view
+  if (!view) return
+
+  const coords = view.coordsAtPos(Math.max(1, Math.min(pos, view.state.doc.content.size)))
+  const element = document.elementFromPoint(coords.left + 4, coords.top + 4) as HTMLElement | null
+  const target = element?.closest('.footnote-ref, li, p') as HTMLElement | null
+  if (!target) return
+
+  target.classList.add('footnote-jump-highlight')
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  window.setTimeout(() => {
+    target.classList.remove('footnote-jump-highlight')
+  }, 900)
 }
 
 // ─── SLASH COMMAND ───────────────────────────────────────────────────────────
@@ -795,11 +1101,6 @@ function insertBlockAtPosition(name: string, pos: number) {
     return
   }
 
-  if (name === 'horizontalRule') {
-    ed.chain().focus().insertContentAt(safePos, { type: 'horizontalRule' }).run()
-    return
-  }
-
   if (name === 'relatedPost') {
     insertRelatedPostAtPosition(safePos)
     return
@@ -828,11 +1129,6 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
 
   if (name === 'table') {
     ed.chain().focus().deleteRange(range).insertContent(createTableContent()).run()
-    return
-  }
-
-  if (name === 'horizontalRule') {
-    ed.chain().focus().deleteRange(range).insertContent({ type: 'horizontalRule' }).run()
     return
   }
 
@@ -1357,12 +1653,52 @@ function syncSelectedBlock(ed: Editor) {
   padding-left: 1rem;
 }
 
-:deep(.pandablog-block-editor .ProseMirror pre:not(.codeblock-pre)) {
+:deep(.pandablog-block-editor .ProseMirror pre:not(.codeblock-pre):not(.preformatted-block)) {
   overflow-x: auto;
   border-radius: 0.5rem;
   background: rgb(28 25 23);
   color: rgb(245 245 244);
   padding: 1rem;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .separator-node) {
+  min-height: 1.75rem;
+  display: flex;
+  align-items: center;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .separator-node hr) {
+  width: 100%;
+}
+
+:deep(.pandablog-block-editor .ProseMirror pre.preformatted-block) {
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
+  line-height: 1.6;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .pre-node) {
+  display: block;
+  width: 100%;
+  min-height: 2.25rem;
+  position: relative;
+  isolation: isolate;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnote-ref) {
+  font-size: 0.72em;
+  vertical-align: super;
+  margin-left: 0.08em;
+  margin-right: 0.08em;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnote-jump-highlight) {
+  outline: 2px solid rgb(13 148 136 / 0.7);
+  outline-offset: 4px;
+  border-radius: 0.25rem;
+  transition: outline-color 220ms ease;
 }
 
 :deep(.pandablog-block-editor .ProseMirror img) {

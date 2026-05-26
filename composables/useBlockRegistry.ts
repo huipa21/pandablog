@@ -159,6 +159,21 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
+    name: 'preformatted',
+    title: 'Preformatted',
+    description: 'Plain preformatted text block with custom styling.',
+    icon: 'i-lucide-text-quote',
+    category: 'advanced',
+    keywords: ['pre', 'plaintext', 'mono', 'formatted'],
+    implemented: true,
+    supports: { spacing: true, color: true, typography: true },
+    createContent: () => ({
+      type: 'preformatted',
+      attrs: { textColor: '#e7e5e4', backgroundColor: '#1c1917', fontSize: 14, marginY: 12, lineNumbers: true },
+      content: [{ type: 'text', text: 'Preformatted text' }]
+    })
+  },
+  {
     name: 'mermaid',
     title: 'Mermaid',
     description: 'Create a diagram from Mermaid syntax.',
@@ -180,7 +195,11 @@ const blockDefinitions: BlockDefinition[] = [
     category: 'design',
     keywords: ['divider', 'rule', 'line'],
     implemented: true,
-    supports: { spacing: true }
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'horizontalRule',
+      attrs: { styleType: 'solid', thickness: 1, marginY: 16, color: '#d6d3d1' }
+    })
   },
   {
     name: 'embed',

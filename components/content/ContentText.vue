@@ -12,6 +12,17 @@
   <code v-else-if="currentMark.type === 'code'">
     <ContentText :text="text" :marks="remainingMarks" />
   </code>
+  <sub v-else-if="currentMark.type === 'subscript'">
+    <ContentText :text="text" :marks="remainingMarks" />
+  </sub>
+  <sup v-else-if="currentMark.type === 'superscript'">
+    <ContentText :text="text" :marks="remainingMarks" />
+  </sup>
+  <sup v-else-if="currentMark.type === 'footnote'" class="footnote-ref">
+    <a :href="`#fn-${currentMark.attrs?.id}`" :id="`fnref-${currentMark.attrs?.id}`">
+      {{ footnoteIndex }}
+    </a>
+  </sup>
   <NuxtLink v-else-if="currentMark.type === 'link'" :to="href">
     <ContentText :text="text" :marks="remainingMarks" />
   </NuxtLink>
@@ -70,6 +81,11 @@ const markStyle = computed(() => {
   }
 
   return style
+})
+
+const footnoteIndex = computed(() => {
+  const n = Number(currentMark.value?.attrs?.index ?? props.text)
+  return Number.isFinite(n) ? String(n) : String(props.text)
 })
 
 function safeCssValue(value: unknown) {

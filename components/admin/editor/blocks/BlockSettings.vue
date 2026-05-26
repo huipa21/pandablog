@@ -231,6 +231,112 @@
         </div>
       </details>
 
+      <details v-if="blockName === 'horizontalRule'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Separator</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Line style">
+            <USelect
+              :model-value="String(attrs.styleType ?? 'solid')"
+              :items="[{ label: 'Solid', value: 'solid' }, { label: 'Dashed', value: 'dashed' }, { label: 'Dotted', value: 'dotted' }]"
+              @update:model-value="setSeparatorStyle"
+            />
+          </UFormField>
+          <UFormField label="Thickness (px)">
+            <UInput type="number" min="1" max="12" :model-value="Number(attrs.thickness ?? 1)" @update:model-value="setSeparatorThickness" />
+          </UFormField>
+          <UFormField label="Color palette">
+            <div class="grid grid-cols-8 gap-1.5">
+              <button
+                v-for="color in separatorPalette"
+                :key="`sep-${color}`"
+                type="button"
+                class="h-7 rounded border"
+                :style="{ backgroundColor: color, borderColor: color === String(attrs.color ?? '#d6d3d1') ? '#0f766e' : '#d6d3d1' }"
+                :title="color"
+                @click="setSeparatorColor(color)"
+              />
+            </div>
+          </UFormField>
+          <details class="rounded-md border border-stone-200 p-2">
+            <summary class="cursor-pointer text-xs font-medium text-stone-700">Advanced color (picker + RGB/HEX)</summary>
+            <div class="mt-2 grid grid-cols-[auto,1fr] items-center gap-2">
+              <input type="color" :value="String(attrs.color ?? '#d6d3d1')" class="h-9 w-12 rounded border border-stone-200" @input="setSeparatorColor(($event.target as HTMLInputElement).value)">
+              <UInput :model-value="String(attrs.color ?? '#d6d3d1')" placeholder="#d6d3d1" @update:model-value="setSeparatorColorHex" />
+            </div>
+          </details>
+          <UFormField label="Vertical margin (px)">
+            <UInput type="number" min="0" max="120" :model-value="Number(attrs.marginY ?? 16)" @update:model-value="setSeparatorMargin" />
+          </UFormField>
+        </div>
+      </details>
+
+      <details v-if="blockName === 'preformatted'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Preformatted</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Text color palette">
+            <div class="grid grid-cols-8 gap-1.5">
+              <button
+                v-for="color in preTextPalette"
+                :key="`pt-${color}`"
+                type="button"
+                class="h-7 rounded border"
+                :style="{ backgroundColor: color, borderColor: color === String(attrs.textColor ?? '#e7e5e4') ? '#0f766e' : '#d6d3d1' }"
+                :title="color"
+                @click="setPreTextColor(color)"
+              />
+            </div>
+          </UFormField>
+          <UFormField label="Background color palette">
+            <div class="grid grid-cols-8 gap-1.5">
+              <button
+                v-for="color in preBackgroundPalette"
+                :key="`pb-${color}`"
+                type="button"
+                class="h-7 rounded border"
+                :style="{ backgroundColor: color, borderColor: color === String(attrs.backgroundColor ?? '#1c1917') ? '#0f766e' : '#d6d3d1' }"
+                :title="color"
+                @click="setPreBgColor(color)"
+              />
+            </div>
+          </UFormField>
+          <details class="rounded-md border border-stone-200 p-2">
+            <summary class="cursor-pointer text-xs font-medium text-stone-700">Advanced colors (picker + RGB/HEX)</summary>
+            <div class="mt-2 space-y-2">
+              <div class="grid grid-cols-[auto,1fr] items-center gap-2">
+                <input type="color" :value="String(attrs.textColor ?? '#e7e5e4')" class="h-9 w-12 rounded border border-stone-200" @input="setPreTextColor(($event.target as HTMLInputElement).value)">
+                <UInput :model-value="String(attrs.textColor ?? '#e7e5e4')" placeholder="#e7e5e4" @update:model-value="setPreTextColorHex" />
+              </div>
+              <div class="grid grid-cols-[auto,1fr] items-center gap-2">
+                <input type="color" :value="String(attrs.backgroundColor ?? '#1c1917')" class="h-9 w-12 rounded border border-stone-200" @input="setPreBgColor(($event.target as HTMLInputElement).value)">
+                <UInput :model-value="String(attrs.backgroundColor ?? '#1c1917')" placeholder="#1c1917" @update:model-value="setPreBgColorHex" />
+              </div>
+            </div>
+          </details>
+          <UFormField label="Font size (px)">
+            <UInput type="number" min="10" max="40" :model-value="Number(attrs.fontSize ?? 14)" @update:model-value="setPreFontSize" />
+          </UFormField>
+          <UFormField>
+            <UCheckbox
+              :model-value="attrs.lineNumbers !== false"
+              label="Show line numbers"
+              @update:model-value="setPreLineNumbers"
+            />
+          </UFormField>
+          <UFormField label="Vertical margin (px)">
+            <UInput type="number" min="0" max="120" :model-value="Number(attrs.marginY ?? 12)" @update:model-value="setPreMargin" />
+          </UFormField>
+        </div>
+      </details>
+
+      <details v-if="footnoteSection" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Footnotes</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Title">
+            <UInput :model-value="footnoteTitle" @update:model-value="setFootnoteTitle" />
+          </UFormField>
+        </div>
+      </details>
+
       <details v-if="blockName === 'customHtml'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Custom HTML</summary>
         <div class="mt-3 space-y-3">
@@ -309,6 +415,10 @@ const ratioPresetItems = [
   { label: '70 / 30', value: '70' }
 ]
 
+const separatorPalette = ['#d6d3d1', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#d97706', '#111827', '#9ca3af']
+const preTextPalette = ['#fafaf9', '#e7e5e4', '#d1d5db', '#111827', '#0f172a', '#14532d', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#d97706', '#334155']
+const preBackgroundPalette = ['#1c1917', '#0f172a', '#111827', '#0b3a2e', '#042f2e', '#172554', '#312e81', '#4c0519', '#7c2d12', '#f5f5f4', '#e5e7eb', '#dbeafe']
+
 const imageSourceSize = computed(() => String(attrs.value.sourceSize ?? 'full'))
 const imageDisplaySize = computed(() => {
   const explicit = String(attrs.value.displaySize ?? '')
@@ -339,6 +449,32 @@ const mediaDisplaySize = computed(() => {
 
   const width = numberOrNull(attrs.value.mediaWidth)
   return width ? 'custom-px' : 'fill-container'
+})
+
+const footnoteSection = computed(() => {
+  const activeEditor = props.editor
+  const selectedPos = editorStore.selectedBlockPos
+  if (!activeEditor || selectedPos === null) return null
+
+  const topLevel: Array<{ pos: number, node: any }> = []
+  activeEditor.state.doc.forEach((node, pos) => {
+    topLevel.push({ pos, node })
+  })
+
+  for (let i = 1; i < topLevel.length; i += 1) {
+    const heading = topLevel[i - 1]
+    const list = topLevel[i]
+    if (!heading || !list) continue
+    if (heading.node.type.name !== 'paragraph' || list.node.type.name !== 'orderedList') continue
+    if (selectedPos !== heading.pos && selectedPos !== list.pos) continue
+    return { headingPos: heading.pos, headingNode: heading.node, listPos: list.pos }
+  }
+
+  return null
+})
+
+const footnoteTitle = computed(() => {
+  return footnoteSection.value?.headingNode?.textContent?.trim() || 'Footnotes'
 })
 
 function updateAttrs(nextAttrs: Record<string, unknown>) {
@@ -497,6 +633,83 @@ function setCodeLineNumbers(value: unknown) {
 
 function setCodeShowTotalLines(value: unknown) {
   updateAttrs({ showTotalLines: asBooleanValue(value, false) })
+}
+
+function setSeparatorStyle(value: unknown) {
+  updateAttrs({ styleType: asSelectValue(value, 'solid') })
+}
+
+function setSeparatorThickness(value: unknown) {
+  const thickness = Math.max(1, Math.min(12, Number(value) || 1))
+  updateAttrs({ thickness })
+}
+
+function setSeparatorMargin(value: unknown) {
+  const marginY = Math.max(0, Math.min(120, Number(value) || 0))
+  updateAttrs({ marginY })
+}
+
+function setSeparatorColor(value: string) {
+  updateAttrs({ color: value || '#d6d3d1' })
+}
+
+function setSeparatorColorHex(value: unknown) {
+  const next = String(value ?? '').trim()
+  if (isHexColor(next)) {
+    setSeparatorColor(next)
+  }
+}
+
+function setPreTextColor(value: string) {
+  updateAttrs({ textColor: value || '#e7e5e4' })
+}
+
+function setPreTextColorHex(value: unknown) {
+  const next = String(value ?? '').trim()
+  if (isHexColor(next)) {
+    setPreTextColor(next)
+  }
+}
+
+function setPreBgColor(value: string) {
+  updateAttrs({ backgroundColor: value || '#1c1917' })
+}
+
+function setPreBgColorHex(value: unknown) {
+  const next = String(value ?? '').trim()
+  if (isHexColor(next)) {
+    setPreBgColor(next)
+  }
+}
+
+function setPreFontSize(value: unknown) {
+  const fontSize = Math.max(10, Math.min(40, Number(value) || 14))
+  updateAttrs({ fontSize })
+}
+
+function setPreMargin(value: unknown) {
+  const marginY = Math.max(0, Math.min(120, Number(value) || 0))
+  updateAttrs({ marginY })
+}
+
+function setPreLineNumbers(value: unknown) {
+  updateAttrs({ lineNumbers: asBooleanValue(value, true) })
+}
+
+function setFootnoteTitle(value: unknown) {
+  const activeEditor = props.editor
+  const section = footnoteSection.value
+  if (!activeEditor || !section) return
+
+  const title = asInputValue(value, 'Footnotes').trim() || 'Footnotes'
+  const from = section.headingPos + 1
+  const to = section.headingPos + section.headingNode.nodeSize - 1
+  const tr = activeEditor.state.tr.insertText(title, from, to)
+  activeEditor.view.dispatch(tr)
+}
+
+function isHexColor(value: string) {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)
 }
 
 function setHeadingLevel(value: string | number) {

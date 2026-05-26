@@ -51,6 +51,7 @@
 
           <div class="prose prose-stone max-w-none">
             <ContentRenderer :node="post.content_json" />
+            <ContentFootnotesSection :content="post.content_json" />
           </div>
         </div>
       </article>

@@ -1,7 +1,11 @@
 <template>
-  <ContentText v-if="node.type === 'text'" :text="node.text ?? ''" :marks="node.marks" />
+  <div v-if="node.type === 'doc'" class="content-body">
+    <ContentRenderer v-for="(child, index) in visibleDocChildren" :key="index" :node="child" />
+  </div>
+  <ContentText v-else-if="node.type === 'text'" :text="node.text ?? ''" :marks="node.marks" />
   <br v-else-if="node.type === 'hardBreak'">
-  <hr v-else-if="node.type === 'horizontalRule'" class="my-8 border-stone-200">
+  <hr v-else-if="node.type === 'horizontalRule'" class="w-full" :style="separatorStyle">
+  <NodePreformatted v-else-if="node.type === 'preformatted'" :node="node" />
   <NodeImage v-else-if="node.type === 'image'" :node="node" />
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
@@ -20,6 +24,7 @@ import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeImage from './NodeImage.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
+import NodePreformatted from './NodePreformatted.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
 
 const props = defineProps<{
@@ -28,8 +33,6 @@ const props = defineProps<{
 
 const tag = computed(() => {
   switch (props.node.type) {
-    case 'doc':
-      return 'div'
     case 'paragraph':
       return 'p'
     case 'heading':
@@ -83,6 +86,47 @@ const nodeId = computed(() => {
 
   return slugifyHeading(flattenNodeText(props.node))
 })
+
+const visibleDocChildren = computed(() => {
+  if (props.node.type !== 'doc') {
+    return props.node.content ?? []
+  }
+
+  const children = props.node.content ?? []
+  if (children.length < 2) {
+    return children
+  }
+
+  for (let i = children.length - 1; i >= 1; i -= 1) {
+    const orderedList = children[i]
+    const heading = children[i - 1]
+    if (!heading || !orderedList) continue
+    if (heading.type !== 'paragraph' || orderedList.type !== 'orderedList') continue
+    if (flattenNodeText(heading).trim().toLowerCase() !== 'footnotes') continue
+
+    return [...children.slice(0, i - 1), ...children.slice(i + 1)]
+  }
+
+  return children
+})
+
+const separatorStyle = computed(() => {
+  if (props.node.type !== 'horizontalRule') {
+    return undefined
+  }
+
+  const styleType = String(props.node.attrs?.styleType ?? 'solid')
+  const thickness = Math.max(1, Number(props.node.attrs?.thickness ?? 1))
+  const marginY = Math.max(0, Number(props.node.attrs?.marginY ?? 16))
+  const color = String(props.node.attrs?.color ?? '#d6d3d1')
+
+  return {
+    border: 0,
+    borderTop: `${thickness}px ${styleType} ${color}`,
+    margin: `${marginY}px 0`
+  }
+})
+
 
 function headingTag(level: unknown) {
   const safeLevel = Number(level)

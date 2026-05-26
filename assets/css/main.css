@@ -16,6 +16,10 @@ body {
   color: #1f2933;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 .pb-content-frame {
   width: 100%;
   max-width: var(--pb-post-content-max-width);
@@ -153,4 +157,22 @@ body {
 .mermaid-diagram svg {
   height: auto;
   max-width: 100%;
+}
+
+.footnote-ref {
+  font-size: 0.72em;
+  vertical-align: super;
+  margin-left: 0.08em;
+  margin-right: 0.08em;
+}
+
+.footnote-ref a {
+  text-decoration: none;
+}
+
+.footnotes li:target,
+.footnote-ref:target {
+  background: #dff3ed;
+  outline: 2px solid #0f766e55;
+  border-radius: 0.25rem;
 }
