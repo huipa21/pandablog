@@ -211,6 +211,30 @@
       @close="searchModalOpen = false"
       @apply="handleAdvancedSearch"
     />
+
+    <AdminConfirmActionDialog
+      :open="bulkDeleteDialogOpen"
+      title="Delete selected files?"
+      :description="bulkDeleteDialogDescription"
+      confirm-label="Delete files"
+      confirm-color="error"
+      :loading="bulkDeletePending"
+      @update:open="(value) => { if (!value) closeBulkDeleteDialog() }"
+      @cancel="closeBulkDeleteDialog"
+      @confirm="confirmBulkDelete"
+    />
+
+    <AdminConfirmActionDialog
+      :open="smartFolderDeleteDialogOpen"
+      title="Delete smart folder?"
+      :description="smartFolderDeleteDialogDescription"
+      confirm-label="Delete"
+      confirm-color="error"
+      :loading="smartFolderDeletePending"
+      @update:open="(value) => { if (!value) closeSmartFolderDeleteDialog() }"
+      @cancel="closeSmartFolderDeleteDialog"
+      @confirm="confirmDeleteSmartFolder"
+    />
   </section>
 </template>
 
@@ -294,6 +318,16 @@ const searchModalOpen = ref(false)
 const smartFolderModalOpen = ref(false)
 const editingSmartFolder = ref<SmartFolder | null>(null)
 const folderModalOpen = ref(false)
+const bulkDeleteDialogOpen = ref(false)
+const bulkDeletePending = ref(false)
+const smartFolderDeleteDialogOpen = ref(false)
+const smartFolderDeletePending = ref(false)
+const pendingDeleteSmartFolderId = ref('')
+const bulkDeleteDialogDescription = computed(() => `Delete ${selectedHashes.value.size} file(s)? This cannot be undone.`)
+const smartFolderDeleteDialogDescription = computed(() => {
+  const folder = smartFolders.value.find((item) => item.id === pendingDeleteSmartFolderId.value)
+  return folder ? `Delete smart folder "${folder.name}"?` : 'Delete this smart folder?'
+})
 
 const filters = ref<MediaFilters>({
   search: '',
@@ -336,7 +370,7 @@ const bulkActionItems = computed(() => {
       { label: 'Download', icon: 'i-lucide-download', disabled, onSelect: handleBulkDownload }
     ],
     [
-      { label: 'Delete selected', icon: 'i-lucide-trash-2', color: 'error' as const, disabled, onSelect: handleBulkDelete }
+      { label: 'Delete selected', icon: 'i-lucide-trash-2', color: 'error' as const, disabled, onSelect: openBulkDeleteDialog }
     ]
   ]
 })
@@ -652,8 +686,29 @@ function changePageSize(nextSize: string) {
   void loadMedia()
 }
 
-async function handleBulkDelete() {
-  if (!window.confirm(`Delete ${selectedHashes.value.size} file(s)? This cannot be undone.`)) return
+function openBulkDeleteDialog() {
+  if (selectedHashes.value.size === 0) {
+    return
+  }
+
+  bulkDeleteDialogOpen.value = true
+}
+
+function closeBulkDeleteDialog() {
+  if (bulkDeletePending.value) {
+    return
+  }
+
+  bulkDeleteDialogOpen.value = false
+}
+
+async function confirmBulkDelete() {
+  if (selectedHashes.value.size === 0) {
+    closeBulkDeleteDialog()
+    return
+  }
+
+  bulkDeletePending.value = true
   try {
     await $fetch('/api/media/bulk', {
       method: 'POST',
@@ -661,10 +716,13 @@ async function handleBulkDelete() {
     })
     notice.value = `Deleted ${selectedHashes.value.size} file(s)`
     selectedHashes.value = new Set()
+    closeBulkDeleteDialog()
     await loadMedia()
     await loadMediaTags()
   } catch (err: any) {
     error.value = err?.statusMessage || err?.message || 'Bulk delete failed'
+  } finally {
+    bulkDeletePending.value = false
   }
 }
 
@@ -850,10 +908,37 @@ async function handleSmartFolderSaved() {
 }
 
 async function handleDeleteSmartFolder(id: string) {
-  if (!window.confirm('Delete this smart folder?')) return
-  await $fetch(`/api/media/smart-folders/${id}`, { method: 'DELETE' })
-  if (selectedSmartFolder.value === id) selectAll()
-  await loadSmartFolders()
+  pendingDeleteSmartFolderId.value = id
+  smartFolderDeleteDialogOpen.value = true
+}
+
+function closeSmartFolderDeleteDialog() {
+  if (smartFolderDeletePending.value) {
+    return
+  }
+
+  smartFolderDeleteDialogOpen.value = false
+  pendingDeleteSmartFolderId.value = ''
+}
+
+async function confirmDeleteSmartFolder() {
+  const id = pendingDeleteSmartFolderId.value
+  if (!id) {
+    closeSmartFolderDeleteDialog()
+    return
+  }
+
+  smartFolderDeletePending.value = true
+  try {
+    await $fetch(`/api/media/smart-folders/${id}`, { method: 'DELETE' })
+    if (selectedSmartFolder.value === id) selectAll()
+    await loadSmartFolders()
+    closeSmartFolderDeleteDialog()
+  } catch (err: any) {
+    error.value = err?.statusMessage || err?.message || 'Failed to delete smart folder'
+  } finally {
+    smartFolderDeletePending.value = false
+  }
 }
 
 function defaultFilters(): MediaFilters {

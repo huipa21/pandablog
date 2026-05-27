@@ -2,7 +2,11 @@
   <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer" @click="onRootClick">
     <ClientOnly>
       <div class="relative">
-        <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor tiptap-editor" />
+        <div class="block-editor-grid">
+          <div class="editor-gutter-col" aria-hidden="true" />
+          <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor tiptap-editor editor-content-col" />
+          <div class="editor-gutter-col" aria-hidden="true" />
+        </div>
 
         <!-- Unified block toolbar (block actions + inline formatting when text selected) -->
         <BlockToolbar
@@ -32,14 +36,17 @@
         <!-- Per-block + button shown on the active block -->
         <div
           v-if="activeBlockRect && activeBlockIndex >= 0"
-          class="pointer-events-none absolute left-0 right-0"
-          :style="{ top: `${activeBlockRect.top}px`, height: `${activeBlockRect.height}px` }"
+          class="block-active-overlay pointer-events-none absolute inset-x-0"
+          :style="{
+            top: `${activeBlockRect.top}px`,
+            height: `${activeBlockRect.height}px`
+          }"
         >
           <button
             ref="dragHandleRef"
             type="button"
             draggable="true"
-            class="drag-handle drag-handle-visible pointer-events-auto absolute -left-10 top-1"
+            class="block-grid-handle pointer-events-auto col-start-1 justify-self-center"
             title="Drag block"
             aria-label="Drag block"
             data-testid="block-drag-handle"
@@ -64,15 +71,15 @@
             </svg>
           </button>
 
-          <!-- + button on the right (inside the block) -->
+          <!-- + button in the right gutter -->
           <button
             type="button"
-            class="pointer-events-auto absolute right-2 top-1 flex size-6 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+            class="block-grid-add pointer-events-auto col-start-3 justify-self-center"
             title="Add block below"
             data-testid="block-add-button"
             @click.stop.prevent="addBlockAfterCurrent"
           >
-            <UIcon name="i-lucide-plus" class="size-3.5" />
+            <UIcon name="i-lucide-plus" class="size-4" />
           </button>
         </div>
 
@@ -165,7 +172,6 @@ import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
 import { LinkEnhanced } from '~/extensions/linkEnhanced'
 import { ListItemEnhanced } from '~/extensions/listItemEnhanced'
-import { PreformattedNode } from '~/extensions/preformatted'
 import { SeparatorNode } from '~/extensions/separator'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import '~/assets/css/editor-craft.css'
@@ -186,7 +192,6 @@ import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
 import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
-import PreformattedNodeView from '~/components/admin/editor/PreformattedNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
 // would not auto-resolve. Importing them directly guarantees they render.
@@ -375,12 +380,7 @@ const editor = useEditor({
     Superscript,
     Footnote,
     ListItemEnhanced,
-    FootnotesBlockNode,
-    PreformattedNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(PreformattedNodeView)
-      }
-    })
+    FootnotesBlockNode
   ],
   editorProps: {
     attributes: {
@@ -628,24 +628,29 @@ function trackActiveBlock(ed: Editor) {
     activeBlockRect.value = null
     return
   }
+  const selection = ed.state.selection
+  let blockStart = -1
 
-  const { $from } = ed.state.selection
-
-  let blockDepth = 0
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d - 1).type.name === 'doc') {
-      blockDepth = d
-      break
+  if (selection instanceof NodeSelection && selection.$from.depth === 0) {
+    blockStart = selection.from
+  } else {
+    const { $from } = selection
+    let blockDepth = 0
+    for (let d = $from.depth; d > 0; d--) {
+      if ($from.node(d - 1).type.name === 'doc') {
+        blockDepth = d
+        break
+      }
     }
-  }
 
-  if (blockDepth === 0) {
-    activeBlockRect.value = null
-    activeBlockIndex.value = -1
-    return
-  }
+    if (blockDepth === 0) {
+      activeBlockRect.value = null
+      activeBlockIndex.value = -1
+      return
+    }
 
-  const blockStart = $from.before(blockDepth)
+    blockStart = $from.before(blockDepth)
+  }
 
   // Determine block index
   let blockIndex = -1
@@ -777,7 +782,6 @@ function runTransform(target: string) {
     case 'orderedList': chain.toggleOrderedList().run(); break
     case 'blockquote': chain.toggleBlockquote().run(); break
     case 'codeBlock': chain.toggleCodeBlock().run(); break
-    case 'preformatted': chain.setNode('preformatted').run(); break
     case 'horizontalRule': chain.insertContent({ type: 'horizontalRule' }).run(); break
   }
   actionsMenuVisible.value = false
@@ -1894,10 +1898,61 @@ function syncSelectedBlock(ed: Editor) {
   padding: 0.5rem 0;
 }
 
+@media (max-width: 1024px) {
+  :deep(.pandablog-block-editor .ProseMirror) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+.block-editor-grid {
+  display: grid;
+  grid-template-columns: var(--pb-editor-gutter, 32px) minmax(0, 1fr) var(--pb-editor-gutter, 32px);
+  column-gap: var(--pb-editor-gap, 8px);
+  align-items: start;
+}
+
+.editor-gutter-col {
+  width: var(--pb-editor-gutter, 32px);
+}
+
+.editor-content-col {
+  min-width: 0;
+}
+
+.block-active-overlay {
+  display: grid;
+  grid-template-columns: var(--pb-editor-gutter, 32px) minmax(0, 1fr) var(--pb-editor-gutter, 32px);
+  column-gap: var(--pb-editor-gap, 8px);
+  align-items: start;
+}
+
+.block-grid-handle,
+.block-grid-add {
+  margin-top: 0.25rem;
+  display: inline-flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  border: 1px solid rgb(153 246 228);
+  background: rgb(240 253 250);
+  color: rgb(15 118 110);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.block-grid-handle:hover,
+.block-grid-add:hover {
+  border-color: rgb(45 212 191);
+  background: rgb(204 251 241);
+}
+
 :deep(.pandablog-block-editor .ProseMirror > *) {
   position: relative;
   margin-bottom: 0.75rem;
-  border-radius: 0.25rem;
+  border-radius: 0.4rem;
   transition: outline-color 0.15s;
   outline: 2px solid transparent;
   outline-offset: 6px;
@@ -1955,7 +2010,7 @@ function syncSelectedBlock(ed: Editor) {
   padding-left: 1rem;
 }
 
-:deep(.pandablog-block-editor .ProseMirror pre:not(.codeblock-pre):not(.preformatted-block)) {
+:deep(.pandablog-block-editor .ProseMirror pre:not(.codeblock-pre)) {
   overflow-x: auto;
   border-radius: 0.5rem;
   background: rgb(28 25 23);
@@ -1971,22 +2026,6 @@ function syncSelectedBlock(ed: Editor) {
 
 :deep(.pandablog-block-editor .ProseMirror .separator-node hr) {
   width: 100%;
-}
-
-:deep(.pandablog-block-editor .ProseMirror pre.preformatted-block) {
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  overflow-x: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
-  line-height: 1.6;
-}
-
-:deep(.pandablog-block-editor .ProseMirror .pre-node) {
-  display: block;
-  width: 100%;
-  min-height: 2.25rem;
-  position: relative;
-  isolation: isolate;
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnote-ref) {
@@ -2013,9 +2052,13 @@ function syncSelectedBlock(ed: Editor) {
 }
 
 :deep(.pandablog-block-editor .ProseMirror code) {
-  border-radius: 0.25rem;
-  background: rgb(229 231 235);
-  padding: 0.1rem 0.3rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #f6f8fa;
+  color: #24292f;
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  padding: 0.12rem 0.34rem;
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnote-jump-highlight) {

@@ -14,11 +14,11 @@
         />
         <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ selectedIds.length }} selected</UBadge>
         <UDropdownMenu v-if="selectedIds.length" :items="actionsMenuItems">
-          <UButton icon="i-lucide-list-checks" color="neutral" variant="soft">
+          <UButton icon="i-lucide-list-checks" color="neutral" variant="soft" :loading="bulkDeleting" :disabled="bulkDeleting">
             Actions
           </UButton>
         </UDropdownMenu>
-        <UBadge v-if="quickEditEnabled" color="primary" variant="subtle">Quick Edit ON</UBadge>
+        <UBadge v-if="quickEditEnabled && !isArchivedView" color="primary" variant="subtle">Quick Edit ON</UBadge>
         <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
           New post
         </UButton>
@@ -218,6 +218,18 @@
 
       <UEmpty v-else icon="i-lucide-file-text" title="No posts yet" description="Create your first draft to start building the knowledge base." class="py-12" />
     </div>
+
+    <AdminConfirmActionDialog
+      :open="confirmDialog.open"
+      :title="confirmDialog.title"
+      :description="confirmDialog.description"
+      :confirm-label="confirmDialog.confirmLabel"
+      :confirm-color="confirmDialog.confirmColor"
+      :loading="bulkDeleting"
+      @update:open="(value) => { if (!value) closeConfirmDialog() }"
+      @cancel="closeConfirmDialog"
+      @confirm="confirmBulkAction"
+    />
   </section>
 </template>
 
@@ -227,6 +239,7 @@ import type { CategoryRecord, PostRecord, PostStatus, PostVisibility, TagRecord 
 definePageMeta({ layout: 'admin' })
 
 type PostStatusFilter = PostStatus | 'all'
+type BulkIntent = 'archive' | 'hard-delete' | 'mixed'
 
 type EditableField = 'title' | 'slug' | 'tags' | 'categories' | 'visibility' | 'status'
 
@@ -260,6 +273,7 @@ const { data: taxonomyData, error: taxonomyError, refresh: refreshTaxonomy } = a
 const posts = computed(() => data.value?.posts ?? [])
 const tagOptions = computed(() => taxonomyData.value?.tags ?? [])
 const categoryOptions = computed(() => taxonomyData.value?.categories ?? [])
+const isArchivedView = computed(() => statusFilter.value === 'archived')
 
 const createError = ref('')
 const listError = ref('')
@@ -283,27 +297,92 @@ const draft = reactive({
 
 const allVisibleSelected = computed(() => posts.value.length > 0 && posts.value.every((post) => selectedIds.value.includes(post.id)))
 const someVisibleSelected = computed(() => !allVisibleSelected.value && posts.value.some((post) => selectedIds.value.includes(post.id)))
-const actionsMenuItems = computed(() => [[
-  {
-    label: 'Delete',
-    icon: 'i-lucide-trash-2',
-    color: 'error' as const,
-    onSelect: deleteSelected
-  },
-  {
-    label: 'Edit',
-    icon: 'i-lucide-square-pen',
-    onSelect: editSelected
-  },
-  {
-    label: quickEditEnabled.value ? 'Disable Quick Edit' : 'Quick Edit',
-    icon: quickEditEnabled.value ? 'i-lucide-square-x' : 'i-lucide-file-pen-line',
-    onSelect: toggleQuickEdit
+const selectedPosts = computed(() => posts.value.filter((post) => selectedIds.value.includes(post.id)))
+const selectedIntent = computed<BulkIntent>(() => {
+  if (!selectedPosts.value.length) {
+    return 'archive'
   }
+
+  const archivedCount = selectedPosts.value.filter((post) => post.status === 'archived').length
+  if (archivedCount === selectedPosts.value.length) {
+    return 'hard-delete'
+  }
+
+  if (archivedCount === 0) {
+    return 'archive'
+  }
+
+  return 'mixed'
+})
+const selectedActionLabel = computed(() => {
+  if (selectedIntent.value === 'hard-delete') {
+    return 'Delete permanently'
+  }
+
+  if (selectedIntent.value === 'mixed') {
+    return 'Archive / Delete'
+  }
+
+  return 'Archive'
+})
+
+const confirmDialog = reactive({
+  open: false,
+  intent: 'archive' as BulkIntent,
+  title: '',
+  description: '',
+  confirmLabel: 'Archive',
+  confirmColor: 'primary' as 'primary' | 'error' | 'neutral',
+  ids: [] as string[]
+})
+
+const actionsMenuItems = computed(() => [[
+  ...(isArchivedView.value
+    ? [
+        {
+          label: 'Restore',
+          icon: 'i-lucide-rotate-ccw',
+          color: 'primary' as const,
+          onSelect: restoreSelected
+        },
+        {
+          label: 'Delete permanently',
+          icon: 'i-lucide-trash-2',
+          color: 'error' as const,
+          onSelect: deletePermanentlySelected
+        }
+      ]
+    : [
+        {
+          label: selectedActionLabel.value,
+          icon: selectedIntent.value === 'archive' ? 'i-lucide-archive' : 'i-lucide-trash-2',
+          color: selectedIntent.value === 'archive' ? ('primary' as const) : ('error' as const),
+          onSelect: openBulkActionDialog
+        },
+        {
+          label: 'Edit',
+          icon: 'i-lucide-square-pen',
+          onSelect: editSelected
+        },
+        {
+          label: quickEditEnabled.value ? 'Disable Quick Edit' : 'Quick Edit',
+          icon: quickEditEnabled.value ? 'i-lucide-square-x' : 'i-lucide-file-pen-line',
+          onSelect: toggleQuickEdit
+        }
+      ])
 ]])
 
 onBeforeUnmount(() => {
   clearRowClickTimer()
+})
+
+watch(statusFilter, () => {
+  selectedIds.value = []
+  closeConfirmDialog()
+  if (statusFilter.value === 'archived' && quickEditEnabled.value) {
+    quickEditEnabled.value = false
+    cancelCellEdit()
+  }
 })
 
 async function createPost() {
@@ -497,14 +576,123 @@ function toggleSelectAll(event: Event) {
   selectedIds.value = selectedIds.value.filter((postId) => !visibleIds.has(postId))
 }
 
-async function deleteSelected() {
+function openBulkActionDialog() {
   if (!selectedIds.value.length) {
     return
   }
 
+  const uniqueIds = Array.from(new Set(selectedIds.value))
+  const count = uniqueIds.length
+  const intent = selectedIntent.value
+  const noun = count === 1 ? 'post' : 'posts'
+
+  let title = ''
+  let description = ''
+  let confirmLabel = ''
+  let confirmColor: 'primary' | 'error' | 'neutral' = 'primary'
+
+  if (intent === 'hard-delete') {
+    title = count === 1 ? 'Delete archived post permanently?' : `Delete ${count} archived ${noun} permanently?`
+    description = count === 1
+      ? 'This permanently removes the archived post and its related data. This cannot be undone.'
+      : 'These archived posts and their related data will be permanently removed. This cannot be undone.'
+    confirmLabel = count === 1 ? 'Delete permanently' : `Delete ${count} permanently`
+    confirmColor = 'error'
+  } else if (intent === 'mixed') {
+    title = count === 1 ? 'Apply selected action?' : `Apply action to ${count} ${noun}?`
+    description = 'Active posts will be archived. Already archived posts will be permanently deleted.'
+    confirmLabel = 'Continue'
+    confirmColor = 'error'
+  } else {
+    title = count === 1 ? 'Archive this post?' : `Archive ${count} ${noun}?`
+    description = count === 1
+      ? 'The post will move to Archived and can be restored later.'
+      : 'These posts will move to Archived and can be restored later.'
+    confirmLabel = count === 1 ? 'Archive post' : `Archive ${count} posts`
+    confirmColor = 'primary'
+  }
+
+  confirmDialog.open = true
+  confirmDialog.intent = intent
+  confirmDialog.title = title
+  confirmDialog.description = description
+  confirmDialog.confirmLabel = confirmLabel
+  confirmDialog.confirmColor = confirmColor
+  confirmDialog.ids = uniqueIds
+}
+
+function deletePermanentlySelected() {
+  if (!selectedIds.value.length) {
+    return
+  }
+
+  const uniqueIds = Array.from(new Set(selectedIds.value))
+  const count = uniqueIds.length
+  const noun = count === 1 ? 'post' : 'posts'
+
+  confirmDialog.open = true
+  confirmDialog.intent = 'hard-delete'
+  confirmDialog.title = count === 1 ? 'Delete archived post permanently?' : `Delete ${count} archived ${noun} permanently?`
+  confirmDialog.description = count === 1
+    ? 'This permanently removes the archived post and its related data. This cannot be undone.'
+    : 'These archived posts and their related data will be permanently removed. This cannot be undone.'
+  confirmDialog.confirmLabel = count === 1 ? 'Delete permanently' : `Delete ${count} permanently`
+  confirmDialog.confirmColor = 'error'
+  confirmDialog.ids = uniqueIds
+}
+
+async function restoreSelected() {
+  if (!selectedIds.value.length) {
+    return
+  }
+
+  const uniqueIds = Array.from(new Set(selectedIds.value))
+  listError.value = ''
   bulkDeleting.value = true
-  await deletePosts([...selectedIds.value])
-  bulkDeleting.value = false
+
+  try {
+    await Promise.all(uniqueIds.map((postId) => {
+      const endpoint = `/api/admin/posts/${encodeURIComponent(postId)}`
+      return $fetch(endpoint, {
+        method: 'PUT',
+        body: { status: 'draft' }
+      })
+    }))
+
+    selectedIds.value = selectedIds.value.filter((postId) => !uniqueIds.includes(postId))
+    if (editingCell.value && uniqueIds.includes(editingCell.value.postId)) {
+      editingCell.value = null
+    }
+    await refresh()
+  } catch (error: any) {
+    listError.value = error?.statusMessage ?? error?.message ?? 'Could not restore selected posts'
+  } finally {
+    bulkDeleting.value = false
+  }
+}
+
+function closeConfirmDialog() {
+  if (bulkDeleting.value) {
+    return
+  }
+
+  confirmDialog.open = false
+  confirmDialog.ids = []
+}
+
+async function confirmBulkAction() {
+  if (!confirmDialog.ids.length) {
+    closeConfirmDialog()
+    return
+  }
+
+  bulkDeleting.value = true
+  try {
+    await deletePosts(confirmDialog.ids)
+  } finally {
+    bulkDeleting.value = false
+    closeConfirmDialog()
+  }
 }
 
 async function editSelected() {
@@ -533,32 +721,38 @@ async function deletePosts(ids: string[]) {
     return
   }
 
-  const count = uniqueIds.length
-  const confirmed = confirm(count === 1
-    ? 'Delete this post? It will be archived.'
-    : `Delete ${count} posts? They will be archived.`)
-
-  if (!confirmed) {
-    return
-  }
-
   listError.value = ''
 
   try {
-    for (const postId of uniqueIds) {
-      const endpoint: string = `/api/admin/posts/${encodeURIComponent(postId)}`
-      await $fetch(endpoint, {
-        method: 'DELETE'
-      })
-    }
+    const response = await $fetch<{
+      archived: number
+      deleted: number
+      failed: number
+      archived_ids: string[]
+      deleted_ids: string[]
+      failures: Array<{ id: string, message: string }>
+    }>('/api/admin/posts/bulk', {
+      method: 'DELETE',
+      body: {
+        ids: uniqueIds
+      }
+    })
 
-    selectedIds.value = selectedIds.value.filter((postId) => !uniqueIds.includes(postId))
-    if (editingCell.value && uniqueIds.includes(editingCell.value.postId)) {
+    const processedIds = new Set([...(response.archived_ids ?? []), ...(response.deleted_ids ?? [])])
+
+    selectedIds.value = selectedIds.value.filter((postId) => !processedIds.has(postId))
+    if (editingCell.value && processedIds.has(editingCell.value.postId)) {
       editingCell.value = null
     }
+
+    if (response.failed > 0) {
+      const firstFailure = response.failures?.[0]?.message ?? 'Some posts could not be processed'
+      listError.value = `${response.failed} post(s) failed. ${firstFailure}`
+    }
+
     await refresh()
   } catch (error: any) {
-    listError.value = error?.statusMessage ?? error?.message ?? 'Could not delete selected posts'
+    listError.value = error?.statusMessage ?? error?.message ?? 'Could not process selected posts'
   }
 }
 

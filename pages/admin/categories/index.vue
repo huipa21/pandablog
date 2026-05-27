@@ -51,7 +51,7 @@
               <td class="px-4 py-3 text-stone-600">{{ category.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
                 <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(category)">Edit</UButton>
-                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === category.id" @click="deleteCategory(category)">Delete</UButton>
+                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === category.id" @click="requestDeleteCategory(category)">Delete</UButton>
               </td>
             </template>
           </tr>
@@ -60,6 +60,18 @@
 
       <UEmpty v-else icon="i-lucide-folder" title="No categories yet" description="Create categories to organize your posts." class="py-12" />
     </div>
+
+    <AdminConfirmActionDialog
+      :open="deleteDialogOpen"
+      title="Delete category?"
+      :description="deleteDialogDescription"
+      confirm-label="Delete"
+      confirm-color="error"
+      :loading="Boolean(deletingId)"
+      @update:open="(value) => { if (!value) closeDeleteDialog() }"
+      @cancel="closeDeleteDialog"
+      @confirm="confirmDeleteCategory"
+    />
   </section>
 </template>
 
@@ -77,6 +89,11 @@ const creating = ref(false)
 const saving = ref(false)
 const deletingId = ref('')
 const formError = ref('')
+const deleteDialogOpen = ref(false)
+const pendingDeleteCategory = ref<CategoryRecord | null>(null)
+const deleteDialogDescription = computed(() => pendingDeleteCategory.value
+  ? `Delete category "${pendingDeleteCategory.value.name}"?`
+  : 'Delete this category?')
 
 async function createCategory() {
   creating.value = true
@@ -125,8 +142,24 @@ async function saveCategory(id: string) {
   }
 }
 
-async function deleteCategory(category: CategoryRecord) {
-  if (!confirm(`Delete category "${category.name}"?`)) {
+function requestDeleteCategory(category: CategoryRecord) {
+  pendingDeleteCategory.value = category
+  deleteDialogOpen.value = true
+}
+
+function closeDeleteDialog() {
+  if (deletingId.value) {
+    return
+  }
+
+  deleteDialogOpen.value = false
+  pendingDeleteCategory.value = null
+}
+
+async function confirmDeleteCategory() {
+  const category = pendingDeleteCategory.value
+  if (!category) {
+    closeDeleteDialog()
     return
   }
 
@@ -134,6 +167,7 @@ async function deleteCategory(category: CategoryRecord) {
   formError.value = ''
   try {
     await $fetch(`/api/admin/categories/${encodeURIComponent(category.id)}`, { method: 'DELETE' })
+    closeDeleteDialog()
     await refresh()
   } catch (err: any) {
     formError.value = err?.statusMessage ?? err?.message ?? 'Could not delete category'

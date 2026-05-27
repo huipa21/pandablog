@@ -228,6 +228,24 @@
               @update:model-value="setCodeShowTotalLines"
             />
           </UFormField>
+          <UFormField>
+            <UCheckbox
+              :model-value="attrs.wrap !== false"
+              label="Wrap long lines"
+              @update:model-value="setCodeWrap"
+            />
+          </UFormField>
+          <UFormField :label="`Zoom (${Math.round(Number(attrs.zoom ?? 1) * 100)}%)`">
+            <input
+              type="range"
+              min="70"
+              max="200"
+              step="5"
+              :value="Math.round(Number(attrs.zoom ?? 1) * 100)"
+              class="w-full"
+              @input="setCodeZoom(($event.target as HTMLInputElement).value)"
+            >
+          </UFormField>
         </div>
       </details>
 
@@ -266,64 +284,6 @@
           </details>
           <UFormField label="Vertical margin (px)">
             <UInput type="number" min="0" max="120" :model-value="Number(attrs.marginY ?? 16)" @update:model-value="setSeparatorMargin" />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'preformatted'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Preformatted</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField label="Text color palette">
-            <div class="grid grid-cols-8 gap-1.5">
-              <button
-                v-for="color in preTextPalette"
-                :key="`pt-${color}`"
-                type="button"
-                class="h-7 rounded border"
-                :style="{ backgroundColor: color, borderColor: color === String(attrs.textColor ?? '#e7e5e4') ? '#0f766e' : '#d6d3d1' }"
-                :title="color"
-                @click="setPreTextColor(color)"
-              />
-            </div>
-          </UFormField>
-          <UFormField label="Background color palette">
-            <div class="grid grid-cols-8 gap-1.5">
-              <button
-                v-for="color in preBackgroundPalette"
-                :key="`pb-${color}`"
-                type="button"
-                class="h-7 rounded border"
-                :style="{ backgroundColor: color, borderColor: color === String(attrs.backgroundColor ?? '#1c1917') ? '#0f766e' : '#d6d3d1' }"
-                :title="color"
-                @click="setPreBgColor(color)"
-              />
-            </div>
-          </UFormField>
-          <details class="rounded-md border border-stone-200 p-2">
-            <summary class="cursor-pointer text-xs font-medium text-stone-700">Advanced colors (picker + RGB/HEX)</summary>
-            <div class="mt-2 space-y-2">
-              <div class="grid grid-cols-[auto,1fr] items-center gap-2">
-                <input type="color" :value="String(attrs.textColor ?? '#e7e5e4')" class="h-9 w-12 rounded border border-stone-200" @input="setPreTextColor(($event.target as HTMLInputElement).value)">
-                <UInput :model-value="String(attrs.textColor ?? '#e7e5e4')" placeholder="#e7e5e4" @update:model-value="setPreTextColorHex" />
-              </div>
-              <div class="grid grid-cols-[auto,1fr] items-center gap-2">
-                <input type="color" :value="String(attrs.backgroundColor ?? '#1c1917')" class="h-9 w-12 rounded border border-stone-200" @input="setPreBgColor(($event.target as HTMLInputElement).value)">
-                <UInput :model-value="String(attrs.backgroundColor ?? '#1c1917')" placeholder="#1c1917" @update:model-value="setPreBgColorHex" />
-              </div>
-            </div>
-          </details>
-          <UFormField label="Font size (px)">
-            <UInput type="number" min="10" max="40" :model-value="Number(attrs.fontSize ?? 14)" @update:model-value="setPreFontSize" />
-          </UFormField>
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.lineNumbers !== false"
-              label="Show line numbers"
-              @update:model-value="setPreLineNumbers"
-            />
-          </UFormField>
-          <UFormField label="Vertical margin (px)">
-            <UInput type="number" min="0" max="120" :model-value="Number(attrs.marginY ?? 12)" @update:model-value="setPreMargin" />
           </UFormField>
         </div>
       </details>
@@ -416,8 +376,6 @@ const ratioPresetItems = [
 ]
 
 const separatorPalette = ['#d6d3d1', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#d97706', '#111827', '#9ca3af']
-const preTextPalette = ['#fafaf9', '#e7e5e4', '#d1d5db', '#111827', '#0f172a', '#14532d', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#d97706', '#334155']
-const preBackgroundPalette = ['#1c1917', '#0f172a', '#111827', '#0b3a2e', '#042f2e', '#172554', '#312e81', '#4c0519', '#7c2d12', '#f5f5f4', '#e5e7eb', '#dbeafe']
 
 const imageSourceSize = computed(() => String(attrs.value.sourceSize ?? 'full'))
 const imageDisplaySize = computed(() => {
@@ -635,6 +593,16 @@ function setCodeShowTotalLines(value: unknown) {
   updateAttrs({ showTotalLines: asBooleanValue(value, false) })
 }
 
+function setCodeWrap(value: unknown) {
+  updateAttrs({ wrap: asBooleanValue(value, true) })
+}
+
+function setCodeZoom(value: unknown) {
+  const next = Number(value)
+  const zoom = Number.isFinite(next) ? Math.max(0.7, Math.min(2, next > 10 ? next / 100 : next)) : 1
+  updateAttrs({ zoom: Math.round(zoom * 100) / 100 })
+}
+
 function setSeparatorStyle(value: unknown) {
   updateAttrs({ styleType: asSelectValue(value, 'solid') })
 }
@@ -658,42 +626,6 @@ function setSeparatorColorHex(value: unknown) {
   if (isHexColor(next)) {
     setSeparatorColor(next)
   }
-}
-
-function setPreTextColor(value: string) {
-  updateAttrs({ textColor: value || '#e7e5e4' })
-}
-
-function setPreTextColorHex(value: unknown) {
-  const next = String(value ?? '').trim()
-  if (isHexColor(next)) {
-    setPreTextColor(next)
-  }
-}
-
-function setPreBgColor(value: string) {
-  updateAttrs({ backgroundColor: value || '#1c1917' })
-}
-
-function setPreBgColorHex(value: unknown) {
-  const next = String(value ?? '').trim()
-  if (isHexColor(next)) {
-    setPreBgColor(next)
-  }
-}
-
-function setPreFontSize(value: unknown) {
-  const fontSize = Math.max(10, Math.min(40, Number(value) || 14))
-  updateAttrs({ fontSize })
-}
-
-function setPreMargin(value: unknown) {
-  const marginY = Math.max(0, Math.min(120, Number(value) || 0))
-  updateAttrs({ marginY })
-}
-
-function setPreLineNumbers(value: unknown) {
-  updateAttrs({ lineNumbers: asBooleanValue(value, true) })
 }
 
 function setFootnoteTitle(value: unknown) {

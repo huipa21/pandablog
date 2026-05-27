@@ -200,7 +200,6 @@ const currentIcon = computed(() => {
     case 'orderedList': return 'i-lucide-list-ordered'
     case 'blockquote': return 'i-lucide-quote'
     case 'codeBlock': return 'i-lucide-square-code'
-    case 'preformatted': return 'i-lucide-text-quote'
     case 'horizontalRule': return 'i-lucide-minus'
     case 'image': return 'i-lucide-image'
     case 'mediaText': return 'i-lucide-panel-left'
@@ -219,7 +218,6 @@ const transformItems = computed(() => [[
   { label: 'Numbered list', icon: 'i-lucide-list-ordered', onSelect: () => emit('transform', 'orderedList') },
   { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
   { label: 'Code', icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') },
-  { label: 'Preformatted', icon: 'i-lucide-text-quote', onSelect: () => emit('transform', 'preformatted') },
   { label: 'Separator', icon: 'i-lucide-minus', onSelect: () => emit('transform', 'horizontalRule') }
 ]])
 
@@ -402,11 +400,6 @@ function applyLinkDialog() {
 function toggleInlineMark(mark: 'bold' | 'italic' | 'strike' | 'code' | 'highlight' | 'subscript' | 'superscript') {
   const ed = props.editor
   if (!ed) return
-
-  const restored = restoreLastTextSelection(ed)
-  if (!restored && ed.state.selection.empty) {
-    return
-  }
 
   const selectionEnd = ed.state.selection.to
   const hadRangeSelection = !ed.state.selection.empty

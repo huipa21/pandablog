@@ -62,13 +62,25 @@
               <button
                 v-if="theme.id !== 'default' && theme.id !== data?.activeId"
                 class="text-sm px-2 py-1 border border-red-300 text-red-600 rounded"
-                @click="remove(theme.id)"
+                @click="requestRemove(theme.id)"
               >Delete</button>
             </div>
           </div>
         </article>
       </div>
     </section>
+
+    <AdminConfirmActionDialog
+      :open="deleteDialogOpen"
+      title="Delete theme?"
+      :description="deleteDialogDescription"
+      confirm-label="Delete"
+      confirm-color="error"
+      :loading="deleting"
+      @update:open="(value) => { if (!value) closeDeleteDialog() }"
+      @cancel="closeDeleteDialog"
+      @confirm="confirmRemove"
+    />
 
     <!-- Preview modal -->
     <div
@@ -104,8 +116,14 @@ const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
 const uploadError = ref('')
 const uploadSuccess = ref('')
+const deleting = ref(false)
 
 const previewId = ref<string | null>(null)
+const deleteDialogOpen = ref(false)
+const pendingDeleteThemeId = ref<string | null>(null)
+const deleteDialogDescription = computed(() => pendingDeleteThemeId.value
+  ? `Delete theme "${pendingDeleteThemeId.value}"?`
+  : 'Delete this theme?')
 
 async function onUpload() {
   uploadError.value = ''
@@ -139,10 +157,37 @@ async function activate(themeId: string) {
   await refresh()
 }
 
-async function remove(themeId: string) {
-  if (!confirm(`Delete theme "${themeId}"?`)) return
-  await $fetch(`/api/admin/themes/${themeId}`, { method: 'DELETE' })
-  await refresh()
+function requestRemove(themeId: string) {
+  pendingDeleteThemeId.value = themeId
+  deleteDialogOpen.value = true
+}
+
+function closeDeleteDialog() {
+  if (deleting.value) {
+    return
+  }
+
+  deleteDialogOpen.value = false
+  pendingDeleteThemeId.value = null
+}
+
+async function confirmRemove() {
+  const themeId = pendingDeleteThemeId.value
+  if (!themeId) {
+    closeDeleteDialog()
+    return
+  }
+
+  deleting.value = true
+  try {
+    await $fetch(`/api/admin/themes/${themeId}`, { method: 'DELETE' })
+    await refresh()
+    closeDeleteDialog()
+  } catch (err: any) {
+    uploadError.value = err?.statusMessage ?? err?.message ?? 'Delete failed'
+  } finally {
+    deleting.value = false
+  }
 }
 
 function openPreview(themeId: string) {

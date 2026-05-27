@@ -73,7 +73,7 @@
               <td class="px-4 py-3 text-stone-600">{{ tag.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
                 <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(tag)">Edit</UButton>
-                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === tag.id" @click="deleteTag(tag)">Delete</UButton>
+                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === tag.id" @click="requestDeleteTag(tag)">Delete</UButton>
               </td>
             </template>
           </tr>
@@ -82,6 +82,18 @@
 
       <UEmpty v-else icon="i-lucide-tags" title="No tags yet" description="Create tags to connect related posts." class="py-12" />
     </div>
+
+    <AdminConfirmActionDialog
+      :open="deleteDialogOpen"
+      title="Delete tag?"
+      :description="deleteDialogDescription"
+      confirm-label="Delete"
+      confirm-color="error"
+      :loading="Boolean(deletingId)"
+      @update:open="(value) => { if (!value) closeDeleteDialog() }"
+      @cancel="closeDeleteDialog"
+      @confirm="confirmDeleteTag"
+    />
   </section>
 </template>
 
@@ -107,6 +119,11 @@ const creating = ref(false)
 const saving = ref(false)
 const deletingId = ref('')
 const formError = ref('')
+const deleteDialogOpen = ref(false)
+const pendingDeleteTag = ref<TagRecord | null>(null)
+const deleteDialogDescription = computed(() => pendingDeleteTag.value
+  ? `Delete tag "${pendingDeleteTag.value.name}"?`
+  : 'Delete this tag?')
 
 async function createTag() {
   creating.value = true
@@ -153,8 +170,24 @@ async function saveTag(id: string) {
   }
 }
 
-async function deleteTag(tag: TagRecord) {
-  if (!confirm(`Delete tag "${tag.name}"?`)) {
+function requestDeleteTag(tag: TagRecord) {
+  pendingDeleteTag.value = tag
+  deleteDialogOpen.value = true
+}
+
+function closeDeleteDialog() {
+  if (deletingId.value) {
+    return
+  }
+
+  deleteDialogOpen.value = false
+  pendingDeleteTag.value = null
+}
+
+async function confirmDeleteTag() {
+  const tag = pendingDeleteTag.value
+  if (!tag) {
+    closeDeleteDialog()
     return
   }
 
@@ -162,6 +195,7 @@ async function deleteTag(tag: TagRecord) {
   formError.value = ''
   try {
     await $fetch(`/api/admin/tags/${encodeURIComponent(tag.id)}`, { method: 'DELETE' })
+    closeDeleteDialog()
     await refresh()
   } catch (err: any) {
     formError.value = err?.statusMessage ?? err?.message ?? 'Could not delete tag'

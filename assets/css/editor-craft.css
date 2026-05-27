@@ -37,7 +37,7 @@
   --block-just-dropped-shadow: 0 0 0 4px var(--block-just-dropped-glow);
 
   /* Border radius */
-  --block-handle-radius: 8px;
+  --block-handle-radius: 6px;
   --block-menu-radius: 12px;
   --block-menu-item-radius: 6px;
   --block-ghost-radius: 12px;
@@ -123,11 +123,14 @@
   opacity: 0;
   transform: translateX(-8px);
   z-index: var(--block-handle-z);
+  background-color: #f0fdfa;
+  border: 1px solid #99f6e4;
 }
 
 .drag-handle:hover {
-  background-color: var(--block-handle-hover-bg);
-  color: var(--block-handle-hover-color);
+  background-color: #ccfbf1;
+  color: #0f766e;
+  border-color: #2dd4bf;
 }
 
 .drag-handle:focus {

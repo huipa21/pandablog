@@ -3,12 +3,23 @@
     :class="['codeblock-public-wrap', `code-theme-${theme}`]"
     :data-theme="theme"
     :data-language="language"
+    :data-wrap="wrapLines ? 'true' : 'false'"
+    :data-zoom="zoom"
+    :style="{ '--pb-code-zoom': String(zoom) }"
   >
     <div
       class="codeblock-public-header"
       style="padding:6px 12px;font-size:12px;line-height:18px;min-height:44px;"
     >
       <div class="codeblock-public-header-left" style="line-height:18px;">
+        <button
+          type="button"
+          class="codeblock-public-action"
+          :title="collapsed ? 'Expand code' : 'Collapse code'"
+          @click="toggleCollapsed"
+        >
+          <UIcon :name="collapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'" class="size-3" />
+        </button>
         <UIcon :name="fileIcon" class="size-3.5 shrink-0" />
         <span v-if="fileName" class="truncate font-medium">{{ fileName }}</span>
         <span v-else class="truncate opacity-60">untitled</span>
@@ -16,6 +27,34 @@
         <span v-if="showTotalLines" class="opacity-70">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
       </div>
       <div class="codeblock-public-header-right" style="line-height:18px;">
+        <button
+          type="button"
+          class="codeblock-public-action"
+          title="Zoom out"
+          @click="adjustZoom(-0.1)"
+        >
+          <UIcon name="i-lucide-minus" class="size-3" />
+        </button>
+        <span class="codeblock-public-zoom">{{ Math.round(zoom * 100) }}%</span>
+        <button
+          type="button"
+          class="codeblock-public-action"
+          title="Zoom in"
+          @click="adjustZoom(0.1)"
+        >
+          <UIcon name="i-lucide-plus" class="size-3" />
+        </button>
+        <button
+          type="button"
+          class="codeblock-public-action"
+          :class="wrapLines ? 'is-active' : ''"
+          :aria-pressed="wrapLines ? 'true' : 'false'"
+          :title="wrapLines ? 'Wrap: on' : 'Wrap: off'"
+          @click="toggleWrap"
+        >
+          <UIcon name="i-lucide-wrap-text" class="size-3" />
+          <span>{{ wrapLines ? 'Wrapped' : 'No wrap' }}</span>
+        </button>
         <span class="codeblock-lang-pill" style="font-size:11px;line-height:16px;">{{ languageLabel }}</span>
         <button
           type="button"
@@ -35,18 +74,14 @@
       :class="{ 'is-collapsed': collapsible && collapsed }"
       :style="bodyStyle"
     >
-      <div :class="['codeblock-public-body', lineNumbers ? 'with-line-numbers' : '']" v-html="highlightedHtml || fallbackHtml" />
-      <div v-if="collapsible && collapsed" class="codeblock-public-fade" />
+      <div :class="['codeblock-public-body', lineNumbers ? 'with-line-numbers' : '', wrapLines ? 'is-wrapped' : '']" v-html="highlightedHtml || fallbackHtml" />
+      <div v-if="collapsed && collapsible" class="codeblock-public-fade" />
     </div>
-    <button
-      v-if="collapsible"
-      type="button"
-      class="codeblock-public-toggle"
-      @click="collapsed = !collapsed"
-    >
-      <UIcon :name="collapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'" class="size-3.5" />
-      {{ collapsed ? 'Show more' : 'Show less' }}
-    </button>
+    <div v-if="collapsible" class="codeblock-tail">
+      <button type="button" class="codeblock-tail-btn" @click="toggleCollapsed">
+        {{ collapsed ? 'Show more' : 'Show less' }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -81,6 +116,8 @@ const fileName = computed(() => typeof props.node.attrs?.fileName === 'string' ?
 const showTotalLines = computed(() => props.node.attrs?.showTotalLines === true)
 const languageLabel = computed(() => languageLabelMap.get(language.value) ?? language.value)
 const lineCount = computed(() => Math.max((code.value ?? '').split('\n').length, 1))
+const wrapLines = ref(props.node.attrs?.wrap !== false)
+const zoom = ref(clampZoom(props.node.attrs?.zoom))
 
 const copied = ref(false)
 const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${code.value}`
@@ -92,7 +129,7 @@ const fallbackHtml = computed(() => `<pre class="codeblock-public"><code>${escap
 // Collapse state
 const bodyEl = ref<HTMLElement | null>(null)
 const naturalHeight = ref(0)
-const collapsed = ref(true)
+const collapsed = ref(props.node.attrs?.collapsed !== false)
 const collapsible = computed(() => naturalHeight.value > COLLAPSE_THRESHOLD)
 const bodyStyle = computed(() => {
   if (!collapsible.value) return {}
@@ -149,10 +186,6 @@ function measure() {
   bodyEl.value.style.maxHeight = 'none'
   naturalHeight.value = bodyEl.value.scrollHeight
   bodyEl.value.style.maxHeight = prevMax
-  // If small, don't collapse
-  if (naturalHeight.value <= COLLAPSE_THRESHOLD) {
-    collapsed.value = false
-  }
 }
 
 onMounted(async () => {
@@ -173,16 +206,35 @@ async function copy() {
   }
 }
 
+function clampZoom(value: unknown) {
+  const numeric = Number(value ?? 1)
+  if (!Number.isFinite(numeric)) {
+    return 1
+  }
+  return Math.max(0.7, Math.min(2, numeric))
+}
+
+function adjustZoom(delta: number) {
+  zoom.value = Math.round(Math.max(0.7, Math.min(2, zoom.value + delta)) * 100) / 100
+}
+
+function toggleWrap() {
+  wrapLines.value = !wrapLines.value
+}
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value
+}
+
 function renderLowlightHtml(source: string, lang: string) {
   const normalizedLang = lowlight.registered(lang) ? lang : 'plaintext'
 
   try {
-    const tree = lowlight.highlight(normalizedLang, source)
-    const inner = serializeNodes(tree.children)
-    const lines = inner
+    const lines = source
       .split('\n')
       .map((line, index) => {
-        const safeLine = line || ' '
+        const highlightedLine = renderLowlightLine(line, normalizedLang)
+        const safeLine = highlightedLine || ' '
         if (!lineNumbers.value) {
           return `<span class="line">${safeLine}</span>`
         }
@@ -194,6 +246,15 @@ function renderLowlightHtml(source: string, lang: string) {
     return `<pre class="hljs"><code class="language-${escapeAttr(normalizedLang)}">${lines}</code></pre>`
   } catch {
     return fallbackHtml.value
+  }
+}
+
+function renderLowlightLine(line: string, lang: string) {
+  try {
+    const tree = lowlight.highlight(lang, line)
+    return serializeNodes(tree.children)
+  } catch {
+    return escapeHtml(line)
   }
 }
 
@@ -242,8 +303,15 @@ function serializeAttributes(properties: Record<string, unknown>) {
 }
 
 function textContent(node: JsonContent): string {
+  if (node.type === 'hardBreak') return '\n'
   if (node.type === 'text') return node.text ?? ''
-  return node.content?.map(textContent).join('') ?? ''
+
+  const children = node.content ?? []
+  return children.map((child, index) => {
+    const next = textContent(child)
+    const needsBlockBreak = child.type === 'paragraph' && index < children.length - 1
+    return needsBlockBreak ? `${next}\n` : next
+  }).join('')
 }
 
 function escapeHtml(value: string) {
@@ -268,13 +336,14 @@ function escapeAttr(value: string) {
   --code-line-height: var(--pb-code-line-height);
   --code-block-padding-y: var(--pb-code-block-padding-y);
   --code-line-number-gutter-width: var(--pb-code-line-number-gutter-width);
+  --pb-code-zoom: 1;
   margin: 1.5rem 0;
   border-radius: 0.5rem;
   overflow: hidden;
   background: var(--code-bg, #1e1e1e);
   color: var(--code-fg, #d4d4d4);
-  border: 1px solid rgba(127, 127, 127, 0.18);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 0 !important;
+  box-shadow: none;
 }
 
 .codeblock-public-header {
@@ -285,7 +354,6 @@ function escapeAttr(value: string) {
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
   background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(127, 127, 127, 0.16);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -293,7 +361,6 @@ function escapeAttr(value: string) {
 .codeblock-public-wrap[data-theme="vs-light"] .codeblock-public-header,
 .codeblock-public-wrap[data-theme="solarized-light"] .codeblock-public-header {
   background: rgba(0, 0, 0, 0.04);
-  border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
 .codeblock-public-header-left,
@@ -306,6 +373,37 @@ function escapeAttr(value: string) {
 
 .codeblock-public-header-right {
   flex-shrink: 0;
+}
+
+.codeblock-public-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid rgba(127, 127, 127, 0.28);
+  background: transparent;
+  color: inherit;
+  opacity: 0.82;
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.codeblock-public-action:hover {
+  opacity: 1;
+  border-color: rgba(127, 127, 127, 0.44);
+}
+
+.codeblock-public-action.is-active {
+  background: rgba(127, 127, 127, 0.2);
+  opacity: 1;
+}
+
+.codeblock-public-zoom {
+  font-size: 0.68rem;
+  opacity: 0.8;
+  min-width: 2.2rem;
+  text-align: center;
 }
 
 .codeblock-lang-pill {
@@ -360,47 +458,38 @@ function escapeAttr(value: string) {
   background: linear-gradient(to bottom, transparent, var(--code-bg, #1e1e1e));
 }
 
-.codeblock-public-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  width: 100%;
-  padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
-  border-top: 1px solid rgba(127, 127, 127, 0.16);
-  color: inherit;
-  font-size: 0.75rem;
-  opacity: 0.85;
-  cursor: pointer;
-}
-
-.codeblock-public-wrap[data-theme="github-light"] .codeblock-public-toggle,
-.codeblock-public-wrap[data-theme="vs-light"] .codeblock-public-toggle,
-.codeblock-public-wrap[data-theme="solarized-light"] .codeblock-public-toggle {
-  background: rgba(0, 0, 0, 0.04);
-  border-top-color: rgba(0, 0, 0, 0.08);
-}
-
-.codeblock-public-toggle:hover {
-  opacity: 1;
-}
-
 .codeblock-public-body pre {
   margin: 0;
   padding: var(--code-block-padding-y) 1rem;
   overflow-x: auto;
-  font-size: var(--code-font-size);
-  line-height: var(--code-line-height);
+  font-size: calc(var(--code-font-size) * var(--pb-code-zoom));
+  line-height: calc(var(--code-line-height) * var(--pb-code-zoom));
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
   background: transparent !important;
   color: inherit;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
 }
 
 .codeblock-public-body pre code,
 .codeblock-public-body pre code * {
-  line-height: var(--code-line-height);
-  font-size: var(--code-font-size);
+  line-height: calc(var(--code-line-height) * var(--pb-code-zoom));
+  font-size: calc(var(--code-font-size) * var(--pb-code-zoom));
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.codeblock-public-body pre code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.codeblock-public-body.is-wrapped pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .codeblock-public-body .hljs,
@@ -445,6 +534,14 @@ function escapeAttr(value: string) {
 
 .codeblock-public-body.with-line-numbers .line.line-numbered .lc {
   min-width: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.codeblock-public-body.is-wrapped.with-line-numbers .line.line-numbered .lc {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .codeblock-public-body.with-line-numbers .line:not(:has(.ln)) {
@@ -487,5 +584,25 @@ function escapeAttr(value: string) {
 .codeblock-public-body.with-line-numbers .line:has(.ln) {
   padding-left: 0;
   position: static;
+}
+
+.codeblock-tail {
+  display: flex;
+  justify-content: center;
+  padding: 0 0 0.5rem;
+}
+
+.codeblock-tail-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(230, 237, 243, 0.75);
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+}
+
+.codeblock-tail-btn:hover {
+  color: rgba(230, 237, 243, 0.95);
 }
 </style>

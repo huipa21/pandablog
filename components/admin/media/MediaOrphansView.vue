@@ -11,6 +11,18 @@
     </div>
 
     <MediaGrid :files="files" :page="1" :pages="1" @select="emit('select', $event)" />
+
+    <AdminConfirmActionDialog
+      :open="cleanupDialogOpen"
+      title="Delete orphan files?"
+      :description="cleanupDialogDescription"
+      confirm-label="Delete orphans"
+      confirm-color="error"
+      :loading="cleaning"
+      @update:open="(value) => { if (!value) closeCleanupDialog() }"
+      @cancel="closeCleanupDialog"
+      @confirm="confirmCleanup"
+    />
   </div>
 </template>
 
@@ -29,14 +41,32 @@ const emit = defineEmits<{
 
 const { cleanupOrphans } = useMedia()
 const cleaning = ref(false)
+const cleanupDialogOpen = ref(false)
+const cleanupDialogDescription = computed(() => `Delete ${props.files.length} orphan file(s)? This removes database records and physical files.`)
 
 async function cleanup() {
   if (!props.files.length) return
-  if (!window.confirm(`Delete ${props.files.length} orphan file(s)? This removes database records and physical files.`)) return
+  cleanupDialogOpen.value = true
+}
+
+function closeCleanupDialog() {
+  if (cleaning.value) {
+    return
+  }
+
+  cleanupDialogOpen.value = false
+}
+
+async function confirmCleanup() {
+  if (!props.files.length) {
+    closeCleanupDialog()
+    return
+  }
 
   cleaning.value = true
   try {
     await cleanupOrphans({ hashes: props.files.map((file) => file.hash) })
+    closeCleanupDialog()
     emit('cleanup-complete')
   } finally {
     cleaning.value = false

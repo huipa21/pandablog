@@ -102,6 +102,18 @@
             </div>
           </footer>
         </aside>
+
+        <AdminConfirmActionDialog
+          :open="deleteDialogOpen"
+          title="Delete file?"
+          :description="deleteDialogDescription"
+          confirm-label="Delete"
+          confirm-color="error"
+          :loading="deleting"
+          @update:open="(value) => { if (!value) closeDeleteDialog() }"
+          @cancel="closeDeleteDialog"
+          @confirm="confirmDeleteFile"
+        />
       </div>
     </Transition>
   </Teleport>
@@ -128,6 +140,17 @@ const comment = ref('')
 const tags = ref<string[]>([])
 const saving = ref(false)
 const deleting = ref(false)
+const deleteDialogOpen = ref(false)
+const deleteDialogDescription = computed(() => {
+  const file = props.file
+  if (!file) {
+    return 'Delete this file?'
+  }
+
+  return (file.reference_count || 0) > 0
+    ? `Delete "${file.original_name}"? It is referenced ${file.reference_count} time(s) and may break content.`
+    : `Delete "${file.original_name}"?`
+})
 
 watch(() => props.file, (file) => {
   displayName.value = file?.original_name || ''
@@ -169,15 +192,27 @@ async function save() {
 
 async function deleteFile() {
   if (!props.file) return
-  const message = (props.file.reference_count || 0) > 0
-    ? `Delete "${props.file.original_name}"? It is referenced ${props.file.reference_count} time(s) and may break content.`
-    : `Delete "${props.file.original_name}"?`
+  deleteDialogOpen.value = true
+}
 
-  if (!window.confirm(message)) return
+function closeDeleteDialog() {
+  if (deleting.value) {
+    return
+  }
+
+  deleteDialogOpen.value = false
+}
+
+async function confirmDeleteFile() {
+  if (!props.file) {
+    closeDeleteDialog()
+    return
+  }
 
   deleting.value = true
   try {
     await deleteMedia(props.file.id, false)
+    closeDeleteDialog()
     emit('deleted', props.file)
   } catch (error: any) {
     window.alert(error?.statusMessage || error?.message || 'Delete failed')

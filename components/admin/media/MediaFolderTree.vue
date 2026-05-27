@@ -59,6 +59,17 @@
       </div>
     </div>
   </aside>
+
+  <AdminConfirmActionDialog
+    :open="deleteFolderDialogOpen"
+    title="Delete folder?"
+    :description="deleteFolderDialogDescription"
+    confirm-label="Delete"
+    confirm-color="error"
+    @update:open="(value) => { if (!value) closeDeleteFolderDialog() }"
+    @cancel="closeDeleteFolderDialog"
+    @confirm="confirmDeleteFolder"
+  />
 </template>
 
 <script setup lang="ts">
@@ -99,6 +110,11 @@ const sortedFolders = computed(() => {
   const otherFolders = props.folders.filter((f) => f.slug !== 'default')
   return [...defaultFolder, ...otherFolders]
 })
+const deleteFolderDialogOpen = ref(false)
+const pendingDeleteFolder = ref<MediaFolderRecord | null>(null)
+const deleteFolderDialogDescription = computed(() => pendingDeleteFolder.value
+  ? `Delete folder "${pendingDeleteFolder.value.name}"? Files will stay in the library.`
+  : 'Delete this folder?')
 
 function activeClass(active: boolean) {
   return active ? 'bg-teal-50 text-teal-800' : 'text-stone-700 hover:bg-stone-50'
@@ -122,13 +138,30 @@ function folderMenu(folder: MediaFolderRecord) {
       label: 'Delete',
       icon: 'i-lucide-trash-2',
       color: 'error' as const,
-      onSelect: () => {
-        if (window.confirm(`Delete folder "${folder.name}"? Files will stay in the library.`)) {
-          emit('delete-folder', folder.id)
-        }
-      }
+      onSelect: () => openDeleteFolderDialog(folder)
     }
   ]]
+}
+
+function openDeleteFolderDialog(folder: MediaFolderRecord) {
+  pendingDeleteFolder.value = folder
+  deleteFolderDialogOpen.value = true
+}
+
+function closeDeleteFolderDialog() {
+  deleteFolderDialogOpen.value = false
+  pendingDeleteFolder.value = null
+}
+
+function confirmDeleteFolder() {
+  const folder = pendingDeleteFolder.value
+  if (!folder) {
+    closeDeleteFolderDialog()
+    return
+  }
+
+  emit('delete-folder', folder.id)
+  closeDeleteFolderDialog()
 }
 
 function smartFolderMenu(sf: SmartFolder) {

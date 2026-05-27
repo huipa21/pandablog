@@ -92,6 +92,31 @@ export const CodeBlockEnhanced = CodeBlockLowlight.extend({
         default: false,
         parseHTML: (element) => element.getAttribute('data-show-total-lines') === 'true',
         renderHTML: (attrs) => ({ 'data-show-total-lines': attrs.showTotalLines === true ? 'true' : 'false' })
+      },
+      wrap: {
+        default: true,
+        parseHTML: (element) => element.getAttribute('data-wrap') !== 'false',
+        renderHTML: (attrs) => ({ 'data-wrap': attrs.wrap === false ? 'false' : 'true' })
+      },
+      zoom: {
+        default: 1,
+        parseHTML: (element) => {
+          const raw = Number.parseFloat(element.getAttribute('data-zoom') ?? '1')
+          if (!Number.isFinite(raw)) {
+            return 1
+          }
+          return Math.max(0.7, Math.min(2, raw))
+        },
+        renderHTML: (attrs) => {
+          const raw = Number(attrs.zoom ?? 1)
+          const zoom = Number.isFinite(raw) ? Math.max(0.7, Math.min(2, raw)) : 1
+          return { 'data-zoom': String(Math.round(zoom * 100) / 100) }
+        }
+      },
+      collapsed: {
+        default: true,
+        parseHTML: (element) => element.getAttribute('data-collapsed') !== 'false',
+        renderHTML: (attrs) => ({ 'data-collapsed': attrs.collapsed === false ? 'false' : 'true' })
       }
     }
   }

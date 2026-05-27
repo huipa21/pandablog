@@ -1,6 +1,6 @@
 <template>
-  <section class="min-h-[calc(100vh-3.5rem)] bg-stone-50">
-    <div class="sticky top-14 z-20 flex min-h-14 items-center justify-between gap-3 border-b border-stone-200 bg-white px-4">
+  <section class="h-[calc(100vh-3.5rem)] overflow-hidden bg-stone-50">
+    <div class="z-20 flex min-h-14 items-center justify-between gap-3 border-b border-stone-200 bg-white px-4">
       <div class="flex min-w-0 items-center gap-3">
         <UButton to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
           Posts
@@ -69,15 +69,8 @@
       <USkeleton class="h-96" />
     </div>
 
-    <div v-else class="flex min-h-[calc(100vh-7rem)]">
-      <BlockInserterPanel
-        :open="editorStore.inserterOpen"
-        inline
-        @close="editorStore.closeInserter()"
-        @insert="onInserterPick"
-      />
-
-      <div class="relative shrink-0 border-r border-stone-200 bg-white transition-[width]" :class="leftPaneCollapsed ? 'w-11' : 'w-[280px]'">
+    <div v-else class="flex h-[calc(100vh-7rem)] overflow-hidden">
+      <div class="relative h-full shrink-0 border-r border-stone-200 bg-white transition-[width]" :class="leftPaneCollapsed ? 'w-11' : 'w-[280px]'">
         <button
           type="button"
           class="absolute right-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 hover:border-teal-400 hover:text-teal-700"
@@ -87,7 +80,7 @@
           <UIcon :name="leftPaneCollapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-4" />
         </button>
 
-        <aside v-if="!leftPaneCollapsed" class="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto p-3 pt-10">
+        <aside v-if="!leftPaneCollapsed" class="h-full overflow-y-auto p-3 pt-10">
           <div class="space-y-4">
             <section class="rounded-md border border-stone-200 bg-white p-3">
               <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Table of contents</h3>
@@ -116,9 +109,18 @@
             </section>
           </div>
         </aside>
+
+        <BlockInserterPanel
+          v-if="!leftPaneCollapsed"
+          class="absolute inset-0 z-30"
+          :open="editorStore.inserterOpen"
+          inline
+          @close="editorStore.closeInserter()"
+          @insert="onInserterPick"
+        />
       </div>
 
-      <main class="min-w-0 flex-1 px-4 py-6 md:px-6 lg:px-8">
+      <main class="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load this post" />
@@ -126,20 +128,24 @@
             <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
           </div>
 
-          <form class="rounded-lg border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-10 md:py-8" @submit.prevent="save('draft', 'save-draft')">
-            <input
-              v-model="form.title"
-              type="text"
-              placeholder="Add title"
-              class="mb-8 w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-stone-900 outline-none placeholder:text-stone-400"
-            >
+          <form class="pb-editor-grid-shell rounded-lg border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-10 md:py-8" @submit.prevent="save('draft', 'save-draft')">
+            <div class="pb-editor-row mb-8">
+              <div class="pb-editor-gutter" aria-hidden="true" />
+              <input
+                v-model="form.title"
+                type="text"
+                placeholder="Add title"
+                class="w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-stone-900 outline-none placeholder:text-stone-400"
+              >
+              <div class="pb-editor-gutter" aria-hidden="true" />
+            </div>
 
             <BlockEditor ref="blockEditorRef" v-model="form.content" :use-inline-inserter="true" />
           </form>
         </div>
       </main>
 
-      <div class="sticky top-14 relative self-start shrink-0 border-l border-stone-200 bg-white transition-[width]" :class="rightPaneCollapsed ? 'h-11 w-11' : 'h-[calc(100vh-3.5rem)] w-[340px]'">
+      <div class="relative h-full shrink-0 border-l border-stone-200 bg-white transition-[width]" :class="rightPaneCollapsed ? 'w-11' : 'w-[340px]'">
         <button
           type="button"
           class="absolute left-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 hover:border-teal-400 hover:text-teal-700"
@@ -151,7 +157,7 @@
 
         <EditorSidebar
           v-if="!rightPaneCollapsed"
-          class="w-[340px]"
+          class="h-full w-[340px]"
           :form="form"
           :categories="categories"
           :tags="tags"
@@ -387,5 +393,21 @@ function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {
 <style scoped>
 .pb-content-frame {
   max-width: var(--pb-post-content-max-width);
+}
+
+.pb-editor-grid-shell {
+  --pb-editor-gutter: 32px;
+  --pb-editor-gap: 8px;
+}
+
+.pb-editor-row {
+  display: grid;
+  grid-template-columns: var(--pb-editor-gutter) minmax(0, 1fr) var(--pb-editor-gutter);
+  column-gap: var(--pb-editor-gap);
+  align-items: start;
+}
+
+.pb-editor-gutter {
+  width: var(--pb-editor-gutter);
 }
 </style>

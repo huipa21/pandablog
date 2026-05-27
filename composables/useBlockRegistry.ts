@@ -154,23 +154,8 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'codeBlock',
-      attrs: { language: 'text', theme: 'github-dark', lineNumbers: true },
+      attrs: { language: 'text', theme: 'github-dark', lineNumbers: true, wrap: true, zoom: 1, collapsed: true },
       content: []
-    })
-  },
-  {
-    name: 'preformatted',
-    title: 'Preformatted',
-    description: 'Plain preformatted text block with custom styling.',
-    icon: 'i-lucide-text-quote',
-    category: 'advanced',
-    keywords: ['pre', 'plaintext', 'mono', 'formatted'],
-    implemented: true,
-    supports: { spacing: true, color: true, typography: true },
-    createContent: () => ({
-      type: 'preformatted',
-      attrs: { textColor: '#e7e5e4', backgroundColor: '#1c1917', fontSize: 14, marginY: 12, lineNumbers: true },
-      content: [{ type: 'text', text: 'Preformatted text' }]
     })
   },
   {

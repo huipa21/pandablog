@@ -5,7 +5,6 @@
   <ContentText v-else-if="node.type === 'text'" :text="node.text ?? ''" :marks="node.marks" />
   <br v-else-if="node.type === 'hardBreak'">
   <hr v-else-if="node.type === 'horizontalRule'" class="w-full" :style="separatorStyle">
-  <NodePreformatted v-else-if="node.type === 'preformatted'" :node="node" />
   <NodeImage v-else-if="node.type === 'image'" :node="node" />
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
@@ -24,7 +23,6 @@ import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeImage from './NodeImage.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
-import NodePreformatted from './NodePreformatted.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
 
 const props = defineProps<{

@@ -1,5 +1,5 @@
 <template>
-  <aside class="h-[calc(100vh-3.5rem)] border-l border-stone-200 bg-white">
+  <aside class="h-full border-l border-stone-200 bg-white">
     <div class="sticky top-0 z-10 flex border-b border-stone-200 bg-white">
       <button
         type="button"

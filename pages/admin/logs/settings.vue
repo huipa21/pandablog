@@ -61,7 +61,7 @@
         </div>
         <p class="mt-2 text-xs" :class="cronValid ? 'text-emerald-700' : 'text-rose-700'">{{ cronHint }}</p>
         <div class="mt-3">
-          <UButton icon="i-lucide-trash-2" color="warning" variant="outline" :loading="cleaning" @click="runCleanup">Run cleanup now</UButton>
+          <UButton icon="i-lucide-trash-2" color="warning" variant="outline" :loading="cleaning" @click="openCleanupDialog">Run cleanup now</UButton>
         </div>
       </section>
 
@@ -76,6 +76,18 @@
         <UButton icon="i-lucide-save" :loading="saving" @click="save">Save changes</UButton>
       </div>
     </footer>
+
+    <AdminConfirmActionDialog
+      :open="cleanupDialogOpen"
+      title="Run retention cleanup now?"
+      description="This will delete logs that exceed your configured retention windows."
+      confirm-label="Run cleanup"
+      confirm-color="warning"
+      :loading="cleaning"
+      @update:open="(value) => { if (!value) closeCleanupDialog() }"
+      @cancel="closeCleanupDialog"
+      @confirm="runCleanup"
+    />
   </section>
 </template>
 
@@ -94,6 +106,7 @@ const resetting = ref(false)
 const cleaning = ref(false)
 const notice = ref('')
 const saveError = ref('')
+const cleanupDialogOpen = ref(false)
 
 const levelItems = [
   { label: 'Debug', value: 'debug' },
@@ -164,11 +177,19 @@ async function resetDefaults() {
   }
 }
 
-async function runCleanup() {
-  const confirmed = window.confirm('Run retention cleanup now?')
-  if (!confirmed) {
+function openCleanupDialog() {
+  cleanupDialogOpen.value = true
+}
+
+function closeCleanupDialog() {
+  if (cleaning.value) {
     return
   }
+
+  cleanupDialogOpen.value = false
+}
+
+async function runCleanup() {
 
   cleaning.value = true
   notice.value = ''
@@ -181,6 +202,7 @@ async function runCleanup() {
     saveError.value = err?.statusMessage ?? err?.message ?? 'Cleanup failed'
   } finally {
     cleaning.value = false
+    closeCleanupDialog()
   }
 }
 
