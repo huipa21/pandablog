@@ -9,9 +9,11 @@
           v-if="editor"
           :editor="editor"
           :reference-el="actionsMenuReferenceEl"
-          :visible="actionsMenuVisible && activeBlockHasContent"
+          :visible="actionsMenuVisible"
           :block-type="editorStore.selectedBlockType"
           :has-text-selection="hasTextSelection"
+          :selection-tick="selectionTick"
+          :last-text-selection="lastTextSelection"
           @move-up="runMoveUp"
           @move-down="runMoveDown"
           @duplicate="runDuplicate"
@@ -148,7 +150,6 @@ import Dropcursor from '@tiptap/extension-dropcursor'
 import FontFamily from '@tiptap/extension-font-family'
 import GapCursor from '@tiptap/extension-gapcursor'
 import Highlight from '@tiptap/extension-highlight'
-import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import Table from '@tiptap/extension-table'
 import TableCell from '@tiptap/extension-table-cell'
@@ -160,6 +161,10 @@ import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import type { Editor } from '@tiptap/core'
 import { Footnote } from '~/extensions/footnote'
+import { generateFootnoteId } from '~/extensions/footnote'
+import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
+import { LinkEnhanced } from '~/extensions/linkEnhanced'
+import { ListItemEnhanced } from '~/extensions/listItemEnhanced'
 import { PreformattedNode } from '~/extensions/preformatted'
 import { SeparatorNode } from '~/extensions/separator'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
@@ -237,15 +242,9 @@ const dragHandleRef = ref<HTMLElement | null>(null)
 // TipTap editor internals are not Vue-reactive, so keep this in a ref and
 // update it from editor lifecycle callbacks.
 const hasTextSelection = ref(false)
-
-// Whether active block has content (toolbar only shows for non-empty blocks)
-const activeBlockHasContent = computed(() => {
-  const ed = editor.value
-  if (!ed || activeBlockIndex.value < 0) return false
-  const doc = ed.state.doc
-  const child = doc.maybeChild(activeBlockIndex.value)
-  return child ? child.textContent.length > 0 : false
-})
+const selectionTick = ref(0)
+const lastTextSelection = ref<{ from: number; to: number } | null>(null)
+let syncingFootnotes = false
 
 watch([activeBlockIndex, dragHandleRef], () => {
   if (activeBlockIndex.value >= 0 && dragHandleRef.value) {
@@ -290,6 +289,7 @@ const editor = useEditor({
     // The <BubbleMenu> Vue component in InlineToolbar.vue handles its own plugin internally.
     StarterKit.configure({
       codeBlock: false,
+      listItem: false,
       heading: { levels: [1, 2, 3, 4, 5, 6] },
       horizontalRule: false
     }),
@@ -323,7 +323,7 @@ const editor = useEditor({
         return VueNodeViewRenderer(MediaTextNodeView)
       }
     }),
-    Link.configure({
+    LinkEnhanced.configure({
       autolink: true,
       linkOnPaste: true,
       openOnClick: false,
@@ -374,6 +374,8 @@ const editor = useEditor({
     Subscript,
     Superscript,
     Footnote,
+    ListItemEnhanced,
+    FootnotesBlockNode,
     PreformattedNode.extend({
       addNodeView() {
         return VueNodeViewRenderer(PreformattedNodeView)
@@ -501,6 +503,10 @@ const editor = useEditor({
       return
     }
 
+    if (syncFootnotesConsistency(ed)) {
+      return
+    }
+
     updateSelectionState(ed)
     refreshSlashQuery(ed)
     scheduleTrackActiveBlock(ed)
@@ -509,6 +515,7 @@ const editor = useEditor({
   },
   onCreate({ editor: ed }) {
     ensureTrailingParagraph(ed)
+    syncFootnotesConsistency(ed)
     updateSelectionState(ed)
   },
   onSelectionUpdate({ editor: ed }) {
@@ -543,7 +550,14 @@ const editor = useEditor({
 })
 
 function updateSelectionState(ed: Editor) {
-  hasTextSelection.value = !ed.state.selection.empty && !ed.isActive('codeBlock')
+  const { selection } = ed.state
+  hasTextSelection.value = !selection.empty && !ed.isActive('codeBlock')
+
+  if (!selection.empty && selection.from !== selection.to && !ed.isActive('codeBlock')) {
+    lastTextSelection.value = { from: selection.from, to: selection.to }
+  }
+
+  selectionTick.value += 1
 }
 
 defineExpose({ editor, openInserter: () => { inserterOpen.value = true }, closeInserter, pickBlock: handleInserterPick })
@@ -744,15 +758,9 @@ function runDuplicate() {
 function runDelete() {
   const ed = editor.value
   if (!ed) return
-  const { $from } = ed.state.selection
-  let blockDepth = 0
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
-  }
-  if (blockDepth === 0) return
-  const blockStart = $from.before(blockDepth)
-  const blockEnd = $from.after(blockDepth)
-  ed.chain().focus().deleteRange({ from: blockStart, to: blockEnd }).run()
+  const range = getActiveBlockRange()
+  if (!range) return
+  ed.chain().focus().deleteRange(range).run()
   actionsMenuVisible.value = false
 }
 
@@ -778,6 +786,22 @@ function runTransform(target: string) {
 function getActiveBlockRange() {
   const ed = editor.value
   if (!ed) return null
+  if (activeBlockIndex.value >= 0) {
+    let from = 0
+    let to = 0
+    let found = false
+    ed.state.doc.forEach((node, pos, index) => {
+      if (index === activeBlockIndex.value) {
+        from = pos
+        to = pos + node.nodeSize
+        found = true
+      }
+    })
+    if (found) {
+      return { from, to }
+    }
+  }
+
   const { $from } = ed.state.selection
   let blockDepth = 0
   for (let d = $from.depth; d > 0; d--) {
@@ -847,24 +871,31 @@ function runAddFootnote() {
   const ed = editor.value
   if (!ed) return
 
-  const nextIndex = getNextFootnoteIndex(ed)
-  const id = `fn-${nextIndex}`
-  const markerText = String(nextIndex)
-  const { state, view } = ed
-  const insertPos = state.selection.to
-  const footnoteMark = state.schema.marks.footnote?.create({ id, index: nextIndex })
-  if (!footnoteMark) return
+  syncingFootnotes = true
+  try {
+    const nextIndex = getNextFootnoteIndex(ed)
+    const id = generateFootnoteId()
+    const markerText = String(nextIndex)
+    const { state, view } = ed
+    const insertPos = state.selection.to
+    const footnoteMark = state.schema.marks.footnote?.create({ id, index: nextIndex })
+    if (!footnoteMark) return
 
-  const textNode = state.schema.text(markerText, [footnoteMark])
-  let tr = state.tr.insert(insertPos, textNode)
-  const nextPos = insertPos + markerText.length
-  tr = tr.setSelection(TextSelection.create(tr.doc, nextPos))
-  tr = tr.setStoredMarks([])
-  view.dispatch(tr)
-  ed.view.focus()
+    const textNode = state.schema.text(markerText, [footnoteMark])
+    let tr = state.tr.insert(insertPos, textNode)
+    const nextPos = insertPos + markerText.length
+    tr = tr.setSelection(TextSelection.create(tr.doc, nextPos))
+    tr = tr.setStoredMarks([])
+    view.dispatch(tr)
+    ed.view.focus()
 
-  appendFootnoteListItem(ed, nextIndex, id)
-  ed.chain().focus().setTextSelection(Math.max(1, Math.min(nextPos, ed.state.doc.content.size))).run()
+    appendFootnoteListItem(ed, nextIndex, id)
+    ed.chain().focus().setTextSelection(Math.max(1, Math.min(nextPos, ed.state.doc.content.size))).run()
+  } finally {
+    syncingFootnotes = false
+  }
+
+  syncFootnotesConsistency(ed)
 }
 
 function getNextFootnoteIndex(ed: Editor) {
@@ -886,21 +917,22 @@ function appendFootnoteListItem(ed: Editor, index: number, id: string) {
   const scaffold = findFootnoteScaffold(ed)
   const itemContent = {
     type: 'listItem',
+    attrs: { footnoteId: id },
     content: [{
       type: 'paragraph',
-      content: [
-        { type: 'text', text: `Footnote ${index} ` },
-        { type: 'text', text: '↩', marks: [{ type: 'link', attrs: { href: `#fnref-${id}` } }] }
-      ]
+      content: []
     }]
   }
 
   if (!scaffold) {
     const endPos = footnoteInsertPos(ed)
-    ed.chain().focus().insertContentAt(endPos, [
-      { type: 'paragraph', content: [{ type: 'text', text: 'Footnotes' }] },
-      { type: 'orderedList', content: [itemContent] }
-    ]).run()
+    ed.chain().focus().insertContentAt(endPos, {
+      type: 'footnotesBlock',
+      content: [{
+        type: 'orderedList',
+        content: [itemContent]
+      }]
+    }).run()
     return
   }
 
@@ -909,30 +941,300 @@ function appendFootnoteListItem(ed: Editor, index: number, id: string) {
 }
 
 function findFootnoteScaffold(ed: Editor) {
-  const children: Array<{ node: any, pos: number, index: number }> = []
-  ed.state.doc.forEach((node, pos, index) => {
-    children.push({ node, pos, index })
+  let scaffold: { blockPos: number, listPos: number, listNode: any } | null = null
+  const children: Array<{ node: any, pos: number }> = []
+
+  ed.state.doc.forEach((node, pos, _index) => {
+    children.push({ node, pos })
+
+    if (scaffold || node.type.name !== 'footnotesBlock') {
+      return
+    }
+
+    const listNode = node.firstChild
+    if (!listNode || listNode.type.name !== 'orderedList') {
+      return
+    }
+
+    scaffold = {
+      blockPos: pos,
+      listPos: pos + 1,
+      listNode
+    }
   })
 
-  if (children.length < 2) return null
+  if (scaffold) {
+    return scaffold
+  }
 
   for (let i = children.length - 1; i >= 1; i -= 1) {
     const list = children[i]
     const heading = children[i - 1]
     if (!heading || !list) continue
     if (heading.node.type.name !== 'paragraph' || list.node.type.name !== 'orderedList') continue
-
-    const label = heading.node.textContent.trim().toLowerCase()
-    if (label !== 'footnotes') continue
+    if (heading.node.textContent.trim().toLowerCase() !== 'footnotes') continue
 
     return {
-      headingPos: heading.pos,
+      blockPos: heading.pos,
       listPos: list.pos,
       listNode: list.node
     }
   }
 
-  return null
+  return scaffold
+}
+
+function syncFootnotesConsistency(ed: Editor) {
+  if (syncingFootnotes) {
+    return false
+  }
+
+  const normalized = normalizeFootnotesDoc(ed.getJSON() as JsonContent)
+  if (!normalized.changed) {
+    return false
+  }
+
+  syncingFootnotes = true
+  const { from, to } = ed.state.selection
+  ed.commands.setContent(normalized.doc, false)
+
+  const max = Math.max(1, ed.state.doc.content.size)
+  const nextFrom = Math.max(1, Math.min(from, max))
+  const nextTo = Math.max(1, Math.min(to, max))
+  ed.chain().focus().setTextSelection({ from: Math.min(nextFrom, nextTo), to: Math.max(nextFrom, nextTo) }).run()
+  syncingFootnotes = false
+  return true
+}
+
+function normalizeFootnotesDoc(doc: JsonContent): { doc: JsonContent, changed: boolean } {
+  const draft = JSON.parse(JSON.stringify(doc)) as JsonContent
+  const rootChildren = Array.isArray(draft.content) ? draft.content : []
+  let changed = false
+
+  if (rootChildren.length >= 2) {
+    for (let i = rootChildren.length - 1; i >= 1; i -= 1) {
+      const orderedList = rootChildren[i]
+      const heading = rootChildren[i - 1]
+      if (!heading || !orderedList) continue
+      if (heading.type !== 'paragraph' || orderedList.type !== 'orderedList') continue
+      if (flattenJsonNodeText(heading).trim().toLowerCase() !== 'footnotes') continue
+
+      const block: JsonContent = {
+        type: 'footnotesBlock',
+        content: [orderedList]
+      }
+      rootChildren.splice(i - 1, 2, block)
+      changed = true
+      break
+    }
+  }
+
+  let footnotesBlockIndex = rootChildren.findIndex((node) => node.type === 'footnotesBlock')
+  const refs = collectFootnoteRefs(rootChildren, footnotesBlockIndex)
+  let refOrder = refs.order
+
+  if (footnotesBlockIndex < 0) {
+    if (!refOrder.length) {
+      return { doc: draft, changed }
+    }
+    refs.nodes.forEach((refNode) => {
+      refNode.text = ''
+      changed = true
+    })
+    pruneEmptyTextNodes(rootChildren)
+    return { doc: draft, changed: true }
+  }
+
+  const footnotesBlock = rootChildren[footnotesBlockIndex]
+  if (!footnotesBlock) {
+    return { doc: draft, changed }
+  }
+  if (!footnotesBlock.content || !footnotesBlock.content.length || footnotesBlock.content[0]?.type !== 'orderedList') {
+    footnotesBlock.content = [{ type: 'orderedList', content: [] }]
+    changed = true
+  }
+
+  const orderedList = footnotesBlock.content?.[0]
+  const listItems = Array.isArray(orderedList?.content) ? orderedList!.content! : []
+
+  const existingIds = refs.order
+  for (let i = 0; i < listItems.length; i += 1) {
+    const item = listItems[i]
+    if (!item || item.type !== 'listItem') continue
+    const attrs = (item.attrs && typeof item.attrs === 'object') ? item.attrs as Record<string, unknown> : {}
+    const existingId = typeof attrs.footnoteId === 'string' ? attrs.footnoteId.trim() : ''
+    if (!existingId) {
+      const fallbackId = existingIds[i]
+      if (fallbackId) {
+        item.attrs = { ...attrs, footnoteId: fallbackId }
+        changed = true
+      }
+    }
+  }
+
+  const itemById = new Map<string, JsonContent>()
+  const itemIds: string[] = []
+  for (const item of listItems) {
+    if (!item || item.type !== 'listItem') continue
+    const id = String(item.attrs?.footnoteId ?? '').trim()
+    if (!id || itemById.has(id)) continue
+    itemById.set(id, item)
+    itemIds.push(id)
+  }
+
+  const itemSet = new Set(itemIds)
+  const keepIds = refOrder.filter((id) => itemSet.has(id))
+
+  for (const refNode of refs.nodes) {
+    const mark = refNode.marks?.find((entry) => entry.type === 'footnote')
+    const id = String(mark?.attrs?.id ?? '').trim()
+    if (!id || keepIds.includes(id)) {
+      continue
+    }
+
+    refNode.text = ''
+    changed = true
+  }
+  pruneEmptyTextNodes(rootChildren)
+
+  const nextItems = keepIds.map((id) => {
+    const existing = itemById.get(id)
+    if (existing) {
+      const attrs = (existing.attrs && typeof existing.attrs === 'object') ? existing.attrs as Record<string, unknown> : {}
+      const currentText = flattenJsonNodeText(existing).trim()
+      if (/^footnote\s+\d+$/i.test(currentText)) {
+        existing.content = [{ type: 'paragraph', content: [] }]
+      }
+      existing.attrs = { ...attrs, footnoteId: id }
+      return existing
+    }
+
+    return {
+      type: 'listItem',
+      attrs: { footnoteId: id },
+      content: [{ type: 'paragraph', content: [] }]
+    } as JsonContent
+  })
+
+  if (JSON.stringify(nextItems) !== JSON.stringify(listItems)) {
+    orderedList!.content = nextItems
+    changed = true
+  }
+
+  const newIndexById = new Map<string, number>()
+  keepIds.forEach((id, index) => {
+    newIndexById.set(id, index + 1)
+  })
+
+  for (const refNode of refs.nodes) {
+    if (!refNode.marks) continue
+
+    const nextMarks = refNode.marks.map((mark) => {
+      if (mark.type !== 'footnote') return mark
+      const id = String(mark.attrs?.id ?? '').trim()
+      const nextIndex = newIndexById.get(id)
+      if (!id || !nextIndex) {
+        changed = true
+        return null
+      }
+
+      const nextAttrs = { ...(mark.attrs ?? {}), id, index: nextIndex }
+      if ((mark.attrs?.index ?? null) !== nextIndex) {
+        changed = true
+      }
+
+      if (refNode.text !== String(nextIndex)) {
+        refNode.text = String(nextIndex)
+        changed = true
+      }
+
+      return { ...mark, attrs: nextAttrs }
+    }).filter(Boolean) as Array<{ type: string, attrs?: Record<string, unknown> }>
+
+    if (nextMarks.length !== refNode.marks.length) {
+      changed = true
+    }
+
+    refNode.marks = nextMarks
+  }
+  pruneEmptyTextNodes(rootChildren)
+
+  if (!keepIds.length) {
+    rootChildren.splice(footnotesBlockIndex, 1)
+    changed = true
+  }
+
+  draft.content = rootChildren
+  return { doc: draft, changed }
+}
+
+function collectFootnoteRefs(children: JsonContent[], footnotesBlockIndex: number) {
+  const order: string[] = []
+  const seen = new Set<string>()
+  const nodes: Array<JsonContent & { marks?: Array<{ type: string, attrs?: Record<string, unknown> }> }> = []
+
+  const walk = (node: JsonContent) => {
+    if (node.type === 'text') {
+      const marks = Array.isArray(node.marks) ? node.marks : []
+      for (const mark of marks) {
+        if (mark.type !== 'footnote') continue
+        const id = String(mark.attrs?.id ?? '').trim()
+        if (!id) continue
+        nodes.push(node as JsonContent & { marks?: Array<{ type: string, attrs?: Record<string, unknown> }> })
+        if (!seen.has(id)) {
+          seen.add(id)
+          order.push(id)
+        }
+      }
+    }
+
+    if (!Array.isArray(node.content)) {
+      return
+    }
+    for (const child of node.content) {
+      walk(child)
+    }
+  }
+
+  children.forEach((node, index) => {
+    if (index === footnotesBlockIndex) {
+      return
+    }
+    walk(node)
+  })
+
+  return { order, nodes }
+}
+
+function flattenJsonNodeText(node: JsonContent): string {
+  if (node.type === 'text') {
+    return node.text ?? ''
+  }
+
+  if (!Array.isArray(node.content)) {
+    return ''
+  }
+
+  return node.content.map(flattenJsonNodeText).join(' ')
+}
+
+function pruneEmptyTextNodes(nodes: JsonContent[]) {
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const node = nodes[i]
+    if (!node) {
+      continue
+    }
+
+    if (Array.isArray(node.content)) {
+      pruneEmptyTextNodes(node.content)
+    }
+
+    if (node.type === 'text' && !node.text) {
+      nodes.splice(i, 1)
+      continue
+    }
+
+  }
 }
 
 function footnoteInsertPos(ed: Editor) {
@@ -1692,6 +1994,28 @@ function syncSelectedBlock(ed: Editor) {
   vertical-align: super;
   margin-left: 0.08em;
   margin-right: 0.08em;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block) {
+  border-top: 2px solid rgb(87 83 78);
+  margin-top: 1.5rem;
+  padding-top: 0.85rem;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block > ol) {
+  margin: 0;
+}
+
+:deep(.pandablog-block-editor .ProseMirror a) {
+  color: rgb(15 118 110);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+:deep(.pandablog-block-editor .ProseMirror code) {
+  border-radius: 0.25rem;
+  background: rgb(229 231 235);
+  padding: 0.1rem 0.3rem;
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnote-jump-highlight) {

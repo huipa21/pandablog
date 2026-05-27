@@ -1,6 +1,6 @@
 <template>
-  <aside class="sticky top-14 max-h-[calc(100vh-3.5rem)] overflow-y-auto border-l border-stone-200 bg-white">
-    <div class="flex border-b border-stone-200">
+  <aside class="h-[calc(100vh-3.5rem)] border-l border-stone-200 bg-white">
+    <div class="sticky top-0 z-10 flex border-b border-stone-200 bg-white">
       <button
         type="button"
         class="flex-1 border-b-2 px-4 py-3 text-sm font-medium"
@@ -19,13 +19,14 @@
       </button>
     </div>
 
-    <div v-if="editorStore.sidebarTab === 'post'" class="space-y-4 p-4">
-      <div class="flex items-center justify-between rounded-md bg-stone-50 px-3 py-2 text-sm">
-        <span class="text-stone-500">Status</span>
-        <UBadge :color="currentStatus === 'published' ? 'success' : 'neutral'" variant="subtle">{{ currentStatus }}</UBadge>
-      </div>
+    <div class="h-[calc(100%-3rem)] overflow-y-auto">
+      <div v-if="editorStore.sidebarTab === 'post'" class="space-y-4 p-4">
+        <div class="flex items-center justify-between rounded-md bg-stone-50 px-3 py-2 text-sm">
+          <span class="text-stone-500">Status</span>
+          <UBadge :color="currentStatus === 'published' ? 'success' : 'neutral'" variant="subtle">{{ currentStatus }}</UBadge>
+        </div>
 
-      <details open class="rounded-md border border-stone-200 p-3">
+        <details open class="rounded-md border border-stone-200 p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Summary & Slug</summary>
         <div class="mt-3 space-y-3">
           <UFormField label="Slug">
@@ -157,11 +158,12 @@
             </span>
           </label>
         </div>
-      </details>
-    </div>
+        </details>
+      </div>
 
-    <div v-else class="p-4">
-      <BlockSettings :editor="editor" />
+      <div v-else class="p-4">
+        <BlockSettings :editor="editor" />
+      </div>
     </div>
   </aside>
 </template>

@@ -122,6 +122,24 @@ html {
   padding-left: 1.4rem;
 }
 
+.tiptap-editor .ProseMirror a {
+  color: #0f766e;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.tiptap-editor .ProseMirror code {
+  border-radius: 0.25rem;
+  background: #e5e7eb;
+  padding: 0.1rem 0.3rem;
+}
+
+.tiptap-editor .ProseMirror pre code,
+.tiptap-editor .ProseMirror .codeblock-pre code {
+  background: transparent;
+  padding: 0;
+}
+
 .tiptap-editor .ProseMirror ul {
   list-style: disc;
 }

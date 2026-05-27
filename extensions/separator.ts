@@ -36,14 +36,13 @@ export const SeparatorNode = Node.create({
     return [{ tag: 'div[data-type="separator"]' }]
   },
 
-  renderHTML({ HTMLAttributes }) {
-    const styleType = String(HTMLAttributes.styleType ?? 'solid')
-    const thickness = Math.max(1, Number(HTMLAttributes.thickness ?? 1))
-    const marginY = Math.max(0, Number(HTMLAttributes.marginY ?? 16))
-    const color = String(HTMLAttributes.color ?? '#d6d3d1')
+  renderHTML({ node, HTMLAttributes }) {
+    const styleType = String(node.attrs.styleType ?? 'solid')
+    const thickness = Math.max(1, Number(node.attrs.thickness ?? 1))
+    const marginY = Math.max(0, Number(node.attrs.marginY ?? 16))
+    const color = String(node.attrs.color ?? '#d6d3d1')
 
-    const wrapperStyle = `padding: 0.625rem 0; min-height: 1.75rem; display: flex; align-items: center; margin: ${marginY}px 0;`
-    const hrStyle = `width: 100%; border: 0; border-top: ${thickness}px ${styleType} ${color};`
+    const hrStyle = `width: 100%; border: 0; border-top: ${thickness}px ${styleType} ${color}; margin: ${marginY}px 0;`
 
     return [
       'div',
@@ -51,7 +50,7 @@ export const SeparatorNode = Node.create({
         'data-type': 'separator',
         class: 'separator-node'
       }),
-      ['div', { style: wrapperStyle }, ['hr', { style: hrStyle }]]
+      ['hr', { style: hrStyle }]
     ]
   }
 })

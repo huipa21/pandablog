@@ -73,8 +73,6 @@ const displayPercent = computed(() => {
   return Number.isFinite(value) && value > 0 ? Math.min(200, value) : 100
 })
 const displayPx = computed(() => Number(props.node.attrs?.displayPx ?? props.node.attrs?.width ?? 0) || null)
-const naturalWidth = computed(() => Number(props.node.attrs?.naturalWidth ?? 0) || null)
-const naturalHeight = computed(() => Number(props.node.attrs?.naturalHeight ?? 0) || null)
 const lockAspect = computed(() => props.node.attrs?.lockAspect !== false)
 const align = computed(() => typeof props.node.attrs?.align === 'string' ? props.node.attrs.align : 'center')
 
@@ -111,9 +109,6 @@ const displayWidthAttr = computed(() => {
 const imgStyle = computed(() => ({
   width: displaySize.value === 'natural' ? 'auto' : '100%',
   maxWidth: '100%',
-  height: lockAspect.value ? 'auto' : (height.value ? `${height.value}px` : undefined),
-  aspectRatio: lockAspect.value && naturalWidth.value && naturalHeight.value
-    ? `${naturalWidth.value} / ${naturalHeight.value}`
-    : undefined
+  height: lockAspect.value ? 'auto' : (height.value ? `${height.value}px` : undefined)
 }))
 </script>

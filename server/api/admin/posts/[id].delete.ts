@@ -2,8 +2,8 @@ import { queryDb, useDb } from '../../../utils/db'
 import { normalizePost } from '../../../utils/content'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
 import { requireAdminUser } from '../../../utils/auth'
-import { buildDocFromBlocks, deleteAllBlocksForPost, loadBlocksForPost } from '../../../utils/blocks'
-import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
+import { deleteAllBlocksForPost } from '../../../utils/blocks'
+import { mediaRemoveAllReferencesForSource } from '../../../utils/referenceTracker'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
@@ -107,25 +107,25 @@ async function readArchivedPost(db: Awaited<ReturnType<typeof useDb>>, id: strin
 async function hardDeletePost(db: Awaited<ReturnType<typeof useDb>>, record: Record<string, unknown>) {
   const post = normalizePost(record)
   const postId = recordIdPart(post.id, 'post')
-  const blocks = await loadBlocksForPost(db, post.id)
-  const doc = buildDocFromBlocks(blocks)
 
-  await mediaSyncRecordReferences(db, post.id, [post.cover_image, doc], [])
+  await mediaRemoveAllReferencesForSource(db, post.id)
 
-  await queryDb(db, 'DELETE tagged WHERE in = type::record($table, $id);', {
-    table: 'post',
-    id: postId
-  })
-  await queryDb(db, 'DELETE categorized_as WHERE in = type::record($table, $id);', {
-    table: 'post',
-    id: postId
-  })
-  await queryDb(db, 'DELETE links WHERE in = type::record($table, $id) OR out = type::record($table, $id);', {
-    table: 'post',
-    id: postId
-  })
+  await Promise.all([
+    queryDb(db, 'DELETE tagged WHERE in = type::record($table, $id);', {
+      table: 'post',
+      id: postId
+    }),
+    queryDb(db, 'DELETE categorized_as WHERE in = type::record($table, $id);', {
+      table: 'post',
+      id: postId
+    }),
+    queryDb(db, 'DELETE links WHERE in = type::record($table, $id) OR out = type::record($table, $id);', {
+      table: 'post',
+      id: postId
+    }),
+    deleteAllBlocksForPost(db, post.id)
+  ])
 
-  await deleteAllBlocksForPost(db, post.id)
   await queryDb(db, 'DELETE FROM type::record($table, $id);', {
     table: 'post',
     id: postId

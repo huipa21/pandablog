@@ -149,8 +149,8 @@ function onImageLoad() {
   const naturalHeight = imgEl.value.naturalHeight
 
   const updates: Record<string, unknown> = {}
-  if (props.node.attrs.naturalWidth == null) updates.naturalWidth = naturalWidth
-  if (props.node.attrs.naturalHeight == null) updates.naturalHeight = naturalHeight
+  if (Number(props.node.attrs.naturalWidth ?? 0) !== naturalWidth) updates.naturalWidth = naturalWidth
+  if (Number(props.node.attrs.naturalHeight ?? 0) !== naturalHeight) updates.naturalHeight = naturalHeight
   if (displaySize.value === 'custom-px' && width.value === null) updates.width = naturalWidth
   if (displaySize.value === 'custom-px' && height.value === null) updates.height = naturalHeight
   if (props.node.attrs.widthPercent == null) updates.widthPercent = 100

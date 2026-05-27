@@ -1,7 +1,7 @@
 <template>
-  <footer v-if="footnotes.length > 0" class="footnotes mt-12 border-t border-stone-200 pt-6">
-    <h2 class="mb-4 text-lg font-semibold text-stone-800">Footnotes</h2>
-    <ol class="list-decimal space-y-2 pl-6 text-sm text-stone-700">
+  <footer v-if="footnotes.length > 0" class="footnotes mt-12 pt-4">
+    <div class="mb-3 h-px w-3/5 bg-stone-500/70" />
+    <ol class="list-decimal space-y-1.5 pl-6 text-sm text-stone-700">
       <li v-for="fn in footnotes" :key="fn.id" :id="`fn-${fn.id}`">
         {{ fn.content }}
         <a :href="`#fnref-${fn.id}`" class="ml-1 text-teal-600 hover:text-teal-800">↩</a>
@@ -70,6 +70,20 @@ function walkContent(node: JsonContent, onFootnote: (mark: { type: string, attrs
 
 function extractFootnoteNotes(doc: JsonContent) {
   const children = doc.content ?? []
+
+  for (const child of children) {
+    if (child.type !== 'footnotesBlock') {
+      continue
+    }
+
+    const orderedList = child.content?.find((node) => node.type === 'orderedList')
+    if (!orderedList) {
+      return []
+    }
+
+    return (orderedList.content ?? []).map((item) => flattenNodeText(item).trim())
+  }
+
   if (children.length < 2) return []
 
   for (let i = children.length - 1; i >= 1; i -= 1) {

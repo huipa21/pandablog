@@ -306,10 +306,10 @@ export async function deleteAllBlocksForPost(db: Surreal, postRecordId: string) 
   const blockIds = queryRows<{ id: unknown }>(response, 0).map((row) => stringifyRecordId(row.id))
 
   await queryDb(db, "DELETE has_blocks WHERE in = type::record('post', $postId);", { postId })
-  for (const fullId of blockIds) {
+  await Promise.all(blockIds.map((fullId) => {
     const blockId = recordIdPart(fullId, 'block')
-    await queryDb(db, "DELETE type::record('block', $blockId);", { blockId })
-  }
+    return queryDb(db, "DELETE type::record('block', $blockId);", { blockId })
+  }))
 }
 
 /* ---------- Sequence math: halving + full renumber ---------- */

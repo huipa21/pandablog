@@ -23,9 +23,17 @@
       {{ footnoteIndex }}
     </a>
   </sup>
-  <NuxtLink v-else-if="currentMark.type === 'link'" :to="href">
+  <a
+    v-else-if="currentMark.type === 'link'"
+    :href="href"
+    :target="linkTarget"
+    :rel="linkRel"
+    :data-open-mode="openMode === 'same-tab' ? undefined : openMode"
+    class="content-link"
+    @click="handleLinkClick"
+  >
     <ContentText :text="text" :marks="remainingMarks" />
-  </NuxtLink>
+  </a>
   <span v-else-if="currentMark.type === 'textStyle' || currentMark.type === 'highlight'" :style="markStyle">
     <ContentText :text="text" :marks="remainingMarks" />
   </span>
@@ -49,12 +57,24 @@ const href = computed(() => {
     return '#'
   }
 
-  if (raw.startsWith('/') || raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('mailto:')) {
+  if (raw.startsWith('#') || raw.startsWith('/') || raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('mailto:')) {
     return raw
   }
 
   return '#'
 })
+
+const openMode = computed(() => {
+  const mode = currentMark.value?.attrs?.openMode
+  if (mode === 'new-window' || mode === 'new-tab' || mode === 'same-tab') {
+    return mode
+  }
+
+  return currentMark.value?.attrs?.target === '_blank' ? 'new-tab' : 'same-tab'
+})
+
+const linkTarget = computed(() => openMode.value === 'same-tab' ? undefined : '_blank')
+const linkRel = computed(() => openMode.value === 'same-tab' ? 'noopener noreferrer nofollow' : 'noopener noreferrer')
 
 const markStyle = computed(() => {
   const style: Record<string, string> = {}
@@ -94,5 +114,18 @@ function safeCssValue(value: unknown) {
   }
 
   return /^[#a-zA-Z0-9(),.%\s-]+$/.test(value) ? value : ''
+}
+
+function handleLinkClick(event: MouseEvent) {
+  if (openMode.value !== 'new-window') {
+    return
+  }
+
+  if (!import.meta.client || href.value === '#' || href.value.startsWith('#')) {
+    return
+  }
+
+  event.preventDefault()
+  window.open(href.value, '_blank', 'popup=yes,width=1100,height=760,noopener,noreferrer')
 }
 </script>

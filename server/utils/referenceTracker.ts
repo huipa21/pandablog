@@ -1,6 +1,6 @@
 import type { Surreal } from 'surrealdb'
 import { queryDb } from './db'
-import { firstRow, recordIdPart, stringifyRecordId } from './surrealResult'
+import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { mediaNormalizeFileRecord } from './mediaLibrary'
 
 function mediaExtractReferencedHashes(...values: unknown[]) {
@@ -27,6 +27,29 @@ export async function mediaSyncRecordReferences(db: Surreal, sourceRecordId: str
     if (!next.has(hash)) {
       await mediaRemoveFileReference(db, hash, sourceRecordId)
     }
+  }
+}
+
+export async function mediaRemoveAllReferencesForSource(db: Surreal, sourceRecordId: string) {
+  const source = normalizeSourceRecordId(sourceRecordId)
+  const response = await queryDb(
+    db,
+    'SELECT * FROM files WHERE referenced_by CONTAINS type::record($source_table, $source_id);',
+    {
+      source_table: source.table,
+      source_id: source.id
+    }
+  )
+
+  for (const record of queryRows<Record<string, unknown>>(response)) {
+    const file = mediaNormalizeFileRecord(record)
+    const references = new Set(file.referenced_by ?? [])
+
+    if (!references.delete(source.full)) {
+      continue
+    }
+
+    await writeFileReferences(db, file.hash, [...references], Math.max(0, (file.reference_count ?? 0) - 1))
   }
 }
 

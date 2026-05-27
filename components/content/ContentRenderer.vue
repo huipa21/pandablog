@@ -53,6 +53,8 @@ const tag = computed(() => {
       return 'td'
     case 'blockquote':
       return 'blockquote'
+    case 'footnotesBlock':
+      return 'section'
     default:
       return 'div'
   }
@@ -74,6 +76,8 @@ const nodeClass = computed(() => {
       return 'border border-stone-200 bg-stone-100 p-3 text-left font-semibold'
     case 'tableCell':
       return 'border border-stone-200 p-3 align-top'
+    case 'footnotesBlock':
+      return 'footnotes'
     default:
       return undefined
   }
@@ -105,6 +109,11 @@ const visibleDocChildren = computed(() => {
     if (flattenNodeText(heading).trim().toLowerCase() !== 'footnotes') continue
 
     return [...children.slice(0, i - 1), ...children.slice(i + 1)]
+  }
+
+  const footnotesBlockIndex = children.findIndex((child) => child.type === 'footnotesBlock')
+  if (footnotesBlockIndex >= 0) {
+    return [...children.slice(0, footnotesBlockIndex), ...children.slice(footnotesBlockIndex + 1)]
   }
 
   return children

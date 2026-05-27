@@ -202,6 +202,16 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
+    name: 'footnotesBlock',
+    title: 'Footnotes',
+    description: 'Footnote lines linked to inline references.',
+    icon: 'i-lucide-footprints',
+    category: 'text',
+    keywords: ['footnote', 'reference', 'notes'],
+    implemented: true,
+    supports: { spacing: true }
+  },
+  {
     name: 'embed',
     title: 'Embed',
     description: 'Embed content from a URL.',

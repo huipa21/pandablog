@@ -77,6 +77,47 @@
         @insert="onInserterPick"
       />
 
+      <div class="relative shrink-0 border-r border-stone-200 bg-white transition-[width]" :class="leftPaneCollapsed ? 'w-11' : 'w-[280px]'">
+        <button
+          type="button"
+          class="absolute right-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 hover:border-teal-400 hover:text-teal-700"
+          :title="leftPaneCollapsed ? 'Expand left pane' : 'Collapse left pane'"
+          @click="leftPaneCollapsed = !leftPaneCollapsed"
+        >
+          <UIcon :name="leftPaneCollapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-4" />
+        </button>
+
+        <aside v-if="!leftPaneCollapsed" class="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto p-3 pt-10">
+          <div class="space-y-4">
+            <section class="rounded-md border border-stone-200 bg-white p-3">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Table of contents</h3>
+              <ul v-if="tocItems.length" class="mt-2 space-y-1">
+                <li v-for="item in tocItems" :key="item.id" class="text-sm text-stone-700" :class="item.level >= 3 ? 'pl-4' : item.level === 2 ? 'pl-2' : ''">
+                  {{ item.text }}
+                </li>
+              </ul>
+              <p v-else class="mt-2 text-xs text-stone-500">Add headings to build an outline.</p>
+            </section>
+
+            <section class="rounded-md border border-stone-200 bg-white p-3">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Categories</h3>
+              <div v-if="selectedCategoryNames.length" class="mt-2 flex flex-wrap gap-1.5">
+                <UBadge v-for="name in selectedCategoryNames" :key="`cat-${name}`" color="primary" variant="subtle">{{ name }}</UBadge>
+              </div>
+              <p v-else class="mt-2 text-xs text-stone-500">No categories selected.</p>
+            </section>
+
+            <section class="rounded-md border border-stone-200 bg-white p-3">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Tags</h3>
+              <div v-if="selectedTagNames.length" class="mt-2 flex flex-wrap gap-1.5">
+                <UBadge v-for="name in selectedTagNames" :key="`tag-${name}`" color="neutral" variant="subtle">{{ name }}</UBadge>
+              </div>
+              <p v-else class="mt-2 text-xs text-stone-500">No tags selected.</p>
+            </section>
+          </div>
+        </aside>
+      </div>
+
       <main class="min-w-0 flex-1 px-4 py-6 md:px-6 lg:px-8">
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
@@ -98,16 +139,28 @@
         </div>
       </main>
 
-      <EditorSidebar
-        class="w-[340px] shrink-0"
-        :form="form"
-        :categories="categories"
-        :tags="tags"
-        :current-status="currentStatus"
-        :editor="activeEditor"
-        :uploading-cover="uploadingCover"
-        @upload-cover="handleCoverUpload"
-      />
+      <div class="sticky top-14 relative self-start shrink-0 border-l border-stone-200 bg-white transition-[width]" :class="rightPaneCollapsed ? 'h-11 w-11' : 'h-[calc(100vh-3.5rem)] w-[340px]'">
+        <button
+          type="button"
+          class="absolute left-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 hover:border-teal-400 hover:text-teal-700"
+          :title="rightPaneCollapsed ? 'Expand right pane' : 'Collapse right pane'"
+          @click="rightPaneCollapsed = !rightPaneCollapsed"
+        >
+          <UIcon :name="rightPaneCollapsed ? 'i-lucide-chevrons-left' : 'i-lucide-chevrons-right'" class="size-4" />
+        </button>
+
+        <EditorSidebar
+          v-if="!rightPaneCollapsed"
+          class="w-[340px]"
+          :form="form"
+          :categories="categories"
+          :tags="tags"
+          :current-status="currentStatus"
+          :editor="activeEditor"
+          :uploading-cover="uploadingCover"
+          @upload-cover="handleCoverUpload"
+        />
+      </div>
     </div>
   </section>
 </template>
@@ -117,6 +170,7 @@ import type { Editor } from '@tiptap/core'
 import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import EditorSidebar from '~/components/admin/editor/EditorSidebar.vue'
+import { extractTableOfContents } from '~/composables/useTableOfContents'
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 
@@ -135,6 +189,8 @@ const currentStatus = ref<PostStatus>('draft')
 const uploadingCover = ref(false)
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
+const leftPaneCollapsed = ref(false)
+const rightPaneCollapsed = ref(false)
 
 function onInserterPick(name: string) {
   blockEditorRef.value?.pickBlock?.(name)
@@ -166,6 +222,21 @@ const { data: categoriesData, refresh: refreshCategories } = useLazyAsyncData('a
 const { data: tagsData, refresh: refreshTags } = useLazyAsyncData('admin-post-tags', () => fetchAdmin<{ tags: TagRecord[] }>('/api/admin/tags'), { default: () => ({ tags: [] }) })
 const categories = computed(() => categoriesData.value?.categories ?? [])
 const tags = computed(() => tagsData.value?.tags ?? [])
+const tocItems = computed(() => extractTableOfContents(form.content))
+
+const selectedCategoryNames = computed(() => {
+  const fromIds = categories.value
+    .filter((category) => form.category_ids.includes(category.id))
+    .map((category) => category.name)
+  return Array.from(new Set([...fromIds, ...form.category_names]))
+})
+
+const selectedTagNames = computed(() => {
+  const fromIds = tags.value
+    .filter((tag) => form.tag_ids.includes(tag.id))
+    .map((tag) => tag.name)
+  return Array.from(new Set([...fromIds, ...form.tag_names]))
+})
 
 const moreMenuItems = computed(() => [[
   {
