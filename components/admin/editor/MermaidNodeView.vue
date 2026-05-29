@@ -1,6 +1,6 @@
 <template>
   <NodeViewWrapper class="mermaid-nodeview my-4 overflow-hidden rounded-lg border border-stone-300 bg-white" data-node-view-wrapper>
-    <div class="mermaid-titlebar" contenteditable="false">
+    <div v-if="viewMode !== 'preview' || selected" class="mermaid-titlebar" contenteditable="false">
       <div class="flex items-center gap-2 text-xs font-medium text-stone-600">
         <UIcon name="i-lucide-git-fork" class="size-4" />
         <span>Mermaid</span>
@@ -50,7 +50,8 @@ const props = defineProps(nodeViewProps)
 
 const code = computed(() => typeof props.node.attrs.code === 'string' ? props.node.attrs.code : '')
 const modes = ['split', 'code', 'preview'] as const
-const viewMode = ref<typeof modes[number]>('split')
+const viewMode = ref<typeof modes[number]>('preview')
+const selected = computed(() => Boolean(props.selected))
 const error = ref('')
 
 const textareaEl = ref<HTMLTextAreaElement | null>(null)

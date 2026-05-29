@@ -1,17 +1,21 @@
 <template>
-  <figure class="my-6 flex flex-col" :class="alignClass" :style="figureStyle">
-    <figcaption v-if="title && titlePosition === 'top'" class="mb-2 text-sm text-stone-500">{{ title }}</figcaption>
-    <img
-      :src="resolvedSrc"
-      :alt="alt"
-      :width="displayWidthAttr || undefined"
-      :height="lockAspect ? undefined : (height || undefined)"
-      :style="imgStyle"
-      class="max-w-full rounded-lg"
-      loading="lazy"
-    >
-    <figcaption v-if="title && titlePosition !== 'top'" class="mt-2 text-sm text-stone-500">{{ title }}</figcaption>
-  </figure>
+  <div class="imageblock-nodeview my-4 flex" :class="alignClass" :data-align="align">
+    <figure class="imageblock-figure relative inline-block" :style="figureStyle">
+      <figcaption v-if="title && titlePosition === 'top'" class="text-center text-sm text-stone-500">{{ title }}</figcaption>
+      <div class="relative inline-block w-full">
+        <img
+          :src="resolvedSrc"
+          :alt="alt"
+          :width="displayWidthAttr || undefined"
+          :height="lockAspect ? undefined : (height || undefined)"
+          :style="imgStyle"
+          class="block max-w-full rounded-md"
+          loading="lazy"
+        >
+      </div>
+      <figcaption v-if="title && titlePosition !== 'top'" class="mt-2 text-center text-sm text-stone-500">{{ title }}</figcaption>
+    </figure>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -78,9 +82,9 @@ const align = computed(() => typeof props.node.attrs?.align === 'string' ? props
 
 const alignClass = computed(() => {
   switch (align.value) {
-    case 'left': return 'items-start'
-    case 'right': return 'items-end'
-    default: return 'items-center'
+    case 'left': return 'justify-start'
+    case 'right': return 'justify-end'
+    default: return 'justify-center'
   }
 })
 

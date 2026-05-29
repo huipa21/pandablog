@@ -1,43 +1,46 @@
 <template>
-  <div v-if="quoteStyle === 'bar'" class="pull-quote pull-quote-bar" :data-style="quoteStyle" :style="blockStyle">
-    <div class="pull-quote-bar-row">
-      <div class="pull-quote-bar-stripe" />
-      <div class="pull-quote-bar-content">
-        <div class="pull-quote-body">
+  <!--
+    WYSIWYG contract: this frontend renderer mirrors components/admin/editor/QuoteBlockNodeView.vue
+    exactly — same DOM, same class names, same CSS. Only editor-only chrome (NodeViewWrapper, drag
+    handles, contenteditable bodies) is omitted. Do not introduce divergent class names here.
+  -->
+  <div class="quote-nodeview my-6" :data-style="quoteStyle" :data-theme="theme" :data-font-family="fontFamily">
+    <div class="quote-block" :style="blockStyle">
+      <!-- Vertical bar style (default) -->
+      <div v-if="quoteStyle === 'bar'" class="quote-bar-row">
+        <div class="quote-bar" :style="{ backgroundColor: theme || '#0f766e' }" />
+        <div class="quote-bar-content">
+          <div class="quote-body">
+            <ContentRenderer v-for="(child, i) in node.content ?? []" :key="i" :node="child" />
+          </div>
+          <div v-if="authorName" class="quote-source">
+            <span class="quote-author">{{ authorName }}</span>
+            <span v-if="authorTitle" class="quote-title">{{ authorTitle }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quotation marks style -->
+      <div v-else class="quote-marks-row">
+        <div class="quote-top-row" aria-hidden="true">
+          <span class="quote-mark quote-mark-open" :style="{ color: theme }">"</span>
+          <span class="quote-rule" :style="{ backgroundColor: theme }" />
+        </div>
+
+        <div class="quote-body">
           <ContentRenderer v-for="(child, i) in node.content ?? []" :key="i" :node="child" />
         </div>
-        <div v-if="authorName" class="pull-quote-source">
-          <span class="pull-quote-author">{{ authorName }}</span>
-          <span v-if="authorTitle" class="pull-quote-title">{{ authorTitle }}</span>
+
+        <div class="quote-bottom-row">
+          <div v-if="authorName" class="quote-source-marks">
+            <span class="quote-author-name">— {{ authorName }}<span v-if="authorTitle">,</span></span>
+            <span v-if="authorTitle" class="quote-author-title">{{ authorTitle }}</span>
+          </div>
+          <span class="quote-mark quote-mark-close" :style="{ color: theme }">"</span>
         </div>
       </div>
     </div>
   </div>
-
-  <blockquote v-else class="pull-quote pull-quote-marks" :data-style="quoteStyle" :style="blockStyle">
-    <!-- Top decoration: large open quote + horizontal rule -->
-    <div class="pull-quote-top-row" aria-hidden="true">
-      <span class="pull-quote-mark pull-quote-mark-open">"</span>
-      <span class="pull-quote-rule" />
-    </div>
-
-    <!-- Quote body content -->
-    <div class="pull-quote-body">
-      <ContentRenderer v-for="(child, i) in node.content ?? []" :key="i" :node="child" />
-    </div>
-
-    <!-- Author row -->
-    <div v-if="authorName" class="pull-quote-bottom-row">
-      <div class="pull-quote-source-marks">
-        <span class="pull-quote-author-name">— {{ authorName }}<span v-if="authorTitle">,</span></span>
-        <span v-if="authorTitle" class="pull-quote-author-title">{{ authorTitle }}</span>
-      </div>
-      <span class="pull-quote-mark pull-quote-mark-close" aria-hidden="true">"</span>
-    </div>
-    <div v-else class="pull-quote-bottom-row">
-      <span class="pull-quote-mark pull-quote-mark-close" aria-hidden="true">"</span>
-    </div>
-  </blockquote>
 </template>
 
 <script setup lang="ts">
@@ -84,12 +87,122 @@ const blockStyle = computed(() => {
   }
   
   return {
-    '--pull-quote-accent': theme.value,
-    '--pull-quote-font-family': fontFamilyMap[fontFamily.value] || fontFamilyMap.sans,
-    '--pull-quote-font-size': fontSize.value,
-    '--pull-quote-font-color': fontColor.value,
-    '--pull-quote-bg-color': backgroundColor.value
+    '--quote-accent': theme.value,
+    '--quote-font-family': fontFamilyMap[fontFamily.value] || fontFamilyMap.sans,
+    '--quote-font-size': fontSize.value,
+    '--quote-font-color': fontColor.value,
+    '--quote-bg-color': backgroundColor.value
   }
 })
 </script>
 
+<style>
+/* Shared quote-block styles — mirrors components/admin/editor/QuoteBlockNodeView.vue.
+   Kept un-scoped so authors and readers see the exact same quote chrome. */
+.quote-block {
+  --quote-accent: #0f766e;
+  --quote-font-family: ui-sans-serif, system-ui, -apple-system;
+  --quote-font-size: 1rem;
+  --quote-font-color: #1c1917;
+  --quote-bg-color: transparent;
+
+  font-family: var(--quote-font-family);
+  font-size: var(--quote-font-size);
+  color: var(--quote-font-color);
+  background-color: var(--quote-bg-color);
+}
+
+.quote-bar-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem;
+}
+
+.quote-bar {
+  width: 4px;
+  background-color: var(--quote-accent);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.quote-bar-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.quote-bar-content .quote-body {
+  font-style: italic;
+  line-height: 1.6;
+  min-height: 1.5em;
+}
+
+.quote-marks-row .quote-body {
+  line-height: 1.6;
+  min-height: 1.5em;
+}
+
+.quote-body p {
+  margin: 0;
+}
+
+.quote-source {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.quote-author { font-weight: 600; }
+.quote-title { margin-left: 0.25rem; }
+
+.quote-marks-row { padding: 0.5rem 0; }
+
+.quote-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.quote-mark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 3.5rem;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.quote-mark-open { margin-top: -0.5rem; }
+
+.quote-rule {
+  flex: 1;
+  height: 1px;
+  opacity: 0.4;
+}
+
+.quote-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 1rem;
+  gap: 1rem;
+}
+
+.quote-source-marks {
+  font-size: 0.875rem;
+  font-style: normal;
+}
+
+.quote-author-name { font-weight: 600; }
+
+.quote-author-title {
+  margin-left: 0.25rem;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.quote-mark-close {
+  margin-bottom: -0.75rem;
+  align-self: flex-end;
+}
+</style>

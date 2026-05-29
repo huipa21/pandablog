@@ -1,19 +1,16 @@
 <template>
-  <div class="mermaid-block my-6 overflow-hidden rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-    <ClientOnly>
-      <div v-if="error" class="text-xs text-rose-700">
-        <p class="mb-2 font-medium">Mermaid render error:</p>
-        <pre class="overflow-x-auto whitespace-pre-wrap rounded bg-rose-50 p-3">{{ error }}</pre>
-        <details class="mt-2">
-          <summary class="cursor-pointer">Show source</summary>
-          <pre class="mt-1 overflow-x-auto rounded bg-stone-100 p-3 text-stone-700"><code>{{ code }}</code></pre>
-        </details>
+  <div class="mermaid-nodeview my-4 overflow-hidden rounded-lg border border-stone-300 bg-white">
+    <div class="mermaid-body mode-preview">
+      <div class="mermaid-preview-pane">
+        <ClientOnly>
+          <div v-if="error" class="mermaid-error">{{ error }}</div>
+          <div v-else ref="container" class="mermaid-preview mermaid-diagram" />
+          <template #fallback>
+            <pre class="mermaid-textarea"><code>{{ code }}</code></pre>
+          </template>
+        </ClientOnly>
       </div>
-      <div v-else ref="container" class="mermaid-diagram overflow-x-auto text-center" />
-      <template #fallback>
-        <pre class="overflow-x-auto rounded bg-stone-100 p-4 text-sm text-stone-700"><code>{{ code }}</code></pre>
-      </template>
-    </ClientOnly>
+    </div>
   </div>
 </template>
 
@@ -89,9 +86,57 @@ async function loadMermaid() {
 </script>
 
 <style scoped>
+.mermaid-body {
+  display: grid;
+  gap: 1px;
+  background: rgb(231 229 228);
+  min-height: 12rem;
+}
+
+.mermaid-body.mode-preview {
+  grid-template-columns: 1fr;
+}
+
+.mermaid-preview-pane {
+  padding: 0.75rem;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+}
+
+.mermaid-preview {
+  width: 100%;
+  text-align: center;
+}
+
+.mermaid-preview :deep(svg),
 .mermaid-diagram :deep(svg) {
   max-width: 100%;
   height: auto;
   margin: 0 auto;
+}
+
+.mermaid-error {
+  color: rgb(190 18 60);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  padding: 0.5rem;
+  background: rgb(254 226 226);
+  border-radius: 0.375rem;
+  width: 100%;
+}
+
+.mermaid-textarea {
+  width: 100%;
+  min-height: 12rem;
+  padding: 0.75rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: transparent;
+  color: rgb(41 37 36);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <footer v-if="footnotes.length > 0" class="footnotes mt-12 pt-4">
+  <footer v-if="footnotes.length > 0 && !hasExplicitFootnotesBlock" class="footnotes mt-12 pt-4">
     <div class="mb-3 h-px w-3/5 bg-stone-500/70" />
     <ol class="list-decimal space-y-1.5 pl-6 text-sm text-stone-700">
       <li v-for="fn in footnotes" :key="fn.id" :id="`fn-${fn.id}`">
@@ -32,6 +32,8 @@ const footnotes = computed(() => {
     content: notes[idx] ?? ''
   }))
 })
+
+const hasExplicitFootnotesBlock = computed(() => Boolean(props.content.content?.some((node) => node.type === 'footnotesBlock')))
 
 function collectFootnoteRefs(node: JsonContent) {
   const refs: FootnoteEntry[] = []

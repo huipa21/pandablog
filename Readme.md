@@ -434,7 +434,7 @@ See `themes/default/` for a reference implementation.
   "type": "three-column",          // or "two-column" | "single-column"
   "leftSidebar": "toc",            // or "nav" | null
   "rightSidebar": "meta-graph",    // or "meta" | "related" | null
-  "maxContentWidth": "720px",
+   "maxContentWidth": "72rem",
   "showCoverImage": true,
   "stickyHeader": true
 }

@@ -9,9 +9,8 @@
   >
     <div
       class="codeblock-public-header"
-      style="padding:6px 12px;font-size:12px;line-height:18px;min-height:44px;"
     >
-      <div class="codeblock-public-header-left" style="line-height:18px;">
+      <div class="codeblock-public-header-left">
         <button
           type="button"
           class="codeblock-public-action"
@@ -26,7 +25,7 @@
         <span v-if="showTotalLines" class="opacity-50">·</span>
         <span v-if="showTotalLines" class="opacity-70">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
       </div>
-      <div class="codeblock-public-header-right" style="line-height:18px;">
+      <div class="codeblock-public-header-right">
         <button
           type="button"
           class="codeblock-public-action"
@@ -55,11 +54,10 @@
           <UIcon name="i-lucide-wrap-text" class="size-3" />
           <span>{{ wrapLines ? 'Wrapped' : 'No wrap' }}</span>
         </button>
-        <span class="codeblock-lang-pill" style="font-size:11px;line-height:16px;">{{ languageLabel }}</span>
+        <span class="codeblock-lang-pill">{{ languageLabel }}</span>
         <button
           type="button"
           class="codeblock-public-copy"
-          style="font-size:11px;line-height:16px;padding:2px 8px;"
           :title="copied ? 'Copied!' : 'Copy code'"
           @click="copy"
         >
@@ -230,11 +228,11 @@ function renderLowlightHtml(source: string, lang: string) {
   const normalizedLang = lowlight.registered(lang) ? lang : 'plaintext'
 
   try {
-    const lines = source
-      .split('\n')
+    const tree = lowlight.highlight(normalizedLang, source)
+    const highlightedLines = serializeNodesToLines((tree.children ?? []) as HighlightNode[])
+    const lines = highlightedLines
       .map((line, index) => {
-        const highlightedLine = renderLowlightLine(line, normalizedLang)
-        const safeLine = highlightedLine || ' '
+        const safeLine = line || ' '
         if (!lineNumbers.value) {
           return `<span class="line">${safeLine}</span>`
         }
@@ -249,31 +247,71 @@ function renderLowlightHtml(source: string, lang: string) {
   }
 }
 
-function renderLowlightLine(line: string, lang: string) {
-  try {
-    const tree = lowlight.highlight(lang, line)
-    return serializeNodes(tree.children)
-  } catch {
-    return escapeHtml(line)
-  }
+type HighlightNode = {
+  type: string
+  value?: string
+  tagName?: string
+  properties?: Record<string, unknown>
+  children?: HighlightNode[]
 }
 
-function serializeNodes(nodes: Array<{ type: string, value?: string, tagName?: string, properties?: Record<string, unknown>, children?: any[] }>) {
-  return nodes.map((node) => serializeNode(node)).join('')
+type HtmlFrame = {
+  tagName: string
+  attrs: string
 }
 
-function serializeNode(node: { type: string, value?: string, tagName?: string, properties?: Record<string, unknown>, children?: any[] }): string {
-  if (node.type === 'text') {
-    return escapeHtml(node.value ?? '')
+function serializeNodesToLines(nodes: HighlightNode[]) {
+  const lines: string[] = ['']
+
+  const append = (value: string) => {
+    lines[lines.length - 1] += value
   }
 
-  if (node.type !== 'element' || !node.tagName) {
-    return ''
+  const openFrames = (frames: HtmlFrame[]) => frames.map((frame) => `<${frame.tagName}${frame.attrs}>`).join('')
+  const closeFrames = (frames: HtmlFrame[]) => frames.slice().reverse().map((frame) => `</${frame.tagName}>`).join('')
+
+  const splitLine = (frames: HtmlFrame[]) => {
+    append(closeFrames(frames))
+    lines.push('')
+    append(openFrames(frames))
   }
 
-  const attrs = serializeAttributes(node.properties ?? {})
-  const children = serializeNodes((node.children ?? []) as Array<{ type: string, value?: string, tagName?: string, properties?: Record<string, unknown>, children?: any[] }>)
-  return `<${node.tagName}${attrs}>${children}</${node.tagName}>`
+  const visit = (node: HighlightNode, frames: HtmlFrame[]) => {
+    if (node.type === 'text') {
+      const segments = (node.value ?? '').split('\n')
+      for (let index = 0; index < segments.length; index += 1) {
+        if (segments[index]) {
+          append(escapeHtml(segments[index]))
+        }
+        if (index < segments.length - 1) {
+          splitLine(frames)
+        }
+      }
+      return
+    }
+
+    if (node.type !== 'element' || !node.tagName) {
+      return
+    }
+
+    const frame: HtmlFrame = {
+      tagName: node.tagName,
+      attrs: serializeAttributes(node.properties ?? {})
+    }
+
+    append(`<${frame.tagName}${frame.attrs}>`)
+    const nextFrames = [...frames, frame]
+    for (const child of node.children ?? []) {
+      visit(child, nextFrames)
+    }
+    append(`</${frame.tagName}>`)
+  }
+
+  for (const node of nodes) {
+    visit(node, [])
+  }
+
+  return lines
 }
 
 function serializeAttributes(properties: Record<string, unknown>) {
@@ -353,8 +391,13 @@ function escapeAttr(value: string) {
   gap: 0.5rem;
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
+  line-height: 1.25rem;
   background: rgba(255, 255, 255, 0.04);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: inherit;
+  opacity: 0.95;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .codeblock-public-wrap[data-theme="github-light"] .codeblock-public-header,
@@ -371,7 +414,12 @@ function escapeAttr(value: string) {
   min-width: 0;
 }
 
+.codeblock-public-header-left {
+  font-weight: 500;
+}
+
 .codeblock-public-header-right {
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
@@ -382,7 +430,7 @@ function escapeAttr(value: string) {
   border: 1px solid rgba(127, 127, 127, 0.28);
   background: transparent;
   color: inherit;
-  opacity: 0.82;
+  opacity: 0.85;
   border-radius: 0.3rem;
   padding: 0.1rem 0.35rem;
   font-size: 0.68rem;
@@ -423,19 +471,20 @@ function escapeAttr(value: string) {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
   background: transparent;
   color: inherit;
-  opacity: 0.75;
-  border: 1px solid transparent;
+  opacity: 0.85;
+  border: 1px solid rgba(127, 127, 127, 0.28);
   cursor: pointer;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  line-height: 1;
 }
 
 .codeblock-public-copy:hover {
   opacity: 1;
-  border-color: rgba(127, 127, 127, 0.3);
+  border-color: rgba(127, 127, 127, 0.44);
 }
 
 .codeblock-public-body-wrap {

@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="open"
-    class="fixed z-50 w-72 overflow-hidden rounded-md border border-stone-200 bg-white shadow-xl"
+    class="fixed z-50 max-h-[min(70vh,28rem)] w-72 overflow-y-auto overscroll-contain rounded-md border border-stone-200 bg-white shadow-xl"
     data-testid="slash-command-menu"
     :style="{ top: `${position.top}px`, left: `${position.left}px` }"
   >

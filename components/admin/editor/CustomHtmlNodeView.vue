@@ -1,13 +1,19 @@
 <template>
   <NodeViewWrapper
     ref="nodeViewEl"
-    class="customhtml-nodeview my-4 overflow-hidden rounded-lg"
-    :class="{ 'is-preview-mode': mode === 'preview' }"
+    class="customhtml-nodeview customhtml-block my-6"
+    :class="{ 'is-preview-mode': mode === 'preview', 'is-source-mode': mode === 'raw', 'is-selected': selected }"
     data-node-view-wrapper
     data-theme="nord"
     data-language="javascript"
   >
-    <div class="customhtml-header" contenteditable="false" @mousedown="onHeaderMouseDown">
+    <!-- Editor-only chrome: shown only in Source mode or when the block is selected. -->
+    <div
+      v-if="mode === 'raw' || selected"
+      class="customhtml-header"
+      contenteditable="false"
+      @mousedown="onHeaderMouseDown"
+    >
       <div class="customhtml-header-left">
         <UIcon name="i-lucide-file-code-2" class="size-3.5 shrink-0" />
         <span class="truncate">custom-widget.html</span>
@@ -84,7 +90,10 @@ const lowlight = createLowlight(all)
 
 const editorStore = useEditorStore()
 const nodeViewEl = ref<HTMLElement | null>(null)
-const mode = ref<'raw' | 'preview'>('raw')
+// WYSIWYG default: the editor shows the rendered preview (what the reader sees).
+// Authors switch to 'raw' (source) only when actively editing markup.
+const mode = ref<'raw' | 'preview'>('preview')
+const selected = computed(() => Boolean(props.selected))
 const html = computed(() => typeof props.node.attrs.html === 'string' ? props.node.attrs.html : '')
 const sourceInputEl = ref<HTMLTextAreaElement | null>(null)
 const highlightEl = ref<HTMLElement | null>(null)
@@ -260,10 +269,25 @@ onBeforeUnmount(() => {
 <style scoped>
 .customhtml-nodeview {
   --pb-code-zoom: 1;
-  background: var(--code-bg, #2e3440);
-  color: var(--code-fg, #d8dee9);
+  background: transparent;
+  color: inherit;
   border: 0;
   box-shadow: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.customhtml-nodeview.is-source-mode {
+  background: var(--code-bg, #2e3440);
+  color: var(--code-fg, #d8dee9);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.customhtml-nodeview.is-preview-mode.is-selected {
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 4px;
+  border-radius: 0.25rem;
 }
 
 .customhtml-header {

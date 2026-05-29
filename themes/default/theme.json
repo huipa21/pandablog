@@ -12,7 +12,7 @@
     "type": "three-column",
     "leftSidebar": "toc",
     "rightSidebar": "meta-graph",
-    "maxContentWidth": "720px",
+    "maxContentWidth": "72rem",
     "showCoverImage": true,
     "stickyHeader": true
   }

@@ -71,13 +71,13 @@ const nodeClass = computed(() => {
     case 'blockquote':
       return 'border-l-4 border-teal-600 pl-4 text-stone-700'
     case 'table':
-      return 'my-6 w-full border-collapse overflow-hidden rounded-lg text-sm'
+      return 'my-6 w-full border-collapse overflow-hidden rounded-lg'
     case 'tableHeader':
-      return 'border border-stone-200 bg-stone-100 p-3 text-left font-semibold'
+      return 'border border-stone-200 bg-stone-100 p-2 font-semibold'
     case 'tableCell':
-      return 'border border-stone-200 p-3 align-top'
+      return 'border border-stone-200 p-2 align-top'
     case 'footnotesBlock':
-      return 'footnotes'
+      return 'footnotes-block'
     default:
       return undefined
   }
@@ -92,31 +92,7 @@ const nodeId = computed(() => {
 })
 
 const visibleDocChildren = computed(() => {
-  if (props.node.type !== 'doc') {
-    return props.node.content ?? []
-  }
-
-  const children = props.node.content ?? []
-  if (children.length < 2) {
-    return children
-  }
-
-  for (let i = children.length - 1; i >= 1; i -= 1) {
-    const orderedList = children[i]
-    const heading = children[i - 1]
-    if (!heading || !orderedList) continue
-    if (heading.type !== 'paragraph' || orderedList.type !== 'orderedList') continue
-    if (flattenNodeText(heading).trim().toLowerCase() !== 'footnotes') continue
-
-    return [...children.slice(0, i - 1), ...children.slice(i + 1)]
-  }
-
-  const footnotesBlockIndex = children.findIndex((child) => child.type === 'footnotesBlock')
-  if (footnotesBlockIndex >= 0) {
-    return [...children.slice(0, footnotesBlockIndex), ...children.slice(footnotesBlockIndex + 1)]
-  }
-
-  return children
+  return props.node.content ?? []
 })
 
 const separatorStyle = computed(() => {

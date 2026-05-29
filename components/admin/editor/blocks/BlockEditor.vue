@@ -266,6 +266,13 @@ const slashQuery = ref('')
 const slashSelectedIndex = ref(0)
 const slashPosition = ref({ top: 0, left: 0 })
 const slashRange = ref<{ from: number; to: number } | null>(null)
+const SLASH_MENU_WIDTH = 288
+const SLASH_MENU_MARGIN = 12
+const SLASH_MENU_GAP = 8
+const SLASH_MENU_HEADER_HEIGHT = 33
+const SLASH_MENU_ITEM_HEIGHT = 44
+const SLASH_MENU_EMPTY_HEIGHT = 52
+const SLASH_MENU_MAX_HEIGHT = 448
 const slashItems = computed(() => {
   const items = blockRegistry.searchBlocks(slashQuery.value)
   return items.filter((b) => b.implemented)
@@ -609,6 +616,9 @@ onBeforeUnmount(() => {
 function handleViewportChange() {
   if (editor.value) {
     scheduleTrackActiveBlock(editor.value)
+    if (slashOpen.value && slashRange.value) {
+      updateSlashMenuPosition(editor.value.view, slashRange.value.from)
+    }
   }
 }
 
@@ -1325,15 +1335,49 @@ function isAtBlockStart(view: EditorView, from: number) {
 }
 
 function openSlashMenu(view: EditorView, from: number) {
-  const coords = view.coordsAtPos(from)
-  slashPosition.value = {
-    top: coords.bottom + 8,
-    left: Math.min(coords.left, window.innerWidth - 304)
-  }
   slashRange.value = { from, to: from + 1 }
   slashQuery.value = ''
   slashSelectedIndex.value = 0
+  updateSlashMenuPosition(view, from)
   slashOpen.value = true
+}
+
+function estimateSlashMenuHeight() {
+  const rowsHeight = slashItems.value.length
+    ? slashItems.value.length * SLASH_MENU_ITEM_HEIGHT
+    : SLASH_MENU_EMPTY_HEIGHT
+
+  return Math.min(SLASH_MENU_MAX_HEIGHT, SLASH_MENU_HEADER_HEIGHT + rowsHeight)
+}
+
+function updateSlashMenuPosition(view: EditorView, pos: number) {
+  if (!import.meta.client) {
+    return
+  }
+
+  const maxPos = Math.max(1, view.state.doc.content.size)
+  const safePos = Math.max(1, Math.min(pos, maxPos))
+  const coords = view.coordsAtPos(safePos)
+  const menuHeight = estimateSlashMenuHeight()
+
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+
+  const maxLeft = viewportWidth - SLASH_MENU_WIDTH - SLASH_MENU_MARGIN
+  const left = Math.max(SLASH_MENU_MARGIN, Math.min(coords.left, maxLeft))
+
+  const spaceBelow = viewportHeight - coords.bottom - SLASH_MENU_MARGIN
+  const spaceAbove = coords.top - SLASH_MENU_MARGIN
+
+  let top = coords.bottom + SLASH_MENU_GAP
+  if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+    top = Math.max(SLASH_MENU_MARGIN, coords.top - menuHeight - SLASH_MENU_GAP)
+  } else {
+    const maxTop = viewportHeight - menuHeight - SLASH_MENU_MARGIN
+    top = Math.max(SLASH_MENU_MARGIN, Math.min(top, maxTop))
+  }
+
+  slashPosition.value = { top, left }
 }
 
 function refreshSlashQuery(ed: Editor) {
@@ -1352,6 +1396,7 @@ function refreshSlashQuery(ed: Editor) {
   }
 
   slashQuery.value = text.slice(1)
+  updateSlashMenuPosition(ed.view, slashRange.value.from)
 }
 
 function closeSlashMenu() {

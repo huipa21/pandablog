@@ -43,19 +43,24 @@ export async function loadTheme(themeId: string): Promise<LoadedTheme | null> {
   const dir = join(THEMES_DIR, themeId)
   if (!existsSync(dir)) return null
 
-  // Check mtime for cache invalidation
-  const dirStat = await stat(dir)
-  const cached = cache.get(themeId)
-  if (cached && cached.version === dirStat.mtimeMs) return cached
-
   try {
-    const manifestRaw = await readFile(join(dir, 'theme.json'), 'utf8')
+    const manifestPath = join(dir, 'theme.json')
+    const manifestStat = await stat(manifestPath)
+    const manifestRaw = await readFile(manifestPath, 'utf8')
     const manifest = ThemeManifestSchema.parse(JSON.parse(manifestRaw))
 
-    const tokensRaw = await readFile(join(dir, manifest.tokens), 'utf8')
+    const tokensPath = join(dir, manifest.tokens)
+    const cssPath = join(dir, manifest.css)
+    const [tokensStat, cssStat] = await Promise.all([stat(tokensPath), stat(cssPath)])
+    const sourceVersion = Math.max(manifestStat.mtimeMs, tokensStat.mtimeMs, cssStat.mtimeMs)
+
+    const cached = cache.get(themeId)
+    if (cached && cached.version === sourceVersion) return cached
+
+    const tokensRaw = await readFile(tokensPath, 'utf8')
     const tokens = ThemeTokensSchema.parse(JSON.parse(tokensRaw))
 
-    const css = await readFile(join(dir, manifest.css), 'utf8')
+    const css = await readFile(cssPath, 'utf8')
 
     // Compile: :root vars (light) + [data-theme=dark] vars + theme CSS
     const lightVars = tokensToCss(tokens.light as any)
@@ -79,7 +84,7 @@ export async function loadTheme(themeId: string): Promise<LoadedTheme | null> {
       css
     ].join('\n')
 
-    const loaded: LoadedTheme = { manifest, tokens, css, compiledCss, version: dirStat.mtimeMs }
+    const loaded: LoadedTheme = { manifest, tokens, css, compiledCss, version: sourceVersion }
     cache.set(themeId, loaded)
     return loaded
   } catch (err) {
