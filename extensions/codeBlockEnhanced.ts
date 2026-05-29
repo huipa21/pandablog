@@ -57,6 +57,29 @@ export const DEFAULT_CODE_THEME = 'github-dark'
 export const CodeBlockEnhanced = CodeBlockLowlight.extend({
   name: 'codeBlock',
 
+  addKeyboardShortcuts() {
+    const parent = this.parent?.() ?? {}
+    return {
+      ...parent,
+      // Prevent backspace from deleting the code block when it is empty.
+      // The node can only be removed via the toolbar "delete block" action.
+      Backspace: ({ editor }) => {
+        const { empty, $anchor } = editor.state.selection
+        if (!empty || $anchor.parent.type.name !== this.name) return false
+        const isAtStart = $anchor.pos === $anchor.start()
+        const isEmpty = !$anchor.parent.textContent.length
+        if (isAtStart && isEmpty) {
+          // Swallow the event — keep the empty code block alive.
+          return true
+        }
+        // Delegate to the parent handler for all other cases.
+        return (parent as Record<string, unknown>).Backspace
+          ? (parent as { Backspace: (ctx: { editor: typeof editor }) => boolean }).Backspace({ editor })
+          : false
+      }
+    }
+  },
+
   addAttributes() {
     const parent = this.parent?.() ?? {}
     return {

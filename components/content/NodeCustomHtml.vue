@@ -60,7 +60,21 @@ function onMessage(event: MessageEvent) {
     // Apply to ALL custom-html iframes on this page (cheap, simple).
     document.querySelectorAll<HTMLIFrameElement>('iframe.customhtml-iframe').forEach((el) => {
       if (el.contentWindow === event.source) {
-        el.style.height = `${Math.min(event.data.height + 4, 4000)}px`
+        const nextHeight = Math.min(event.data.height + 4, 4000)
+        const currentHeight = el.getBoundingClientRect().height
+
+        // Guard against feedback loops: viewport-based content (e.g. 100vh)
+        // can report approximately the current iframe height on each resize.
+        // Updating in tiny steps would cause endless growth.
+        if (nextHeight > currentHeight && nextHeight - currentHeight <= 8) {
+          return
+        }
+
+        if (Math.abs(nextHeight - currentHeight) <= 1) {
+          return
+        }
+
+        el.style.height = `${nextHeight}px`
       }
     })
     void target

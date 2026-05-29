@@ -3,37 +3,25 @@
     <template #sidebar>
       <template v-if="post && !isLocked(post)">
         <BlogPostToc :content-json="post.content_json" />
-        <BlogRelatedPosts :current-slug="post.slug" />
+        <BlogCategoryList />
+        <BlogTagCloud />
         <BlogKnowledgeGraph />
+        <BlogRelatedPosts :current-slug="post.slug" />
       </template>
       <template v-else>
         <BlogOwnerBio />
-        <BlogTagCloud />
         <BlogCategoryList />
+        <BlogTagCloud />
       </template>
     </template>
 
     <div class="pb-content-frame mx-auto">
-      <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" class="mb-6">
-        Back
-      </UButton>
-
-      <UAlert
-        v-if="error"
-        color="error"
-        icon="i-lucide-circle-alert"
-        :title="isSitePrivateError ? 'Site is private' : 'Post not found'"
-        :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to continue.' : undefined"
-      />
-
-      <PostPasswordGate
-        v-else-if="post && isLocked(post)"
-        :slug="post.slug"
-        :title="post.title"
-        :hint="post.passwordHint"
-      />
-
-      <article v-else-if="post" class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+      <article v-if="post && !error && !isLocked(post)" class="theme-scope overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+        <div class="flex items-center gap-2 border-b border-stone-100 px-6 py-3 md:px-8">
+          <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="xs">
+            Back
+          </UButton>
+        </div>
         <img
           v-if="post.cover_image"
           :src="post.cover_image"
@@ -49,12 +37,33 @@
             <p v-if="post.summary" class="mt-3 text-lg leading-relaxed text-stone-600">{{ post.summary }}</p>
           </header>
 
-          <div class="prose prose-stone max-w-none">
+          <div class="blog-content">
             <ContentRenderer :node="post.content_json" />
             <ContentFootnotesSection :content="post.content_json" />
           </div>
         </div>
       </article>
+
+      <template v-else>
+        <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" class="mb-4 -ml-2">
+          Back
+        </UButton>
+
+        <UAlert
+          v-if="error"
+          color="error"
+          icon="i-lucide-circle-alert"
+          :title="isSitePrivateError ? 'Site is private' : 'Post not found'"
+          :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to continue.' : undefined"
+        />
+
+        <PostPasswordGate
+          v-else-if="post && isLocked(post)"
+          :slug="post.slug"
+          :title="post.title"
+          :hint="post.passwordHint"
+        />
+      </template>
     </div>
   </NuxtLayout>
 </template>

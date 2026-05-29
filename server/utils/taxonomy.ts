@@ -66,35 +66,79 @@ export async function syncPostTaxonomy(
   tagNames?: unknown,
   categoryNames?: unknown
 ) {
-  if (Array.isArray(tagIds) || Array.isArray(tagNames)) {
-    await queryDb(db, 'DELETE tagged WHERE in = type::record($postTable, $postId);', {
-      postTable: 'post',
-      postId
-    })
+  const stmts: string[] = []
+  const params: Record<string, unknown> = { postTable: 'post', postId }
 
-    for (const tagId of await ensureTaxonomyIds(db, 'tag', tagIds, tagNames)) {
-      await queryDb(
-        db,
-        'RELATE type::record($postTable, $postId)->tagged->type::record($tagTable, $tagId);',
-        { postTable: 'post', postId, tagTable: 'tag', tagId }
+  if (Array.isArray(tagIds) || Array.isArray(tagNames)) {
+    stmts.push('DELETE tagged WHERE in = type::record($postTable, $postId);')
+    let resolvedTagIds = await ensureTaxonomyIds(db, 'tag', tagIds, tagNames)
+    // Remove the "null" placeholder tag if real tags are present
+    const nullTagId = await getNullTagId(db)
+    if (resolvedTagIds.length > 0 && nullTagId) {
+      resolvedTagIds = resolvedTagIds.filter((id) => id !== nullTagId)
+    }
+    // If no real tags remain, assign the "null" tag
+    if (resolvedTagIds.length === 0) {
+      resolvedTagIds = await ensureNullTagId(db)
+    }
+    for (let i = 0; i < resolvedTagIds.length; i++) {
+      params[`tagId_${i}`] = resolvedTagIds[i]
+      stmts.push(
+        `RELATE (type::record($postTable, $postId))->tagged->(type::record('tag', $tagId_${i}));`
       )
     }
   }
 
   if (Array.isArray(categoryIds) || Array.isArray(categoryNames)) {
-    await queryDb(db, 'DELETE categorized_as WHERE in = type::record($postTable, $postId);', {
-      postTable: 'post',
-      postId
-    })
-
-    for (const categoryId of await ensureTaxonomyIds(db, 'category', categoryIds, categoryNames)) {
-      await queryDb(
-        db,
-        'RELATE type::record($postTable, $postId)->categorized_as->type::record($categoryTable, $categoryId);',
-        { postTable: 'post', postId, categoryTable: 'category', categoryId }
+    stmts.push('DELETE categorized_as WHERE in = type::record($postTable, $postId);')
+    const resolvedCatIds = await ensureTaxonomyIds(db, 'category', categoryIds, categoryNames)
+    // If no categories, assign the "default" category
+    const finalCatIds = resolvedCatIds.length > 0
+      ? resolvedCatIds
+      : await ensureDefaultCategoryId(db)
+    for (let i = 0; i < finalCatIds.length; i++) {
+      params[`catId_${i}`] = finalCatIds[i]
+      stmts.push(
+        `RELATE (type::record($postTable, $postId))->categorized_as->(type::record('category', $catId_${i}));`
       )
     }
   }
+
+  if (stmts.length) {
+    await queryDb(db, stmts.join('\n'), params, { label: 'batch-sync taxonomy' })
+  }
+}
+
+async function ensureDefaultCategoryId(db: Surreal): Promise<string[]> {
+  const response = await queryDb(db, `SELECT id FROM category WHERE slug = 'default' LIMIT 1;`, {})
+  const existing = firstRow<{ id: unknown }>(response)
+  if (existing?.id) {
+    return [recordIdPart(stringifyRecordId(existing.id), 'category')]
+  }
+  const createResponse = await queryDb(db, `CREATE category CONTENT $record;`, {
+    record: { name: 'Default', slug: 'default' }
+  })
+  const created = firstRow<{ id: unknown }>(createResponse)
+  return created?.id ? [recordIdPart(stringifyRecordId(created.id), 'category')] : []
+}
+
+async function getNullTagId(db: Surreal): Promise<string | null> {
+  const response = await queryDb(db, `SELECT id FROM tag WHERE slug = 'null' LIMIT 1;`, {})
+  const existing = firstRow<{ id: unknown }>(response)
+  return existing?.id ? recordIdPart(stringifyRecordId(existing.id), 'tag') : null
+}
+
+async function ensureNullTagId(db: Surreal): Promise<string[]> {
+  const response = await queryDb(db, `SELECT id FROM tag WHERE slug = 'null' LIMIT 1;`, {})
+  const existing = firstRow<{ id: unknown }>(response)
+  if (existing?.id) {
+    return [recordIdPart(stringifyRecordId(existing.id), 'tag')]
+  }
+  const createResponse = await queryDb(db, `CREATE tag CONTENT $record;`, {
+    record: { name: 'null', slug: 'null' }
+  })
+  const created = firstRow<{ id: unknown }>(createResponse)
+  return created?.id ? [recordIdPart(stringifyRecordId(created.id), 'tag')] : []
 }
 
 export function taxonomyName(value: unknown) {

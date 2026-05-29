@@ -41,9 +41,14 @@
     </nav>
 
     <!-- Two-column body -->
-    <div class="grid w-full flex-1 gap-8 px-5 py-8 md:grid-cols-[260px_minmax(0,1fr)]">
-      <!-- Left sidebar (widgets) -->
-      <aside class="hidden space-y-6 md:block">
+    <div class="grid w-full max-w-[88rem] mx-auto flex-1 items-start gap-6 px-5 py-8 md:grid-cols-[minmax(0,1fr)_280px]">
+      <!-- Main content -->
+      <main class="min-w-0">
+        <slot />
+      </main>
+
+      <!-- Right sidebar (widgets) -->
+      <aside class="hidden space-y-4 md:block sticky top-[4.5rem] max-h-[calc(100vh-5rem)] overflow-y-auto">
         <slot name="sidebar">
           <BlogOwnerBio />
           <BlogSearchBar />
@@ -51,11 +56,6 @@
           <BlogCategoryList />
         </slot>
       </aside>
-
-      <!-- Main content -->
-      <main class="min-w-0">
-        <slot />
-      </main>
     </div>
 
     <!-- Footer -->

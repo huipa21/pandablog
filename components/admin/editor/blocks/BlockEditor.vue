@@ -1,5 +1,5 @@
 <template>
-  <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer" @click="onRootClick">
+  <div ref="editorContainer" class="block-editor-root relative" data-testid="block-editor" @dragover="autoScroll.updatePointer" @click="onRootClick" @customhtml-interact="onCustomHtmlInteract">
     <ClientOnly>
       <div class="relative">
         <div class="block-editor-grid">
@@ -29,8 +29,6 @@
           @edit-html="runEditHtml"
           @add-footnote="runAddFootnote"
           @transform="runTransform"
-          @dragstart="onBlockDragStart"
-          @dragend="onBlockDragEnd"
         />
 
         <!-- Per-block + button shown on the active block -->
@@ -183,6 +181,7 @@ import { MermaidNode } from '~/extensions/mermaid'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
 import { RelatedPostNode } from '~/extensions/relatedPost'
 import { CodeBlockEnhanced } from '~/extensions/codeBlockEnhanced'
+import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
 import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
@@ -192,6 +191,7 @@ import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
 import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
+import QuoteBlockNodeView from '~/components/admin/editor/QuoteBlockNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
 // would not auto-resolve. Importing them directly guarantees they render.
@@ -295,6 +295,7 @@ const editor = useEditor({
     StarterKit.configure({
       codeBlock: false,
       listItem: false,
+      blockquote: false,
       heading: { levels: [1, 2, 3, 4, 5, 6] },
       horizontalRule: false
     }),
@@ -376,6 +377,11 @@ const editor = useEditor({
       }
     }),
     BlockReorderCommands,
+    BlockquoteEnhanced.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(QuoteBlockNodeView)
+      }
+    }),
     Subscript,
     Superscript,
     Footnote,
@@ -486,7 +492,12 @@ const editor = useEditor({
       }
       if (event.key === 'Enter') {
         const item = slashItems.value[slashSelectedIndex.value]
-        if (item) handleSlashPick(item.name)
+        if (item) {
+          handleSlashPick(item.name)
+        } else {
+          // No matching items — close menu and remove the slash text
+          dismissSlashMenu()
+        }
         return true
       }
       if (event.key === 'Backspace') {
@@ -1350,6 +1361,18 @@ function closeSlashMenu() {
   slashSelectedIndex.value = 0
 }
 
+function dismissSlashMenu() {
+  const ed = editor.value
+  if (ed && slashRange.value) {
+    const from = slashRange.value.from
+    const to = ed.state.selection.from
+    closeSlashMenu()
+    ed.chain().focus().deleteRange({ from, to }).run()
+  } else {
+    closeSlashMenu()
+  }
+}
+
 function handleSlashPick(name: string) {
   const ed = editor.value
   if (!ed || !slashRange.value) return
@@ -1396,6 +1419,11 @@ function insertBlockAtPosition(name: string, pos: number) {
 
   const safePos = Math.max(0, Math.min(pos, ed.state.doc.content.size))
 
+  if (name === 'embed') {
+    insertEmbedAtPosition(safePos)
+    return
+  }
+
   if (name === 'image') {
     pendingImageInsertPos.value = safePos
     mediaPickerOpen.value = true
@@ -1426,6 +1454,12 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
   const ed = editor.value
   if (!ed) return
 
+  if (name === 'embed') {
+    ed.chain().focus().deleteRange(range).run()
+    insertEmbedAtPosition(range.from)
+    return
+  }
+
   if (name === 'image') {
     pendingImageInsertPos.value = range.from
     ed.chain().focus().deleteRange(range).run()
@@ -1451,6 +1485,147 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
   }
 
   ed.chain().focus().deleteRange(range).insertContent(content).run()
+}
+
+function insertEmbedAtPosition(pos: number) {
+  const ed = editor.value
+  if (!ed) return
+
+  const rawUrl = window.prompt('Paste an embed URL (video, audio, or website):')?.trim()
+  if (!rawUrl) {
+    return
+  }
+
+  const normalizedUrl = normalizeEmbedUrl(rawUrl)
+  if (!normalizedUrl) {
+    window.alert('Please enter a valid URL, e.g. https://example.com')
+    return
+  }
+
+  const embedHtml = buildEmbedHtmlFromUrl(normalizedUrl)
+  const safePos = Math.max(0, Math.min(pos, ed.state.doc.content.size))
+  ed.chain().focus().insertContentAt(safePos, {
+    type: 'customHtml',
+    attrs: { html: embedHtml }
+  }).run()
+}
+
+function normalizeEmbedUrl(rawUrl: string) {
+  try {
+    return new URL(rawUrl).toString()
+  } catch {
+    try {
+      return new URL(`https://${rawUrl}`).toString()
+    } catch {
+      return null
+    }
+  }
+}
+
+function buildEmbedHtmlFromUrl(url: string) {
+  const parsed = new URL(url)
+  const hostname = parsed.hostname.toLowerCase()
+  const pathname = parsed.pathname.toLowerCase()
+
+  const youtubeId = getYouTubeVideoId(parsed)
+  if (youtubeId) {
+    const src = `https://www.youtube-nocookie.com/embed/${youtubeId}`
+    return `<div style="max-width:960px;margin:0 auto;">
+  <iframe
+    src="${escapeHtmlAttr(src)}"
+    title="YouTube video"
+    style="width:100%;height:420px;border:0;border-radius:12px;"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen
+    loading="lazy"
+  ></iframe>
+</div>`
+  }
+
+  const isVideoFile = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i.test(pathname)
+  if (isVideoFile) {
+    return `<div style="max-width:960px;margin:0 auto;">
+  <video controls style="width:100%;max-height:70vh;border-radius:12px;background:#000;" src="${escapeHtmlAttr(url)}"></video>
+</div>`
+  }
+
+  const isAudioFile = /\.(mp3|wav|ogg|flac|m4a|aac)(\?|#|$)/i.test(pathname)
+  if (isAudioFile) {
+    return `<div style="max-width:960px;margin:0 auto;padding:1rem;">
+  <audio controls style="width:100%;" src="${escapeHtmlAttr(url)}"></audio>
+</div>`
+  }
+
+  const vimeoMatch = hostname.includes('vimeo.com')
+    ? parsed.pathname.match(/\/(\d+)(?:$|\/)/)
+    : null
+  if (vimeoMatch?.[1]) {
+    const src = `https://player.vimeo.com/video/${vimeoMatch[1]}`
+    return `<div style="max-width:960px;margin:0 auto;">
+  <iframe
+    src="${escapeHtmlAttr(src)}"
+    title="Vimeo video"
+    style="width:100%;height:420px;border:0;border-radius:12px;"
+    allow="autoplay; fullscreen; picture-in-picture"
+    allowfullscreen
+    loading="lazy"
+  ></iframe>
+</div>`
+  }
+
+  // Generic website embed fallback. Some sites block framing by policy.
+  return `<div style="max-width:1100px;margin:0 auto;">
+  <iframe
+    src="${escapeHtmlAttr(url)}"
+    title="Embedded webpage"
+    style="width:100%;height:720px;border:0;border-radius:12px;background:#fff;"
+    loading="lazy"
+    referrerpolicy="no-referrer"
+  ></iframe>
+  <p style="margin:0.5rem 0 0;font:500 13px ui-sans-serif,system-ui,sans-serif;color:#64748b;">If this site blocks embedding, open it in a new tab: <a href="${escapeHtmlAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtmlText(url)}</a></p>
+</div>`
+}
+
+function getYouTubeVideoId(parsed: URL) {
+  const hostname = parsed.hostname.toLowerCase()
+  const pathname = parsed.pathname
+
+  if (hostname === 'youtu.be') {
+    const id = pathname.replace(/^\//, '').split('/')[0]
+    return id || null
+  }
+
+  if (hostname.endsWith('youtube.com') || hostname.endsWith('youtube-nocookie.com')) {
+    if (pathname.startsWith('/watch')) {
+      return parsed.searchParams.get('v')
+    }
+
+    const segments = pathname.split('/').filter(Boolean)
+    if (segments[0] === 'embed' && segments[1]) {
+      return segments[1]
+    }
+    if (segments[0] === 'shorts' && segments[1]) {
+      return segments[1]
+    }
+  }
+
+  return null
+}
+
+function escapeHtmlAttr(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function escapeHtmlText(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
 }
 
 // ─── DRAG AND DROP ───────────────────────────────────────────────────────────
@@ -1852,6 +2027,13 @@ function onRootClick(event: MouseEvent) {
     return
   }
   ed.chain().focus().insertContentAt(docSize, { type: 'paragraph' }).run()
+}
+
+function onCustomHtmlInteract() {
+  activeBlockRect.value = null
+  activeBlockIndex.value = -1
+  actionsMenuVisible.value = false
+  editorStore.selectBlock(null)
 }
 
 function debugEditor(message: string) {

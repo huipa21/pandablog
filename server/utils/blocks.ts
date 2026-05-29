@@ -193,6 +193,9 @@ export async function loadBlocksForPost(db: Surreal, postRecordId: string): Prom
  *  - update blocks whose content_hash changed
  *  - reseq edges whenever ordering changed
  *
+ * All operations are batched into minimal round-trips to avoid per-query
+ * network latency overhead with remote databases.
+ *
  * Returns the final ordered BlockRecord list after the diff is applied.
  */
 export async function syncPostBlocks(
@@ -205,18 +208,26 @@ export async function syncPostBlocks(
   const existingById = new Map(existing.map((block) => [block.id, block]))
   const incomingIds = new Set(incoming.map((b) => b.blockId).map((id) => `block:${id}`))
 
-  // Delete blocks that are no longer present (also removes their has_blocks edges).
-  for (const block of existing) {
-    if (!incomingIds.has(block.id)) {
-      const blockId = recordIdPart(block.id, 'block')
-      await queryDb(db, "DELETE has_blocks WHERE out = type::record('block', $blockId);", { blockId })
-      await queryDb(db, "DELETE type::record('block', $blockId);", { blockId })
+  // --- Batch 1: Delete blocks that are no longer present ---
+  const toDelete = existing.filter((block) => !incomingIds.has(block.id))
+  if (toDelete.length) {
+    const stmts: string[] = []
+    const params: Record<string, unknown> = {}
+    for (let i = 0; i < toDelete.length; i++) {
+      const blockId = recordIdPart(toDelete[i]!.id, 'block')
+      params[`del_${i}`] = blockId
+      stmts.push(`DELETE has_blocks WHERE out = type::record('block', $del_${i});`)
+      stmts.push(`DELETE type::record('block', $del_${i});`)
     }
+    await queryDb(db, stmts.join('\n'), params, { label: `batch-delete ${toDelete.length} blocks` })
   }
 
-  // Upsert each incoming block and (re)create the edge with a fresh sequence.
-  // We always do a full renumber (10, 20, 30, ...) on bulk save — the
-  // halving algorithm is used by the granular insert/reorder endpoints.
+  // --- Batch 2 & 3: Create new blocks + Update existing blocks ---
+  const createStmts: string[] = []
+  const createParams: Record<string, unknown> = { postId }
+  const updateStmts: string[] = []
+  const updateParams: Record<string, unknown> = { postId }
+
   const finalBlocks: BlockRecord[] = []
   for (let i = 0; i < incoming.length; i += 1) {
     const incomingBlock = incoming[i]!
@@ -226,56 +237,35 @@ export async function syncPostBlocks(
     const blockType = String(incomingBlock.node.type ?? 'paragraph')
 
     if (!prior) {
-      // CREATE block with an explicit id, then RELATE post -> block with seq.
-      await queryDb(
-        db,
-        `CREATE type::record('block', $blockId) CONTENT {
-          type: $type,
-          node: $node,
-          text: $text,
-          content_hash: $hash,
-          created_at: time::now(),
-          updated_at: time::now()
-        };`,
-        {
-          blockId: incomingBlock.blockId,
-          type: blockType,
-          node: incomingBlock.node,
-          text: incomingBlock.text,
-          hash: incomingBlock.hash
-        }
+      createParams[`bid_${i}`] = incomingBlock.blockId
+      createParams[`typ_${i}`] = blockType
+      createParams[`nod_${i}`] = incomingBlock.node
+      createParams[`txt_${i}`] = incomingBlock.text
+      createParams[`hsh_${i}`] = incomingBlock.hash
+      createParams[`seq_${i}`] = seq
+      createStmts.push(
+        `CREATE type::record('block', $bid_${i}) CONTENT { type: $typ_${i}, node: $nod_${i}, text: $txt_${i}, content_hash: $hsh_${i}, created_at: time::now(), updated_at: time::now() };`
       )
-      await queryDb(
-        db,
-        `RELATE (type::record('post', $postId)) -> has_blocks -> (type::record('block', $blockId)) CONTENT { seq: $seq };`,
-        { postId, blockId: incomingBlock.blockId, seq }
+      createStmts.push(
+        `RELATE (type::record('post', $postId)) -> has_blocks -> (type::record('block', $bid_${i})) CONTENT { seq: $seq_${i} };`
       )
     } else {
       if (prior.text !== incomingBlock.text || hashNode(prior.node) !== incomingBlock.hash) {
-        await queryDb(
-          db,
-          `UPDATE type::record('block', $blockId) MERGE {
-            type: $type,
-            node: $node,
-            text: $text,
-            content_hash: $hash,
-            updated_at: time::now()
-          };`,
-          {
-            blockId: incomingBlock.blockId,
-            type: blockType,
-            node: incomingBlock.node,
-            text: incomingBlock.text,
-            hash: incomingBlock.hash
-          }
+        updateParams[`bid_${i}`] = incomingBlock.blockId
+        updateParams[`typ_${i}`] = blockType
+        updateParams[`nod_${i}`] = incomingBlock.node
+        updateParams[`txt_${i}`] = incomingBlock.text
+        updateParams[`hsh_${i}`] = incomingBlock.hash
+        updateStmts.push(
+          `UPDATE type::record('block', $bid_${i}) MERGE { type: $typ_${i}, node: $nod_${i}, text: $txt_${i}, content_hash: $hsh_${i}, updated_at: time::now() };`
         )
       }
 
       if (prior.seq !== seq) {
-        await queryDb(
-          db,
-          `UPDATE has_blocks SET seq = $seq WHERE in = type::record('post', $postId) AND out = type::record('block', $blockId);`,
-          { postId, blockId: incomingBlock.blockId, seq }
+        if (!updateParams[`bid_${i}`]) updateParams[`bid_${i}`] = incomingBlock.blockId
+        updateParams[`seq_${i}`] = seq
+        updateStmts.push(
+          `UPDATE has_blocks SET seq = $seq_${i} WHERE in = type::record('post', $postId) AND out = type::record('block', $bid_${i});`
         )
       }
     }
@@ -287,6 +277,13 @@ export async function syncPostBlocks(
       text: incomingBlock.text,
       seq
     })
+  }
+
+  if (createStmts.length) {
+    await queryDb(db, createStmts.join('\n'), createParams, { label: `batch-create ${createStmts.length / 2} blocks` })
+  }
+  if (updateStmts.length) {
+    await queryDb(db, updateStmts.join('\n'), updateParams, { label: `batch-update blocks` })
   }
 
   return finalBlocks
@@ -305,11 +302,14 @@ export async function deleteAllBlocksForPost(db: Surreal, postRecordId: string) 
   )
   const blockIds = queryRows<{ id: unknown }>(response, 0).map((row) => stringifyRecordId(row.id))
 
-  await queryDb(db, "DELETE has_blocks WHERE in = type::record('post', $postId);", { postId })
-  await Promise.all(blockIds.map((fullId) => {
-    const blockId = recordIdPart(fullId, 'block')
-    return queryDb(db, "DELETE type::record('block', $blockId);", { blockId })
-  }))
+  const stmts: string[] = [`DELETE has_blocks WHERE in = type::record('post', $postId);`]
+  const params: Record<string, unknown> = { postId }
+  for (let i = 0; i < blockIds.length; i++) {
+    const blockId = recordIdPart(blockIds[i]!, 'block')
+    params[`bid_${i}`] = blockId
+    stmts.push(`DELETE type::record('block', $bid_${i});`)
+  }
+  await queryDb(db, stmts.join('\n'), params, { label: `batch-delete all blocks for post` })
 }
 
 /* ---------- Sequence math: halving + full renumber ---------- */
@@ -356,17 +356,22 @@ export async function renumberPostBlocks(db: Surreal, postRecordId: string): Pro
   const postId = recordIdPart(postRecordId, 'post')
   const blocks = await loadBlocksForPost(db, postRecordId)
 
+  if (!blocks.length) return blocks
+
+  const stmts: string[] = []
+  const params: Record<string, unknown> = { postId }
   for (let i = 0; i < blocks.length; i += 1) {
     const block = blocks[i]!
     const seq = (i + 1) * BLOCK_SEQ_STEP
     const blockId = recordIdPart(block.id, 'block')
-    await queryDb(
-      db,
-      `UPDATE has_blocks SET seq = $seq WHERE in = type::record('post', $postId) AND out = type::record('block', $blockId);`,
-      { postId, blockId, seq }
+    params[`bid_${i}`] = blockId
+    params[`seq_${i}`] = seq
+    stmts.push(
+      `UPDATE has_blocks SET seq = $seq_${i} WHERE in = type::record('post', $postId) AND out = type::record('block', $bid_${i});`
     )
     block.seq = seq
   }
+  await queryDb(db, stmts.join('\n'), params, { label: `batch-renumber ${blocks.length} blocks` })
 
   return blocks
 }
@@ -398,13 +403,10 @@ export async function swapBlockSeq(db: Surreal, postRecordId: string, blockIdA: 
 
   await queryDb(
     db,
-    `UPDATE has_blocks SET seq = $seqB WHERE in = type::record('post', $postId) AND out = type::record('block', $a);`,
-    { postId, a, seqB }
-  )
-  await queryDb(
-    db,
-    `UPDATE has_blocks SET seq = $seqA WHERE in = type::record('post', $postId) AND out = type::record('block', $b);`,
-    { postId, b, seqA }
+    `UPDATE has_blocks SET seq = $seqB WHERE in = type::record('post', $postId) AND out = type::record('block', $a);
+     UPDATE has_blocks SET seq = $seqA WHERE in = type::record('post', $postId) AND out = type::record('block', $b);`,
+    { postId, a, seqB, b, seqA },
+    { label: 'batch-swap block seq' }
   )
 }
 
@@ -441,21 +443,23 @@ export async function syncPostLinks(db: Surreal, postRecordId: string, blocks: B
   )
   const matches = queryRows<{ id: unknown, slug?: unknown }>(resolved, 0)
 
-  for (const match of matches) {
-    const targetId = recordIdPart(stringifyRecordId(match.id), 'post')
-    if (targetId === postId) {
-      continue
+  const targets = matches
+    .map((match) => recordIdPart(stringifyRecordId(match.id), 'post'))
+    .filter((targetId) => targetId !== postId)
+
+  if (targets.length) {
+    const stmts: string[] = []
+    const params: Record<string, unknown> = { postId }
+    for (let i = 0; i < targets.length; i++) {
+      params[`tid_${i}`] = targets[i]
+      stmts.push(
+        `RELATE (type::record('post', $postId)) -> links -> (type::record('post', $tid_${i}));`
+      )
+      stmts.push(
+        `RELATE (type::record('post', $tid_${i})) -> links -> (type::record('post', $postId));`
+      )
     }
-    await queryDb(
-      db,
-      `RELATE (type::record('post', $postId)) -> links -> (type::record('post', $targetId));`,
-      { postId, targetId }
-    )
-    await queryDb(
-      db,
-      `RELATE (type::record('post', $targetId)) -> links -> (type::record('post', $postId));`,
-      { postId, targetId }
-    )
+    await queryDb(db, stmts.join('\n'), params, { label: `batch-relate ${targets.length} links` })
   }
 
   return matches.map((m) => String(m.slug ?? '')).filter(Boolean)

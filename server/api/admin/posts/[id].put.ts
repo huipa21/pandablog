@@ -45,9 +45,13 @@ export default defineEventHandler(async (event) => {
   const visibilityUpdate = await resolveVisibilityUpdate(body, existing)
   const clears = cleanOptionalFieldClears(body)
 
+  const updateSql = clears
+    ? `UPDATE type::record($table, $id) MERGE $post;\nUPDATE type::record($table, $id) ${clears};`
+    : 'UPDATE type::record($table, $id) MERGE $post;'
+
   const response = await queryDb(
     db,
-    'UPDATE type::record($table, $id) MERGE $post;',
+    updateSql,
     {
       table: 'post',
       id,
@@ -57,16 +61,9 @@ export default defineEventHandler(async (event) => {
       }
     }
   )
-  let post = firstRow<Record<string, unknown>>(response)
-
-  if (clears) {
-    const clearResponse = await queryDb(
-      db,
-      `UPDATE type::record($table, $id) ${clears};`,
-      { table: 'post', id }
-    )
-    post = firstRow<Record<string, unknown>>(clearResponse) || post
-  }
+  const post = clears
+    ? firstRow<Record<string, unknown>>(response, 1) || firstRow<Record<string, unknown>>(response)
+    : firstRow<Record<string, unknown>>(response)
 
   if (!post) {
     throw createError({ statusCode: 500, message: 'Post was not updated' })

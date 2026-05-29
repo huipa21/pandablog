@@ -62,9 +62,9 @@ async function loadPublicBootstrap(): Promise<PublicBootstrapPayload> {
     db,
     `SELECT * FROM app_setting;
      SELECT * FROM tag ORDER BY name ASC;
-     SELECT out, count() AS total FROM tagged GROUP BY out;
+     SELECT out, count() AS total FROM tagged WHERE in.status = 'published' GROUP BY out;
      SELECT * FROM category ORDER BY name ASC;
-     SELECT out, count() AS total FROM categorized_as GROUP BY out;`,
+     SELECT out, count() AS total FROM categorized_as WHERE in.status = 'published' GROUP BY out;`,
     undefined,
     { label: 'public bootstrap' }
   )
@@ -83,14 +83,18 @@ async function loadPublicBootstrap(): Promise<PublicBootstrapPayload> {
       .map((row) => [stringifyRecordId(row.out), Number(row.total ?? 0)] as const)
   )
 
-  const tags = queryRows<Record<string, unknown>>(response, 1).map((tag) => normalizeTag({
-    ...tag,
-    post_count: tagCounts.get(stringifyRecordId(tag.id)) ?? 0
-  }))
-  const categories = queryRows<Record<string, unknown>>(response, 3).map((category) => normalizeCategory({
-    ...category,
-    post_count: categoryCounts.get(stringifyRecordId(category.id)) ?? 0
-  }))
+  const tags = queryRows<Record<string, unknown>>(response, 1)
+    .map((tag) => normalizeTag({
+      ...tag,
+      post_count: tagCounts.get(stringifyRecordId(tag.id)) ?? 0
+    }))
+
+  const categories = queryRows<Record<string, unknown>>(response, 3)
+    .map((category) => normalizeCategory({
+      ...category,
+      post_count: categoryCounts.get(stringifyRecordId(category.id)) ?? 0
+    }))
+    .filter((category) => (category.post_count ?? 0) > 0)
 
   const activeThemeId = typeof settings.active_theme === 'string' ? settings.active_theme : 'default'
   const theme = await resolveTheme(activeThemeId)

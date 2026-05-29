@@ -11,6 +11,7 @@
   <NodeRelatedPost v-else-if="node.type === 'relatedPost'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
+  <NodeQuoteBlock v-else-if="node.type === 'blockquote'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
     <ContentRenderer v-for="(child, index) in node.content ?? []" :key="index" :node="child" />
   </component>
@@ -23,6 +24,7 @@ import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeImage from './NodeImage.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
+import NodeQuoteBlock from './NodeQuoteBlock.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
 
 const props = defineProps<{

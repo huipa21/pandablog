@@ -88,7 +88,11 @@ const blockDefinitions: BlockDefinition[] = [
     keywords: ['quote', 'citation'],
     implemented: true,
     supports: { color: true, spacing: true, border: true },
-    createContent: () => ({ type: 'blockquote', content: [{ type: 'paragraph', content: [] }] })
+    createContent: () => ({
+      type: 'blockquote',
+      attrs: { style: 'bar', theme: '#0f766e', fontFamily: 'sans', fontSize: '1rem', fontColor: '#1c1917', backgroundColor: '', authorName: '', authorTitle: '' },
+      content: [{ type: 'paragraph', content: [] }]
+    })
   },
   {
     name: 'image',
@@ -206,13 +210,19 @@ const blockDefinitions: BlockDefinition[] = [
     implemented: true,
     supports: { align: true, spacing: true },
     createContent: () => ({
-      type: 'blockquote',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'Paste an embed URL: https://example.com/video' }]
-        }
-      ]
+      type: 'customHtml',
+      attrs: {
+        html: `<div style="max-width:960px;margin:0 auto;">
+  <!-- Replace the src with your video/audio/page URL -->
+  <iframe
+    src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+    title="Embedded content"
+    style="width:100%;height:420px;border:0;border-radius:12px;"
+    allowfullscreen
+    loading="lazy"
+  ></iframe>
+</div>`
+      }
     })
   },
   {

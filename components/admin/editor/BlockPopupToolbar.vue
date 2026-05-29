@@ -5,9 +5,12 @@
       ref="toolbarEl"
       class="block-popup-toolbar"
       :style="floatingStyles"
+      draggable="true"
       contenteditable="false"
       data-testid="block-popup-toolbar"
-      @mousedown.prevent
+      @mousedown="onToolbarMouseDown"
+      @dragstart="onToolbarDragStart"
+      @dragend="emit('dragend')"
     >
       <UDropdownMenu :items="transformItems">
         <button type="button" class="bpt-btn" title="Transform to...">
@@ -20,11 +23,13 @@
         type="button"
         class="bpt-btn cursor-grab"
         draggable="true"
+        data-drag-handle="true"
         title="Drag to move"
+        @mousedown.stop
         @dragstart="emit('dragstart', $event)"
         @dragend="emit('dragend')"
       >
-        <UIcon name="i-lucide-grip-vertical" class="size-4" />
+        <UIcon name="i-lucide-move" class="size-4" />
       </button>
 
       <button type="button" class="bpt-btn" title="Move up" @click="emit('move-up')">
@@ -135,6 +140,33 @@ function setAlign(value: 'left' | 'center' | 'right' | 'justify') {
   const ed = props.editor
   if (!ed) return
   ;(ed.chain().focus() as any).setTextAlign(value).run()
+}
+
+function onToolbarMouseDown(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (target?.closest('[data-drag-handle="true"]')) {
+    return
+  }
+
+  const onToolbarSurface = target === toolbarEl.value
+  if (onToolbarSurface) {
+    return
+  }
+
+  event.preventDefault()
+}
+
+function onToolbarDragStart(event: DragEvent) {
+  const target = event.target as HTMLElement | null
+  const fromHandle = !!target?.closest('[data-drag-handle="true"]')
+  const fromToolbarSurface = target === toolbarEl.value
+
+  if (!fromHandle && !fromToolbarSurface) {
+    event.preventDefault()
+    return
+  }
+
+  emit('dragstart', event)
 }
 </script>
 

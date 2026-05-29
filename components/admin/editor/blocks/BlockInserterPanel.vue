@@ -3,7 +3,7 @@
   <aside
     v-if="inline"
     v-show="open"
-    class="absolute inset-0 z-40 flex h-full w-full flex-col bg-white"
+    class="absolute inset-y-0 left-0 z-40 flex h-full w-[320px] flex-col border-r border-stone-200 bg-white shadow-lg"
     data-testid="block-inserter-panel"
     data-inline="true"
     @keydown.esc="$emit('close')"

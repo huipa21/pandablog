@@ -150,7 +150,7 @@
             <input v-model="form.visibility" type="radio" value="password" class="mt-1">
             <span class="flex-1">
               <span class="font-medium">Password protected</span>
-              <span class="block text-xs text-stone-500">Listed normally, but content requires a password.</span>
+              <span class="block text-xs text-stone-500">Hidden from public lists and search, content requires a password.</span>
               <span v-if="form.visibility === 'password'" class="mt-2 grid gap-2">
                 <input v-model="form.password" type="password" placeholder="Leave blank to keep existing password" class="w-full rounded border border-stone-300 px-2 py-1 text-sm" autocomplete="new-password">
                 <input v-model="form.password_hint" type="text" placeholder="Hint shown on lock screen" class="w-full rounded border border-stone-300 px-2 py-1 text-sm">

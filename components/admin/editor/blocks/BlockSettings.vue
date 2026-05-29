@@ -202,17 +202,17 @@
         </div>
       </details>
 
-      <details v-if="blockName === 'codeBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+      <details v-if="blockName === 'codeBlock'" open class="code-settings-panel rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Code</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField label="File name (optional)">
-            <UInput :model-value="String(attrs.fileName ?? '')" placeholder="app.ts" @update:model-value="setCodeFileName" />
+        <div class="mt-3 space-y-3" data-code-settings>
+          <UFormField label="File name (optional)" class="code-settings-field">
+            <UInput class="w-full" :model-value="String(attrs.fileName ?? '')" placeholder="app.ts" @update:model-value="setCodeFileName" />
           </UFormField>
-          <UFormField label="Language">
-            <USelect :model-value="String(attrs.language ?? 'text')" :items="languageItems" @update:model-value="setCodeLanguage" />
+          <UFormField label="Language" class="code-settings-field">
+            <USelect class="w-full" :model-value="String(attrs.language ?? 'text')" :items="languageItems" @update:model-value="setCodeLanguage" />
           </UFormField>
-          <UFormField label="Theme">
-            <USelect :model-value="String(attrs.theme ?? 'github-dark')" :items="themeItems" @update:model-value="setCodeTheme" />
+          <UFormField label="Theme" class="code-settings-field">
+            <USelect class="w-full" :model-value="String(attrs.theme ?? 'github-dark')" :items="themeItems" @update:model-value="setCodeTheme" />
           </UFormField>
           <UFormField>
             <UCheckbox
@@ -246,6 +246,125 @@
               @input="setCodeZoom(($event.target as HTMLInputElement).value)"
             >
           </UFormField>
+        </div>
+      </details>
+
+      <details v-if="blockName === 'blockquote'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Quote</summary>
+        <div class="mt-3 space-y-3">
+          <!-- Style -->
+          <UFormField label="Style">
+            <USelect
+              :model-value="String(attrs.style ?? 'bar')"
+              :items="quoteStyleItems"
+              @update:model-value="updateAttrs({ style: String($event) })"
+            />
+          </UFormField>
+
+          <!-- Accent color -->
+          <UFormField label="Accent color">
+            <div class="flex items-center gap-2">
+              <input
+                type="color"
+                :value="String(attrs.theme ?? '#0f766e')"
+                class="h-10 w-16 rounded border border-stone-200"
+                @input="updateAttrs({ theme: ($event.target as HTMLInputElement).value })"
+              >
+              <UInput
+                :model-value="String(attrs.theme ?? '#0f766e')"
+                placeholder="#0f766e"
+                class="flex-1"
+                @update:model-value="updateAttrs({ theme: String($event) })"
+              />
+            </div>
+          </UFormField>
+
+          <!-- Typography section -->
+          <div class="border-t border-stone-200 pt-3">
+            <div class="text-xs font-semibold text-stone-700 mb-2">Typography</div>
+
+            <!-- Font family -->
+            <UFormField label="Font family">
+              <USelect
+                :model-value="String(attrs.fontFamily ?? 'sans')"
+                :items="fontFamilyItems"
+                @update:model-value="updateAttrs({ fontFamily: String($event) })"
+              />
+            </UFormField>
+
+            <!-- Font size -->
+            <UFormField label="Font size">
+              <div class="flex gap-2">
+                <UInput
+                  type="number"
+                  min="0.5"
+                  step="0.1"
+                  :model-value="parseFontSize(String(attrs.fontSize ?? '1rem'))"
+                  placeholder="1"
+                  class="w-20"
+                  @update:model-value="updateAttrs({ fontSize: String($event) + 'rem' })"
+                />
+                <span class="flex items-center text-sm text-stone-500">rem</span>
+              </div>
+            </UFormField>
+
+            <!-- Font color -->
+            <UFormField label="Text color">
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="String(attrs.fontColor ?? '#1c1917')"
+                  class="h-10 w-16 rounded border border-stone-200"
+                  @input="updateAttrs({ fontColor: ($event.target as HTMLInputElement).value })"
+                >
+                <UInput
+                  :model-value="String(attrs.fontColor ?? '#1c1917')"
+                  placeholder="#1c1917"
+                  class="flex-1"
+                  @update:model-value="updateAttrs({ fontColor: String($event) })"
+                />
+              </div>
+            </UFormField>
+
+            <!-- Background color -->
+            <UFormField label="Background color (optional)">
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="String(attrs.backgroundColor ?? '#ffffff')"
+                  class="h-10 w-16 rounded border border-stone-200"
+                  @input="updateAttrs({ backgroundColor: ($event.target as HTMLInputElement).value })"
+                >
+                <UInput
+                  :model-value="String(attrs.backgroundColor ?? '')"
+                  placeholder="Leave empty for transparent"
+                  class="flex-1"
+                  @update:model-value="updateAttrs({ backgroundColor: String($event) })"
+                />
+              </div>
+            </UFormField>
+          </div>
+
+          <!-- Source section -->
+          <div class="border-t border-stone-200 pt-3">
+            <div class="text-xs font-semibold text-stone-700 mb-2">Source / Author</div>
+
+            <UFormField label="Author name (optional)">
+              <UInput
+                :model-value="String(attrs.authorName ?? '')"
+                placeholder="Firstname Lastname"
+                @update:model-value="updateAttrs({ authorName: String($event) })"
+              />
+            </UFormField>
+
+            <UFormField label="Title / Role (optional)">
+              <UInput
+                :model-value="String(attrs.authorTitle ?? '')"
+                placeholder="Position or Year"
+                @update:model-value="updateAttrs({ authorTitle: String($event) })"
+              />
+            </UFormField>
+          </div>
         </div>
       </details>
 
@@ -327,6 +446,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES } from '~/extensions/codeBlockEnhanced'
+import { QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
 
 const props = defineProps<{
   editor: Editor | null
@@ -376,6 +496,14 @@ const ratioPresetItems = [
 ]
 
 const separatorPalette = ['#d6d3d1', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#d97706', '#111827', '#9ca3af']
+
+const quoteStyleItems = QUOTE_STYLES.map((s) => ({ label: s.label, value: s.value as string }))
+const fontFamilyItems = QUOTE_FONT_FAMILIES.map((f) => ({ label: f.label, value: f.value as string }))
+
+const parseFontSize = (size: string) => {
+  const match = size.match(/^([\d.]+)rem$/)
+  return match ? match[1] : '1'
+}
 
 const imageSourceSize = computed(() => String(attrs.value.sourceSize ?? 'full'))
 const imageDisplaySize = computed(() => {
@@ -952,3 +1080,25 @@ function runTableCommand(command: 'addColumnAfter' | 'addRowAfter' | 'deleteColu
   chain[command]().run()
 }
 </script>
+
+<style scoped>
+.code-settings-panel :deep(.code-settings-field .u-select),
+.code-settings-panel :deep(.code-settings-field .u-input),
+.code-settings-panel :deep(.code-settings-field .u-input-root) {
+  width: 100%;
+}
+
+.code-settings-panel :deep(.code-settings-field .u-select button) {
+  width: 100%;
+}
+
+.code-settings-panel :deep(.code-settings-field .u-select button span) {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.code-settings-panel :deep([role='option']) {
+  white-space: nowrap;
+}
+</style>

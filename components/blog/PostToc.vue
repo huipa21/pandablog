@@ -1,7 +1,7 @@
 <template>
-  <nav v-if="items.length" class="sticky top-16 rounded-lg border border-stone-200 bg-white p-4">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">On this page</h3>
-    <div class="grid gap-1">
+  <nav class="rounded-lg border border-stone-200 bg-white p-4">
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">Table of Contents</h3>
+    <div v-if="items.length" class="grid gap-1">
       <a
         v-for="item in items"
         :key="item.id"

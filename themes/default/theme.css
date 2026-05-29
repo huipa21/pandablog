@@ -130,12 +130,141 @@
   padding: 0;
 }
 
-.theme-scope .blog-content blockquote {
+/* Legacy plain blockquote — only shown if there are no enhanced attrs */
+.theme-scope .blog-content blockquote:not(.pull-quote) {
   border-left: 3px solid var(--color-border-strong);
   padding-left: var(--space-md);
   margin: var(--space-md) 0;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+/* Pull-quote block */
+.theme-scope .blog-content .pull-quote {
+  --pull-quote-accent: #0f766e;
+  --pull-quote-font-family: ui-sans-serif, system-ui, -apple-system;
+  --pull-quote-font-size: 1rem;
+  --pull-quote-font-color: var(--color-text);
+  --pull-quote-bg-color: transparent;
+  
+  font-family: var(--pull-quote-font-family);
+  font-size: var(--pull-quote-font-size);
+  color: var(--pull-quote-font-color);
+  background-color: var(--pull-quote-bg-color);
+  border: none;
+  margin: var(--space-xl) 0;
+  padding: 0;
+}
+
+/* Vertical bar style (default) */
+.theme-scope .blog-content .pull-quote-bar {
+  padding: 0.75rem;
+}
+
+.theme-scope .blog-content .pull-quote-bar-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.theme-scope .blog-content .pull-quote-bar-stripe {
+  width: 4px;
+  background-color: var(--pull-quote-accent);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.theme-scope .blog-content .pull-quote-bar-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-scope .blog-content .pull-quote-bar .pull-quote-body {
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.theme-scope .blog-content .pull-quote-bar .pull-quote-source {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.theme-scope .blog-content .pull-quote-bar .pull-quote-author {
+  font-weight: 600;
+}
+
+.theme-scope .blog-content .pull-quote-bar .pull-quote-title {
+  margin-left: 0.25rem;
+}
+
+/* Quotation marks style */
+.theme-scope .blog-content .pull-quote-marks {
+  padding: 0.5rem 0;
+}
+
+.theme-scope .blog-content .pull-quote-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.theme-scope .blog-content .pull-quote-mark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 3.5rem;
+  line-height: 1;
+  color: var(--pull-quote-accent);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.theme-scope .blog-content .pull-quote-mark-open {
+  margin-top: -0.5rem;
+}
+
+.theme-scope .blog-content .pull-quote-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--pull-quote-accent);
+  opacity: 0.4;
+  display: block;
+}
+
+.theme-scope .blog-content .pull-quote-body {
+  line-height: 1.6;
+}
+
+.theme-scope .blog-content .pull-quote-body p {
+  margin: 0;
+}
+
+.theme-scope .blog-content .pull-quote-bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 1rem;
+  gap: 1rem;
+}
+
+.theme-scope .blog-content .pull-quote-source-marks {
+  font-size: 0.875rem;
+  font-style: normal;
+}
+
+.theme-scope .blog-content .pull-quote-author-name {
+  font-weight: 600;
+}
+
+.theme-scope .blog-content .pull-quote-author-title {
+  margin-left: 0.25rem;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.theme-scope .blog-content .pull-quote-mark-close {
+  margin-bottom: -0.75rem;
+  align-self: flex-end;
 }
 
 .theme-scope .blog-content img {

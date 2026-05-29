@@ -4,11 +4,29 @@
       v-if="visible"
       ref="toolbarEl"
       class="block-toolbar"
-      :style="floatingStyles"
+      :style="dragStyle ?? floatingStyles"
       contenteditable="false"
       data-testid="block-popup-toolbar"
-      @mousedown.prevent
     >
+      <!-- Drag grip -->
+      <button
+        type="button"
+        class="bt-btn cursor-grab active:cursor-grabbing touch-none"
+        :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
+        title="Drag toolbar"
+        @mousedown.prevent="onDragHandleMouseDown"
+      >
+        <svg width="10" height="16" viewBox="0 0 10 16" class="pointer-events-none opacity-40">
+          <circle cx="3" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="7" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="7" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="13" r="1.5" fill="currentColor" />
+          <circle cx="7" cy="13" r="1.5" fill="currentColor" />
+        </svg>
+      </button>
+      <div class="bt-separator" />
+
       <!-- Block-level actions (always visible when toolbar is shown) -->
       <UDropdownMenu :items="transformItems">
         <button type="button" class="bt-btn" title="Transform to...">
@@ -16,17 +34,6 @@
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
         </button>
       </UDropdownMenu>
-
-      <button
-        type="button"
-        class="bt-btn cursor-grab"
-        draggable="true"
-        title="Drag to move"
-        @dragstart="emit('dragstart', $event)"
-        @dragend="emit('dragend')"
-      >
-        <UIcon name="i-lucide-grip-vertical" class="size-4" />
-      </button>
 
       <button type="button" class="bt-btn" title="Move up" @click="emit('move-up')">
         <UIcon name="i-lucide-arrow-up" class="size-4" />
@@ -166,14 +173,59 @@ const emit = defineEmits<{
   'add-after': []
   'edit-html': []
   'add-footnote': []
-  dragstart: [event: DragEvent]
-  dragend: []
   transform: [type: string]
 }>()
 
 const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 const linkDialogOpen = ref(false)
+
+// ─── FREE DRAG ────────────────────────────────────────────────────────────────
+const dragging = ref(false)
+const dragStyle = ref<{ position: string; top: string; left: string; transform: string } | null>(null)
+let dragOffsetX = 0
+let dragOffsetY = 0
+
+function onDragHandleMouseDown(event: MouseEvent) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  const el = toolbarEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  // If not yet pinned, pin at current float position first
+  if (!dragStyle.value) {
+    dragStyle.value = { position: 'fixed', top: `${rect.top}px`, left: `${rect.left}px`, transform: 'none' }
+  }
+  dragOffsetX = event.clientX - rect.left
+  dragOffsetY = event.clientY - rect.top
+  dragging.value = true
+  window.addEventListener('mousemove', onDragMouseMove)
+  window.addEventListener('mouseup', onDragMouseUp)
+}
+
+function onDragMouseMove(event: MouseEvent) {
+  if (!dragging.value) return
+  const x = Math.max(0, Math.min(event.clientX - dragOffsetX, window.innerWidth - 40))
+  const y = Math.max(0, Math.min(event.clientY - dragOffsetY, window.innerHeight - 40))
+  dragStyle.value = { position: 'fixed', top: `${y}px`, left: `${x}px`, transform: 'none' }
+}
+
+function onDragMouseUp() {
+  dragging.value = false
+  window.removeEventListener('mousemove', onDragMouseMove)
+  window.removeEventListener('mouseup', onDragMouseUp)
+}
+
+// Reset drag position when the toolbar's reference block changes
+watch(() => props.referenceEl, () => {
+  dragStyle.value = null
+  dragging.value = false
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onDragMouseMove)
+  window.removeEventListener('mouseup', onDragMouseUp)
+})
 const linkForm = reactive({
   href: 'https://',
   text: '',

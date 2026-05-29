@@ -9,7 +9,8 @@
           <div class="truncate text-sm font-medium text-stone-900">{{ form.title || 'No title' }}</div>
           <div class="flex items-center gap-2 text-xs text-stone-500">
             <span>{{ currentStatus }}</span>
-            <span v-if="post?.updated_at">Saved {{ formatDate(post.updated_at) }}</span>
+            <span v-if="saveStatus" :class="saveStatusClass">· {{ saveStatus }}</span>
+            <span v-else-if="post?.updated_at">· Saved {{ formatDate(post.updated_at) }}</span>
           </div>
         </div>
       </div>
@@ -19,11 +20,11 @@
           type="button"
           icon="i-lucide-save"
           variant="soft"
-          :loading="savingAction === 'save-draft'"
+          :loading="savingAction === 'save-local'"
           :disabled="savingAction !== null"
-          @click="save('draft', 'save-draft')"
+          @click="saveLocal()"
         >
-          Save draft
+          Save
         </UButton>
         <UButton
           type="button"
@@ -31,7 +32,7 @@
           color="primary"
           :loading="savingAction === 'publish'"
           :disabled="savingAction !== null"
-          @click="save('published', 'publish')"
+          @click="publishOrUpdate()"
         >
           {{ currentStatus === 'published' ? 'Update' : 'Publish' }}
         </UButton>
@@ -46,18 +47,6 @@
         >
           View
         </UButton>
-        <UButton
-          v-if="currentStatus === 'published'"
-          type="button"
-          icon="i-lucide-rotate-ccw"
-          color="warning"
-          variant="soft"
-          :loading="savingAction === 'unpublish'"
-          :disabled="savingAction !== null"
-          @click="save('draft', 'unpublish')"
-        >
-          Unpublish
-        </UButton>
         <UDropdownMenu :items="moreMenuItems">
           <UButton type="button" icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" />
         </UDropdownMenu>
@@ -69,66 +58,25 @@
       <USkeleton class="h-96" />
     </div>
 
-    <div v-else class="flex h-[calc(100vh-7rem)] overflow-hidden">
-      <div class="relative h-full shrink-0 border-r border-stone-200 bg-white transition-[width]" :class="leftPaneCollapsed ? 'w-11' : 'w-[280px]'">
-        <button
-          type="button"
-          class="absolute right-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 hover:border-teal-400 hover:text-teal-700"
-          :title="leftPaneCollapsed ? 'Expand left pane' : 'Collapse left pane'"
-          @click="leftPaneCollapsed = !leftPaneCollapsed"
-        >
-          <UIcon :name="leftPaneCollapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-4" />
-        </button>
+    <div v-else class="relative flex h-[calc(100vh-7rem)] overflow-hidden">
+      <BlockInserterPanel
+        :open="editorStore.inserterOpen"
+        inline
+        @close="editorStore.closeInserter()"
+        @insert="onInserterPick"
+      />
 
-        <aside v-if="!leftPaneCollapsed" class="h-full overflow-y-auto p-3 pt-10">
-          <div class="space-y-4">
-            <section class="rounded-md border border-stone-200 bg-white p-3">
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Table of contents</h3>
-              <ul v-if="tocItems.length" class="mt-2 space-y-1">
-                <li v-for="item in tocItems" :key="item.id" class="text-sm text-stone-700" :class="item.level >= 3 ? 'pl-4' : item.level === 2 ? 'pl-2' : ''">
-                  {{ item.text }}
-                </li>
-              </ul>
-              <p v-else class="mt-2 text-xs text-stone-500">Add headings to build an outline.</p>
-            </section>
-
-            <section class="rounded-md border border-stone-200 bg-white p-3">
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Categories</h3>
-              <div v-if="selectedCategoryNames.length" class="mt-2 flex flex-wrap gap-1.5">
-                <UBadge v-for="name in selectedCategoryNames" :key="`cat-${name}`" color="primary" variant="subtle">{{ name }}</UBadge>
-              </div>
-              <p v-else class="mt-2 text-xs text-stone-500">No categories selected.</p>
-            </section>
-
-            <section class="rounded-md border border-stone-200 bg-white p-3">
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-stone-500">Tags</h3>
-              <div v-if="selectedTagNames.length" class="mt-2 flex flex-wrap gap-1.5">
-                <UBadge v-for="name in selectedTagNames" :key="`tag-${name}`" color="neutral" variant="subtle">{{ name }}</UBadge>
-              </div>
-              <p v-else class="mt-2 text-xs text-stone-500">No tags selected.</p>
-            </section>
-          </div>
-        </aside>
-
-        <BlockInserterPanel
-          v-if="!leftPaneCollapsed"
-          class="absolute inset-0 z-30"
-          :open="editorStore.inserterOpen"
-          inline
-          @close="editorStore.closeInserter()"
-          @insert="onInserterPick"
-        />
-      </div>
-
-      <main class="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6 lg:px-8">
+      <main
+        class="min-w-0 flex-1 overflow-y-auto px-4 py-6 transition-[padding] duration-200 md:px-6 lg:px-8"
+        :class="editorStore.inserterOpen ? 'pl-[336px] md:pl-[348px] lg:pl-[356px]' : ''"
+      >
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load this post" />
             <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
-            <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
           </div>
 
-          <form class="pb-editor-grid-shell rounded-lg border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-10 md:py-8" @submit.prevent="save('draft', 'save-draft')">
+          <form class="pb-editor-grid-shell rounded-lg border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-10 md:py-8" @submit.prevent="saveLocal()">
             <div class="pb-editor-row mb-8">
               <div class="pb-editor-gutter" aria-hidden="true" />
               <input
@@ -176,27 +124,31 @@ import type { Editor } from '@tiptap/core'
 import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import EditorSidebar from '~/components/admin/editor/EditorSidebar.vue'
-import { extractTableOfContents } from '~/composables/useTableOfContents'
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
 
 type BlockEditorInstance = InstanceType<typeof BlockEditor> & { editor?: Editor, pickBlock?: (name: string) => void }
-const fetchTimeoutMs = 10_000
+const readFetchTimeoutMs = 10_000
+const writeFetchTimeoutMs = 30_000
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const apiPath = computed(() => `/api/admin/posts/${encodeURIComponent(id.value)}`)
-const savingAction = ref<'save-draft' | 'publish' | 'unpublish' | null>(null)
-const notice = ref('')
+const savingAction = ref<'save-local' | 'publish' | 'unpublish' | null>(null)
+const saveStatus = ref('')
+const saveStatusType = ref<'success' | 'error'>('success')
 const saveError = ref('')
 const currentStatus = ref<PostStatus>('draft')
 const uploadingCover = ref(false)
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
-const leftPaneCollapsed = ref(false)
 const rightPaneCollapsed = ref(false)
+
+const saveStatusClass = computed(() =>
+  saveStatusType.value === 'error' ? 'text-red-600' : 'text-stone-500'
+)
 
 function onInserterPick(name: string) {
   blockEditorRef.value?.pickBlock?.(name)
@@ -228,30 +180,24 @@ const { data: categoriesData, refresh: refreshCategories } = useLazyAsyncData('a
 const { data: tagsData, refresh: refreshTags } = useLazyAsyncData('admin-post-tags', () => fetchAdmin<{ tags: TagRecord[] }>('/api/admin/tags'), { default: () => ({ tags: [] }) })
 const categories = computed(() => categoriesData.value?.categories ?? [])
 const tags = computed(() => tagsData.value?.tags ?? [])
-const tocItems = computed(() => extractTableOfContents(form.content))
 
-const selectedCategoryNames = computed(() => {
-  const fromIds = categories.value
-    .filter((category) => form.category_ids.includes(category.id))
-    .map((category) => category.name)
-  return Array.from(new Set([...fromIds, ...form.category_names]))
-})
-
-const selectedTagNames = computed(() => {
-  const fromIds = tags.value
-    .filter((tag) => form.tag_ids.includes(tag.id))
-    .map((tag) => tag.name)
-  return Array.from(new Set([...fromIds, ...form.tag_names]))
-})
-
-const moreMenuItems = computed(() => [[
-  {
+const moreMenuItems = computed(() => {
+  const items: any[][] = []
+  if (currentStatus.value === 'published') {
+    items.push([{
+      label: 'Unpublish',
+      icon: 'i-lucide-rotate-ccw',
+      onSelect: () => save('draft', 'unpublish')
+    }])
+  }
+  items.push([{
     label: 'Archive',
     icon: 'i-lucide-archive',
     color: 'error' as const,
     onSelect: archivePost
-  }
-]])
+  }])
+  return items
+})
 
 watch(post, (value) => {
   if (!value) {
@@ -273,11 +219,62 @@ watch(post, (value) => {
   form.content = value.content_json
 }, { immediate: true })
 
-async function save(nextStatus: PostStatus, action: 'save-draft' | 'publish' | 'unpublish') {
-  savingAction.value = action
-  notice.value = ''
+// ─── LOCAL SAVE (localStorage) ───────────────────────────────────────────────
+const localStorageKey = computed(() => `pb-post-local-${id.value}`)
+
+function saveLocal() {
+  savingAction.value = 'save-local'
   saveError.value = ''
-  const previousStatus = currentStatus.value
+  try {
+    const payload = {
+      title: form.title,
+      slug: form.slug,
+      summary: form.summary,
+      cover_image: form.cover_image,
+      category_ids: form.category_ids,
+      tag_ids: form.tag_ids,
+      category_names: form.category_names,
+      tag_names: form.tag_names,
+      visibility: form.visibility,
+      password: form.password,
+      password_hint: form.password_hint,
+      content_json: form.content
+    }
+    localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
+    const timeStr = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date())
+    saveStatus.value = `Saved locally at ${timeStr}`
+    saveStatusType.value = 'success'
+  } catch (err: any) {
+    saveError.value = 'Local save failed'
+    saveStatus.value = 'Save failed'
+    saveStatusType.value = 'error'
+  } finally {
+    savingAction.value = null
+  }
+}
+
+function clearLocalSave() {
+  localStorage.removeItem(localStorageKey.value)
+}
+
+function loadLocalSave() {
+  try {
+    const raw = localStorage.getItem(localStorageKey.value)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch { return null }
+}
+
+// ─── PUBLISH / UPDATE (DB write) ─────────────────────────────────────────────
+async function publishOrUpdate() {
+  await save('published', 'publish')
+}
+
+async function save(nextStatus: PostStatus, action: 'publish' | 'unpublish') {
+  savingAction.value = action
+  saveStatus.value = 'Saving...'
+  saveStatusType.value = 'success'
+  saveError.value = ''
 
   try {
     const saved = await fetchAdmin<PostRecord>(apiPath.value, {
@@ -309,17 +306,20 @@ async function save(nextStatus: PostStatus, action: 'save-draft' | 'publish' | '
     form.password_hint = saved.password_hint ?? ''
     form.password = ''
     post.value = saved
+    clearLocalSave()
     await Promise.all([refreshCategories(), refreshTags()])
 
+    const timeStr = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date())
     if (action === 'publish') {
-      notice.value = previousStatus === 'published' ? 'Updated' : 'Published'
+      saveStatus.value = currentStatus.value === 'published' ? `Updated at ${timeStr}` : `Published at ${timeStr}`
     } else if (action === 'unpublish') {
-      notice.value = 'Moved to draft'
-    } else {
-      notice.value = 'Saved draft'
+      saveStatus.value = `Unpublished at ${timeStr}`
     }
+    saveStatusType.value = 'success'
   } catch (err: any) {
     saveError.value = err?.statusMessage ?? err?.message ?? 'Save failed'
+    saveStatus.value = 'Save failed'
+    saveStatusType.value = 'error'
   } finally {
     savingAction.value = null
   }
@@ -334,10 +334,31 @@ async function archivePost() {
 // save is already in flight, and only saves as draft (never publishes).
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
+  // Restore local draft if available
+  const local = loadLocalSave()
+  if (local && post.value) {
+    Object.assign(form, {
+      title: local.title ?? form.title,
+      slug: local.slug ?? form.slug,
+      summary: local.summary ?? form.summary,
+      cover_image: local.cover_image ?? form.cover_image,
+      category_ids: local.category_ids ?? form.category_ids,
+      tag_ids: local.tag_ids ?? form.tag_ids,
+      category_names: local.category_names ?? [],
+      tag_names: local.tag_names ?? [],
+      visibility: local.visibility ?? form.visibility,
+      password: local.password ?? '',
+      password_hint: local.password_hint ?? form.password_hint,
+      content: local.content_json ?? form.content
+    })
+    saveStatus.value = 'Unsaved local changes'
+    saveStatusType.value = 'success'
+  }
+
   autoSaveTimer = setInterval(() => {
     if (savingAction.value) return
     if (currentStatus.value === 'archived') return
-    void save(currentStatus.value === 'published' ? 'published' : 'draft', 'save-draft')
+    saveLocal()
   }, 5 * 60 * 1000)
 })
 onBeforeUnmount(() => {
@@ -383,8 +404,11 @@ function formatDate(value: string) {
 }
 
 function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {
+  const method = String(options.method ?? 'GET').toUpperCase()
+  const timeoutMs = method === 'GET' ? readFetchTimeoutMs : writeFetchTimeoutMs
+
   return $fetch<T>(url, {
-    timeout: fetchTimeoutMs,
+    timeout: timeoutMs,
     ...options
   })
 }

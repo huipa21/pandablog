@@ -140,7 +140,13 @@ function collectHashes(value: unknown, hashes: Set<string>) {
 }
 
 function parseHashesFromString(value: string) {
-  const decoded = decodeURIComponent(value)
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(value)
+  } catch {
+    // If decodeURIComponent fails (malformed URI), use the value as-is
+    decoded = value
+  }
   const hashes = new Set<string>()
   const mediaUrlPattern = /\/api\/media\/(?:file|thumbnail|variant\/(?:thumbnail|medium|large))\/(?:files:)?([a-f0-9]{64})/gi
   const recordPattern = /\bfiles:([a-f0-9]{64})\b/gi

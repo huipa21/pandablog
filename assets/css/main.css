@@ -159,11 +159,17 @@ html {
   list-style: decimal;
 }
 
-.tiptap-editor .ProseMirror blockquote {
+/* Legacy plain blockquote style in editor */
+.tiptap-editor .ProseMirror blockquote:not([data-node-view-wrapper]) {
   border-left: 4px solid #0f766e;
   color: #475569;
   margin: 1rem 0;
   padding-left: 1rem;
+}
+
+/* Quote nodeview editor styles */
+.tiptap-editor .ProseMirror .quote-nodeview .quote-block {
+  --quote-accent: #f59e0b;
 }
 
 .tiptap-editor .ProseMirror pre:not(.codeblock-pre) {
