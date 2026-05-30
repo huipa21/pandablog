@@ -29,8 +29,8 @@
             <UButton to="/" variant="ghost" color="neutral" size="sm">Blog</UButton>
           </div>
         </div>
-        <UButton to="/admin/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
-          Login
+        <UButton :to="authLink" variant="ghost" color="neutral" :icon="authIcon" size="sm">
+          {{ authLabel }}
         </UButton>
       </div>
       <!-- Mobile nav dropdown -->
@@ -107,6 +107,11 @@ const {
 } = useSiteSettings()
 
 const mobileNav = ref(false)
+const { data: authSession } = await usePublicAuthSession()
+const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
+const authLink = computed(() => isLoggedIn.value ? '/admin' : '/admin/login')
+const authIcon = computed(() => isLoggedIn.value ? 'i-lucide-layout-dashboard' : 'i-lucide-log-in')
+const authLabel = computed(() => isLoggedIn.value ? 'Admin' : 'Login')
 
 useHead(() => ({
   title: siteName.value,

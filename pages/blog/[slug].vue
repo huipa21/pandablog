@@ -17,11 +17,6 @@
 
     <div class="pb-content-frame mx-auto">
       <article v-if="post && !error && !isLocked(post)" class="theme-scope overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-        <div class="flex items-center gap-2 border-b border-stone-100 px-6 py-3 md:px-8">
-          <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="xs">
-            Back
-          </UButton>
-        </div>
         <img
           v-if="post.cover_image"
           :src="post.cover_image"
@@ -30,9 +25,25 @@
         >
         <div class="p-6 md:p-8">
           <header class="mb-8 border-b border-stone-200 pb-6">
-            <time v-if="post.published_at" :datetime="post.published_at" class="text-sm text-stone-500">
-              {{ formatDate(post.published_at) }}
-            </time>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-500">
+                <time v-if="post.published_at" :datetime="post.published_at">
+                  {{ formatDate(post.published_at) }}
+                </time>
+                <span class="inline-flex items-center gap-1.5">
+                  <UIcon name="i-lucide-eye" class="size-4" />
+                  {{ formatViews(post.view_count) }}
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <UButton v-if="isLoggedIn" :to="editLink" variant="soft" color="neutral" icon="i-lucide-pencil" size="xs">
+                  Edit
+                </UButton>
+                <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="xs">
+                  Back
+                </UButton>
+              </div>
+            </div>
             <h1 class="mt-2 text-3xl font-bold tracking-normal text-stone-950 md:text-4xl">{{ post.title }}</h1>
             <p v-if="post.summary" class="mt-3 text-lg leading-relaxed text-stone-600">{{ post.summary }}</p>
           </header>
@@ -75,7 +86,18 @@ definePageMeta({ layout: false })
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug))
-const { data: post, error } = await useAsyncData(`post-${slug.value}`, () => $fetch<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`))
+const fetchWithSession = import.meta.server ? useRequestFetch() : $fetch
+const { data: post, error } = await useAsyncData(`post-${slug.value}`, () => fetchWithSession<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`))
+const { data: authSession } = await usePublicAuthSession()
+const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
+const editLink = computed(() => {
+  const value = post.value
+  if (!value || isLocked(value)) {
+    return '/admin/posts'
+  }
+
+  return `/admin/posts/${encodeURIComponent(value.id)}`
+})
 
 const isSitePrivateError = computed(() => {
   const err = error.value as {
@@ -93,6 +115,11 @@ const isSitePrivateError = computed(() => {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+}
+
+function formatViews(value: number) {
+  const count = Math.max(0, Number(value) || 0)
+  return `${new Intl.NumberFormat('en').format(count)} ${count === 1 ? 'view' : 'views'}`
 }
 
 function isLocked(value: PostRecord | PostLockedResponse): value is PostLockedResponse {

@@ -1,26 +1,45 @@
 <template>
   <section class="grid gap-6">
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-      <div>
-        <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Content</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">Posts</h1>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <USelect
-          v-model="statusFilter"
-          :items="statusFilterOptions"
-          size="sm"
-          class="w-44"
-        />
-        <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ selectedIds.length }} selected</UBadge>
-        <UDropdownMenu v-if="selectedIds.length" :items="actionsMenuItems">
-          <UButton icon="i-lucide-list-checks" color="neutral" variant="soft" :loading="bulkDeleting" :disabled="bulkDeleting">
-            Actions
+    <div class="grid gap-4">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Content</p>
+          <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">Posts</h1>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ selectedIds.length }} selected</UBadge>
+          <UDropdownMenu v-if="selectedIds.length" :items="actionsMenuItems">
+            <UButton icon="i-lucide-list-checks" color="neutral" variant="soft" :loading="bulkDeleting" :disabled="bulkDeleting">
+              Actions
+            </UButton>
+          </UDropdownMenu>
+          <UBadge v-if="quickEditEnabled && !isArchivedView" color="primary" variant="subtle">Quick Edit ON</UBadge>
+          <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
+            New post
           </UButton>
-        </UDropdownMenu>
-        <UBadge v-if="quickEditEnabled && !isArchivedView" color="primary" variant="subtle">Quick Edit ON</UBadge>
-        <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
-          New post
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
+        <USelect v-model="statusFilter" :items="statusFilterOptions" size="sm" class="w-40" />
+        <USelect v-model="sortBy" :items="sortOptions" size="sm" class="w-48" />
+        <AdminMultiSelectFilter
+          v-model="selectedCategoryIds"
+          :items="categoryFilterOptions"
+          label="Categories"
+          placeholder="Categories"
+          icon="i-lucide-folder"
+        />
+        <AdminMultiSelectFilter
+          v-model="selectedTagIds"
+          :items="tagFilterOptions"
+          label="Tags"
+          placeholder="Tags"
+          icon="i-lucide-tags"
+        />
+        <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28" />
+        <UButton v-if="filtersActive" size="sm" variant="ghost" color="neutral" icon="i-lucide-x" @click="clearFilters">
+          Clear
         </UButton>
       </div>
     </div>
@@ -50,11 +69,11 @@
                 >
               </th>
               <th class="min-w-64 px-4 py-3 font-medium">Title</th>
-              <th class="min-w-44 px-4 py-3 font-medium">Slug</th>
               <th class="min-w-48 px-4 py-3 font-medium">Tags</th>
               <th class="min-w-48 px-4 py-3 font-medium">Categories</th>
               <th class="min-w-40 px-4 py-3 font-medium">Privacy</th>
               <th class="min-w-32 px-4 py-3 font-medium">Status</th>
+              <th class="min-w-36 px-4 py-3 font-medium">Published</th>
               <th class="min-w-32 px-4 py-3 font-medium">Updated</th>
             </tr>
           </thead>
@@ -84,22 +103,6 @@
                 >
                 <button v-else type="button" class="block w-full text-left font-medium text-stone-950 hover:text-teal-700">
                   {{ post.title || 'Untitled' }}
-                </button>
-              </td>
-
-              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'slug') : undefined">
-                <input
-                  v-if="isEditing(post, 'slug')"
-                  v-model="draft.slug"
-                  :data-inline-editor="inlineEditorKey(post.id, 'slug')"
-                  class="w-full rounded border border-teal-300 bg-white px-2 py-1.5 text-sm text-stone-700 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                  @click.stop
-                  @keydown.enter.prevent="saveCurrentCell({ close: true })"
-                  @keydown.esc.prevent="cancelCellEdit"
-                  @blur="saveCurrentCell({ close: true })"
-                >
-                <button v-else type="button" class="block w-full text-left text-stone-600 hover:text-teal-700">
-                  /{{ post.slug }}
                 </button>
               </td>
 
@@ -208,7 +211,11 @@
               </td>
 
               <td class="px-4 py-3 align-top text-stone-600">
-                <span>{{ formatDate(post.updated_at) }}</span>
+                {{ formatDate(post.published_at, 'Not published') }}
+              </td>
+
+              <td class="px-4 py-3 align-top text-stone-600">
+                <span>{{ formatDate(post.updated_at, 'Not set') }}</span>
                 <span v-if="isSavingPost(post.id)" class="mt-1 block text-xs text-teal-700">Saving...</span>
               </td>
             </tr>
@@ -217,6 +224,17 @@
       </div>
 
       <UEmpty v-else icon="i-lucide-file-text" title="No posts yet" description="Create your first draft to start building the knowledge base." class="py-12" />
+
+      <div v-if="!pending && totalPosts > 0" class="flex flex-col gap-3 border-t border-stone-100 px-4 py-3 text-sm text-stone-600 md:flex-row md:items-center md:justify-between">
+        <span>{{ pageRangeLabel }}</span>
+        <div class="flex items-center gap-2">
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" aria-label="First page" :disabled="page <= 1" @click="goToPage(1)" />
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" aria-label="Previous page" :disabled="page <= 1" @click="goToPage(page - 1)" />
+          <span class="min-w-24 text-center">Page {{ page }} of {{ totalPages }}</span>
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" aria-label="Next page" :disabled="page >= totalPages" @click="goToPage(page + 1)" />
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-right" aria-label="Last page" :disabled="page >= totalPages" @click="goToPage(totalPages)" />
+        </div>
+      </div>
     </div>
 
     <AdminConfirmActionDialog
@@ -240,23 +258,52 @@ definePageMeta({ layout: 'admin' })
 
 type PostStatusFilter = PostStatus | 'all'
 type BulkIntent = 'archive' | 'hard-delete' | 'mixed'
+type AdminPostSort = 'updated_desc' | 'updated_asc' | 'published_desc' | 'published_asc'
+type PerPageOption = '10' | '25' | '50' | '100'
 
-type EditableField = 'title' | 'slug' | 'tags' | 'categories' | 'visibility' | 'status'
+type EditableField = 'title' | 'tags' | 'categories' | 'visibility' | 'status'
 
 const creating = ref(false)
 const statusFilter = ref<PostStatusFilter>('all')
 const statusFilterOptions = [
-  { label: 'All (active)', value: 'all' },
+  { label: 'All active', value: 'all' },
   { label: 'Draft', value: 'draft' },
   { label: 'Published', value: 'published' },
   { label: 'Archived', value: 'archived' }
 ]
+const sortBy = ref<AdminPostSort>('updated_desc')
+const sortOptions = [
+  { label: 'Updated newest', value: 'updated_desc' },
+  { label: 'Updated oldest', value: 'updated_asc' },
+  { label: 'Published newest', value: 'published_desc' },
+  { label: 'Published oldest', value: 'published_asc' }
+]
+const perPage = ref<PerPageOption>('10')
+const perPageOptions = [
+  { label: '10 / page', value: '10' },
+  { label: '25 / page', value: '25' },
+  { label: '50 / page', value: '50' },
+  { label: '100 / page', value: '100' }
+]
+const selectedTagIds = ref<string[]>([])
+const selectedCategoryIds = ref<string[]>([])
+const page = ref(1)
+const perPageNumber = computed(() => Number(perPage.value))
+const start = computed(() => (page.value - 1) * perPageNumber.value)
+const postListQuery = computed(() => ({
+  ...(statusFilter.value === 'all' ? {} : { status: statusFilter.value }),
+  sort: sortBy.value,
+  limit: perPageNumber.value,
+  start: start.value,
+  ...(selectedTagIds.value.length ? { tag_ids: selectedTagIds.value.join(',') } : {}),
+  ...(selectedCategoryIds.value.length ? { category_ids: selectedCategoryIds.value.join(',') } : {})
+}))
 const { data, pending, error, refresh } = await useAsyncData(
   'admin-posts',
-  () => $fetch<{ posts: PostRecord[] }>('/api/admin/posts', {
-    query: statusFilter.value === 'all' ? {} : { status: statusFilter.value }
+  () => $fetch<{ posts: PostRecord[], total: number, limit: number, start: number }>('/api/admin/posts', {
+    query: postListQuery.value
   }),
-  { watch: [statusFilter] }
+  { watch: [postListQuery] }
 )
 const { data: taxonomyData, error: taxonomyError, refresh: refreshTaxonomy } = await useAsyncData('admin-post-taxonomy-options', async () => {
   const [tagResponse, categoryResponse] = await Promise.all([
@@ -271,9 +318,30 @@ const { data: taxonomyData, error: taxonomyError, refresh: refreshTaxonomy } = a
 })
 
 const posts = computed(() => data.value?.posts ?? [])
+const totalPosts = computed(() => data.value?.total ?? 0)
+const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / perPageNumber.value)))
+const pageRangeLabel = computed(() => {
+  if (!totalPosts.value) {
+    return 'Showing 0 posts'
+  }
+
+  const first = start.value + 1
+  const last = Math.min(start.value + posts.value.length, totalPosts.value)
+  return `Showing ${first}-${last} of ${totalPosts.value}`
+})
 const tagOptions = computed(() => taxonomyData.value?.tags ?? [])
 const categoryOptions = computed(() => taxonomyData.value?.categories ?? [])
+const tagFilterOptions = computed(() => tagOptions.value.map((tag) => ({ id: tag.id, name: tag.name })))
+const categoryFilterOptions = computed(() => flattenCategoryOptions(categoryOptions.value).map((entry) => ({
+  id: entry.category.id,
+  name: entry.category.name,
+  level: entry.level
+})))
 const isArchivedView = computed(() => statusFilter.value === 'archived')
+const filtersActive = computed(() => statusFilter.value !== 'all'
+  || sortBy.value !== 'updated_desc'
+  || selectedTagIds.value.length > 0
+  || selectedCategoryIds.value.length > 0)
 
 const createError = ref('')
 const listError = ref('')
@@ -285,7 +353,6 @@ const savingCellKey = ref('')
 const rowClickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const draft = reactive({
   title: '',
-  slug: '',
   status: 'draft' as PostStatus,
   visibility: 'public' as PostVisibility,
   tagIds: [] as string[],
@@ -376,12 +443,26 @@ onBeforeUnmount(() => {
   clearRowClickTimer()
 })
 
-watch(statusFilter, () => {
+watch([statusFilter, sortBy, perPage, selectedTagIds, selectedCategoryIds], () => {
+  page.value = 1
   selectedIds.value = []
+  cancelCellEdit()
   closeConfirmDialog()
   if (statusFilter.value === 'archived' && quickEditEnabled.value) {
     quickEditEnabled.value = false
     cancelCellEdit()
+  }
+})
+
+watch(page, () => {
+  selectedIds.value = []
+  cancelCellEdit()
+  closeConfirmDialog()
+})
+
+watch(totalPages, (next) => {
+  if (page.value > next) {
+    page.value = next
   }
 })
 
@@ -424,7 +505,6 @@ function startCellEdit(post: PostRecord, field: EditableField) {
   listError.value = ''
   editingCell.value = { postId: post.id, field }
   draft.title = post.title
-  draft.slug = post.slug
   draft.status = post.status === 'archived' ? 'draft' : post.status
   draft.visibility = post.visibility ?? 'public'
   draft.tagIds = post.tags?.map((tag) => tag.id) ?? post.tag_ids ?? []
@@ -508,10 +588,6 @@ async function saveCurrentCell(options: { close?: boolean } = {}) {
 function updateBodyForCell(field: EditableField): Record<string, unknown> {
   if (field === 'title') {
     return { title: draft.title }
-  }
-
-  if (field === 'slug') {
-    return { slug: draft.slug }
   }
 
   if (field === 'status') {
@@ -765,6 +841,50 @@ function splitNames(value: string) {
   ))
 }
 
+function clearFilters() {
+  statusFilter.value = 'all'
+  sortBy.value = 'updated_desc'
+  selectedTagIds.value = []
+  selectedCategoryIds.value = []
+  page.value = 1
+}
+
+function goToPage(nextPage: number) {
+  page.value = Math.min(Math.max(nextPage, 1), totalPages.value)
+}
+
+function flattenCategoryOptions(categories: CategoryRecord[]) {
+  const categoryMap = new Map(categories.map((category) => [category.id, category]))
+  const nonDefaultCategories = categories.filter((category) => category.slug !== 'default')
+  const childrenByParent = new Map<string | null, CategoryRecord[]>()
+  const rows: Array<{ category: CategoryRecord, level: number }> = []
+
+  for (const category of nonDefaultCategories) {
+    const parentId = category.parent_id && categoryMap.has(category.parent_id) && categoryMap.get(category.parent_id)?.slug !== 'default'
+      ? category.parent_id
+      : null
+    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), category])
+  }
+
+  for (const children of childrenByParent.values()) {
+    children.sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  for (const category of categories.filter((item) => item.slug === 'default').sort((left, right) => left.name.localeCompare(right.name))) {
+    rows.push({ category, level: 0 })
+  }
+
+  appendCategoryRows(null, 0)
+  return rows
+
+  function appendCategoryRows(parentId: string | null, level: number) {
+    for (const category of childrenByParent.get(parentId) ?? []) {
+      rows.push({ category, level })
+      appendCategoryRows(category.id, level + 1)
+    }
+  }
+}
+
 function visibilityLabel(value: PostVisibility | undefined) {
   if (value === 'private') {
     return 'Private'
@@ -789,7 +909,11 @@ function visibilityIcon(value: PostVisibility | undefined) {
   return 'i-lucide-globe-2'
 }
 
-function formatDate(value: string) {
+function formatDate(value: string | null | undefined, fallback: string) {
+  if (!value) {
+    return fallback
+  }
+
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 

@@ -12,6 +12,7 @@
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
   <NodeQuoteBlock v-else-if="node.type === 'blockquote'" :node="node" />
+  <NodeFootnotesBlock v-else-if="node.type === 'footnotesBlock'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
     <ContentRenderer v-for="(child, index) in node.content ?? []" :key="index" :node="child" />
   </component>
@@ -22,6 +23,7 @@ import type { JsonContent } from '~/types/content'
 import NodeCodeBlock from './NodeCodeBlock.vue'
 import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeImage from './NodeImage.vue'
+import NodeFootnotesBlock from './NodeFootnotesBlock.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
 import NodeQuoteBlock from './NodeQuoteBlock.vue'

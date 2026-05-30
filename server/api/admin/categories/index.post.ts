@@ -1,7 +1,7 @@
 import { queryDb, useDb } from '../../../utils/db'
 import { requireAdminUser } from '../../../utils/auth'
 import { firstRow } from '../../../utils/surrealResult'
-import { normalizeCategory, taxonomyName, uniqueTaxonomySlug } from '../../../utils/taxonomy'
+import { assertValidCategoryParent, normalizeCategory, taxonomyName, taxonomyParentId, uniqueTaxonomySlug } from '../../../utils/taxonomy'
 import { stringOrNull } from '../../../utils/content'
 
 export default defineEventHandler(async (event) => {
@@ -12,13 +12,22 @@ export default defineEventHandler(async (event) => {
   const db = await useDb()
   const slug = await uniqueTaxonomySlug(db, 'category', String(body.slug || name))
   const description = stringOrNull(body.description)
-  const category: Record<string, unknown> = { name, slug }
+  const parentId = taxonomyParentId(body.parent_id ?? body.parent)
 
-  if (description) {
-    category.description = description
+  if (slug === 'default' && parentId) {
+    throw createError({ statusCode: 400, message: 'Default category cannot be nested' })
   }
 
-  const response = await queryDb(db, 'CREATE category CONTENT $category;', { category })
+  await assertValidCategoryParent(db, null, parentId, slug)
+
+  const descriptionSql = description ? ', description = $description' : ''
+  const parentSql = parentId ? 'type::record($categoryTable, $parentId)' : 'NONE'
+
+  const response = await queryDb(
+    db,
+    `CREATE category SET name = $name, slug = $slug, parent = ${parentSql}${descriptionSql};`,
+    { name, slug, description, categoryTable: 'category', parentId }
+  )
   const created = firstRow<Record<string, unknown>>(response)
 
   if (!created) {

@@ -430,7 +430,7 @@ const editor = useEditor({
       const id = href.slice(1)
 
       if (id.startsWith('fnref-')) {
-        const index = Number(id.replace('fnref-fn-', ''))
+        const index = resolveFootnoteIndexFromAnchor(view, id, target, 'fnref-')
         if (Number.isFinite(index) && index > 0) {
           return jumpToFootnoteReference(view, index)
         }
@@ -438,7 +438,7 @@ const editor = useEditor({
       }
 
       if (id.startsWith('fn-')) {
-        const index = Number(id.replace('fn-', ''))
+        const index = resolveFootnoteIndexFromAnchor(view, id, target, 'fn-')
         if (Number.isFinite(index) && index > 0) {
           return jumpToFootnoteItem(view, index)
         }
@@ -1289,6 +1289,36 @@ function jumpToFootnoteItem(view: EditorView, index: number) {
   view.focus()
   highlightFootnoteTarget(targetPos)
   return true
+}
+
+function resolveFootnoteIndexFromAnchor(view: EditorView, anchorId: string, target: HTMLElement | null, prefix: 'fn-' | 'fnref-') {
+  const footnoteSup = target?.closest('.footnote-ref') as HTMLElement | null
+  const elementIndex = Number(footnoteSup?.getAttribute('data-footnote-index') ?? '')
+  if (Number.isFinite(elementIndex) && elementIndex > 0) {
+    return elementIndex
+  }
+
+  return findFootnoteIndexById(view, anchorId.slice(prefix.length))
+}
+
+function findFootnoteIndexById(view: EditorView, footnoteId: string) {
+  let index = 0
+
+  view.state.doc.descendants((node) => {
+    if (index > 0 || !node.marks?.length) return false
+    for (const mark of node.marks) {
+      if (mark.type.name !== 'footnote') continue
+      if (String(mark.attrs.id ?? '') !== footnoteId) continue
+      const value = Number(mark.attrs.index ?? 0)
+      if (Number.isFinite(value) && value > 0) {
+        index = value
+        return false
+      }
+    }
+    return undefined
+  })
+
+  return index
 }
 
 function jumpToFootnoteReference(view: EditorView, index: number) {
@@ -2269,7 +2299,41 @@ function syncSelectedBlock(ed: Editor) {
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnotes-block > ol) {
+  counter-reset: footnote-item;
+  display: grid;
+  gap: 0.375rem;
+  list-style: none;
   margin: 0;
+  padding-left: 0;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block li[data-footnote-id]) {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.5rem;
+  scroll-margin-top: 5rem;
+  counter-increment: footnote-item;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block li[data-footnote-id]::before) {
+  color: rgb(15 118 110);
+  content: counter(footnote-item) ".";
+  grid-column: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block li[data-footnote-id] > :not(.footnote-backref)) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block li[data-footnote-id] > :not(.footnote-backref):first-child) {
+  margin-top: 0;
+}
+
+:deep(.pandablog-block-editor .ProseMirror .footnotes-block li[data-footnote-id] > :not(.footnote-backref):last-child) {
+  margin-bottom: 0;
 }
 
 :deep(.pandablog-block-editor .ProseMirror a) {

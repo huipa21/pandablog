@@ -18,8 +18,14 @@
   <sup v-else-if="currentMark.type === 'superscript'">
     <ContentText :text="text" :marks="remainingMarks" />
   </sup>
-  <sup v-else-if="currentMark.type === 'footnote'" class="footnote-ref">
-    <a :href="`#fn-${currentMark.attrs?.id}`" :id="`fnref-${currentMark.attrs?.id}`">
+  <sup
+    v-else-if="currentMark.type === 'footnote'"
+    :id="`fnref-${footnoteId}`"
+    class="footnote-ref"
+    :data-footnote-id="footnoteId"
+    :data-footnote-index="footnoteIndex"
+  >
+    <a :href="`#fn-${footnoteId}`">
       {{ footnoteIndex }}
     </a>
   </sup>
@@ -106,6 +112,11 @@ const markStyle = computed(() => {
 const footnoteIndex = computed(() => {
   const n = Number(currentMark.value?.attrs?.index ?? props.text)
   return Number.isFinite(n) ? String(n) : String(props.text)
+})
+
+const footnoteId = computed(() => {
+  const id = currentMark.value?.attrs?.id
+  return typeof id === 'string' && id.trim() ? id.trim() : footnoteIndex.value
 })
 
 function safeCssValue(value: unknown) {

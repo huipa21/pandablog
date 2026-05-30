@@ -68,7 +68,11 @@
               </td>
             </template>
             <template v-else>
-              <td class="px-4 py-3 font-medium text-stone-950">{{ tag.name }}</td>
+              <td class="px-4 py-3 font-medium text-stone-950">
+                <NuxtLink :to="`/admin/tags/${encodeURIComponent(tag.id)}`" class="hover:text-teal-700">
+                  {{ tag.name }}
+                </NuxtLink>
+              </td>
               <td class="px-4 py-3 text-stone-600">/{{ tag.slug }}</td>
               <td class="px-4 py-3 text-stone-600">{{ tag.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">

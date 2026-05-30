@@ -1,8 +1,9 @@
 import { queryDb, useDb } from '../../utils/db'
 import { normalizePost } from '../../utils/content'
-import { firstRow, stringifyRecordId } from '../../utils/surrealResult'
+import { firstRow, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
 import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../utils/visibility'
 import { buildDocFromBlocks, loadBlocksForPost } from '../../utils/blocks'
+import { isAdminAuthenticated } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
@@ -12,6 +13,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await useDb()
+  const isAdmin = await isAdminAuthenticated(event)
   const response = await queryDb(
     db,
     'SELECT * FROM post WHERE slug = $slug AND status = "published" LIMIT 1;',
@@ -47,7 +49,8 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const sanitized = sanitizePost(post)
+  const visiblePost = isAdmin ? post : await incrementPostViewCount(db, post)
+  const sanitized = sanitizePost(visiblePost)
   const normalized = normalizePost(sanitized)
   const blocks = await loadBlocksForPost(db, normalized.id)
 
@@ -60,4 +63,16 @@ export default defineEventHandler(async (event) => {
 
 function toPostVisibility(value: unknown): PostVisibility {
   return value === 'private' || value === 'password' ? value : 'public'
+}
+
+async function incrementPostViewCount(db: Awaited<ReturnType<typeof useDb>>, post: Record<string, unknown>) {
+  const id = recordIdPart(stringifyRecordId(post.id), 'post')
+  const response = await queryDb(
+    db,
+    'UPDATE type::record($table, $id) SET view_count += 1 RETURN AFTER;',
+    { table: 'post', id },
+    { label: 'post view count increment', timeoutMs: 10_000 }
+  )
+
+  return firstRow<Record<string, unknown>>(response) ?? post
 }

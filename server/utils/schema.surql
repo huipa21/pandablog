@@ -22,6 +22,7 @@ DEFINE FIELD IF NOT EXISTS published_at ON post TYPE option<datetime>;
 DEFINE FIELD IF NOT EXISTS created_at ON post TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON post TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS view_count ON post TYPE int DEFAULT 0;
+UPDATE post SET view_count = 0 WHERE view_count IS NONE;
 DEFINE INDEX IF NOT EXISTS post_slug_unique ON TABLE post COLUMNS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS post_status ON TABLE post COLUMNS status;
 DEFINE INDEX IF NOT EXISTS post_published_at ON TABLE post COLUMNS published_at;
@@ -37,7 +38,9 @@ DEFINE TABLE IF NOT EXISTS category SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS name ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS description ON category TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS parent ON category TYPE option<record<category>> DEFAULT NONE;
 DEFINE INDEX IF NOT EXISTS category_slug_unique ON TABLE category COLUMNS slug UNIQUE;
+DEFINE INDEX IF NOT EXISTS category_parent ON TABLE category FIELDS parent;
 
 DEFINE TABLE IF NOT EXISTS tagged TYPE RELATION FROM post TO tag;
 DEFINE TABLE IF NOT EXISTS categorized_as TYPE RELATION FROM post TO category;

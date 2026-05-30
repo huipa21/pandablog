@@ -61,8 +61,8 @@ export const Footnote = Mark.create<FootnoteOptions>({
 
     return [
       'sup',
-      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { class: 'footnote-ref' }),
-      ['a', { id: `fnref-${id}`, href: `#fn-${id}` }, String(index)]
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { id: `fnref-${id}`, class: 'footnote-ref' }),
+      ['a', { href: `#fn-${id}` }, String(index)]
     ]
   },
 

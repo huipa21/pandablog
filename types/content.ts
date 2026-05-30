@@ -179,6 +179,7 @@ export interface CategoryRecord {
   name: string
   slug: string
   description?: string | null
+  parent_id?: string | null
   post_count?: number
 }
 

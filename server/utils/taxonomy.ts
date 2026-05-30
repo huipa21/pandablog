@@ -10,8 +10,18 @@ export function normalizeCategory(record: Record<string, unknown>): CategoryReco
     name: String(record.name ?? ''),
     slug: String(record.slug ?? ''),
     description: record.description === undefined ? null : record.description as string | null,
+    parent_id: normalizeParentRecordId(record.parent),
     post_count: Number(record.post_count ?? 0)
   }
+}
+
+function normalizeParentRecordId(value: unknown) {
+  if (!value) {
+    return null
+  }
+
+  const id = stringifyRecordId(value)
+  return id && id !== 'null' && id !== 'undefined' ? id : null
 }
 
 export function normalizeTag(record: Record<string, unknown>): TagRecord {
@@ -147,6 +157,110 @@ export function taxonomyName(value: unknown) {
     throw createError({ statusCode: 400, message: 'Name is required' })
   }
   return name
+}
+
+export function taxonomyParentId(value: unknown) {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const id = recordIdPart(value, 'category').trim()
+  return id || null
+}
+
+export async function assertValidCategoryParent(
+  db: Surreal,
+  categoryId: string | null,
+  parentId: string | null,
+  targetSlug?: string
+) {
+  if (!parentId) {
+    return
+  }
+
+  const response = await queryDb(db, 'SELECT id, slug, parent FROM category;')
+  const categories = queryRows<Record<string, unknown>>(response).map((category) => ({
+    id: stringifyRecordId(category.id),
+    idPart: recordIdPart(stringifyRecordId(category.id), 'category'),
+    slug: String(category.slug ?? ''),
+    parent_id: normalizeParentRecordId(category.parent)
+  }))
+  const parentRecordId = `category:${parentId}`
+  const current = categoryId
+    ? categories.find((category) => category.idPart === categoryId || category.id === `category:${categoryId}`)
+    : null
+  const parent = categories.find((category) => category.idPart === parentId || category.id === parentRecordId)
+
+  if (!parent) {
+    throw createError({ statusCode: 400, message: 'Parent category was not found' })
+  }
+
+  if ((targetSlug ?? current?.slug) === 'default') {
+    throw createError({ statusCode: 400, message: 'Default category cannot be nested' })
+  }
+
+  if (parent.slug === 'default') {
+    throw createError({ statusCode: 400, message: 'Default category cannot be a parent' })
+  }
+
+  if (categoryId && (parent.idPart === categoryId || parent.id === `category:${categoryId}`)) {
+    throw createError({ statusCode: 400, message: 'Category cannot be its own parent' })
+  }
+
+  if (categoryId && isDescendant(parent.id, `category:${categoryId}`, categories)) {
+    throw createError({ statusCode: 400, message: 'Category cannot use one of its children as parent' })
+  }
+
+  const parentLevel = categoryDepth(parent.id, categories)
+  const subtreeDepth = categoryId ? descendantDepth(`category:${categoryId}`, categories) : 0
+
+  if (parentLevel + 1 + subtreeDepth > 2) {
+    throw createError({ statusCode: 400, message: 'Categories can only be nested three levels deep' })
+  }
+}
+
+function categoryDepth(id: string, categories: Array<{ id: string, parent_id: string | null }>, seen = new Set<string>()): number {
+  if (seen.has(id)) {
+    return 0
+  }
+
+  seen.add(id)
+  const category = categories.find((item) => item.id === id)
+  if (!category?.parent_id || !categories.some((item) => item.id === category.parent_id)) {
+    return 0
+  }
+
+  return categoryDepth(category.parent_id, categories, seen) + 1
+}
+
+function descendantDepth(id: string, categories: Array<{ id: string, parent_id: string | null }>, seen = new Set<string>()): number {
+  if (seen.has(id)) {
+    return 0
+  }
+
+  seen.add(id)
+  const children = categories.filter((category) => category.parent_id === id)
+  if (!children.length) {
+    return 0
+  }
+
+  return Math.max(...children.map((child) => descendantDepth(child.id, categories, new Set(seen)) + 1))
+}
+
+function isDescendant(candidateId: string, ancestorId: string, categories: Array<{ id: string, parent_id: string | null }>) {
+  let current = categories.find((category) => category.id === candidateId)
+  const seen = new Set<string>()
+
+  while (current?.parent_id && !seen.has(current.id)) {
+    if (current.parent_id === ancestorId) {
+      return true
+    }
+
+    seen.add(current.id)
+    current = categories.find((category) => category.id === current?.parent_id)
+  }
+
+  return false
 }
 
 function normalizeRelationIds(values: unknown[], table: 'category' | 'tag') {
