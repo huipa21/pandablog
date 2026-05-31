@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
+import { DEFAULT_MERMAID_CODE } from '~/utils/blockDefaults'
 
 type MermaidModule = (typeof import('mermaid'))['default']
 
@@ -48,7 +49,7 @@ let mermaidInitialized = false
 
 const props = defineProps(nodeViewProps)
 
-const code = computed(() => typeof props.node.attrs.code === 'string' ? props.node.attrs.code : '')
+const code = computed(() => typeof props.node.attrs.code === 'string' ? props.node.attrs.code : DEFAULT_MERMAID_CODE)
 const modes = ['split', 'code', 'preview'] as const
 const viewMode = ref<typeof modes[number]>('preview')
 const selected = computed(() => Boolean(props.selected))

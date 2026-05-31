@@ -6,6 +6,8 @@ export const FootnotesBlockNode = Node.create({
   content: 'orderedList',
   defining: true,
   isolating: true,
+  selectable: false,
+  draggable: false,
 
   parseHTML() {
     return [{ tag: 'section[data-footnotes-block]' }]

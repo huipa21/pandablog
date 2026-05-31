@@ -1,4 +1,19 @@
 import type { JsonContent } from '~/types/content'
+import {
+  DEFAULT_BULLET_TEXT,
+  DEFAULT_CODE_TEXT,
+  DEFAULT_HEADING_TEXT,
+  DEFAULT_MERMAID_CODE,
+  DEFAULT_ORDERED_TEXT,
+  DEFAULT_PARAGRAPH_TEXT,
+  DEFAULT_QUOTE_TEXT
+} from '~/utils/blockDefaults'
+import {
+  DEFAULT_DIFF_NEW_LABEL,
+  DEFAULT_DIFF_NEW_TEXT,
+  DEFAULT_DIFF_OLD_LABEL,
+  DEFAULT_DIFF_OLD_TEXT
+} from '~/utils/diffBlock'
 
 export type BlockCategory = 'text' | 'media' | 'design' | 'embed' | 'advanced'
 
@@ -10,6 +25,7 @@ export interface BlockDefinition {
   category: BlockCategory
   keywords: string[]
   implemented: boolean
+  hidden?: boolean
   supports: {
     align?: boolean
     color?: boolean
@@ -38,7 +54,7 @@ const blockDefinitions: BlockDefinition[] = [
     keywords: ['text', 'copy', 'body'],
     implemented: true,
     supports: { align: true, color: true, typography: true, spacing: true },
-    createContent: () => ({ type: 'paragraph', content: [] })
+    createContent: () => ({ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_PARAGRAPH_TEXT }] })
   },
   {
     name: 'heading',
@@ -49,7 +65,7 @@ const blockDefinitions: BlockDefinition[] = [
     keywords: ['title', 'subtitle', 'h1', 'h2', 'h3'],
     implemented: true,
     supports: { align: true, color: true, typography: true, spacing: true },
-    createContent: () => ({ type: 'heading', attrs: { level: 2 }, content: [] })
+    createContent: () => ({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: DEFAULT_HEADING_TEXT }] })
   },
   {
     name: 'bulletList',
@@ -62,7 +78,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'bulletList',
-      content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [] }] }]
+      content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_BULLET_TEXT }] }] }]
     })
   },
   {
@@ -76,7 +92,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'orderedList',
-      content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [] }] }]
+      content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_ORDERED_TEXT }] }] }]
     })
   },
   {
@@ -91,7 +107,7 @@ const blockDefinitions: BlockDefinition[] = [
     createContent: () => ({
       type: 'blockquote',
       attrs: { style: 'bar', theme: '#0f766e', fontFamily: 'sans', fontSize: '1rem', fontColor: '#1c1917', backgroundColor: '', authorName: '', authorTitle: '' },
-      content: [{ type: 'paragraph', content: [] }]
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_QUOTE_TEXT }] }]
     })
   },
   {
@@ -138,6 +154,42 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
+    name: 'columnsBlock',
+    title: 'Columns',
+    description: 'Arrange blocks in two or three responsive columns.',
+    icon: 'i-lucide-columns-3',
+    category: 'design',
+    keywords: ['columns', 'layout', 'grid', 'two column', 'three column'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'columnsBlock',
+      attrs: { columns: 2, proportions: '1-1', blockWidth: 'content' },
+      content: [
+        { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column one' }] }] },
+        { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column two' }] }] }
+      ]
+    })
+  },
+  {
+    name: 'tabsBlock',
+    title: 'Tabs',
+    description: 'Group blocks into switchable tab panels.',
+    icon: 'i-lucide-panel-top',
+    category: 'design',
+    keywords: ['tabs', 'panel', 'accordion', 'switcher'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'tabsBlock',
+      attrs: { orientation: 'horizontal', tabStyle: 'underline', blockWidth: 'content', activeIndex: 0 },
+      content: [
+        { type: 'tabPanel', attrs: { title: 'Tab one' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First tab content' }] }] },
+        { type: 'tabPanel', attrs: { title: 'Tab two' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Second tab content' }] }] }
+      ]
+    })
+  },
+  {
     name: 'table',
     title: 'Table',
     description: 'Insert a table with editable rows and columns.',
@@ -158,8 +210,28 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'codeBlock',
-      attrs: { language: 'text', theme: 'github-dark', lineNumbers: true, wrap: true, zoom: 1, collapsed: true },
-      content: []
+      attrs: { language: 'javascript', theme: 'github-dark', lineNumbers: true, lineHighlights: '', wrap: true, zoom: 1, collapsed: true },
+      content: [{ type: 'text', text: DEFAULT_CODE_TEXT }]
+    })
+  },
+  {
+    name: 'diffBlock',
+    title: 'Diff',
+    description: 'Compare two versions line by line.',
+    icon: 'i-lucide-git-compare-arrows',
+    category: 'advanced',
+    keywords: ['diff', 'compare', 'before', 'after', 'config'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'diffBlock',
+      attrs: {
+        oldText: DEFAULT_DIFF_OLD_TEXT,
+        newText: DEFAULT_DIFF_NEW_TEXT,
+        language: 'plaintext',
+        oldLabel: DEFAULT_DIFF_OLD_LABEL,
+        newLabel: DEFAULT_DIFF_NEW_LABEL
+      }
     })
   },
   {
@@ -173,7 +245,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'mermaid',
-      attrs: { code: 'graph TD;\n  A[Idea] --> B[Connection]' }
+      attrs: { code: DEFAULT_MERMAID_CODE }
     })
   },
   {
@@ -198,6 +270,7 @@ const blockDefinitions: BlockDefinition[] = [
     category: 'text',
     keywords: ['footnote', 'reference', 'notes'],
     implemented: true,
+    hidden: true,
     supports: { spacing: true }
   },
   {
@@ -251,7 +324,9 @@ const blockDefinitions: BlockDefinition[] = [
   }
 ]
 
-const normalizedBlocks = blockDefinitions.map((block) => ({
+const visibleBlockDefinitions = blockDefinitions.filter((block) => !block.hidden)
+
+const normalizedBlocks = visibleBlockDefinitions.map((block) => ({
   ...block,
   searchText: [block.title, block.description, block.name, ...block.keywords]
     .join(' ')
@@ -264,14 +339,14 @@ export function useBlockRegistry() {
   }
 
   function getBlocksByCategory(category: BlockCategory) {
-    return blockDefinitions.filter((block) => block.category === category)
+    return visibleBlockDefinitions.filter((block) => block.category === category)
   }
 
   function searchBlocks(query: string) {
     const normalizedQuery = query.trim().toLowerCase()
 
     if (!normalizedQuery) {
-      return blockDefinitions
+      return visibleBlockDefinitions
     }
 
     return normalizedBlocks
@@ -281,7 +356,7 @@ export function useBlockRegistry() {
 
   return {
     categories: blockCategories,
-    blocks: blockDefinitions,
+    blocks: visibleBlockDefinitions,
     getBlockDefinition,
     getBlocksByCategory,
     searchBlocks

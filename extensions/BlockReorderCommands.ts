@@ -28,7 +28,8 @@ export const BlockReorderCommands = Extension.create({
           const blockInfo = getTopLevelBlock($from)
           if (!blockInfo) return false
 
-          const { blockStart, blockEnd, index } = blockInfo
+          const { blockStart, blockEnd, index, node } = blockInfo
+          if (node.type.name === 'footnotesBlock') return false
           if (index === 0) return false // Already first block
 
           // Find previous sibling
@@ -67,7 +68,8 @@ export const BlockReorderCommands = Extension.create({
           const blockInfo = getTopLevelBlock($from)
           if (!blockInfo) return false
 
-          const { blockStart, blockEnd, index } = blockInfo
+          const { blockStart, blockEnd, index, node } = blockInfo
+          if (node.type.name === 'footnotesBlock') return false
           if (index >= state.doc.childCount - 1) return false // Already last block
 
           // Find next sibling
@@ -78,9 +80,15 @@ export const BlockReorderCommands = Extension.create({
             if (i === index + 1) {
               nextStart = offset
               nextEnd = offset + node.nodeSize
+              if (node.type.name === 'footnotesBlock') {
+                nextStart = -1
+                nextEnd = -1
+              }
             }
             i++
           })
+
+          if (nextStart < 0 || nextEnd < 0) return false
 
           if (!dispatch) return true
 
@@ -131,7 +139,7 @@ function getTopLevelBlock($from: any) {
   })
 
   if (index < 0) return null
-  return { blockStart, blockEnd, index }
+  return { blockStart, blockEnd, index, node: $from.node(blockDepth) }
 }
 
 /**

@@ -203,9 +203,10 @@ function onPreviewMessage(event: MessageEvent) {
     heightUpdateTimer = setTimeout(() => {
       const nextHeight = Math.min(6000, Math.max(160, Math.round(event.data.height + 4)))
       const currentHeight = iframeHeight.value
+      const delta = nextHeight - currentHeight
 
-      // Only update if there's a meaningful difference (> 2px to avoid jitter)
-      if (Math.abs(nextHeight - currentHeight) > 2) {
+      // Ignore tiny upward steps caused by viewport-height content reacting to the iframe resize.
+      if (Math.abs(delta) > 1 && !(delta > 0 && delta <= 8)) {
         iframeHeight.value = nextHeight
       }
       heightUpdateTimer = null

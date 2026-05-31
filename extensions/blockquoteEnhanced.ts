@@ -27,7 +27,7 @@ export type QuoteFontFamily = (typeof QUOTE_FONT_FAMILIES)[number]['value']
 export const BlockquoteEnhanced = Node.create({
   name: 'blockquote',
   group: 'block',
-  content: 'block+',
+  content: 'paragraph+',
   defining: true,
 
   addAttributes() {

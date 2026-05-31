@@ -3,6 +3,7 @@
     :class="['codeblock-public-wrap', `code-theme-${theme}`]"
     :data-theme="theme"
     :data-language="language"
+    :data-line-highlights="lineHighlights"
     :data-wrap="wrapLines ? 'true' : 'false'"
     :data-zoom="zoom"
     :style="{ '--pb-code-zoom': String(zoom) }"
@@ -85,7 +86,7 @@
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
-import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME } from '~/extensions/codeBlockEnhanced'
+import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
 import { all, createLowlight } from 'lowlight'
 
 const htmlCache = new Map<string, string>()
@@ -110,6 +111,8 @@ const theme = computed(() => {
   return supportedThemes.has(value) ? value : DEFAULT_CODE_THEME
 })
 const lineNumbers = computed(() => props.node.attrs?.lineNumbers !== false)
+const lineHighlights = computed(() => normalizeCodeLineHighlights(props.node.attrs?.lineHighlights))
+const highlightedLineSet = computed(() => parseCodeLineHighlights(lineHighlights.value))
 const fileName = computed(() => typeof props.node.attrs?.fileName === 'string' ? props.node.attrs.fileName : '')
 const showTotalLines = computed(() => props.node.attrs?.showTotalLines === true)
 const languageLabel = computed(() => languageLabelMap.get(language.value) ?? language.value)
@@ -118,7 +121,7 @@ const wrapLines = ref(props.node.attrs?.wrap !== false)
 const zoom = ref(clampZoom(props.node.attrs?.zoom))
 
 const copied = ref(false)
-const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${code.value}`
+const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${lineNumbers.value ? '1' : '0'}\u0000${lineHighlights.value}\u0000${code.value}`
 const initialRendered = renderLowlightHtml(code.value, language.value)
 htmlCache.set(initialCacheKey, initialRendered)
 const highlightedHtml = ref(initialRendered)
@@ -157,7 +160,7 @@ const fileIcon = computed(() => {
 })
 
 async function renderCode() {
-  const cacheKey = `${theme.value}\u0000${language.value}\u0000${code.value}`
+  const cacheKey = `${theme.value}\u0000${language.value}\u0000${lineNumbers.value ? '1' : '0'}\u0000${lineHighlights.value}\u0000${code.value}`
   const cached = htmlCache.get(cacheKey)
   if (cached) {
     // Only update the DOM if the cached HTML differs from what's already rendered.
@@ -192,7 +195,7 @@ onMounted(async () => {
   await nextTick()
   measure()
 })
-watch([code, language, theme], () => { void renderCode() })
+watch([code, language, theme, lineHighlights, lineNumbers], () => { void renderCode() })
 
 async function copy() {
   try {
@@ -233,11 +236,13 @@ function renderLowlightHtml(source: string, lang: string) {
     const lines = highlightedLines
       .map((line, index) => {
         const safeLine = line || ' '
+        const lineNumber = index + 1
+        const highlightedClass = highlightedLineSet.value.has(lineNumber) ? ' is-highlighted' : ''
         if (!lineNumbers.value) {
-          return `<span class="line">${safeLine}</span>`
+          return `<span class="line${highlightedClass}">${safeLine}</span>`
         }
 
-        return `<span class="line line-numbered"><span class="ln">${index + 1}</span><span class="lc">${safeLine}</span></span>`
+        return `<span class="line line-numbered${highlightedClass}"><span class="ln">${lineNumber}</span><span class="lc">${safeLine}</span></span>`
       })
       .join('')
 
@@ -280,8 +285,9 @@ function serializeNodesToLines(nodes: HighlightNode[]) {
     if (node.type === 'text') {
       const segments = (node.value ?? '').split('\n')
       for (let index = 0; index < segments.length; index += 1) {
-        if (segments[index]) {
-          append(escapeHtml(segments[index]))
+        const segment = segments[index] ?? ''
+        if (segment) {
+          append(escapeHtml(segment))
         }
         if (index < segments.length - 1) {
           splitLine(frames)
@@ -554,6 +560,15 @@ function escapeAttr(value: string) {
   min-height: var(--code-line-height);
   line-height: var(--code-line-height);
   font-size: var(--code-font-size);
+}
+
+.codeblock-public-body .line.is-highlighted {
+  background: rgba(250, 204, 21, 0.16) !important;
+}
+
+.codeblock-public-body.with-line-numbers .line.line-numbered.is-highlighted .ln {
+  color: rgba(250, 204, 21, 0.95);
+  background: rgba(250, 204, 21, 0.12);
 }
 
 .codeblock-public-body.with-line-numbers pre code {

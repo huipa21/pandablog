@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { DEFAULT_MERMAID_CODE } from '~/utils/blockDefaults'
 
 export const MermaidNode = Node.create({
   name: 'mermaid',
@@ -10,7 +11,7 @@ export const MermaidNode = Node.create({
   addAttributes() {
     return {
       code: {
-        default: 'graph TD;\n  A[Idea] --> B[Connection]'
+        default: DEFAULT_MERMAID_CODE
       }
     }
   },

@@ -40,13 +40,18 @@
   >
     <ContentText :text="text" :marks="remainingMarks" />
   </a>
-  <span v-else-if="currentMark.type === 'textStyle' || currentMark.type === 'highlight'" :style="markStyle">
+  <span v-else-if="currentMark.type === 'textStyle'" :style="markStyle">
     <ContentText :text="text" :marks="remainingMarks" />
   </span>
+  <mark v-else-if="currentMark.type === 'highlight'" class="content-highlight" :style="markStyle">
+    <ContentText :text="text" :marks="remainingMarks" />
+  </mark>
   <ContentText v-else :text="text" :marks="remainingMarks" />
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_HIGHLIGHT_COLOR } from '~/utils/highlightColors'
+
 const props = defineProps<{
   text: string
   marks?: Array<{
@@ -101,9 +106,7 @@ const markStyle = computed(() => {
 
   if (currentMark.value?.type === 'highlight') {
     const color = safeCssValue(attrs.color)
-    if (color) {
-      style.backgroundColor = color
-    }
+    style.backgroundColor = color || DEFAULT_HIGHLIGHT_COLOR
   }
 
   return style
@@ -140,3 +143,11 @@ function handleLinkClick(event: MouseEvent) {
   window.open(href.value, '_blank', 'popup=yes,width=1100,height=760,noopener,noreferrer')
 }
 </script>
+
+<style scoped>
+.content-highlight {
+  border-radius: 0.18em;
+  padding: 0.04em 0.12em;
+  color: inherit;
+}
+</style>

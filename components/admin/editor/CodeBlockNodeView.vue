@@ -5,6 +5,7 @@
     :data-theme="theme"
     :data-language="language"
     :data-line-numbers="lineNumbers ? 'true' : 'false'"
+    :data-line-highlights="lineHighlights"
     :data-wrap="wrapLines ? 'true' : 'false'"
     :data-zoom="zoom"
     :data-collapsed="collapsed ? 'true' : 'false'"
@@ -54,9 +55,24 @@
     >
       <div class="codeblock-body" :class="lineNumbers ? 'has-line-numbers' : ''">
         <div v-if="lineNumbers" class="codeblock-gutter" contenteditable="false" aria-hidden="true">
-          <span v-for="n in lineCount" :key="n" class="codeblock-gutter-line">{{ n }}</span>
+          <span
+            v-for="line in lineRows"
+            :key="line.number"
+            class="codeblock-gutter-line"
+            :class="line.highlighted ? 'is-highlighted' : ''"
+          >{{ line.number }}</span>
         </div>
-        <pre class="codeblock-pre hljs" :class="wrapLines ? 'is-wrapped' : ''"><NodeViewContent as="code" :class="`language-${language}`" /></pre>
+        <div class="codeblock-code-area">
+          <div v-if="highlightedLineSet.size" class="codeblock-line-highlight-layer" contenteditable="false" aria-hidden="true">
+            <span
+              v-for="line in lineRows"
+              :key="`highlight-${line.number}`"
+              class="codeblock-line-highlight"
+              :class="line.highlighted ? 'is-highlighted' : ''"
+            />
+          </div>
+          <pre class="codeblock-pre hljs" :class="wrapLines ? 'is-wrapped' : ''"><NodeViewContent as="code" :class="`language-${language}`" /></pre>
+        </div>
       </div>
       <div v-if="collapsed && hasOverflow" class="codeblock-fade" />
     </div>
@@ -70,7 +86,7 @@
 
 <script setup lang="ts">
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME } from '~/extensions/codeBlockEnhanced'
+import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
 
 const props = defineProps(nodeViewProps)
 
@@ -87,6 +103,8 @@ const theme = computed(() => {
   return supportedThemes.has(value) ? value : DEFAULT_CODE_THEME
 })
 const lineNumbers = computed(() => props.node.attrs.lineNumbers !== false)
+const lineHighlights = computed(() => normalizeCodeLineHighlights(props.node.attrs.lineHighlights))
+const highlightedLineSet = computed(() => parseCodeLineHighlights(lineHighlights.value))
 const wrapLines = computed(() => props.node.attrs.wrap !== false)
 const zoom = computed(() => {
   const value = Number(props.node.attrs.zoom ?? 1)
@@ -113,6 +131,10 @@ const lineCount = computed(() => {
   const lines = text.split('\n').length
   return Math.max(lines, 1)
 })
+const lineRows = computed(() => Array.from({ length: lineCount.value }, (_entry, index) => {
+  const number = index + 1
+  return { number, highlighted: highlightedLineSet.value.has(number) }
+}))
 
 const fileIcon = computed(() => {
   const ext = (fileName.value.split('.').pop() ?? language.value).toLowerCase()
@@ -299,6 +321,8 @@ watch([lineCount, wrapLines, zoom], async () => {
 }
 
 .codeblock-pre {
+  position: relative;
+  z-index: 1;
   padding-left: 1rem;
   padding-right: 1rem;
   overflow: auto;
@@ -307,6 +331,30 @@ watch([lineCount, wrapLines, zoom], async () => {
   border: 0 !important;
   box-shadow: none !important;
   outline: 0 !important;
+}
+
+.codeblock-code-area {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.codeblock-line-highlight-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding-top: var(--code-block-padding-y);
+  padding-bottom: var(--code-block-padding-y);
+  pointer-events: none;
+}
+
+.codeblock-line-highlight {
+  display: block;
+  height: calc(var(--code-line-height) * var(--pb-code-zoom));
+}
+
+.codeblock-line-highlight.is-highlighted {
+  background: rgba(250, 204, 21, 0.16);
 }
 
 .codeblock-pre :deep(code) {
@@ -361,11 +409,16 @@ watch([lineCount, wrapLines, zoom], async () => {
 
 .codeblock-gutter-line {
   display: block;
-  height: var(--code-line-height);
-  line-height: var(--code-line-height);
+  height: calc(var(--code-line-height) * var(--pb-code-zoom));
+  line-height: calc(var(--code-line-height) * var(--pb-code-zoom));
   font-size: var(--code-font-size);
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.codeblock-gutter-line.is-highlighted {
+  color: rgba(250, 204, 21, 0.95);
+  background: rgba(250, 204, 21, 0.12);
 }
 
 .codeblock-tail {

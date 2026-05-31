@@ -7,10 +7,13 @@
   <hr v-else-if="node.type === 'horizontalRule'" class="w-full" :style="separatorStyle">
   <NodeImage v-else-if="node.type === 'image'" :node="node" />
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
+  <NodeDiffBlock v-else-if="node.type === 'diffBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
   <NodeRelatedPost v-else-if="node.type === 'relatedPost'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
+  <NodeColumnsBlock v-else-if="node.type === 'columnsBlock'" :node="node" />
+  <NodeTabsBlock v-else-if="node.type === 'tabsBlock'" :node="node" />
   <NodeQuoteBlock v-else-if="node.type === 'blockquote'" :node="node" />
   <NodeFootnotesBlock v-else-if="node.type === 'footnotesBlock'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
@@ -22,12 +25,15 @@
 import type { JsonContent } from '~/types/content'
 import NodeCodeBlock from './NodeCodeBlock.vue'
 import NodeCustomHtml from './NodeCustomHtml.vue'
+import NodeDiffBlock from './NodeDiffBlock.vue'
 import NodeImage from './NodeImage.vue'
 import NodeFootnotesBlock from './NodeFootnotesBlock.vue'
+import NodeColumnsBlock from './NodeColumnsBlock.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
 import NodeQuoteBlock from './NodeQuoteBlock.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
+import NodeTabsBlock from './NodeTabsBlock.vue'
 
 const props = defineProps<{
   node: JsonContent

@@ -54,6 +54,60 @@ export const CODE_BLOCK_LANGUAGES = [
 
 export const DEFAULT_CODE_THEME = 'github-dark'
 
+export function parseCodeLineHighlights(value: unknown) {
+  const source = typeof value === 'string' ? value : ''
+  const highlighted = new Set<number>()
+
+  for (const part of source.split(',')) {
+    const token = part.trim()
+    if (!token) continue
+
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/)
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1])
+      const end = Number(rangeMatch[2])
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue
+      const from = Math.max(1, Math.min(start, end))
+      const to = Math.max(1, Math.max(start, end))
+      for (let lineNumber = from; lineNumber <= to; lineNumber += 1) {
+        highlighted.add(lineNumber)
+      }
+      continue
+    }
+
+    const lineNumber = Number(token)
+    if (Number.isFinite(lineNumber) && lineNumber >= 1) {
+      highlighted.add(Math.round(lineNumber))
+    }
+  }
+
+  return highlighted
+}
+
+export function normalizeCodeLineHighlights(value: unknown) {
+  const sorted = [...parseCodeLineHighlights(value)].sort((left, right) => left - right)
+  if (!sorted.length) return ''
+
+  const ranges: string[] = []
+  let rangeStart = sorted[0]!
+  let previous = sorted[0]!
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const current = sorted[index]!
+    if (current === previous + 1) {
+      previous = current
+      continue
+    }
+
+    ranges.push(rangeStart === previous ? String(rangeStart) : `${rangeStart}-${previous}`)
+    rangeStart = current
+    previous = current
+  }
+
+  ranges.push(rangeStart === previous ? String(rangeStart) : `${rangeStart}-${previous}`)
+  return ranges.join(', ')
+}
+
 export const CodeBlockEnhanced = CodeBlockLowlight.extend({
   name: 'codeBlock',
 
@@ -102,6 +156,14 @@ export const CodeBlockEnhanced = CodeBlockLowlight.extend({
         default: true,
         parseHTML: (element) => element.getAttribute('data-line-numbers') !== 'false',
         renderHTML: (attrs) => ({ 'data-line-numbers': attrs.lineNumbers === false ? 'false' : 'true' })
+      },
+      lineHighlights: {
+        default: '',
+        parseHTML: (element) => normalizeCodeLineHighlights(element.getAttribute('data-line-highlights') ?? ''),
+        renderHTML: (attrs) => {
+          const value = normalizeCodeLineHighlights(attrs.lineHighlights)
+          return value ? { 'data-line-highlights': value } : {}
+        }
       },
       fileName: {
         default: '',

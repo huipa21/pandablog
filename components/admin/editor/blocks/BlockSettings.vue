@@ -221,6 +221,14 @@
               @update:model-value="setCodeLineNumbers"
             />
           </UFormField>
+          <UFormField label="Highlighted lines" class="code-settings-field">
+            <UInput
+              class="w-full"
+              :model-value="String(attrs.lineHighlights ?? '')"
+              placeholder="10, 20-25, 31"
+              @update:model-value="setCodeLineHighlights"
+            />
+          </UFormField>
           <UFormField>
             <UCheckbox
               :model-value="attrs.showTotalLines === true"
@@ -246,6 +254,92 @@
               @input="setCodeZoom(($event.target as HTMLInputElement).value)"
             >
           </UFormField>
+        </div>
+      </details>
+
+      <details v-if="blockName === 'columnsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Columns</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Column count">
+            <USelect
+              :model-value="String(columnsCount)"
+              :items="columnCountItems"
+              @update:model-value="setColumnsCount"
+            />
+          </UFormField>
+          <UFormField label="Proportions">
+            <USelect
+              :model-value="columnsProportions"
+              :items="columnProportionItems"
+              @update:model-value="setColumnsProportions"
+            />
+          </UFormField>
+          <UFormField label="Block width">
+            <USelect
+              :model-value="String(attrs.blockWidth ?? 'content')"
+              :items="blockWidthItems"
+              @update:model-value="updateAttrs({ blockWidth: String($event) })"
+            />
+          </UFormField>
+          <div class="space-y-2">
+            <div class="text-xs font-medium uppercase tracking-wider text-stone-400">Column headers</div>
+            <UFormField v-for="column in columnItems" :key="column.index" :label="`Column ${column.index + 1}`">
+              <UInput
+                :model-value="String(column.attrs.header ?? '')"
+                placeholder="Optional header"
+                @update:model-value="setColumnHeader(column.index, $event)"
+              />
+            </UFormField>
+          </div>
+        </div>
+      </details>
+
+      <details v-if="blockName === 'tabsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Tabs</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Orientation">
+            <USelect
+              :model-value="String(attrs.orientation ?? 'horizontal')"
+              :items="tabOrientationItems"
+              @update:model-value="setTabsOrientation"
+            />
+          </UFormField>
+          <UFormField label="Tab style">
+            <USelect
+              :model-value="String(attrs.tabStyle ?? 'underline')"
+              :items="tabStyleItems"
+              @update:model-value="setTabsStyle"
+            />
+          </UFormField>
+          <UFormField label="Block width">
+            <USelect
+              :model-value="String(attrs.blockWidth ?? 'content')"
+              :items="blockWidthItems"
+              @update:model-value="updateAttrs({ blockWidth: String($event) })"
+            />
+          </UFormField>
+          <UFormField label="Default tab">
+            <USelect
+              :model-value="String(tabsActiveIndex)"
+              :items="tabDefaultItems"
+              @update:model-value="setTabsActiveIndex"
+            />
+          </UFormField>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">Tab labels</div>
+              <div class="flex gap-1.5">
+                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="tabPanels.length >= 6" @click="addTabPanel">Add</UButton>
+                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="tabPanels.length <= 2" @click="removeTabPanel">Remove</UButton>
+              </div>
+            </div>
+            <UFormField v-for="tab in tabPanels" :key="tab.index" :label="`Tab ${tab.index + 1}`">
+              <UInput
+                :model-value="String(tab.attrs.title ?? `Tab ${tab.index + 1}`)"
+                @update:model-value="setTabTitle(tab.index, $event)"
+              />
+            </UFormField>
+          </div>
         </div>
       </details>
 
@@ -423,6 +517,29 @@
         </div>
       </details>
 
+      <details v-if="blockName === 'diffBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Diff</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Language">
+            <USelect :model-value="String(attrs.language ?? 'plaintext')" :items="diffLanguageItems" @update:model-value="setDiffLanguage" />
+          </UFormField>
+          <div class="grid grid-cols-2 gap-2">
+            <UFormField label="Old label">
+              <UInput :model-value="String(attrs.oldLabel ?? 'Before')" @update:model-value="setDiffOldLabel" />
+            </UFormField>
+            <UFormField label="New label">
+              <UInput :model-value="String(attrs.newLabel ?? 'After')" @update:model-value="setDiffNewLabel" />
+            </UFormField>
+          </div>
+          <UFormField label="Old text">
+            <UTextarea :model-value="String(attrs.oldText ?? '')" :rows="8" class="font-mono text-xs" @update:model-value="updateAttrs({ oldText: String($event) })" />
+          </UFormField>
+          <UFormField label="New text">
+            <UTextarea :model-value="String(attrs.newText ?? '')" :rows="8" class="font-mono text-xs" @update:model-value="updateAttrs({ newText: String($event) })" />
+          </UFormField>
+        </div>
+      </details>
+
       <details v-if="blockName === 'mermaid'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Mermaid</summary>
         <div class="mt-3">
@@ -447,6 +564,8 @@
 import type { Editor } from '@tiptap/core'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES } from '~/extensions/codeBlockEnhanced'
 import { QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
+import type { JsonContent } from '~/types/content'
+import { DIFF_BLOCK_LANGUAGES, normalizeDiffLanguage } from '~/utils/diffBlock'
 
 const props = defineProps<{
   editor: Editor | null
@@ -470,6 +589,7 @@ const headingLevelItems = [
 
 const languageItems = CODE_BLOCK_LANGUAGES.map((l) => ({ label: l.label, value: l.value as string }))
 const themeItems = CODE_BLOCK_THEMES.map((t) => ({ label: t.label, value: t.value as string }))
+const diffLanguageItems = DIFF_BLOCK_LANGUAGES.map((language) => ({ label: language.label, value: language.value as string }))
 const sourceSizeItems = [
   { label: 'Thumbnail', value: 'thumbnail' },
   { label: 'Medium', value: 'medium' },
@@ -486,6 +606,31 @@ const blockWidthItems = [
   { label: 'Content', value: 'content' },
   { label: 'Wide', value: 'wide' },
   { label: 'Full bleed', value: 'full-bleed' }
+]
+const columnCountItems = [
+  { label: '2 columns', value: '2' },
+  { label: '3 columns', value: '3' }
+]
+const columnProportionItems = computed(() => columnsCount.value === 3
+  ? [
+      { label: 'Equal thirds', value: '1-1-1' },
+      { label: 'Narrow / Narrow / Wide', value: '1-1-2' },
+      { label: 'Narrow / Wide / Narrow', value: '1-2-1' },
+      { label: 'Wide / Narrow / Narrow', value: '2-1-1' }
+    ]
+  : [
+      { label: 'Equal halves', value: '1-1' },
+      { label: 'One third / Two thirds', value: '1-2' },
+      { label: 'Two thirds / One third', value: '2-1' }
+    ])
+const tabOrientationItems = [
+  { label: 'Horizontal', value: 'horizontal' },
+  { label: 'Vertical', value: 'vertical' }
+]
+const tabStyleItems = [
+  { label: 'Underline', value: 'underline' },
+  { label: 'Pills', value: 'pills' },
+  { label: 'Enclosed', value: 'enclosed' }
 ]
 const ratioPresetItems = [
   { label: '30 / 70', value: '30' },
@@ -536,6 +681,31 @@ const mediaDisplaySize = computed(() => {
   const width = numberOrNull(attrs.value.mediaWidth)
   return width ? 'custom-px' : 'fill-container'
 })
+
+const selectedBlockNode = computed(() => {
+  const activeEditor = props.editor
+  const activeBlockName = blockName.value
+  if (!activeEditor || !activeBlockName) return null
+
+  const pos = resolveSelectedBlockPos(activeEditor, activeBlockName, editorStore.selectedBlockPos)
+  if (pos === null) return null
+
+  const node = activeEditor.state.doc.nodeAt(pos)
+  if (!node || node.type.name !== activeBlockName) return null
+
+
+  return { pos, node }
+})
+
+const columnItems = computed(() => childSettings('columnItem'))
+const columnsCount = computed(() => Math.max(2, Math.min(3, columnItems.value.length || Number(attrs.value.columns ?? 2) || 2)))
+const columnsProportions = computed(() => normalizeColumnProportions(String(attrs.value.proportions ?? ''), columnsCount.value))
+const tabPanels = computed(() => childSettings('tabPanel'))
+const tabsActiveIndex = computed(() => normalizeTabsActiveIndex(Number(attrs.value.activeIndex ?? 0), tabPanels.value.length))
+const tabDefaultItems = computed(() => tabPanels.value.map((tab) => ({
+  label: String(tab.attrs.title ?? `Tab ${tab.index + 1}`).trim() || `Tab ${tab.index + 1}`,
+  value: String(tab.index)
+})))
 
 const footnoteSection = computed(() => {
   const activeEditor = props.editor
@@ -647,6 +817,104 @@ function topLevelSelectionPos(editor: Editor) {
   return null
 }
 
+function childSettings(typeName: string) {
+  const selected = selectedBlockNode.value
+  if (!selected) return []
+
+  const children: Array<{ index: number, attrs: Record<string, unknown> }> = []
+  selected.node.forEach((child: any, _offset: number, index: number) => {
+    if (child.type.name === typeName) {
+      children.push({ index, attrs: { ...child.attrs } })
+    }
+  })
+
+  return children
+}
+
+function selectedBlockJson(blockType: string) {
+  const selected = selectedBlockNode.value
+  if (!selected || selected.node.type.name !== blockType) return null
+  return selected.node.toJSON() as JsonContent
+}
+
+function replaceSelectedBlockJson(blockType: string, nextJson: JsonContent) {
+  const activeEditor = props.editor
+  const selected = selectedBlockNode.value
+  if (!activeEditor || !selected || selected.node.type.name !== blockType) return
+
+  const replacement = activeEditor.schema.nodeFromJSON(nextJson)
+  const tr = activeEditor.state.tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize, replacement)
+  tr.setMeta('addToHistory', true)
+  activeEditor.view.dispatch(tr)
+  editorStore.selectBlock({
+    id: `${blockType}:${selected.pos}`,
+    type: blockType,
+    attrs: nextJson.attrs ?? {},
+    pos: selected.pos
+  })
+}
+
+function updateNestedChildAttrs(blockType: string, childType: string, childIndex: number, nextAttrs: Record<string, unknown>) {
+  const nextJson = selectedBlockJson(blockType)
+  if (!nextJson || !Array.isArray(nextJson.content)) return
+
+  const child = nextJson.content[childIndex]
+  if (!child || child.type !== childType) return
+
+  child.attrs = { ...(child.attrs ?? {}), ...nextAttrs }
+  replaceSelectedBlockJson(blockType, nextJson)
+}
+
+function normalizeColumnProportions(value: string, count: number) {
+  const fallback = count === 3 ? '1-1-1' : '1-1'
+  const parts = value.split('-').map((part) => Number(part))
+  if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0)) {
+    return fallback
+  }
+
+  return parts.map((part) => Math.max(1, Math.round(part))).join('-')
+}
+
+function normalizeColumnItems(content: JsonContent[] | undefined, count: number) {
+  const existing = (content ?? []).filter((child) => child.type === 'columnItem')
+  const columns: JsonContent[] = existing.slice(0, count).map((child, index) => ({
+    ...child,
+    attrs: { ...(child.attrs ?? {}), header: String(child.attrs?.header ?? '') },
+    content: child.content?.length ? child.content : defaultColumnItem(index).content
+  }))
+
+  const overflow = existing.slice(count)
+  if (overflow.length && columns.length) {
+    const last = columns[columns.length - 1]!
+    last.content = [
+      ...(last.content ?? []),
+      ...overflow.flatMap((column) => column.content ?? [])
+    ]
+  }
+
+  while (columns.length < count) {
+    columns.push(defaultColumnItem(columns.length))
+  }
+
+  return columns
+}
+
+function defaultColumnItem(index: number): JsonContent {
+  return {
+    type: 'columnItem',
+    attrs: { header: '' },
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: `Column ${index + 1}` }] }]
+  }
+}
+
+function defaultTabPanel(index: number): JsonContent {
+  return {
+    type: 'tabPanel',
+    attrs: { title: `Tab ${index + 1}` },
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: `Tab ${index + 1} content` }] }]
+  }
+}
+
 function asSelectValue(value: unknown, fallback: string) {
   if (typeof value === 'string') {
     return value
@@ -717,6 +985,10 @@ function setCodeLineNumbers(value: unknown) {
   updateAttrs({ lineNumbers: asBooleanValue(value, true) })
 }
 
+function setCodeLineHighlights(value: unknown) {
+  updateAttrs({ lineHighlights: asInputValue(value, '') })
+}
+
 function setCodeShowTotalLines(value: unknown) {
   updateAttrs({ showTotalLines: asBooleanValue(value, false) })
 }
@@ -766,6 +1038,95 @@ function setFootnoteTitle(value: unknown) {
   const to = section.headingPos + section.headingNode.nodeSize - 1
   const tr = activeEditor.state.tr.insertText(title, from, to)
   activeEditor.view.dispatch(tr)
+}
+
+function setColumnsCount(value: unknown) {
+  const count = asSelectValue(value, '2') === '3' ? 3 : 2
+  const nextJson = selectedBlockJson('columnsBlock')
+  if (!nextJson) return
+
+  nextJson.attrs = {
+    ...(nextJson.attrs ?? {}),
+    columns: count,
+    proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), count)
+  }
+  nextJson.content = normalizeColumnItems(nextJson.content, count)
+  replaceSelectedBlockJson('columnsBlock', nextJson)
+}
+
+function setColumnsProportions(value: unknown) {
+  const proportions = normalizeColumnProportions(asSelectValue(value, columnsCount.value === 3 ? '1-1-1' : '1-1'), columnsCount.value)
+  updateAttrs({ columns: columnsCount.value, proportions })
+}
+
+function setColumnHeader(index: number, value: unknown) {
+  updateNestedChildAttrs('columnsBlock', 'columnItem', index, { header: asInputValue(value, '') })
+}
+
+function setTabsOrientation(value: unknown) {
+  updateAttrs({ orientation: asSelectValue(value, 'horizontal') === 'vertical' ? 'vertical' : 'horizontal' })
+}
+
+function setTabsStyle(value: unknown) {
+  const tabStyle = asSelectValue(value, 'underline')
+  updateAttrs({ tabStyle: tabStyle === 'pills' || tabStyle === 'enclosed' ? tabStyle : 'underline' })
+}
+
+function setTabsActiveIndex(value: unknown) {
+  updateAttrs({ activeIndex: normalizeTabsActiveIndex(Number(asSelectValue(value, '0')), tabPanels.value.length) })
+}
+
+function setTabTitle(index: number, value: unknown) {
+  updateNestedChildAttrs('tabsBlock', 'tabPanel', index, { title: asInputValue(value, `Tab ${index + 1}`).trim() || `Tab ${index + 1}` })
+}
+
+function normalizeTabsActiveIndex(value: number, count: number) {
+  const maxIndex = Math.max(0, count - 1)
+  return Number.isFinite(value) ? Math.max(0, Math.min(maxIndex, Math.round(value))) : 0
+}
+
+function setDiffLanguage(value: unknown) {
+  updateAttrs({ language: normalizeDiffLanguage(asSelectValue(value, 'plaintext')) })
+}
+
+function setDiffOldLabel(value: unknown) {
+  updateAttrs({ oldLabel: asInputValue(value, 'Before').trim() || 'Before' })
+}
+
+function setDiffNewLabel(value: unknown) {
+  updateAttrs({ newLabel: asInputValue(value, 'After').trim() || 'After' })
+}
+
+function addTabPanel() {
+  const nextJson = selectedBlockJson('tabsBlock')
+  if (!nextJson) return
+
+  const panels = (nextJson.content ?? []).filter((child) => child.type === 'tabPanel')
+  if (panels.length >= 6) return
+
+  panels.push(defaultTabPanel(panels.length))
+  nextJson.content = panels
+  nextJson.attrs = { ...(nextJson.attrs ?? {}), activeIndex: panels.length - 1 }
+  replaceSelectedBlockJson('tabsBlock', nextJson)
+}
+
+function removeTabPanel() {
+  const nextJson = selectedBlockJson('tabsBlock')
+  if (!nextJson) return
+
+  const panels = (nextJson.content ?? []).filter((child) => child.type === 'tabPanel')
+  if (panels.length <= 2) return
+
+  const removed = panels.pop()
+  const last = panels[panels.length - 1]
+  if (removed && last) {
+    last.content = [...(last.content ?? []), ...(removed.content ?? [])]
+  }
+
+  const activeIndex = Math.min(Number(nextJson.attrs?.activeIndex ?? 0) || 0, panels.length - 1)
+  nextJson.content = panels
+  nextJson.attrs = { ...(nextJson.attrs ?? {}), activeIndex }
+  replaceSelectedBlockJson('tabsBlock', nextJson)
 }
 
 function isHexColor(value: string) {

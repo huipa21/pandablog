@@ -46,6 +46,15 @@ export function flattenNodeText(node: JsonContent | null | undefined): string {
     return stringAttr(node.attrs?.code)
   }
 
+  if (node.type === 'diffBlock') {
+    return [
+      stringAttr(node.attrs?.oldLabel),
+      stringAttr(node.attrs?.oldText),
+      stringAttr(node.attrs?.newLabel),
+      stringAttr(node.attrs?.newText)
+    ].filter(Boolean).join(' ')
+  }
+
   if (node.type === 'image') {
     return [stringAttr(node.attrs?.alt), stringAttr(node.attrs?.title)].filter(Boolean).join(' ')
   }

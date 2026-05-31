@@ -165,6 +165,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import type { Editor } from '@tiptap/core'
+import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
 import { Footnote } from '~/extensions/footnote'
 import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
@@ -181,16 +182,24 @@ import { MermaidNode } from '~/extensions/mermaid'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
 import { RelatedPostNode } from '~/extensions/relatedPost'
 import { CodeBlockEnhanced } from '~/extensions/codeBlockEnhanced'
+import { DiffBlockNode } from '~/extensions/diffBlock'
 import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
 import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
+import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
+import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.vue'
 import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
+import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
 import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
+import ColumnsBlockNodeView from '~/components/admin/editor/ColumnsBlockNodeView.vue'
+import ColumnItemNodeView from '~/components/admin/editor/ColumnItemNodeView.vue'
+import TabsBlockNodeView from '~/components/admin/editor/TabsBlockNodeView.vue'
+import TabPanelNodeView from '~/components/admin/editor/TabPanelNodeView.vue'
 import QuoteBlockNodeView from '~/components/admin/editor/QuoteBlockNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
@@ -277,6 +286,7 @@ const slashItems = computed(() => {
   const items = blockRegistry.searchBlocks(slashQuery.value)
   return items.filter((b) => b.implemented)
 })
+const ALLOWED_NESTED_BLOCK_CONTAINERS = new Set(['mediaText', 'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel'])
 
 // Inserter state (also mirrored to editorStore so parent layout can switch to 3-column mode)
 const inserterOpen = ref(false)
@@ -321,6 +331,11 @@ const editor = useEditor({
         return VueNodeViewRenderer(CodeBlockNodeView)
       }
     }),
+    DiffBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(DiffBlockNodeView)
+      }
+    }),
     CustomHtmlNode.extend({
       addNodeView() {
         return VueNodeViewRenderer(CustomHtmlNodeView)
@@ -334,6 +349,26 @@ const editor = useEditor({
     MediaTextNode.extend({
       addNodeView() {
         return VueNodeViewRenderer(MediaTextNodeView)
+      }
+    }),
+    ColumnsBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(ColumnsBlockNodeView)
+      }
+    }),
+    ColumnItemNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(ColumnItemNodeView)
+      }
+    }),
+    TabsBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(TabsBlockNodeView)
+      }
+    }),
+    TabPanelNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(TabPanelNodeView)
       }
     }),
     LinkEnhanced.configure({
@@ -399,8 +434,12 @@ const editor = useEditor({
     attributes: {
       class: 'min-h-[360px] focus:outline-none'
     },
-    handlePaste(_view, event) {
-      return uploadImagesFromList(event.clipboardData?.files)
+    handlePaste(view, event) {
+      if (uploadImagesFromList(event.clipboardData?.files)) {
+        return true
+      }
+
+      return pastePlainTextInsideTabPanel(view, event)
     },
     handleDrop(_view, event) {
       const handled = uploadImagesFromList(event.dataTransfer?.files)
@@ -466,6 +505,15 @@ const editor = useEditor({
           event.preventDefault()
           return true
         }
+
+        const nestedTextRange = getNestedTextOnlySelectionRange(state.selection.$from)
+        if (nestedTextRange) {
+          const tr = state.tr.setSelection(TextSelection.create(state.doc, nestedTextRange.from, nestedTextRange.to))
+          view.dispatch(tr)
+          event.preventDefault()
+          return true
+        }
+
         // Select inside current top-level block only
         const { $from } = state.selection
         let blockDepth = 0
@@ -481,6 +529,13 @@ const editor = useEditor({
           return true
         }
         return false
+      }
+
+      if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (handleProtectedFootnotesEnter(view)) {
+          event.preventDefault()
+          return true
+        }
       }
 
       if (!slashOpen.value) return false
@@ -675,11 +730,21 @@ function trackActiveBlock(ed: Editor) {
 
   // Determine block index
   let blockIndex = -1
+  let blockNodeType = ''
   ed.state.doc.forEach((node, offset, index) => {
     if (blockStart >= offset && blockStart < offset + node.nodeSize) {
       blockIndex = index
+      blockNodeType = node.type.name
     }
   })
+
+  if (blockNodeType === 'footnotesBlock') {
+    activeBlockIndex.value = -1
+    activeBlockRect.value = null
+    computeDropIndicators(container.getBoundingClientRect())
+    return
+  }
+
   activeBlockIndex.value = blockIndex
 
   if (blockIndex < 0) {
@@ -712,7 +777,7 @@ function computeDropIndicators(containerRect: DOMRect) {
   })
 
   const lastElement = blockElements[blockElements.length - 1]
-  if (lastElement) {
+  if (lastElement && !lastElement.matches('[data-footnotes-block="true"], .footnotes-block')) {
     const lastRect = lastElement.getBoundingClientRect()
     indicators.push({ index: blockElements.length, top: lastRect.bottom - containerRect.top + 4 })
   }
@@ -768,6 +833,7 @@ function runMoveDown() {
 function runDuplicate() {
   const ed = editor.value
   if (!ed) return
+  if (selectionIsInsideTopLevelNode(ed, 'footnotesBlock')) return
   const { $from } = ed.state.selection
   let blockDepth = 0
   for (let d = $from.depth; d > 0; d--) {
@@ -786,6 +852,7 @@ function runDelete() {
   if (!ed) return
   const range = getActiveBlockRange()
   if (!range) return
+  if (ed.state.doc.nodeAt(range.from)?.type.name === 'footnotesBlock') return
   ed.chain().focus().deleteRange(range).run()
   actionsMenuVisible.value = false
 }
@@ -850,6 +917,7 @@ function runCutBlock() {
   const ed = editor.value
   const range = getActiveBlockRange()
   if (!ed || !range) return
+  if (ed.state.doc.nodeAt(range.from)?.type.name === 'footnotesBlock') return
   const slice = ed.state.doc.slice(range.from, range.to)
   const text = slice.content.textBetween(0, slice.content.size, '\n')
   navigator.clipboard.writeText(text)
@@ -861,7 +929,7 @@ function runAddBefore() {
   const ed = editor.value
   const range = getActiveBlockRange()
   if (!ed || !range) return
-  ed.chain().focus().insertContentAt(range.from, { type: 'paragraph' }).run()
+  ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, range.from, 'paragraph'), { type: 'paragraph' }).run()
   actionsMenuVisible.value = false
 }
 
@@ -869,8 +937,13 @@ function runAddAfter() {
   const ed = editor.value
   const range = getActiveBlockRange()
   if (!ed || !range) return
-  ed.chain().focus().insertContentAt(range.to, { type: 'paragraph' }).run()
+  ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, range.to, 'paragraph'), { type: 'paragraph' }).run()
   actionsMenuVisible.value = false
+}
+
+function selectionIsInsideTopLevelNode(ed: Editor, typeName: string) {
+  const range = getTopLevelBlockRange(ed)
+  return range?.node.type.name === typeName
 }
 
 async function runEditHtml() {
@@ -1054,20 +1127,32 @@ function normalizeFootnotesDoc(doc: JsonContent): { doc: JsonContent, changed: b
     }
   }
 
-  let footnotesBlockIndex = rootChildren.findIndex((node) => node.type === 'footnotesBlock')
-  const refs = collectFootnoteRefs(rootChildren, footnotesBlockIndex)
+  const footnotesPosition = moveFootnotesBlockToBottom(rootChildren, rootChildren.findIndex((node) => node.type === 'footnotesBlock'))
+  let footnotesBlockIndex = footnotesPosition.index
+  if (footnotesPosition.changed) {
+    changed = true
+  }
+  let refs = collectFootnoteRefs(rootChildren, footnotesBlockIndex)
   let refOrder = refs.order
 
   if (footnotesBlockIndex < 0) {
     if (!refOrder.length) {
       return { doc: draft, changed }
     }
-    refs.nodes.forEach((refNode) => {
-      refNode.text = ''
-      changed = true
+
+    rootChildren.push({
+      type: 'footnotesBlock',
+      content: [{
+        type: 'orderedList',
+        content: refOrder.map((id) => ({
+          type: 'listItem',
+          attrs: { footnoteId: id },
+          content: [{ type: 'paragraph', content: [] }]
+        }))
+      }]
     })
-    pruneEmptyTextNodes(rootChildren)
-    return { doc: draft, changed: true }
+    footnotesBlockIndex = rootChildren.length - 1
+    changed = true
   }
 
   const footnotesBlock = rootChildren[footnotesBlockIndex]
@@ -1081,6 +1166,17 @@ function normalizeFootnotesDoc(doc: JsonContent): { doc: JsonContent, changed: b
 
   const orderedList = footnotesBlock.content?.[0]
   const listItems = Array.isArray(orderedList?.content) ? orderedList!.content! : []
+
+  const footnoteItemNormalization = extractStandaloneBlocksFromFootnoteItems(listItems)
+  if (footnoteItemNormalization.changed) {
+    if (footnoteItemNormalization.escapedBlocks.length) {
+      rootChildren.splice(footnotesBlockIndex, 0, ...footnoteItemNormalization.escapedBlocks)
+      footnotesBlockIndex += footnoteItemNormalization.escapedBlocks.length
+    }
+    refs = collectFootnoteRefs(rootChildren, footnotesBlockIndex)
+    refOrder = refs.order
+    changed = true
+  }
 
   const existingIds = refs.order
   for (let i = 0; i < listItems.length; i += 1) {
@@ -1231,6 +1327,55 @@ function collectFootnoteRefs(children: JsonContent[], footnotesBlockIndex: numbe
   return { order, nodes }
 }
 
+function moveFootnotesBlockToBottom(children: JsonContent[], footnotesBlockIndex: number) {
+  if (footnotesBlockIndex < 0) {
+    return { index: footnotesBlockIndex, changed: false }
+  }
+
+  const [footnotesBlock] = children.splice(footnotesBlockIndex, 1)
+  if (!footnotesBlock) {
+    return { index: -1, changed: true }
+  }
+
+  const targetIndex = children.length
+  children.splice(targetIndex, 0, footnotesBlock)
+  return { index: targetIndex, changed: targetIndex !== footnotesBlockIndex }
+}
+
+function extractStandaloneBlocksFromFootnoteItems(listItems: JsonContent[]) {
+  const escapedBlocks: JsonContent[] = []
+  let changed = false
+
+  for (const item of listItems) {
+    if (!item || item.type !== 'listItem') continue
+
+    const children = Array.isArray(item.content) ? item.content : []
+    let keptParagraph: JsonContent | null = null
+    const nextContent: JsonContent[] = []
+
+    for (const child of children) {
+      if (child.type === 'paragraph' && !keptParagraph) {
+        keptParagraph = child
+        nextContent.push(child)
+        continue
+      }
+
+      escapedBlocks.push(child.type === 'text' ? { type: 'paragraph', content: [child] } : child)
+    }
+
+    if (!keptParagraph) {
+      nextContent.push({ type: 'paragraph', content: [] })
+    }
+
+    if (JSON.stringify(item.content ?? []) !== JSON.stringify(nextContent)) {
+      item.content = nextContent
+      changed = true
+    }
+  }
+
+  return { escapedBlocks, changed }
+}
+
 function flattenJsonNodeText(node: JsonContent): string {
   if (node.type === 'text') {
     return node.text ?? ''
@@ -1361,6 +1506,10 @@ function highlightFootnoteTarget(pos: number) {
 
 function isAtBlockStart(view: EditorView, from: number) {
   const resolved = view.state.doc.resolve(from)
+  if (isInsideNode(resolved, 'footnotesBlock')) {
+    return false
+  }
+
   return resolved.parent.type.name === 'paragraph' && resolved.parentOffset === 0
 }
 
@@ -1459,17 +1608,178 @@ function handleSlashPick(name: string) {
   // Delete the typed "/query" text
   ed.chain().focus().deleteRange({ from, to }).run()
 
+  const escapedPos = getEscapedSlashInsertPos(ed)
+  if (escapedPos !== null) {
+    insertBlockAtPosition(name, escapedPos)
+    return
+  }
+
   // Check if current paragraph is now empty
   const { $from } = ed.state.selection
-  const blockStart = $from.before($from.depth)
-  const blockEnd = $from.after($from.depth)
+  const textblockRange = getCurrentTextblockRange(ed)
+  const topLevelRange = getTopLevelBlockRange(ed)
   const isEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent.length === 0
 
-  if (isEmptyParagraph) {
-    insertBlockReplacingRange(name, { from: blockStart, to: blockEnd })
+  if (isEmptyParagraph && textblockRange) {
+    insertBlockReplacingRange(name, textblockRange)
   } else {
-    insertBlockAtPosition(name, blockEnd)
+    insertBlockAtPosition(name, topLevelRange?.to ?? ed.state.selection.to)
   }
+}
+
+function getCurrentTextblockRange(ed: Editor) {
+  const { $from } = ed.state.selection
+  if (!$from.parent.isTextblock) {
+    return null
+  }
+
+  return { from: $from.before($from.depth), to: $from.after($from.depth) }
+}
+
+function getTopLevelBlockRange(ed: Editor, pos = ed.state.selection.from) {
+  const safePos = Math.max(0, Math.min(pos, ed.state.doc.content.size))
+  const resolved = ed.state.doc.resolve(safePos)
+
+  for (let depth = resolved.depth; depth > 0; depth -= 1) {
+    if (resolved.node(depth - 1).type.name === 'doc') {
+      return {
+        from: resolved.before(depth),
+        to: resolved.after(depth),
+        node: resolved.node(depth)
+      }
+    }
+  }
+
+  return null
+}
+
+function getEscapedSlashInsertPos(ed: Editor) {
+  const { $from } = ed.state.selection
+  if ($from.depth <= 1 || isInsideAllowedNestedBlockContainer($from)) {
+    return null
+  }
+
+  const topLevelRange = getTopLevelBlockRange(ed)
+  if (!topLevelRange) {
+    return null
+  }
+
+  return isInsideNode($from, 'footnotesBlock') ? topLevelRange.from : topLevelRange.to
+}
+
+function isInsideAllowedNestedBlockContainer(resolved: ResolvedPos) {
+  for (let depth = resolved.depth; depth > 0; depth -= 1) {
+    if (ALLOWED_NESTED_BLOCK_CONTAINERS.has(resolved.node(depth).type.name)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isInsideNode(resolved: ResolvedPos, nodeName: string) {
+  for (let depth = resolved.depth; depth > 0; depth -= 1) {
+    if (resolved.node(depth).type.name === nodeName) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function getNestedTextOnlySelectionRange(resolved: ResolvedPos) {
+  for (let depth = resolved.depth; depth > 0; depth -= 1) {
+    if (resolved.node(depth).type.name === 'tabPanel') {
+      return getTextblockContentRange(resolved, depth)
+    }
+  }
+
+  return null
+}
+
+function getTextblockContentRange(resolved: ResolvedPos, depth: number) {
+  const from = resolved.start(depth)
+  const to = resolved.end(depth)
+  let textFrom: number | null = null
+  let textTo: number | null = null
+
+  resolved.doc.nodesBetween(from, to, (node, pos) => {
+    if (!node.isTextblock) {
+      return true
+    }
+
+    textFrom ??= pos + 1
+    textTo = pos + node.nodeSize - 1
+    return false
+  })
+
+  return textFrom !== null && textTo !== null ? { from: textFrom, to: textTo } : null
+}
+
+function handleProtectedFootnotesEnter(view: EditorView) {
+  const { state } = view
+  const { selection } = state
+  if (!selection.empty) {
+    return false
+  }
+
+  const footnotesRange = findTopLevelBlockRangeByTypeFromDoc(state.doc, 'footnotesBlock')
+  if (!footnotesRange) {
+    return false
+  }
+
+  const { $from } = selection
+  const currentRange = getTopLevelBlockRangeFromResolved($from)
+  if (!currentRange) {
+    return false
+  }
+
+  const insideFootnotes = currentRange.node.type.name === 'footnotesBlock'
+  const endsImmediatelyBeforeFootnotes = currentRange.to === footnotesRange.from
+    && $from.parent.isTextblock
+    && $from.parentOffset === $from.parent.content.size
+
+  if (!insideFootnotes && !endsImmediatelyBeforeFootnotes) {
+    return false
+  }
+
+  const paragraph = state.schema.nodes.paragraph?.createAndFill()
+  if (!paragraph) {
+    return false
+  }
+
+  const insertPos = footnotesRange.from
+  const tr = state.tr.insert(insertPos, paragraph)
+  tr.setSelection(TextSelection.create(tr.doc, insertPos + 1))
+  view.dispatch(tr)
+  view.focus()
+  return true
+}
+
+function getTopLevelBlockRangeFromResolved(resolved: ResolvedPos) {
+  for (let depth = resolved.depth; depth > 0; depth -= 1) {
+    if (resolved.node(depth - 1).type.name === 'doc') {
+      return {
+        from: resolved.before(depth),
+        to: resolved.after(depth),
+        node: resolved.node(depth)
+      }
+    }
+  }
+
+  return null
+}
+
+function findTopLevelBlockRangeByTypeFromDoc(doc: Editor['state']['doc'], typeName: string): { from: number; to: number } | null {
+  let range: { from: number; to: number } | null = null
+
+  doc.forEach((node, pos) => {
+    if (!range && node.type.name === typeName) {
+      range = { from: pos, to: pos + node.nodeSize }
+    }
+  })
+
+  return range
 }
 
 // ─── BLOCK INSERTION ─────────────────────────────────────────────────────────
@@ -1492,7 +1802,7 @@ function insertBlockAtPosition(name: string, pos: number) {
   const ed = editor.value
   if (!ed) return
 
-  const safePos = Math.max(0, Math.min(pos, ed.state.doc.content.size))
+  const safePos = normalizeStandaloneBlockInsertPos(ed, pos, name)
 
   if (name === 'embed') {
     insertEmbedAtPosition(safePos)
@@ -1525,6 +1835,32 @@ function insertBlockAtPosition(name: string, pos: number) {
   ed.chain().focus().insertContentAt(safePos, content).run()
 }
 
+function normalizeStandaloneBlockInsertPos(ed: Editor, pos: number, name?: string) {
+  const safePos = Math.max(0, Math.min(pos, ed.state.doc.content.size))
+  if (name === 'footnotesBlock') {
+    return footnoteInsertPos(ed)
+  }
+
+  const footnotesRange = findTopLevelBlockRangeByType(ed, 'footnotesBlock')
+  if (!footnotesRange || safePos <= footnotesRange.from) {
+    return safePos
+  }
+
+  return footnotesRange.from
+}
+
+function findTopLevelBlockRangeByType(ed: Editor, typeName: string): { from: number; to: number } | null {
+  let range: { from: number; to: number } | null = null
+
+  ed.state.doc.forEach((node, pos) => {
+    if (!range && node.type.name === typeName) {
+      range = { from: pos, to: pos + node.nodeSize }
+    }
+  })
+
+  return range
+}
+
 function insertBlockReplacingRange(name: string, range: { from: number; to: number }) {
   const ed = editor.value
   if (!ed) return
@@ -1543,7 +1879,7 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
   }
 
   if (name === 'table') {
-    ed.chain().focus().deleteRange(range).insertContent(createTableContent()).run()
+    ed.chain().focus().insertContentAt(range, createTableContent()).run()
     return
   }
 
@@ -1559,7 +1895,7 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
     return
   }
 
-  ed.chain().focus().deleteRange(range).insertContent(content).run()
+  ed.chain().focus().insertContentAt(range, content).run()
 }
 
 function insertEmbedAtPosition(pos: number) {
@@ -1578,7 +1914,7 @@ function insertEmbedAtPosition(pos: number) {
   }
 
   const embedHtml = buildEmbedHtmlFromUrl(normalizedUrl)
-  const safePos = Math.max(0, Math.min(pos, ed.state.doc.content.size))
+  const safePos = normalizeStandaloneBlockInsertPos(ed, pos, 'embed')
   ed.chain().focus().insertContentAt(safePos, {
     type: 'customHtml',
     attrs: { html: embedHtml }
@@ -1762,18 +2098,21 @@ function onBlockDrop(targetIndex: number) {
 
   const [moved] = content.splice(sourceIndex, 1)
   if (!moved) return
+  if (moved.type === 'footnotesBlock') return
 
   const adjustedTarget = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex
-  content.splice(adjustedTarget, 0, moved)
+  const footnotesIndex = content.findIndex((node) => node.type === 'footnotesBlock')
+  const nextTarget = footnotesIndex >= 0 ? Math.min(adjustedTarget, footnotesIndex) : adjustedTarget
+  content.splice(nextTarget, 0, moved)
 
   ed.commands.setContent({ type: 'doc', content }, false)
   emit('update:modelValue', ed.getJSON() as JsonContent)
 
   nextTick(() => {
     if (!editor.value) return
-    const newPos = resolveBlockPosition(editor.value, adjustedTarget)
+    const newPos = resolveBlockPosition(editor.value, nextTarget)
     editor.value.chain().focus().setTextSelection(newPos).run()
-    animateDroppedBlock(adjustedTarget)
+    animateDroppedBlock(nextTarget)
   })
 }
 
@@ -1839,7 +2178,7 @@ function onRelatedPostSelect(item: { label: string; target: string }) {
       attrs: { target, label }
     }).insertContent(' ').run()
   } else if (relatedPostMode.value === 'at' && relatedPostPendingPos.value !== null) {
-    ed.chain().focus().insertContentAt(relatedPostPendingPos.value, {
+    ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, relatedPostPendingPos.value, 'relatedPost'), {
       type: 'paragraph',
       content: [
         { type: 'relatedPost', attrs: { target, label } },
@@ -1847,7 +2186,7 @@ function onRelatedPostSelect(item: { label: string; target: string }) {
       ]
     }).run()
   } else if (relatedPostMode.value === 'replace' && relatedPostPendingRange.value) {
-    ed.chain().focus().deleteRange(relatedPostPendingRange.value).insertContent({
+    ed.chain().focus().insertContentAt(relatedPostPendingRange.value, {
       type: 'paragraph',
       content: [
         { type: 'relatedPost', attrs: { target, label } },
@@ -1860,16 +2199,69 @@ function onRelatedPostSelect(item: { label: string; target: string }) {
 }
 
 function createTableContent(): JsonContent {
+  const tableText = [
+    ['Header 1', 'Header 2', 'Header 3'],
+    ['Cell 1', 'Cell 2', 'Cell 3'],
+    ['Cell 4', 'Cell 5', 'Cell 6']
+  ]
+
   return {
     type: 'table',
-    content: Array.from({ length: 3 }, (_row, rowIndex) => ({
+    content: tableText.map((row, rowIndex) => ({
       type: 'tableRow',
-      content: Array.from({ length: 3 }, () => ({
+      content: row.map((text) => ({
         type: rowIndex === 0 ? 'tableHeader' : 'tableCell',
-        content: [{ type: 'paragraph', content: [] }]
+        content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
       }))
     }))
   }
+}
+
+function pastePlainTextInsideTabPanel(view: EditorView, event: ClipboardEvent) {
+  if (!isInsideNode(view.state.selection.$from, 'tabPanel')) {
+    return false
+  }
+
+  const clipboard = event.clipboardData
+  const text = clipboard?.getData('text/plain') ?? ''
+  if (!text) {
+    return false
+  }
+
+  const html = clipboard?.getData('text/html') ?? ''
+  const hasTabBlockMarkup = /data-type=["'](?:tabs-block|tab-panel)["']|class=["'][^"']*(?:tabs-block|tabs-block-panel)/.test(html)
+  if (!hasTabBlockMarkup) {
+    return false
+  }
+
+  event.preventDefault()
+  insertPlainTextAtSelection(view, text)
+  return true
+}
+
+function insertPlainTextAtSelection(view: EditorView, text: string) {
+  const normalized = text.replace(/\r\n?/g, '\n')
+  if (!normalized.includes('\n')) {
+    view.dispatch(view.state.tr.insertText(normalized))
+    return
+  }
+
+  editor.value?.chain().focus().insertContent(plainTextToParagraphs(normalized)).run()
+}
+
+function plainTextToParagraphs(text: string): JsonContent[] {
+  return text.split(/\n{2,}/).map((paragraph) => {
+    const lines = paragraph.split('\n')
+    const content = lines.flatMap((line, index) => {
+      const nodes: JsonContent[] = line ? [{ type: 'text', text: line }] : []
+      if (index < lines.length - 1) {
+        nodes.push({ type: 'hardBreak' })
+      }
+      return nodes
+    })
+
+    return { type: 'paragraph', content }
+  })
 }
 
 function uploadImagesFromList(fileList: FileList | undefined | null) {
@@ -1902,7 +2294,7 @@ function handleMediaPicked(files: MediaRecord[]) {
   }))
 
   if (insertPos !== null) {
-    ed.chain().focus().insertContentAt(insertPos, content).run()
+    ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, insertPos, 'image'), content).run()
   } else {
     for (const node of content) {
       const chain = ed.chain().focus() as any
@@ -1926,7 +2318,7 @@ async function uploadImage(file: File) {
       const ed = editor.value
       const insertPos = pendingImageInsertPos.value
       if (ed && insertPos !== null) {
-        ed.chain().focus().insertContentAt(insertPos, {
+        ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, insertPos, 'image'), {
           type: 'image',
           attrs: {
             src: imageSrc,
@@ -2063,6 +2455,10 @@ function promptRemoteUrlForMediaText() {
 
 function ensureTrailingParagraph(ed: Editor) {
   const last = ed.state.doc.lastChild
+  if (last && last.type.name === 'footnotesBlock') {
+    return false
+  }
+
   if (last && last.type.name === 'paragraph' && last.content.size === 0) {
     return false
   }
@@ -2094,14 +2490,30 @@ function onRootClick(event: MouseEvent) {
     const rect = lastChild.getBoundingClientRect()
     if (event.clientY < rect.bottom) return
   }
-  const docSize = ed.state.doc.content.size
-  // Avoid adding when last block is already an empty paragraph
-  const last = ed.state.doc.lastChild
-  if (last && last.type.name === 'paragraph' && last.content.size === 0) {
-    ed.chain().focus().setTextSelection(docSize).run()
+  const editableEnd = editableDocumentEndPos(ed)
+  const editableTail = findTopLevelBlockEndingAt(ed, editableEnd)
+  if (editableTail?.node.type.name === 'paragraph' && editableTail.node.content.size === 0) {
+    ed.chain().focus().setTextSelection(editableTail.from + 1).run()
     return
   }
-  ed.chain().focus().insertContentAt(docSize, { type: 'paragraph' }).run()
+  ed.chain().focus().insertContentAt(editableEnd, { type: 'paragraph' }).run()
+}
+
+function editableDocumentEndPos(ed: Editor) {
+  return findTopLevelBlockRangeByType(ed, 'footnotesBlock')?.from ?? ed.state.doc.content.size
+}
+
+function findTopLevelBlockEndingAt(ed: Editor, pos: number): { from: number; to: number; node: ProseMirrorNode } | null {
+  let result: { from: number; to: number; node: ProseMirrorNode } | null = null
+
+  ed.state.doc.forEach((node, offset) => {
+    const to = offset + node.nodeSize
+    if (to === pos) {
+      result = { from: offset, to, node }
+    }
+  })
+
+  return result
 }
 
 function onCustomHtmlInteract() {

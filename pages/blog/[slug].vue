@@ -86,7 +86,19 @@ definePageMeta({ layout: false })
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug))
-const fetchWithSession = import.meta.server ? useRequestFetch() : $fetch
+
+type PublicFetch = <T>(url: string) => Promise<T>
+
+const fetchWithSession: PublicFetch = (url) => {
+  if (import.meta.server) {
+    const requestFetch = useRequestFetch() as unknown as PublicFetch
+    return requestFetch(url)
+  }
+
+  const clientFetch = $fetch as unknown as PublicFetch
+  return clientFetch(url)
+}
+
 const { data: post, error } = await useAsyncData(`post-${slug.value}`, () => fetchWithSession<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`))
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))

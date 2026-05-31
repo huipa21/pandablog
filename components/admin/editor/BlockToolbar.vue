@@ -150,7 +150,9 @@
 <script setup lang="ts">
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue'
 import type { Editor } from '@tiptap/core'
+import type { CSSProperties } from 'vue'
 import { hasAnyDropdownInlineActive, inlineMenuLabel } from './inlineFormatting'
+import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
 
 const props = defineProps<{
   editor: Editor | null
@@ -182,7 +184,7 @@ const linkDialogOpen = ref(false)
 
 // ─── FREE DRAG ────────────────────────────────────────────────────────────────
 const dragging = ref(false)
-const dragStyle = ref<{ position: string; top: string; left: string; transform: string } | null>(null)
+const dragStyle = ref<CSSProperties | null>(null)
 let dragOffsetX = 0
 let dragOffsetY = 0
 
@@ -252,9 +254,12 @@ const currentIcon = computed(() => {
     case 'orderedList': return 'i-lucide-list-ordered'
     case 'blockquote': return 'i-lucide-quote'
     case 'codeBlock': return 'i-lucide-square-code'
+    case 'diffBlock': return 'i-lucide-git-compare-arrows'
     case 'horizontalRule': return 'i-lucide-minus'
     case 'image': return 'i-lucide-image'
     case 'mediaText': return 'i-lucide-panel-left'
+    case 'columnsBlock': return 'i-lucide-columns-3'
+    case 'tabsBlock': return 'i-lucide-panel-top'
     case 'customHtml': return 'i-lucide-file-code-2'
     case 'mermaid': return 'i-lucide-git-fork'
     default: return 'i-lucide-box'
@@ -331,33 +336,44 @@ const inlineActive = computed(() => {
   }
 })
 
-const inlineMoreItems = computed(() => [[
-  {
-    label: inlineMenuLabel('Inline code', inlineActive.value.code),
-    icon: 'i-lucide-code',
-    class: inlineActive.value.code ? 'bg-teal-50 text-teal-700' : undefined,
-    onSelect: () => toggleInlineMark('code')
-  },
-  {
-    label: inlineMenuLabel('Highlight', inlineActive.value.highlight),
-    icon: 'i-lucide-highlighter',
-    class: inlineActive.value.highlight ? 'bg-teal-50 text-teal-700' : undefined,
-    onSelect: () => toggleInlineMark('highlight')
-  },
-  {
-    label: inlineMenuLabel('Subscript', inlineActive.value.subscript),
-    icon: 'i-lucide-subscript',
-    class: inlineActive.value.subscript ? 'bg-teal-50 text-teal-700' : undefined,
-    onSelect: () => toggleInlineMark('subscript')
-  },
-  {
-    label: inlineMenuLabel('Superscript', inlineActive.value.superscript),
-    icon: 'i-lucide-superscript',
-    class: inlineActive.value.superscript ? 'bg-teal-50 text-teal-700' : undefined,
-    onSelect: () => toggleInlineMark('superscript')
-  },
-  { label: 'Footnote', icon: 'i-lucide-footprints', onSelect: () => emit('add-footnote') }
-]])
+const inlineMoreItems = computed(() => [
+  [
+    {
+      label: inlineMenuLabel('Inline code', inlineActive.value.code),
+      icon: 'i-lucide-code',
+      class: inlineActive.value.code ? 'bg-teal-50 text-teal-700' : undefined,
+      onSelect: () => toggleInlineMark('code')
+    }
+  ],
+  [
+    ...HIGHLIGHT_COLORS.map((color) => ({
+      label: `Highlight ${color.label}`,
+      icon: 'i-lucide-highlighter',
+      class: inlineActive.value.highlight ? 'bg-teal-50 text-teal-700' : undefined,
+      onSelect: () => setHighlightColor(color.value)
+    })),
+    {
+      label: 'Remove highlight',
+      icon: 'i-lucide-eraser',
+      onSelect: unsetHighlightColor
+    }
+  ],
+  [
+    {
+      label: inlineMenuLabel('Subscript', inlineActive.value.subscript),
+      icon: 'i-lucide-subscript',
+      class: inlineActive.value.subscript ? 'bg-teal-50 text-teal-700' : undefined,
+      onSelect: () => toggleInlineMark('subscript')
+    },
+    {
+      label: inlineMenuLabel('Superscript', inlineActive.value.superscript),
+      icon: 'i-lucide-superscript',
+      class: inlineActive.value.superscript ? 'bg-teal-50 text-teal-700' : undefined,
+      onSelect: () => toggleInlineMark('superscript')
+    },
+    { label: 'Footnote', icon: 'i-lucide-footprints', onSelect: () => emit('add-footnote') }
+  ]
+])
 
 const hasDropdownInlineActive = computed(() => hasAnyDropdownInlineActive(inlineActive.value))
 
@@ -471,7 +487,7 @@ function toggleInlineMark(mark: 'bold' | 'italic' | 'strike' | 'code' | 'highlig
       chain.toggleCode().run()
       break
     case 'highlight':
-      chain.toggleHighlight().run()
+      ;(chain as any).setHighlight({ color: DEFAULT_HIGHLIGHT_COLOR }).run()
       break
     case 'subscript':
       chain.toggleSubscript().run()
@@ -483,6 +499,32 @@ function toggleInlineMark(mark: 'bold' | 'italic' | 'strike' | 'code' | 'highlig
 
   // After applying to a selected range, collapse to end and clear stored marks
   // so newly typed text does not unintentionally continue the styling.
+  if (hadRangeSelection) {
+    ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
+  }
+}
+
+function setHighlightColor(color: string) {
+  const ed = props.editor
+  if (!ed) return
+
+  const selectionEnd = ed.state.selection.to
+  const hadRangeSelection = !ed.state.selection.empty
+  ;(ed.chain().focus() as any).setHighlight({ color }).run()
+
+  if (hadRangeSelection) {
+    ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
+  }
+}
+
+function unsetHighlightColor() {
+  const ed = props.editor
+  if (!ed) return
+
+  const selectionEnd = ed.state.selection.to
+  const hadRangeSelection = !ed.state.selection.empty
+  ;(ed.chain().focus() as any).unsetHighlight().run()
+
   if (hadRangeSelection) {
     ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
   }
