@@ -1,6 +1,6 @@
 <template>
   <div
-    class="columns-block my-4"
+    class="columns-block"
     data-type="columns-block"
     :data-columns="columnCount"
     :data-proportions="proportions"
@@ -14,8 +14,9 @@
         class="columns-block-column"
         data-type="column-item"
         :data-header="columnHeader(column) || undefined"
+        :data-header-alignment="getHeaderAlignment(column)"
       >
-        <div v-if="columnHeader(column)" class="columns-block-header">{{ columnHeader(column) }}</div>
+        <div v-if="columnHeader(column)" class="columns-block-header" :class="`header-align-${getHeaderAlignment(column)}`">{{ columnHeader(column) }}</div>
         <div class="columns-block-content">
           <ContentRenderer v-for="(child, childIndex) in column.content ?? []" :key="childIndex" :node="child" />
         </div>
@@ -34,15 +35,37 @@ const props = defineProps<{
 }>()
 
 const columns = computed(() => (props.node.content ?? []).filter((child) => child.type === 'columnItem'))
-const columnCount = computed(() => Math.max(2, Math.min(3, columns.value.length || Number(props.node.attrs?.columns ?? 2) || 2)))
+const columnCount = computed(() => Math.max(2, Math.min(6, columns.value.length || Number(props.node.attrs?.columns ?? 2) || 2)))
 const proportions = computed(() => normalizeProportions(String(props.node.attrs?.proportions ?? ''), columnCount.value))
 const blockWidth = computed(() => normalizeBlockWidth(String(props.node.attrs?.blockWidth ?? 'content')))
+const customPercentages = computed(() => {
+  const fromAttrs = parseCustomPercentages(String(props.node.attrs?.customPercentages ?? ''), columnCount.value)
+  if (fromAttrs.length) {
+    return fromAttrs
+  }
+  return deriveCustomPercentagesFromColumns(columns.value, columnCount.value)
+})
+const columnGap = computed(() => String(props.node.attrs?.columnGap ?? '1rem'))
+const marginTop = computed(() => String(props.node.attrs?.marginTop ?? '1rem'))
+const marginBottom = computed(() => String(props.node.attrs?.marginBottom ?? '1rem'))
 
-const gridStyle = computed<CSSProperties>(() => ({
-  gridTemplateColumns: proportions.value.split('-').map((part) => `${Math.max(1, Number(part) || 1)}fr`).join(' ')
-}))
+const gridStyle = computed<CSSProperties>(() => {
+  const templateColumns = customPercentages.value.length > 0
+    ? customPercentages.value.map((p) => `${p}%`).join(' ')
+    : proportions.value.split('-').map((part) => `${Math.max(1, Number(part) || 1)}fr`).join(' ')
+
+  return {
+    gridTemplateColumns: templateColumns,
+    gap: columnGap.value
+  }
+})
 
 const blockStyle = computed<CSSProperties>(() => {
+  const spacing = {
+    marginTop: marginTop.value,
+    marginBottom: marginBottom.value
+  }
+
   switch (blockWidth.value) {
     case 'wide':
       return {
@@ -50,7 +73,8 @@ const blockStyle = computed<CSSProperties>(() => {
         maxWidth: 'calc(100vw - 2rem)',
         position: 'relative' as const,
         left: '50%',
-        transform: 'translateX(-50%)'
+        transform: 'translateX(-50%)',
+        ...spacing
       }
     case 'full-bleed':
       return {
@@ -58,11 +82,16 @@ const blockStyle = computed<CSSProperties>(() => {
         maxWidth: '100vw',
         position: 'relative' as const,
         left: '50%',
-        transform: 'translateX(-50%)'
+        transform: 'translateX(-50%)',
+        ...spacing
       }
     case 'content':
     default:
-      return { width: '100%', maxWidth: '100%' }
+      return {
+        width: '100%',
+        maxWidth: '100%',
+        ...spacing
+      }
   }
 })
 
@@ -70,8 +99,13 @@ function columnHeader(column: JsonContent) {
   return String(column.attrs?.header ?? '').trim()
 }
 
+function getHeaderAlignment(column: JsonContent) {
+  const value = String(column.attrs?.headerAlignment ?? 'left')
+  return value === 'center' || value === 'right' ? value : 'left'
+}
+
 function normalizeProportions(value: string, count: number) {
-  const fallback = count === 3 ? '1-1-1' : '1-1'
+  const fallback = evenProportions(count)
   const parts = value.split('-').map((part) => Number(part))
   if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0)) {
     return fallback
@@ -79,8 +113,58 @@ function normalizeProportions(value: string, count: number) {
   return parts.map((part) => Math.max(1, Math.round(part))).join('-')
 }
 
+function evenProportions(count: number) {
+  return Array.from({ length: Math.max(2, Math.min(6, count)) }, () => '1').join('-')
+}
+
 function normalizeBlockWidth(value: string) {
   return value === 'wide' || value === 'full-bleed' ? value : 'content'
+}
+
+function parseCustomPercentages(value: string, count: number): number[] {
+  if (!value.trim()) return []
+  const parts = value.split(',').map((p) => Number(p.trim()))
+  if (parts.length !== count || parts.some((p) => !Number.isFinite(p) || p <= 0 || p > 100)) {
+    return []
+  }
+  const total = parts.reduce((sum, p) => sum + p, 0)
+  if (Math.abs(total - 100) > 0.01) {
+    return []
+  }
+  return parts
+}
+
+function deriveCustomPercentagesFromColumns(columnNodes: JsonContent[], count: number): number[] {
+  const widths = Array.from({ length: count }, (_unused, index) => {
+    const column = columnNodes[index]
+    const value = Number(column?.attrs?.widthPercent ?? 0)
+    return Number.isFinite(value) && value > 0 ? Math.min(100, Math.max(1, value)) : 0
+  })
+
+  if (widths.every((value) => value <= 0)) {
+    return []
+  }
+
+  const specifiedTotal = widths.reduce((sum, value) => sum + (value > 0 ? value : 0), 0)
+  const missingCount = widths.filter((value) => value <= 0).length
+
+  if (missingCount === 0) {
+    if (specifiedTotal <= 0) return []
+    const scale = 100 / specifiedTotal
+    return widths.map((value) => roundPercent(value * scale))
+  }
+
+  const remaining = 100 - specifiedTotal
+  if (remaining <= 0) {
+    return []
+  }
+
+  const auto = remaining / missingCount
+  return widths.map((value) => roundPercent(value > 0 ? value : auto))
+}
+
+function roundPercent(value: number) {
+  return Math.round(value * 10000) / 10000
 }
 </script>
 
@@ -111,6 +195,14 @@ function normalizeBlockWidth(value: string) {
   font-weight: 650;
   line-height: 1.35;
   padding: 0.65rem 0.85rem;
+}
+
+.columns-block-header.header-align-center {
+  text-align: center;
+}
+
+.columns-block-header.header-align-right {
+  text-align: right;
 }
 
 .columns-block-content {

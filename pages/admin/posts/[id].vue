@@ -116,6 +116,31 @@
         />
       </div>
     </div>
+
+    <UModal v-model:open="leaveDialogOpen">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div>
+              <h3 class="text-base font-semibold text-stone-900">Unsaved changes</h3>
+              <p class="text-xs text-stone-500">Leave this editor, save to database, or discard local edits.</p>
+            </div>
+          </template>
+
+          <div class="text-sm text-stone-600">
+            Your edits are not saved to the database yet.
+          </div>
+
+          <template #footer>
+            <div class="flex flex-wrap justify-end gap-2">
+              <UButton type="button" color="neutral" variant="ghost" :disabled="savingAction === 'save-db'" @click="cancelLeave">Cancel</UButton>
+              <UButton type="button" color="warning" variant="soft" :disabled="savingAction === 'save-db'" @click="discardAndLeave">Discard</UButton>
+              <UButton type="button" color="primary" icon="i-lucide-save" :loading="savingAction === 'save-db'" @click="saveAndLeave">Save to DB</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </section>
 </template>
 
@@ -136,7 +161,7 @@ const writeFetchTimeoutMs = 30_000
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const apiPath = computed(() => `/api/admin/posts/${encodeURIComponent(id.value)}`)
-const savingAction = ref<'save-local' | 'publish' | 'unpublish' | null>(null)
+const savingAction = ref<'save-local' | 'save-db' | 'publish' | 'unpublish' | null>(null)
 const saveStatus = ref('')
 const saveStatusType = ref<'success' | 'error'>('success')
 const saveError = ref('')
@@ -145,6 +170,11 @@ const uploadingCover = ref(false)
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
 const rightPaneCollapsed = ref(false)
+const leaveDialogOpen = ref(false)
+const pendingLeavePath = ref<string | null>(null)
+const bypassLeaveGuard = ref(false)
+const hasLoadedDbSnapshot = ref(false)
+const savedDbSnapshot = ref('')
 
 const saveStatusClass = computed(() =>
   saveStatusType.value === 'error' ? 'text-red-600' : 'text-stone-500'
@@ -217,7 +247,17 @@ watch(post, (value) => {
   form.password_hint = value.password_hint ?? ''
   form.password = ''
   form.content = value.content_json
+  savedDbSnapshot.value = serializeDbPayload()
+  hasLoadedDbSnapshot.value = true
 }, { immediate: true })
+
+const hasUnsavedDbChanges = computed(() => {
+  if (!hasLoadedDbSnapshot.value) {
+    return false
+  }
+
+  return serializeDbPayload() !== savedDbSnapshot.value
+})
 
 // ─── LOCAL SAVE (localStorage) ───────────────────────────────────────────────
 const localStorageKey = computed(() => `pb-post-local-${id.value}`)
@@ -270,7 +310,7 @@ async function publishOrUpdate() {
   await save('published', 'publish')
 }
 
-async function save(nextStatus: PostStatus, action: 'publish' | 'unpublish') {
+async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unpublish') {
   savingAction.value = action
   saveStatus.value = 'Saving...'
   saveStatusType.value = 'success'
@@ -306,20 +346,26 @@ async function save(nextStatus: PostStatus, action: 'publish' | 'unpublish') {
     form.password_hint = saved.password_hint ?? ''
     form.password = ''
     post.value = saved
+    savedDbSnapshot.value = serializeDbPayload()
+    hasLoadedDbSnapshot.value = true
     clearLocalSave()
     await Promise.all([refreshCategories(), refreshTags()])
 
     const timeStr = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date())
     if (action === 'publish') {
       saveStatus.value = currentStatus.value === 'published' ? `Updated at ${timeStr}` : `Published at ${timeStr}`
+    } else if (action === 'save-db') {
+      saveStatus.value = `Saved to DB at ${timeStr}`
     } else if (action === 'unpublish') {
       saveStatus.value = `Unpublished at ${timeStr}`
     }
     saveStatusType.value = 'success'
+    return true
   } catch (err: any) {
     saveError.value = err?.statusMessage ?? err?.message ?? 'Save failed'
     saveStatus.value = 'Save failed'
     saveStatusType.value = 'error'
+    return false
   } finally {
     savingAction.value = null
   }
@@ -360,13 +406,88 @@ onMounted(() => {
     if (currentStatus.value === 'archived') return
     saveLocal()
   }, 5 * 60 * 1000)
+
+  window.addEventListener('beforeunload', handleBeforeUnload)
 })
 onBeforeUnmount(() => {
   if (autoSaveTimer) {
     clearInterval(autoSaveTimer)
     autoSaveTimer = null
   }
+
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
+
+onBeforeRouteLeave((to) => {
+  if (bypassLeaveGuard.value || !hasUnsavedDbChanges.value || savingAction.value === 'save-db') {
+    return true
+  }
+
+  pendingLeavePath.value = to.fullPath
+  leaveDialogOpen.value = true
+  return false
+})
+
+function handleBeforeUnload(event: BeforeUnloadEvent) {
+  if (bypassLeaveGuard.value || !hasUnsavedDbChanges.value || savingAction.value === 'save-db') {
+    return
+  }
+
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+function cancelLeave() {
+  leaveDialogOpen.value = false
+  pendingLeavePath.value = null
+}
+
+async function discardAndLeave() {
+  await continueLeaveNavigation()
+}
+
+async function saveAndLeave() {
+  const ok = await save(currentStatus.value, 'save-db')
+  if (!ok) {
+    return
+  }
+
+  await continueLeaveNavigation()
+}
+
+async function continueLeaveNavigation() {
+  const targetPath = pendingLeavePath.value
+  leaveDialogOpen.value = false
+  pendingLeavePath.value = null
+  if (!targetPath) {
+    return
+  }
+
+  bypassLeaveGuard.value = true
+  try {
+    await navigateTo(targetPath)
+  } finally {
+    bypassLeaveGuard.value = false
+  }
+}
+
+function serializeDbPayload() {
+  return JSON.stringify({
+    title: form.title,
+    slug: form.slug,
+    summary: form.summary,
+    cover_image: form.cover_image,
+    category_ids: form.category_ids,
+    tag_ids: form.tag_ids,
+    category_names: form.category_names,
+    tag_names: form.tag_names,
+    visibility: form.visibility,
+    password: form.password,
+    password_hint: form.password_hint,
+    content_json: form.content,
+    status: currentStatus.value
+  })
+}
 
 function emptyDoc(): JsonContent {
   return {

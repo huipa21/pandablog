@@ -156,7 +156,7 @@ const blockDefinitions: BlockDefinition[] = [
   {
     name: 'columnsBlock',
     title: 'Columns',
-    description: 'Arrange blocks in two or three responsive columns.',
+    description: 'Arrange blocks in up to six responsive columns.',
     icon: 'i-lucide-columns-3',
     category: 'design',
     keywords: ['columns', 'layout', 'grid', 'two column', 'three column'],
@@ -164,10 +164,18 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'columnsBlock',
-      attrs: { columns: 2, proportions: '1-1', blockWidth: 'content' },
+      attrs: {
+        columns: 2,
+        proportions: '1-1',
+        customPercentages: '',
+        blockWidth: 'content',
+        columnGap: '1rem',
+        marginTop: '1rem',
+        marginBottom: '1rem'
+      },
       content: [
-        { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column one' }] }] },
-        { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column two' }] }] }
+        { type: 'columnItem', attrs: { header: '', widthPercent: 0, headerAlignment: 'left' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column one' }] }] },
+        { type: 'columnItem', attrs: { header: '', widthPercent: 0, headerAlignment: 'left' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column two' }] }] }
       ]
     })
   },

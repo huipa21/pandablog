@@ -93,6 +93,58 @@
         <UIcon name="i-lucide-link" class="size-4" />
       </button>
 
+      <div class="relative">
+        <button
+          type="button"
+          class="bt-btn"
+          :class="{ 'bt-btn-active': inlineActive.highlight }"
+          :aria-pressed="inlineActive.highlight"
+          title="Highlight"
+          @mousedown.prevent="toggleHighlightPalette"
+        >
+          <UIcon name="i-lucide-highlighter" class="size-4" />
+        </button>
+
+        <div
+          v-if="highlightPaletteOpen"
+          class="bt-highlight-popover"
+          role="dialog"
+          aria-label="Highlight colors"
+          @mousedown.prevent
+        >
+          <div class="bt-highlight-grid">
+            <button
+              v-for="color in highlightColors"
+              :key="color.value"
+              type="button"
+              class="bt-highlight-swatch"
+              :style="{ backgroundColor: color.value }"
+              :title="`Highlight ${color.label}`"
+              :aria-label="`Highlight ${color.label}`"
+              @mousedown.prevent="setHighlightColor(color.value)"
+            />
+          </div>
+
+          <div class="bt-highlight-actions">
+            <label class="bt-highlight-picker" title="Custom highlight color">
+              <UIcon name="i-lucide-palette" class="size-3.5" />
+              <span>Custom</span>
+              <input type="color" :value="customHighlightColor" @input="setCustomHighlightColor">
+            </label>
+
+            <button
+              type="button"
+              class="bt-highlight-clear"
+              title="Remove highlight"
+              @mousedown.prevent="unsetHighlightColor"
+            >
+              <UIcon name="i-lucide-eraser" class="size-3.5" />
+              <span>Transparent</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <UDropdownMenu :items="inlineMoreItems">
         <button
           type="button"
@@ -181,6 +233,9 @@ const emit = defineEmits<{
 const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 const linkDialogOpen = ref(false)
+const highlightPaletteOpen = ref(false)
+const customHighlightColor = ref(DEFAULT_HIGHLIGHT_COLOR)
+const highlightColors = HIGHLIGHT_COLORS
 
 // ─── FREE DRAG ────────────────────────────────────────────────────────────────
 const dragging = ref(false)
@@ -227,6 +282,7 @@ watch(() => props.referenceEl, () => {
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onDragMouseMove)
   window.removeEventListener('mouseup', onDragMouseUp)
+  window.removeEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
 })
 const linkForm = reactive({
   href: 'https://',
@@ -343,19 +399,6 @@ const inlineMoreItems = computed(() => [
       icon: 'i-lucide-code',
       class: inlineActive.value.code ? 'bg-teal-50 text-teal-700' : undefined,
       onSelect: () => toggleInlineMark('code')
-    }
-  ],
-  [
-    ...HIGHLIGHT_COLORS.map((color) => ({
-      label: `Highlight ${color.label}`,
-      icon: 'i-lucide-highlighter',
-      class: inlineActive.value.highlight ? 'bg-teal-50 text-teal-700' : undefined,
-      onSelect: () => setHighlightColor(color.value)
-    })),
-    {
-      label: 'Remove highlight',
-      icon: 'i-lucide-eraser',
-      onSelect: unsetHighlightColor
     }
   ],
   [
@@ -511,10 +554,13 @@ function setHighlightColor(color: string) {
   const selectionEnd = ed.state.selection.to
   const hadRangeSelection = !ed.state.selection.empty
   ;(ed.chain().focus() as any).setHighlight({ color }).run()
+  customHighlightColor.value = color
 
   if (hadRangeSelection) {
     ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
   }
+
+  highlightPaletteOpen.value = false
 }
 
 function unsetHighlightColor() {
@@ -528,7 +574,45 @@ function unsetHighlightColor() {
   if (hadRangeSelection) {
     ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
   }
+
+  highlightPaletteOpen.value = false
 }
+
+function toggleHighlightPalette() {
+  highlightPaletteOpen.value = !highlightPaletteOpen.value
+}
+
+function setCustomHighlightColor(event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  customHighlightColor.value = value
+  setHighlightColor(value)
+}
+
+function closeHighlightPaletteOnOutsideClick(event: PointerEvent) {
+  if (!highlightPaletteOpen.value) {
+    return
+  }
+
+  const target = event.target as Node | null
+  if (!target) {
+    highlightPaletteOpen.value = false
+    return
+  }
+
+  if (!toolbarEl.value?.contains(target)) {
+    highlightPaletteOpen.value = false
+  }
+}
+
+watch(() => props.visible, (visible) => {
+  if (!visible) {
+    highlightPaletteOpen.value = false
+  }
+})
+
+onMounted(() => {
+  window.addEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
+})
 
 function restoreLastTextSelection(editor: Editor) {
   if (!editor.state.selection.empty) {
@@ -624,5 +708,71 @@ function selectionHasMark(editor: Editor, markName: string) {
   height: 20px;
   background: rgb(214 211 209);
   margin: 0 4px;
+}
+
+.bt-highlight-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 188px;
+  border: 1px solid rgb(231 229 228);
+  border-radius: 0.5rem;
+  background: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+}
+
+.bt-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.bt-highlight-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(214 211 209);
+}
+
+.bt-highlight-actions {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bt-highlight-picker,
+.bt-highlight-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(231 229 228);
+  background: white;
+  color: rgb(68 64 60);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.bt-highlight-picker {
+  position: relative;
+  overflow: hidden;
+}
+
+.bt-highlight-picker input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bt-highlight-picker:hover,
+.bt-highlight-clear:hover {
+  border-color: rgb(45 212 191);
+  color: rgb(15 118 110);
 }
 </style>

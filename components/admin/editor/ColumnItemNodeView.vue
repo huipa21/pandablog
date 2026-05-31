@@ -1,16 +1,49 @@
 <template>
-  <NodeViewWrapper class="columns-block-column" data-type="column-item" :data-header="header || undefined">
-    <div v-if="header" class="columns-block-header" contenteditable="false">{{ header }}</div>
+  <NodeViewWrapper
+    class="columns-block-column"
+    data-type="column-item"
+    :data-header="header || undefined"
+    :data-header-alignment="headerAlignment"
+    @keydown.delete="handleKeyboardDelete"
+    @keydown.backspace="handleKeyboardDelete"
+  >
+    <div v-if="header" class="columns-block-header" :class="`header-align-${headerAlignment}`" contenteditable="false">{{ header }}</div>
     <NodeViewContent class="columns-block-content" />
   </NodeViewWrapper>
 </template>
 
 <script setup lang="ts">
+import { NodeSelection } from '@tiptap/pm/state'
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 
 const props = defineProps(nodeViewProps)
 
 const header = computed(() => String(props.node.attrs.header ?? '').trim())
+const headerAlignment = computed(() => {
+  const value = String(props.node.attrs.headerAlignment ?? 'left')
+  return value === 'center' || value === 'right' ? value : 'left'
+})
+
+function handleKeyboardDelete(event: KeyboardEvent) {
+  if (event.key !== 'Delete' && event.key !== 'Backspace') {
+    return
+  }
+
+  const selection = props.editor.state.selection
+  if (!(selection instanceof NodeSelection)) {
+    return
+  }
+
+  const pos = props.getPos()
+  const nodePos = typeof pos === 'function' ? pos() : typeof pos === 'number' ? pos : null
+  if (typeof nodePos !== 'number') {
+    return
+  }
+
+  if (selection.from === nodePos && selection.node.type.name === 'columnItem') {
+    event.preventDefault()
+  }
+}
 </script>
 
 <style scoped>
@@ -30,6 +63,14 @@ const header = computed(() => String(props.node.attrs.header ?? '').trim())
   font-weight: 650;
   line-height: 1.35;
   padding: 0.65rem 0.85rem;
+}
+
+.columns-block-header.header-align-center {
+  text-align: center;
+}
+
+.columns-block-header.header-align-right {
+  text-align: right;
 }
 
 .columns-block-content {

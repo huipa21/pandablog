@@ -259,38 +259,120 @@
 
       <details v-if="blockName === 'columnsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Columns</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField label="Column count">
-            <USelect
-              :model-value="String(columnsCount)"
-              :items="columnCountItems"
-              @update:model-value="setColumnsCount"
-            />
-          </UFormField>
-          <UFormField label="Proportions">
-            <USelect
-              :model-value="columnsProportions"
-              :items="columnProportionItems"
-              @update:model-value="setColumnsProportions"
-            />
-          </UFormField>
-          <UFormField label="Block width">
+        <div class="mt-3 space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <UFormField label="Column count">
+              <USelect
+                :model-value="String(columnsCount)"
+                :items="columnCountItems"
+                @update:model-value="setColumnsCount"
+              />
+            </UFormField>
+            <UFormField label="Proportions">
+              <USelect
+                :model-value="columnsProportions"
+                :items="columnProportionItems"
+                @update:model-value="setColumnsProportions"
+              />
+            </UFormField>
+          </div>
+
+          <div class="space-y-2 rounded-md border border-stone-200 bg-stone-50 p-2">
+            <div v-for="column in columnItems" :key="column.index" class="rounded border border-stone-200 bg-white p-2">
+              <div class="mb-2 text-xs font-medium text-stone-600">Column {{ column.index + 1 }}</div>
+              <div class="grid grid-cols-2 gap-2">
+                <UFormField label="Header">
+                  <UInput
+                    :model-value="String(column.attrs.header ?? '')"
+                    placeholder="Optional header"
+                    size="sm"
+                    @update:model-value="setColumnHeader(column.index, $event)"
+                  />
+                </UFormField>
+                <UFormField label="Width %">
+                  <UInput
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="Auto"
+                    size="sm"
+                    :model-value="column.attrs.widthPercent ? String(column.attrs.widthPercent) : ''"
+                    @update:model-value="setColumnWidthPercent(column.index, $event)"
+                  />
+                </UFormField>
+              </div>
+              <div class="mt-2 flex items-end justify-between gap-2">
+                <UFormField label="Header alignment" class="w-full">
+                  <USelect
+                    :model-value="String(column.attrs.headerAlignment ?? 'left')"
+                    :items="[{ label: 'Left', value: 'left' }, { label: 'Center', value: 'center' }, { label: 'Right', value: 'right' }]"
+                    size="sm"
+                    @update:model-value="setColumnHeaderAlignment(column.index, $event)"
+                  />
+                </UFormField>
+                <UButton
+                  v-if="columnsCount > 2"
+                  type="button"
+                  icon="i-lucide-trash"
+                  size="sm"
+                  color="error"
+                  variant="ghost"
+                  @click="removeColumn(column.index)"
+                >
+                  Remove
+                </UButton>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <UButton
+              v-if="columnsCount < 6"
+              type="button"
+              icon="i-lucide-plus"
+              size="sm"
+              variant="soft"
+              color="neutral"
+              @click="addColumn"
+            >
+              Add Column
+            </UButton>
+          </div>
+
+          <div class="space-y-2">
+            <UFormField label="Gap between columns">
+              <UInput
+                :model-value="String(attrs.columnGap ?? '1rem')"
+                placeholder="1rem"
+                size="sm"
+                @update:model-value="updateAttrs({ columnGap: String($event) })"
+              />
+            </UFormField>
+            <UFormField label="Margin above block">
+              <UInput
+                :model-value="String(attrs.marginTop ?? '1rem')"
+                placeholder="1rem"
+                size="sm"
+                @update:model-value="updateAttrs({ marginTop: String($event) })"
+              />
+            </UFormField>
+            <UFormField label="Margin below block">
+              <UInput
+                :model-value="String(attrs.marginBottom ?? '1rem')"
+                placeholder="1rem"
+                size="sm"
+                @update:model-value="updateAttrs({ marginBottom: String($event) })"
+              />
+            </UFormField>
+          </div>
+
+          <UFormField label="Whole block width">
             <USelect
               :model-value="String(attrs.blockWidth ?? 'content')"
               :items="blockWidthItems"
               @update:model-value="updateAttrs({ blockWidth: String($event) })"
             />
           </UFormField>
-          <div class="space-y-2">
-            <div class="text-xs font-medium uppercase tracking-wider text-stone-400">Column headers</div>
-            <UFormField v-for="column in columnItems" :key="column.index" :label="`Column ${column.index + 1}`">
-              <UInput
-                :model-value="String(column.attrs.header ?? '')"
-                placeholder="Optional header"
-                @update:model-value="setColumnHeader(column.index, $event)"
-              />
-            </UFormField>
-          </div>
         </div>
       </details>
 
@@ -336,6 +418,7 @@
             <UFormField v-for="tab in tabPanels" :key="tab.index" :label="`Tab ${tab.index + 1}`">
               <UInput
                 :model-value="String(tab.attrs.title ?? `Tab ${tab.index + 1}`)"
+                placeholder="Tab title"
                 @update:model-value="setTabTitle(tab.index, $event)"
               />
             </UFormField>
@@ -346,7 +429,6 @@
       <details v-if="blockName === 'blockquote'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Quote</summary>
         <div class="mt-3 space-y-3">
-          <!-- Style -->
           <UFormField label="Style">
             <USelect
               :model-value="String(attrs.style ?? 'bar')"
@@ -355,8 +437,7 @@
             />
           </UFormField>
 
-          <!-- Accent color -->
-          <UFormField label="Accent color">
+          <UFormField label="Theme color">
             <div class="flex items-center gap-2">
               <input
                 type="color"
@@ -373,11 +454,9 @@
             </div>
           </UFormField>
 
-          <!-- Typography section -->
           <div class="border-t border-stone-200 pt-3">
-            <div class="text-xs font-semibold text-stone-700 mb-2">Typography</div>
+            <div class="mb-2 text-xs font-semibold text-stone-700">Typography</div>
 
-            <!-- Font family -->
             <UFormField label="Font family">
               <USelect
                 :model-value="String(attrs.fontFamily ?? 'sans')"
@@ -386,7 +465,6 @@
               />
             </UFormField>
 
-            <!-- Font size -->
             <UFormField label="Font size">
               <div class="flex gap-2">
                 <UInput
@@ -402,7 +480,6 @@
               </div>
             </UFormField>
 
-            <!-- Font color -->
             <UFormField label="Text color">
               <div class="flex items-center gap-2">
                 <input
@@ -420,7 +497,6 @@
               </div>
             </UFormField>
 
-            <!-- Background color -->
             <UFormField label="Background color (optional)">
               <div class="flex items-center gap-2">
                 <input
@@ -439,9 +515,8 @@
             </UFormField>
           </div>
 
-          <!-- Source section -->
           <div class="border-t border-stone-200 pt-3">
-            <div class="text-xs font-semibold text-stone-700 mb-2">Source / Author</div>
+            <div class="mb-2 text-xs font-semibold text-stone-700">Source / Author</div>
 
             <UFormField label="Author name (optional)">
               <UInput
@@ -609,20 +684,39 @@ const blockWidthItems = [
 ]
 const columnCountItems = [
   { label: '2 columns', value: '2' },
-  { label: '3 columns', value: '3' }
+  { label: '3 columns', value: '3' },
+  { label: '4 columns', value: '4' },
+  { label: '5 columns', value: '5' },
+  { label: '6 columns', value: '6' }
 ]
-const columnProportionItems = computed(() => columnsCount.value === 3
-  ? [
+const columnProportionItems = computed(() => {
+  const count = columnsCount.value
+  if (count === 2) {
+    return [
+      { label: 'Equal halves', value: '1-1' },
+      { label: 'One third / Two thirds', value: '1-2' },
+      { label: 'Two thirds / One third', value: '2-1' }
+    ]
+  }
+  if (count === 3) {
+    return [
       { label: 'Equal thirds', value: '1-1-1' },
       { label: 'Narrow / Narrow / Wide', value: '1-1-2' },
       { label: 'Narrow / Wide / Narrow', value: '1-2-1' },
       { label: 'Wide / Narrow / Narrow', value: '2-1-1' }
     ]
-  : [
-      { label: 'Equal halves', value: '1-1' },
-      { label: 'One third / Two thirds', value: '1-2' },
-      { label: 'Two thirds / One third', value: '2-1' }
-    ])
+  }
+  if (count === 4) {
+    return [{ label: 'Equal quarters', value: '1-1-1-1' }]
+  }
+  if (count === 5) {
+    return [{ label: 'Equal fifths', value: '1-1-1-1-1' }]
+  }
+  if (count === 6) {
+    return [{ label: 'Equal sixths', value: '1-1-1-1-1-1' }]
+  }
+  return [{ label: 'Even distribution', value: '1-1' }]
+})
 const tabOrientationItems = [
   { label: 'Horizontal', value: 'horizontal' },
   { label: 'Vertical', value: 'vertical' }
@@ -698,7 +792,7 @@ const selectedBlockNode = computed(() => {
 })
 
 const columnItems = computed(() => childSettings('columnItem'))
-const columnsCount = computed(() => Math.max(2, Math.min(3, columnItems.value.length || Number(attrs.value.columns ?? 2) || 2)))
+const columnsCount = computed(() => Math.max(2, Math.min(6, columnItems.value.length || Number(attrs.value.columns ?? 2) || 2)))
 const columnsProportions = computed(() => normalizeColumnProportions(String(attrs.value.proportions ?? ''), columnsCount.value))
 const tabPanels = computed(() => childSettings('tabPanel'))
 const tabsActiveIndex = computed(() => normalizeTabsActiveIndex(Number(attrs.value.activeIndex ?? 0), tabPanels.value.length))
@@ -866,7 +960,7 @@ function updateNestedChildAttrs(blockType: string, childType: string, childIndex
 }
 
 function normalizeColumnProportions(value: string, count: number) {
-  const fallback = count === 3 ? '1-1-1' : '1-1'
+  const fallback = Array.from({ length: Math.max(2, Math.min(6, count)) }, () => '1').join('-')
   const parts = value.split('-').map((part) => Number(part))
   if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0)) {
     return fallback
@@ -879,7 +973,12 @@ function normalizeColumnItems(content: JsonContent[] | undefined, count: number)
   const existing = (content ?? []).filter((child) => child.type === 'columnItem')
   const columns: JsonContent[] = existing.slice(0, count).map((child, index) => ({
     ...child,
-    attrs: { ...(child.attrs ?? {}), header: String(child.attrs?.header ?? '') },
+    attrs: {
+      ...(child.attrs ?? {}),
+      header: String(child.attrs?.header ?? ''),
+      widthPercent: Number(child.attrs?.widthPercent ?? 0) || 0,
+      headerAlignment: normalizeHeaderAlignment(String(child.attrs?.headerAlignment ?? 'left'))
+    },
     content: child.content?.length ? child.content : defaultColumnItem(index).content
   }))
 
@@ -902,9 +1001,57 @@ function normalizeColumnItems(content: JsonContent[] | undefined, count: number)
 function defaultColumnItem(index: number): JsonContent {
   return {
     type: 'columnItem',
-    attrs: { header: '' },
+    attrs: { header: '', widthPercent: 0, headerAlignment: 'left' },
     content: [{ type: 'paragraph', content: [{ type: 'text', text: `Column ${index + 1}` }] }]
   }
+}
+
+function normalizeHeaderAlignment(value: string) {
+  return value === 'center' || value === 'right' ? value : 'left'
+}
+
+function parseColumnWidthPercent(value: unknown) {
+  const raw = Number(asInputValue(value, '').trim())
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 0
+  }
+
+  return Math.max(1, Math.min(100, Math.round(raw)))
+}
+
+function formatPercentage(value: number) {
+  return String(Math.round(value * 10000) / 10000)
+}
+
+function buildColumnCustomPercentages(columns: JsonContent[]) {
+  const widths = columns.map((column) => {
+    const value = Number(column.attrs?.widthPercent ?? 0)
+    return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(100, value)) : 0
+  })
+
+  if (widths.every((value) => value <= 0)) {
+    return ''
+  }
+
+  const explicitTotal = widths.reduce((sum, value) => sum + (value > 0 ? value : 0), 0)
+  const missingCount = widths.filter((value) => value <= 0).length
+
+  if (missingCount === 0) {
+    const scale = explicitTotal > 0 ? 100 / explicitTotal : 0
+    if (scale <= 0) {
+      return ''
+    }
+
+    return widths.map((value) => formatPercentage(value * scale)).join(',')
+  }
+
+  const remaining = 100 - explicitTotal
+  if (remaining <= 0) {
+    return ''
+  }
+
+  const auto = remaining / missingCount
+  return widths.map((value) => formatPercentage(value > 0 ? value : auto)).join(',')
 }
 
 function defaultTabPanel(index: number): JsonContent {
@@ -1041,26 +1188,107 @@ function setFootnoteTitle(value: unknown) {
 }
 
 function setColumnsCount(value: unknown) {
-  const count = asSelectValue(value, '2') === '3' ? 3 : 2
+  const countStr = asSelectValue(value, '2')
+  const count = Math.max(2, Math.min(6, Number(countStr) || 2))
   const nextJson = selectedBlockJson('columnsBlock')
   if (!nextJson) return
 
+  const nextColumns = normalizeColumnItems(nextJson.content, count)
   nextJson.attrs = {
     ...(nextJson.attrs ?? {}),
     columns: count,
-    proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), count)
+    proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), count),
+    customPercentages: buildColumnCustomPercentages(nextColumns)
   }
-  nextJson.content = normalizeColumnItems(nextJson.content, count)
+  nextJson.content = nextColumns
   replaceSelectedBlockJson('columnsBlock', nextJson)
 }
 
 function setColumnsProportions(value: unknown) {
-  const proportions = normalizeColumnProportions(asSelectValue(value, columnsCount.value === 3 ? '1-1-1' : '1-1'), columnsCount.value)
-  updateAttrs({ columns: columnsCount.value, proportions })
+  const defaultProportions = Array.from({ length: Math.max(2, Math.min(6, columnsCount.value)) }, () => '1').join('-')
+  const proportions = normalizeColumnProportions(asSelectValue(value, defaultProportions), columnsCount.value)
+  const nextJson = selectedBlockJson('columnsBlock')
+  if (!nextJson) return
+
+  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value).map((column) => ({
+    ...column,
+    attrs: { ...(column.attrs ?? {}), widthPercent: 0 }
+  }))
+
+  nextJson.content = nextColumns
+  nextJson.attrs = {
+    ...(nextJson.attrs ?? {}),
+    columns: columnsCount.value,
+    proportions,
+    customPercentages: ''
+  }
+
+  replaceSelectedBlockJson('columnsBlock', nextJson)
 }
 
 function setColumnHeader(index: number, value: unknown) {
   updateNestedChildAttrs('columnsBlock', 'columnItem', index, { header: asInputValue(value, '') })
+}
+
+function setColumnWidthPercent(index: number, value: unknown) {
+  const nextJson = selectedBlockJson('columnsBlock')
+  if (!nextJson) return
+
+  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value)
+  const target = nextColumns[index]
+  if (!target) return
+
+  const widthPercent = parseColumnWidthPercent(value)
+  target.attrs = { ...(target.attrs ?? {}), widthPercent }
+
+  nextJson.content = nextColumns
+  nextJson.attrs = {
+    ...(nextJson.attrs ?? {}),
+    columns: columnsCount.value,
+    customPercentages: buildColumnCustomPercentages(nextColumns)
+  }
+
+  replaceSelectedBlockJson('columnsBlock', nextJson)
+}
+
+function setColumnHeaderAlignment(index: number, value: unknown) {
+  const alignment = normalizeHeaderAlignment(asSelectValue(value, 'left'))
+  updateNestedChildAttrs('columnsBlock', 'columnItem', index, { headerAlignment: alignment })
+}
+
+function addColumn() {
+  if (columnsCount.value >= 6) return
+  setColumnsCount(String(columnsCount.value + 1))
+}
+
+function removeColumn(index: number) {
+  const nextJson = selectedBlockJson('columnsBlock')
+  if (!nextJson) return
+
+  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value)
+  if (nextColumns.length <= 2 || index < 0 || index >= nextColumns.length) {
+    return
+  }
+
+  const [removed] = nextColumns.splice(index, 1)
+  if (removed?.content?.length) {
+    const receiverIndex = Math.max(0, index - 1)
+    const receiver = nextColumns[receiverIndex]
+    if (receiver) {
+      receiver.content = [...(receiver.content ?? []), ...removed.content]
+    }
+  }
+
+  const nextCount = Math.max(2, Math.min(6, nextColumns.length))
+  nextJson.content = nextColumns.slice(0, nextCount)
+  nextJson.attrs = {
+    ...(nextJson.attrs ?? {}),
+    columns: nextCount,
+    proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), nextCount),
+    customPercentages: buildColumnCustomPercentages(nextColumns)
+  }
+
+  replaceSelectedBlockJson('columnsBlock', nextJson)
 }
 
 function setTabsOrientation(value: unknown) {
