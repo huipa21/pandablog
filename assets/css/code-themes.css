@@ -16,14 +16,12 @@
 [data-theme="nord"] { --code-bg: #2e3440; --code-fg: #d8dee9; --code-gutter: rgba(255, 255, 255, 0.05); }
 [data-theme="tomorrow-night"] { --code-bg: #1d1f21; --code-fg: #c5c8c6; --code-gutter: rgba(255, 255, 255, 0.05); }
 
-.codeblock-nodeview pre,
-pre.codeblock-public {
+.codeblock-nodeview pre {
   background: var(--code-bg) !important;
   color: var(--code-fg) !important;
 }
 
-.codeblock-nodeview pre code,
-pre.codeblock-public code {
+.codeblock-nodeview pre code {
   color: var(--code-fg) !important;
   background: transparent !important;
 }

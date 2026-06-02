@@ -37,6 +37,8 @@ export function normalizePost(record: Record<string, unknown>): PostRecord {
     created_at: serializeDate(record.created_at) ?? new Date().toISOString(),
     updated_at: serializeDate(record.updated_at) ?? new Date().toISOString(),
     view_count: Number(record.view_count ?? 0),
+    word_count: Number(record.word_count ?? 0),
+    cjk_char_count: Number(record.cjk_char_count ?? 0),
     visibility: cleanVisibility(record.visibility),
     password_hint: record.password_hint === undefined ? null : record.password_hint as string | null
   }

@@ -4,6 +4,8 @@
     data-type="columns-block"
     :data-columns="columnCount"
     :data-proportions="proportions"
+    :data-show-headers="showHeaders ? 'true' : 'false'"
+    :data-layout-mode="layoutMode"
     :data-block-width="blockWidth"
     :style="blockStyle"
   >
@@ -14,9 +16,9 @@
         class="columns-block-column"
         data-type="column-item"
         :data-header="columnHeader(column) || undefined"
-        :data-header-alignment="getHeaderAlignment(column)"
+        :data-width-percent="formatPercent(activePercentages[index] ?? 0)"
       >
-        <div v-if="columnHeader(column)" class="columns-block-header" :class="`header-align-${getHeaderAlignment(column)}`">{{ columnHeader(column) }}</div>
+        <div v-if="showHeaders && columnHeader(column)" class="columns-block-header">{{ columnHeader(column) }}</div>
         <div class="columns-block-content">
           <ContentRenderer v-for="(child, childIndex) in column.content ?? []" :key="childIndex" :node="child" />
         </div>
@@ -37,22 +39,23 @@ const props = defineProps<{
 const columns = computed(() => (props.node.content ?? []).filter((child) => child.type === 'columnItem'))
 const columnCount = computed(() => Math.max(2, Math.min(6, columns.value.length || Number(props.node.attrs?.columns ?? 2) || 2)))
 const proportions = computed(() => normalizeProportions(String(props.node.attrs?.proportions ?? ''), columnCount.value))
+const customPercentages = computed(() => parseCustomPercentages(String(props.node.attrs?.customPercentages ?? ''), columnCount.value))
+const showHeaders = computed(() => props.node.attrs?.showHeaders !== false)
+const layoutMode = computed(() => (customPercentages.value.length ? 'manual' : 'preset'))
 const blockWidth = computed(() => normalizeBlockWidth(String(props.node.attrs?.blockWidth ?? 'content')))
-const customPercentages = computed(() => {
-  const fromAttrs = parseCustomPercentages(String(props.node.attrs?.customPercentages ?? ''), columnCount.value)
-  if (fromAttrs.length) {
-    return fromAttrs
-  }
-  return deriveCustomPercentagesFromColumns(columns.value, columnCount.value)
-})
 const columnGap = computed(() => String(props.node.attrs?.columnGap ?? '1rem'))
 const marginTop = computed(() => String(props.node.attrs?.marginTop ?? '1rem'))
 const marginBottom = computed(() => String(props.node.attrs?.marginBottom ?? '1rem'))
 
+const activePercentages = computed(() => {
+  if (customPercentages.value.length === columnCount.value) {
+    return customPercentages.value
+  }
+  return proportionsToPercentages(proportions.value, columnCount.value)
+})
+
 const gridStyle = computed<CSSProperties>(() => {
-  const templateColumns = customPercentages.value.length > 0
-    ? customPercentages.value.map((p) => `${p}%`).join(' ')
-    : proportions.value.split('-').map((part) => `${Math.max(1, Number(part) || 1)}fr`).join(' ')
+  const templateColumns = activePercentages.value.map((value) => `${value}fr`).join(' ')
 
   return {
     gridTemplateColumns: templateColumns,
@@ -99,11 +102,6 @@ function columnHeader(column: JsonContent) {
   return String(column.attrs?.header ?? '').trim()
 }
 
-function getHeaderAlignment(column: JsonContent) {
-  const value = String(column.attrs?.headerAlignment ?? 'left')
-  return value === 'center' || value === 'right' ? value : 'left'
-}
-
 function normalizeProportions(value: string, count: number) {
   const fallback = evenProportions(count)
   const parts = value.split('-').map((part) => Number(part))
@@ -117,54 +115,48 @@ function evenProportions(count: number) {
   return Array.from({ length: Math.max(2, Math.min(6, count)) }, () => '1').join('-')
 }
 
-function normalizeBlockWidth(value: string) {
-  return value === 'wide' || value === 'full-bleed' ? value : 'content'
-}
-
 function parseCustomPercentages(value: string, count: number): number[] {
   if (!value.trim()) return []
-  const parts = value.split(',').map((p) => Number(p.trim()))
-  if (parts.length !== count || parts.some((p) => !Number.isFinite(p) || p <= 0 || p > 100)) {
+  const parts = value.split(',').map((part) => Number(part.trim()))
+  if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0 || part >= 100)) {
     return []
   }
-  const total = parts.reduce((sum, p) => sum + p, 0)
-  if (Math.abs(total - 100) > 0.01) {
+
+  const total = parts.reduce((sum, part) => sum + part, 0)
+  if (Math.abs(total - 100) > 0.1) {
     return []
   }
-  return parts
+
+  return normalizePercentages(parts)
 }
 
-function deriveCustomPercentagesFromColumns(columnNodes: JsonContent[], count: number): number[] {
-  const widths = Array.from({ length: count }, (_unused, index) => {
-    const column = columnNodes[index]
-    const value = Number(column?.attrs?.widthPercent ?? 0)
-    return Number.isFinite(value) && value > 0 ? Math.min(100, Math.max(1, value)) : 0
-  })
-
-  if (widths.every((value) => value <= 0)) {
-    return []
+function proportionsToPercentages(value: string, count: number): number[] {
+  const normalized = normalizeProportions(value, count)
+  const weights = normalized.split('-').map((part) => Math.max(1, Number(part) || 1))
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  if (!totalWeight) {
+    return normalizePercentages(Array.from({ length: count }, () => 100 / count))
   }
-
-  const specifiedTotal = widths.reduce((sum, value) => sum + (value > 0 ? value : 0), 0)
-  const missingCount = widths.filter((value) => value <= 0).length
-
-  if (missingCount === 0) {
-    if (specifiedTotal <= 0) return []
-    const scale = 100 / specifiedTotal
-    return widths.map((value) => roundPercent(value * scale))
-  }
-
-  const remaining = 100 - specifiedTotal
-  if (remaining <= 0) {
-    return []
-  }
-
-  const auto = remaining / missingCount
-  return widths.map((value) => roundPercent(value > 0 ? value : auto))
+  return normalizePercentages(weights.map((weight) => (weight / totalWeight) * 100))
 }
 
-function roundPercent(value: number) {
-  return Math.round(value * 10000) / 10000
+function normalizePercentages(values: number[]): number[] {
+  if (!values.length) return []
+  const rounded = values.map((value) => Math.max(1, Math.min(99, Math.round(value * 100) / 100)))
+  const total = rounded.reduce((sum, value) => sum + value, 0)
+  const adjustment = Math.round((100 - total) * 100) / 100
+  const lastIndex = rounded.length - 1
+  const lastValue = rounded[lastIndex] ?? 0
+  rounded[lastIndex] = Math.round((lastValue + adjustment) * 100) / 100
+  return rounded
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 10) / 10}%`
+}
+
+function normalizeBlockWidth(value: string) {
+  return value === 'wide' || value === 'full-bleed' ? value : 'content'
 }
 </script>
 
@@ -180,6 +172,7 @@ function roundPercent(value: number) {
 }
 
 .columns-block-column {
+  position: relative;
   min-width: 0;
   border: 1px solid rgb(231 229 228);
   border-radius: 0.5rem;
@@ -195,14 +188,6 @@ function roundPercent(value: number) {
   font-weight: 650;
   line-height: 1.35;
   padding: 0.65rem 0.85rem;
-}
-
-.columns-block-header.header-align-center {
-  text-align: center;
-}
-
-.columns-block-header.header-align-right {
-  text-align: right;
 }
 
 .columns-block-content {

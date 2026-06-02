@@ -3,8 +3,8 @@
     <div class="grid gap-4">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Content</p>
-          <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">Posts</h1>
+          <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-primary)]">Content</p>
+          <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Posts</h1>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ selectedIds.length }} selected</UBadge>
@@ -20,7 +20,7 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
+      <div class="pb-admin-surface flex flex-wrap items-center gap-2 p-3">
         <USelect v-model="statusFilter" :items="statusFilterOptions" size="sm" class="w-40" />
         <USelect v-model="sortBy" :items="sortOptions" size="sm" class="w-48" />
         <AdminMultiSelectFilter
@@ -49,14 +49,14 @@
     <UAlert v-if="createError" color="error" icon="i-lucide-circle-alert" :title="createError" />
     <UAlert v-if="listError" color="error" icon="i-lucide-circle-alert" :title="listError" />
 
-    <div class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+    <div class="pb-admin-surface overflow-hidden">
       <div v-if="pending" class="grid gap-3 p-5">
         <USkeleton v-for="index in 4" :key="index" class="h-12" />
       </div>
 
       <div v-else-if="posts.length" class="overflow-x-auto">
         <table class="w-full min-w-[1120px] border-collapse text-left text-sm">
-          <thead class="bg-stone-50 text-xs uppercase tracking-wider text-stone-500">
+          <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
             <tr>
               <th class="w-12 px-4 py-3 font-medium">
                 <input
@@ -73,16 +73,17 @@
               <th class="min-w-48 px-4 py-3 font-medium">Categories</th>
               <th class="min-w-40 px-4 py-3 font-medium">Privacy</th>
               <th class="min-w-32 px-4 py-3 font-medium">Status</th>
+              <th class="min-w-32 px-4 py-3 font-medium">Length</th>
               <th class="min-w-36 px-4 py-3 font-medium">Published</th>
               <th class="min-w-32 px-4 py-3 font-medium">Updated</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-stone-100">
+          <tbody class="divide-y divide-[var(--pb-border)]">
             <tr
               v-for="post in posts"
               :key="post.id"
-              class="cursor-default hover:bg-stone-50"
-              :class="editingCell?.postId === post.id ? 'bg-teal-50/40' : ''"
+              class="cursor-default hover:bg-[var(--pb-surface-subtle)]"
+              :class="editingCell?.postId === post.id ? 'pb-selected-surface' : ''"
               @click="quickEditEnabled ? queueRowEdit(post) : undefined"
               @dblclick="openPost(post)"
             >
@@ -101,7 +102,7 @@
                   @keydown.esc.prevent="cancelCellEdit"
                   @blur="saveCurrentCell({ close: true })"
                 >
-                <button v-else type="button" class="block w-full text-left font-medium text-stone-950 hover:text-teal-700">
+                <button v-else type="button" class="block w-full text-left font-medium text-[var(--pb-text)] hover:text-[var(--pb-primary)]">
                   {{ post.title || 'Untitled' }}
                 </button>
               </td>
@@ -211,6 +212,10 @@
               </td>
 
               <td class="px-4 py-3 align-top text-stone-600">
+                <span class="block text-sm">{{ formatContentLength(post) }}</span>
+              </td>
+
+              <td class="px-4 py-3 align-top text-stone-600">
                 {{ formatDate(post.published_at, 'Not published') }}
               </td>
 
@@ -225,7 +230,7 @@
 
       <UEmpty v-else icon="i-lucide-file-text" title="No posts yet" description="Create your first draft to start building the knowledge base." class="py-12" />
 
-      <div v-if="!pending && totalPosts > 0" class="flex flex-col gap-3 border-t border-stone-100 px-4 py-3 text-sm text-stone-600 md:flex-row md:items-center md:justify-between">
+      <div v-if="!pending && totalPosts > 0" class="flex flex-col gap-3 border-t border-[var(--pb-border)] px-4 py-3 text-sm text-[var(--pb-text-muted)] md:flex-row md:items-center md:justify-between">
         <span>{{ pageRangeLabel }}</span>
         <div class="flex items-center gap-2">
           <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" aria-label="First page" :disabled="page <= 1" @click="goToPage(1)" />
@@ -915,6 +920,17 @@ function formatDate(value: string | null | undefined, fallback: string) {
   }
 
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+}
+
+function formatContentLength(post: PostRecord) {
+  const words = Number(post.word_count ?? 0)
+  const cjk = Number(post.cjk_char_count ?? 0)
+  if (!words && !cjk) return '—'
+  const formatter = new Intl.NumberFormat('en')
+  const parts: string[] = []
+  if (cjk) parts.push(`${formatter.format(cjk)} chars`)
+  if (words) parts.push(`${formatter.format(words)} words`)
+  return parts.join(' · ')
 }
 
 function clearRowClickTimer() {

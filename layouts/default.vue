@@ -1,7 +1,7 @@
 <template>
-  <div class="flex min-h-screen flex-col bg-stone-50">
+  <div class="flex min-h-screen flex-col bg-[var(--pb-app-bg)] text-[var(--pb-text)]">
     <!-- Full-width header with optional banner -->
-    <header class="relative bg-stone-900 text-white">
+    <header class="relative bg-[var(--pb-primary)] text-[var(--pb-primary-contrast)]">
       <img
         v-if="siteBanner"
         :src="siteBanner"
@@ -12,17 +12,17 @@
         <img v-if="siteLogo" :src="siteLogo" alt="" class="h-10 w-auto rounded">
         <div>
           <h1 class="text-xl font-bold tracking-tight">{{ siteName }}</h1>
-          <p v-if="siteSubtitle" class="text-sm text-stone-300">{{ siteSubtitle }}</p>
+          <p v-if="siteSubtitle" class="text-sm opacity-80">{{ siteSubtitle }}</p>
         </div>
       </div>
     </header>
 
     <!-- Navigation strip -->
-    <nav class="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
+    <nav class="sticky top-0 z-20 border-b border-[var(--pb-border)] bg-[color-mix(in_srgb,var(--pb-surface)_94%,transparent)] shadow-[var(--pb-shadow-sm)] backdrop-blur">
       <div class="flex w-full items-center justify-between px-5">
         <div class="flex items-center gap-1">
           <button class="py-3 md:hidden" @click="mobileNav = !mobileNav">
-            <UIcon name="i-lucide-menu" class="size-5 text-stone-700" />
+            <UIcon name="i-lucide-menu" class="size-5 text-[var(--pb-text-muted)]" />
           </button>
           <div class="hidden items-center gap-1 md:flex">
             <UButton to="/" variant="ghost" color="neutral" size="sm">Home</UButton>
@@ -34,7 +34,7 @@
         </UButton>
       </div>
       <!-- Mobile nav dropdown -->
-      <div v-if="mobileNav" class="border-t border-stone-100 px-5 py-2 md:hidden">
+      <div v-if="mobileNav" class="border-t border-[var(--pb-border)] px-5 py-2 md:hidden">
         <UButton to="/" variant="ghost" color="neutral" size="sm" block @click="mobileNav = false">Home</UButton>
         <UButton to="/" variant="ghost" color="neutral" size="sm" block @click="mobileNav = false">Blog</UButton>
       </div>
@@ -59,10 +59,10 @@
     </div>
 
     <!-- Footer -->
-    <footer class="border-t border-stone-200 bg-white text-sm text-stone-500">
+    <footer class="border-t border-[var(--pb-border)] bg-[var(--pb-surface)] text-sm text-[var(--pb-text-muted)]">
       <div class="grid w-full gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
         <div>
-          <div class="font-medium text-stone-700">{{ siteName }}</div>
+          <div class="font-medium text-[var(--pb-text)]">{{ siteName }}</div>
           <p class="mt-1">{{ footerCopyright }}</p>
         </div>
 
@@ -71,7 +71,7 @@
             v-for="link in footerLinks"
             :key="`${link.label}:${link.url}`"
             :to="link.url"
-            class="hover:text-teal-700"
+            class="hover:text-[var(--pb-primary)]"
           >
             {{ link.label }}
           </NuxtLink>

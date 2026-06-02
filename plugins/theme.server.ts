@@ -1,6 +1,7 @@
 /**
  * Server-side theme injection.
- * Adds a <link> to /api/theme/css in the HTML <head> for non-admin pages.
+ * Adds a <link> to /api/theme/css in the HTML <head> so public and admin
+ * surfaces share one token source.
  *
  * The CSS endpoint reads the active theme from DB and serves compiled CSS with
  * tokens as :root variables and the theme.css overrides appended.
@@ -10,9 +11,7 @@
  */
 export default defineNuxtPlugin((nuxtApp) => {
   const route = useRoute()
-
-  // Don't inject on admin routes — admin uses fixed Nuxt UI styling.
-  if (route.path.startsWith('/admin')) return
+  const isAdminRoute = route.path.startsWith('/admin')
 
   useHead({
     link: [
@@ -23,9 +22,6 @@ export default defineNuxtPlugin((nuxtApp) => {
         'data-theme-stylesheet': 'true'
       }
     ],
-    // Wrap public-blog body content with theme-scope class via a script-free approach
-    bodyAttrs: {
-      class: 'theme-scope'
-    }
+    bodyAttrs: isAdminRoute ? undefined : { class: 'theme-scope' }
   })
 })

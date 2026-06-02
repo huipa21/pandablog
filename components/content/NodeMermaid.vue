@@ -16,7 +16,6 @@
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
-import { DEFAULT_MERMAID_CODE } from '~/utils/blockDefaults'
 
 type MermaidModule = (typeof import('mermaid'))['default']
 
@@ -30,7 +29,7 @@ const props = defineProps<{
 
 const container = ref<HTMLElement | null>(null)
 const error = ref('')
-const code = computed(() => typeof props.node.attrs?.code === 'string' ? props.node.attrs.code : DEFAULT_MERMAID_CODE)
+const code = computed(() => typeof props.node.attrs?.code === 'string' ? props.node.attrs.code : '')
 
 onMounted(() => {
   void renderDiagram()

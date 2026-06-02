@@ -14,7 +14,7 @@ export const CustomHtmlNode = Node.create({
   addAttributes() {
     return {
       html: {
-        default: '<div class="embed-card">Custom HTML</div>',
+        default: '',
         parseHTML: (element) => (element instanceof HTMLElement ? element.innerHTML : '')
       }
     }

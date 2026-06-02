@@ -34,6 +34,10 @@
                   <UIcon name="i-lucide-eye" class="size-4" />
                   {{ formatViews(post.view_count) }}
                 </span>
+                <span v-if="contentLengthLabel(post)" class="inline-flex items-center gap-1.5">
+                  <UIcon name="i-lucide-file-text" class="size-4" />
+                  {{ contentLengthLabel(post) }}
+                </span>
               </div>
               <div class="flex items-center gap-2">
                 <UButton v-if="isLoggedIn" :to="editLink" variant="soft" color="neutral" icon="i-lucide-pencil" size="xs">
@@ -132,6 +136,17 @@ function formatDate(value: string) {
 function formatViews(value: number) {
   const count = Math.max(0, Number(value) || 0)
   return `${new Intl.NumberFormat('en').format(count)} ${count === 1 ? 'view' : 'views'}`
+}
+
+function contentLengthLabel(value: PostRecord) {
+  const words = Number(value.word_count ?? 0)
+  const cjk = Number(value.cjk_char_count ?? 0)
+  if (!words && !cjk) return ''
+  const formatter = new Intl.NumberFormat('en')
+  const parts: string[] = []
+  if (cjk) parts.push(`${formatter.format(cjk)} chars`)
+  if (words) parts.push(`${formatter.format(words)} words`)
+  return parts.join(' · ')
 }
 
 function isLocked(value: PostRecord | PostLockedResponse): value is PostLockedResponse {

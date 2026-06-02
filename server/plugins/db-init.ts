@@ -3,9 +3,11 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { queryDb, useDb } from '../utils/db'
 import { initializeLoggingSettings } from '../utils/logging'
-import { firstRow } from '../utils/surrealResult'
+import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
+import { computeContentStats } from '~/utils/contentStats'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
+const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v1'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const MEDIA_STORAGE_VERSION = '2026-05-image-variants-v2'
 const DEFAULT_MEDIA_SETTINGS = {
@@ -29,6 +31,7 @@ export default defineNitroPlugin(async () => {
   await ensureMediaStorageVersion(db)
   await ensureDefaultMediaSettings(db)
   await ensureDefaultFolder(db)
+  await backfillPostStats(db)
   await initializeLoggingSettings()
 })
 
@@ -151,6 +154,53 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
     },
     { label: 'media storage version create', timeoutMs: 10_000 }
   )
+}
+
+async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
+  const existing = await queryDb(
+    db,
+    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    { key: POST_STATS_BACKFILL_KEY },
+    { label: 'post stats backfill marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(existing)) {
+    return
+  }
+
+  try {
+    const response = await queryDb(
+      db,
+      `SELECT in AS post_id, out.text AS text FROM has_blocks FETCH out;`,
+      undefined,
+      { label: 'post stats backfill load blocks', timeoutMs: 30_000 }
+    )
+    const rows = queryRows<{ post_id?: unknown, text?: unknown }>(response, 0)
+    const textsByPost = new Map<string, string[]>()
+    for (const row of rows) {
+      const postId = stringifyRecordId(row.post_id)
+      if (!postId) continue
+      const list = textsByPost.get(postId) ?? []
+      list.push(typeof row.text === 'string' ? row.text : '')
+      textsByPost.set(postId, list)
+    }
+
+    for (const [postId, texts] of textsByPost) {
+      const stats = computeContentStats(texts.join('\n'))
+      const id = postId.startsWith('post:') ? postId.slice(5) : postId
+      await queryDb(
+        db,
+        'UPDATE type::record($table, $id) MERGE { word_count: $word_count, cjk_char_count: $cjk_char_count };',
+        { table: 'post', id, ...stats },
+        { label: 'post stats backfill update', timeoutMs: 10_000 }
+      )
+    }
+  } catch (error) {
+    console.warn('[db-init] post stats backfill failed', error)
+    return
+  }
+
+  await setAppSetting(db, POST_STATS_BACKFILL_KEY, new Date().toISOString(), 'post stats backfill marker')
 }
 
 async function setAppSetting(

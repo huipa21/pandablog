@@ -16,7 +16,7 @@
       <article
         v-for="post in posts"
         :key="post.id"
-        class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm transition hover:shadow-md"
+        class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-border)] bg-[var(--pb-surface)] shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:shadow-[var(--pb-shadow-md)]"
       >
         <NuxtLink :to="`/blog/${post.slug}`" class="block">
           <img
@@ -27,17 +27,17 @@
           >
         </NuxtLink>
         <div class="p-5">
-          <div class="mb-2 flex items-center gap-3 text-xs text-stone-500">
+          <div class="mb-2 flex items-center gap-3 text-xs text-[var(--pb-text-subtle)]">
             <time v-if="post.published_at" :datetime="post.published_at">{{ formatDate(post.published_at) }}</time>
             <UBadge v-if="post.visibility === 'password'" color="warning" variant="subtle" size="xs">
               Protected
             </UBadge>
           </div>
-          <h2 class="text-xl font-semibold text-stone-950">
-            <NuxtLink :to="`/blog/${post.slug}`" class="hover:text-teal-700">{{ post.title }}</NuxtLink>
+          <h2 class="text-xl font-semibold text-[var(--pb-text)]">
+            <NuxtLink :to="`/blog/${post.slug}`" class="hover:text-[var(--pb-primary)]">{{ post.title }}</NuxtLink>
           </h2>
-          <p v-if="post.summary" class="mt-2 line-clamp-3 text-sm leading-relaxed text-stone-600">{{ post.summary }}</p>
-          <NuxtLink :to="`/blog/${post.slug}`" class="mt-3 inline-block text-sm font-medium text-teal-700 hover:underline">
+          <p v-if="post.summary" class="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--pb-text-muted)]">{{ post.summary }}</p>
+          <NuxtLink :to="`/blog/${post.slug}`" class="mt-3 inline-block text-sm font-semibold text-[var(--pb-primary)] hover:underline">
             Read more
           </NuxtLink>
         </div>

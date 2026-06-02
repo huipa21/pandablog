@@ -1,18 +1,7 @@
 import type { JsonContent } from '~/types/content'
 import {
-  DEFAULT_BULLET_TEXT,
-  DEFAULT_CODE_TEXT,
-  DEFAULT_HEADING_TEXT,
-  DEFAULT_MERMAID_CODE,
-  DEFAULT_ORDERED_TEXT,
-  DEFAULT_PARAGRAPH_TEXT,
-  DEFAULT_QUOTE_TEXT
-} from '~/utils/blockDefaults'
-import {
   DEFAULT_DIFF_NEW_LABEL,
-  DEFAULT_DIFF_NEW_TEXT,
   DEFAULT_DIFF_OLD_LABEL,
-  DEFAULT_DIFF_OLD_TEXT
 } from '~/utils/diffBlock'
 
 export type BlockCategory = 'text' | 'media' | 'design' | 'embed' | 'advanced'
@@ -54,7 +43,7 @@ const blockDefinitions: BlockDefinition[] = [
     keywords: ['text', 'copy', 'body'],
     implemented: true,
     supports: { align: true, color: true, typography: true, spacing: true },
-    createContent: () => ({ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_PARAGRAPH_TEXT }] })
+    createContent: () => ({ type: 'paragraph' })
   },
   {
     name: 'heading',
@@ -65,7 +54,7 @@ const blockDefinitions: BlockDefinition[] = [
     keywords: ['title', 'subtitle', 'h1', 'h2', 'h3'],
     implemented: true,
     supports: { align: true, color: true, typography: true, spacing: true },
-    createContent: () => ({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: DEFAULT_HEADING_TEXT }] })
+    createContent: () => ({ type: 'heading', attrs: { level: 2 } })
   },
   {
     name: 'bulletList',
@@ -78,7 +67,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'bulletList',
-      content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_BULLET_TEXT }] }] }]
+      content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }]
     })
   },
   {
@@ -92,7 +81,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'orderedList',
-      content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_ORDERED_TEXT }] }] }]
+      content: [{ type: 'listItem', content: [{ type: 'paragraph' }] }]
     })
   },
   {
@@ -107,7 +96,7 @@ const blockDefinitions: BlockDefinition[] = [
     createContent: () => ({
       type: 'blockquote',
       attrs: { style: 'bar', theme: '#0f766e', fontFamily: 'sans', fontSize: '1rem', fontColor: '#1c1917', backgroundColor: '', authorName: '', authorTitle: '' },
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: DEFAULT_QUOTE_TEXT }] }]
+      content: [{ type: 'paragraph' }]
     })
   },
   {
@@ -150,7 +139,7 @@ const blockDefinitions: BlockDefinition[] = [
         lockAspect: true,
         mediaPosition: 'left', ratio: 0.5
       },
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Write supporting text...' }] }]
+      content: [{ type: 'paragraph' }]
     })
   },
   {
@@ -168,14 +157,15 @@ const blockDefinitions: BlockDefinition[] = [
         columns: 2,
         proportions: '1-1',
         customPercentages: '',
+        showHeaders: true,
         blockWidth: 'content',
         columnGap: '1rem',
         marginTop: '1rem',
         marginBottom: '1rem'
       },
       content: [
-        { type: 'columnItem', attrs: { header: '', widthPercent: 0, headerAlignment: 'left' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column one' }] }] },
-        { type: 'columnItem', attrs: { header: '', widthPercent: 0, headerAlignment: 'left' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Column two' }] }] }
+        { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph' }] },
+        { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph' }] }
       ]
     })
   },
@@ -192,8 +182,8 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'tabsBlock',
       attrs: { orientation: 'horizontal', tabStyle: 'underline', blockWidth: 'content', activeIndex: 0 },
       content: [
-        { type: 'tabPanel', attrs: { title: 'Tab one' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First tab content' }] }] },
-        { type: 'tabPanel', attrs: { title: 'Tab two' }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Second tab content' }] }] }
+        { type: 'tabPanel', attrs: { title: '' }, content: [{ type: 'paragraph' }] },
+        { type: 'tabPanel', attrs: { title: '' }, content: [{ type: 'paragraph' }] }
       ]
     })
   },
@@ -219,7 +209,7 @@ const blockDefinitions: BlockDefinition[] = [
     createContent: () => ({
       type: 'codeBlock',
       attrs: { language: 'javascript', theme: 'github-dark', lineNumbers: true, lineHighlights: '', wrap: true, zoom: 1, collapsed: true },
-      content: [{ type: 'text', text: DEFAULT_CODE_TEXT }]
+      content: []
     })
   },
   {
@@ -234,8 +224,8 @@ const blockDefinitions: BlockDefinition[] = [
     createContent: () => ({
       type: 'diffBlock',
       attrs: {
-        oldText: DEFAULT_DIFF_OLD_TEXT,
-        newText: DEFAULT_DIFF_NEW_TEXT,
+        oldText: '',
+        newText: '',
         language: 'plaintext',
         oldLabel: DEFAULT_DIFF_OLD_LABEL,
         newLabel: DEFAULT_DIFF_NEW_LABEL
@@ -253,7 +243,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'mermaid',
-      attrs: { code: DEFAULT_MERMAID_CODE }
+      attrs: { code: '' }
     })
   },
   {
@@ -292,18 +282,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { align: true, spacing: true },
     createContent: () => ({
       type: 'customHtml',
-      attrs: {
-        html: `<div style="max-width:960px;margin:0 auto;">
-  <!-- Replace the src with your video/audio/page URL -->
-  <iframe
-    src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-    title="Embedded content"
-    style="width:100%;height:420px;border:0;border-radius:12px;"
-    allowfullscreen
-    loading="lazy"
-  ></iframe>
-</div>`
-      }
+      attrs: { html: '' }
     })
   },
   {
@@ -317,7 +296,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'customHtml',
-      attrs: { html: '<div class="embed-card">Custom HTML</div>' }
+      attrs: { html: '' }
     })
   },
   {

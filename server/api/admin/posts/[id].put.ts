@@ -13,7 +13,8 @@ import {
   syncPostBlocks,
   syncPostLinks
 } from '../../../utils/blocks'
-import type { JsonContent, PostVisibility } from '~/types/content'
+import { computeContentStats } from '~/utils/contentStats'
+import type { BlockRecord, JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAdminUser(event)
@@ -82,6 +83,16 @@ export default defineEventHandler(async (event) => {
     linkedSlugs = await syncPostLinks(db, normalizedPost.id, blocks)
     reassembledDoc = buildDocFromBlocks(blocks)
   }
+
+  const stats = computeStatsFromBlocks(blocks)
+  await queryDb(
+    db,
+    'UPDATE type::record($table, $id) MERGE { word_count: $word_count, cjk_char_count: $cjk_char_count };',
+    { table: 'post', id, ...stats },
+    { label: 'post stats update' }
+  )
+  normalizedPost.word_count = stats.word_count
+  normalizedPost.cjk_char_count = stats.cjk_char_count
 
   await syncPostTaxonomy(
     db,
@@ -156,4 +167,9 @@ function normalizeVisibility(value: unknown): PostVisibility {
 function parseDoc(value: unknown): JsonContent | null {
   if (value && typeof value === 'object') return value as JsonContent
   return null
+}
+
+function computeStatsFromBlocks(blocks: BlockRecord[]) {
+  const combined = blocks.map((block) => block.text ?? '').join('\n')
+  return computeContentStats(combined)
 }

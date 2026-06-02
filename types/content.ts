@@ -42,6 +42,8 @@ export interface PostRecord {
   created_at: string
   updated_at: string
   view_count: number
+  word_count: number
+  cjk_char_count: number
   visibility?: PostVisibility
   password_hint?: string | null
   tag_ids?: string[]

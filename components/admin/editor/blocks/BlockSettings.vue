@@ -261,55 +261,52 @@
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Columns</summary>
         <div class="mt-3 space-y-4">
           <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Column count">
+            <UFormField label="Column count" class="min-w-0">
               <USelect
                 :model-value="String(columnsCount)"
                 :items="columnCountItems"
+                class="w-full min-w-0"
                 @update:model-value="setColumnsCount"
               />
             </UFormField>
-            <UFormField label="Proportions">
+            <UFormField label="Layout" class="min-w-0">
               <USelect
                 :model-value="columnsProportions"
                 :items="columnProportionItems"
+                class="w-full min-w-0"
                 @update:model-value="setColumnsProportions"
               />
             </UFormField>
           </div>
 
+          <UFormField>
+            <UCheckbox
+              :model-value="attrs.showHeaders !== false"
+              label="Show headers"
+              @update:model-value="setColumnsShowHeaders"
+            />
+          </UFormField>
+
           <div class="space-y-2 rounded-md border border-stone-200 bg-stone-50 p-2">
-            <div v-for="column in columnItems" :key="column.index" class="rounded border border-stone-200 bg-white p-2">
-              <div class="mb-2 text-xs font-medium text-stone-600">Column {{ column.index + 1 }}</div>
-              <div class="grid grid-cols-2 gap-2">
-                <UFormField label="Header">
-                  <UInput
-                    :model-value="String(column.attrs.header ?? '')"
-                    placeholder="Optional header"
-                    size="sm"
-                    @update:model-value="setColumnHeader(column.index, $event)"
-                  />
-                </UFormField>
-                <UFormField label="Width %">
-                  <UInput
-                    type="number"
-                    min="1"
-                    max="100"
-                    placeholder="Auto"
-                    size="sm"
-                    :model-value="column.attrs.widthPercent ? String(column.attrs.widthPercent) : ''"
-                    @update:model-value="setColumnWidthPercent(column.index, $event)"
-                  />
-                </UFormField>
-              </div>
-              <div class="mt-2 flex items-end justify-between gap-2">
-                <UFormField label="Header alignment" class="w-full">
-                  <USelect
-                    :model-value="String(column.attrs.headerAlignment ?? 'left')"
-                    :items="[{ label: 'Left', value: 'left' }, { label: 'Center', value: 'center' }, { label: 'Right', value: 'right' }]"
-                    size="sm"
-                    @update:model-value="setColumnHeaderAlignment(column.index, $event)"
-                  />
-                </UFormField>
+            <div
+              v-for="column in columnItems"
+              :key="column.index"
+              class="rounded border border-stone-200 bg-white p-2"
+              :class="[
+                draggedColumnIndex === column.index ? 'opacity-60' : '',
+                dragOverColumnIndex === column.index ? 'ring-2 ring-teal-300 ring-offset-1' : ''
+              ]"
+              :draggable="columnItems.length > 1"
+              @dragstart="onColumnCardDragStart($event, column.index)"
+              @dragover.prevent="onColumnCardDragOver(column.index)"
+              @drop.prevent="onColumnCardDrop(column.index)"
+              @dragend="onColumnCardDragEnd"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-xs font-medium text-stone-600">
+                  <UIcon name="i-lucide-grip-vertical" class="size-4 text-stone-400" />
+                  <span>Column {{ column.index + 1 }} · {{ columnPercentageLabel(column.index) }}</span>
+                </div>
                 <UButton
                   v-if="columnsCount > 2"
                   type="button"
@@ -691,31 +688,33 @@ const columnCountItems = [
 ]
 const columnProportionItems = computed(() => {
   const count = columnsCount.value
+  const items: Array<{ label: string, value: string }> = []
+
   if (count === 2) {
-    return [
+    items.push(
       { label: 'Equal halves', value: '1-1' },
       { label: 'One third / Two thirds', value: '1-2' },
       { label: 'Two thirds / One third', value: '2-1' }
-    ]
-  }
-  if (count === 3) {
-    return [
+    )
+  } else if (count === 3) {
+    items.push(
       { label: 'Equal thirds', value: '1-1-1' },
       { label: 'Narrow / Narrow / Wide', value: '1-1-2' },
       { label: 'Narrow / Wide / Narrow', value: '1-2-1' },
       { label: 'Wide / Narrow / Narrow', value: '2-1-1' }
-    ]
+    )
+  } else if (count === 4) {
+    items.push({ label: 'Equal quarters', value: '1-1-1-1' })
+  } else if (count === 5) {
+    items.push({ label: 'Equal fifths', value: '1-1-1-1-1' })
+  } else if (count === 6) {
+    items.push({ label: 'Equal sixths', value: '1-1-1-1-1-1' })
+  } else {
+    items.push({ label: 'Even distribution', value: '1-1' })
   }
-  if (count === 4) {
-    return [{ label: 'Equal quarters', value: '1-1-1-1' }]
-  }
-  if (count === 5) {
-    return [{ label: 'Equal fifths', value: '1-1-1-1-1' }]
-  }
-  if (count === 6) {
-    return [{ label: 'Equal sixths', value: '1-1-1-1-1-1' }]
-  }
-  return [{ label: 'Even distribution', value: '1-1' }]
+
+  items.push({ label: 'Manual', value: 'manual' })
+  return items
 })
 const tabOrientationItems = [
   { label: 'Horizontal', value: 'horizontal' },
@@ -793,7 +792,21 @@ const selectedBlockNode = computed(() => {
 
 const columnItems = computed(() => childSettings('columnItem'))
 const columnsCount = computed(() => Math.max(2, Math.min(6, columnItems.value.length || Number(attrs.value.columns ?? 2) || 2)))
-const columnsProportions = computed(() => normalizeColumnProportions(String(attrs.value.proportions ?? ''), columnsCount.value))
+const columnsCustomPercentages = computed(() => parseCustomPercentages(String(attrs.value.customPercentages ?? ''), columnsCount.value))
+const columnsPercentages = computed(() => {
+  if (columnsCustomPercentages.value.length === columnsCount.value) {
+    return columnsCustomPercentages.value
+  }
+  return proportionsToPercentages(String(attrs.value.proportions ?? ''), columnsCount.value)
+})
+const columnsProportions = computed(() => {
+  if (columnsCustomPercentages.value.length === columnsCount.value) {
+    return 'manual'
+  }
+  return normalizeColumnProportions(String(attrs.value.proportions ?? ''), columnsCount.value)
+})
+const draggedColumnIndex = ref<number | null>(null)
+const dragOverColumnIndex = ref<number | null>(null)
 const tabPanels = computed(() => childSettings('tabPanel'))
 const tabsActiveIndex = computed(() => normalizeTabsActiveIndex(Number(attrs.value.activeIndex ?? 0), tabPanels.value.length))
 const tabDefaultItems = computed(() => tabPanels.value.map((tab) => ({
@@ -969,15 +982,61 @@ function normalizeColumnProportions(value: string, count: number) {
   return parts.map((part) => Math.max(1, Math.round(part))).join('-')
 }
 
+function parseCustomPercentages(value: string, count: number): number[] {
+  if (!value.trim()) return []
+  const parts = value.split(',').map((part) => Number(part.trim()))
+  if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0 || part >= 100)) {
+    return []
+  }
+
+  const total = parts.reduce((sum, part) => sum + part, 0)
+  if (Math.abs(total - 100) > 0.1) {
+    return []
+  }
+
+  return normalizePercentages(parts)
+}
+
+function proportionsToPercentages(value: string, count: number): number[] {
+  const normalized = normalizeColumnProportions(value, count)
+  const weights = normalized.split('-').map((part) => Math.max(1, Number(part) || 1))
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+  if (!totalWeight) {
+    return normalizePercentages(Array.from({ length: count }, () => 100 / count))
+  }
+  return normalizePercentages(weights.map((weight) => (weight / totalWeight) * 100))
+}
+
+function normalizePercentages(values: number[]): number[] {
+  if (!values.length) return []
+  const rounded = values.map((value) => Math.max(1, Math.min(99, Math.round(value * 100) / 100)))
+  const total = rounded.reduce((sum, value) => sum + value, 0)
+  const adjustment = Math.round((100 - total) * 100) / 100
+  const lastIndex = rounded.length - 1
+  const lastValue = rounded[lastIndex] ?? 0
+  rounded[lastIndex] = Math.round((lastValue + adjustment) * 100) / 100
+  return rounded
+}
+
+function serializePercentages(values: number[]) {
+  return normalizePercentages(values)
+    .map((value) => value.toFixed(2).replace(/\.00$/, ''))
+    .join(',')
+}
+
+function columnPercentageLabel(index: number) {
+  const value = columnsPercentages.value[index] ?? 0
+  if (!Number.isFinite(value)) return '0%'
+  return `${Math.round(value * 10) / 10}%`
+}
+
 function normalizeColumnItems(content: JsonContent[] | undefined, count: number) {
   const existing = (content ?? []).filter((child) => child.type === 'columnItem')
   const columns: JsonContent[] = existing.slice(0, count).map((child, index) => ({
     ...child,
     attrs: {
       ...(child.attrs ?? {}),
-      header: String(child.attrs?.header ?? ''),
-      widthPercent: Number(child.attrs?.widthPercent ?? 0) || 0,
-      headerAlignment: normalizeHeaderAlignment(String(child.attrs?.headerAlignment ?? 'left'))
+      header: String(child.attrs?.header ?? '')
     },
     content: child.content?.length ? child.content : defaultColumnItem(index).content
   }))
@@ -998,67 +1057,19 @@ function normalizeColumnItems(content: JsonContent[] | undefined, count: number)
   return columns
 }
 
-function defaultColumnItem(index: number): JsonContent {
+function defaultColumnItem(_index: number): JsonContent {
   return {
     type: 'columnItem',
-    attrs: { header: '', widthPercent: 0, headerAlignment: 'left' },
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: `Column ${index + 1}` }] }]
+    attrs: { header: '' },
+    content: [{ type: 'paragraph' }]
   }
 }
 
-function normalizeHeaderAlignment(value: string) {
-  return value === 'center' || value === 'right' ? value : 'left'
-}
-
-function parseColumnWidthPercent(value: unknown) {
-  const raw = Number(asInputValue(value, '').trim())
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return 0
-  }
-
-  return Math.max(1, Math.min(100, Math.round(raw)))
-}
-
-function formatPercentage(value: number) {
-  return String(Math.round(value * 10000) / 10000)
-}
-
-function buildColumnCustomPercentages(columns: JsonContent[]) {
-  const widths = columns.map((column) => {
-    const value = Number(column.attrs?.widthPercent ?? 0)
-    return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(100, value)) : 0
-  })
-
-  if (widths.every((value) => value <= 0)) {
-    return ''
-  }
-
-  const explicitTotal = widths.reduce((sum, value) => sum + (value > 0 ? value : 0), 0)
-  const missingCount = widths.filter((value) => value <= 0).length
-
-  if (missingCount === 0) {
-    const scale = explicitTotal > 0 ? 100 / explicitTotal : 0
-    if (scale <= 0) {
-      return ''
-    }
-
-    return widths.map((value) => formatPercentage(value * scale)).join(',')
-  }
-
-  const remaining = 100 - explicitTotal
-  if (remaining <= 0) {
-    return ''
-  }
-
-  const auto = remaining / missingCount
-  return widths.map((value) => formatPercentage(value > 0 ? value : auto)).join(',')
-}
-
-function defaultTabPanel(index: number): JsonContent {
+function defaultTabPanel(_index: number): JsonContent {
   return {
     type: 'tabPanel',
-    attrs: { title: `Tab ${index + 1}` },
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: `Tab ${index + 1} content` }] }]
+    attrs: { title: '' },
+    content: [{ type: 'paragraph' }]
   }
 }
 
@@ -1198,62 +1209,30 @@ function setColumnsCount(value: unknown) {
     ...(nextJson.attrs ?? {}),
     columns: count,
     proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), count),
-    customPercentages: buildColumnCustomPercentages(nextColumns)
+    customPercentages: ''
   }
   nextJson.content = nextColumns
   replaceSelectedBlockJson('columnsBlock', nextJson)
 }
 
 function setColumnsProportions(value: unknown) {
+  const selected = asSelectValue(value, '1-1')
+
+  if (selected === 'manual') {
+    const current = columnsCustomPercentages.value.length === columnsCount.value
+      ? columnsCustomPercentages.value
+      : proportionsToPercentages(String(attrs.value.proportions ?? ''), columnsCount.value)
+    updateAttrs({ columns: columnsCount.value, customPercentages: serializePercentages(current) })
+    return
+  }
+
   const defaultProportions = Array.from({ length: Math.max(2, Math.min(6, columnsCount.value)) }, () => '1').join('-')
-  const proportions = normalizeColumnProportions(asSelectValue(value, defaultProportions), columnsCount.value)
-  const nextJson = selectedBlockJson('columnsBlock')
-  if (!nextJson) return
-
-  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value).map((column) => ({
-    ...column,
-    attrs: { ...(column.attrs ?? {}), widthPercent: 0 }
-  }))
-
-  nextJson.content = nextColumns
-  nextJson.attrs = {
-    ...(nextJson.attrs ?? {}),
-    columns: columnsCount.value,
-    proportions,
-    customPercentages: ''
-  }
-
-  replaceSelectedBlockJson('columnsBlock', nextJson)
+  const proportions = normalizeColumnProportions(selected || defaultProportions, columnsCount.value)
+  updateAttrs({ columns: columnsCount.value, proportions, customPercentages: '' })
 }
 
-function setColumnHeader(index: number, value: unknown) {
-  updateNestedChildAttrs('columnsBlock', 'columnItem', index, { header: asInputValue(value, '') })
-}
-
-function setColumnWidthPercent(index: number, value: unknown) {
-  const nextJson = selectedBlockJson('columnsBlock')
-  if (!nextJson) return
-
-  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value)
-  const target = nextColumns[index]
-  if (!target) return
-
-  const widthPercent = parseColumnWidthPercent(value)
-  target.attrs = { ...(target.attrs ?? {}), widthPercent }
-
-  nextJson.content = nextColumns
-  nextJson.attrs = {
-    ...(nextJson.attrs ?? {}),
-    columns: columnsCount.value,
-    customPercentages: buildColumnCustomPercentages(nextColumns)
-  }
-
-  replaceSelectedBlockJson('columnsBlock', nextJson)
-}
-
-function setColumnHeaderAlignment(index: number, value: unknown) {
-  const alignment = normalizeHeaderAlignment(asSelectValue(value, 'left'))
-  updateNestedChildAttrs('columnsBlock', 'columnItem', index, { headerAlignment: alignment })
+function setColumnsShowHeaders(value: boolean | 'indeterminate') {
+  updateAttrs({ showHeaders: value === true })
 }
 
 function addColumn() {
@@ -1285,7 +1264,81 @@ function removeColumn(index: number) {
     ...(nextJson.attrs ?? {}),
     columns: nextCount,
     proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), nextCount),
-    customPercentages: buildColumnCustomPercentages(nextColumns)
+    customPercentages: ''
+  }
+
+  replaceSelectedBlockJson('columnsBlock', nextJson)
+}
+
+function onColumnCardDragStart(event: DragEvent, index: number) {
+  draggedColumnIndex.value = index
+  dragOverColumnIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+}
+
+function onColumnCardDragOver(index: number) {
+  if (draggedColumnIndex.value === null || draggedColumnIndex.value === index) {
+    return
+  }
+  dragOverColumnIndex.value = index
+}
+
+function onColumnCardDrop(index: number) {
+  const from = draggedColumnIndex.value
+  onColumnCardDragEnd()
+  if (from === null || from === index) {
+    return
+  }
+  moveColumn(from, index)
+}
+
+function onColumnCardDragEnd() {
+  draggedColumnIndex.value = null
+  dragOverColumnIndex.value = null
+}
+
+function moveColumn(fromIndex: number, toIndex: number) {
+  const nextJson = selectedBlockJson('columnsBlock')
+  if (!nextJson) return
+
+  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value)
+  if (
+    fromIndex < 0
+    || toIndex < 0
+    || fromIndex >= nextColumns.length
+    || toIndex >= nextColumns.length
+    || fromIndex === toIndex
+  ) {
+    return
+  }
+
+  const [movedColumn] = nextColumns.splice(fromIndex, 1)
+  if (!movedColumn) return
+  nextColumns.splice(toIndex, 0, movedColumn)
+
+  const normalizedProportions = normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), nextColumns.length)
+    .split('-')
+    .map((part) => Number(part) || 1)
+  const [movedProportion] = normalizedProportions.splice(fromIndex, 1)
+  normalizedProportions.splice(toIndex, 0, movedProportion ?? 1)
+
+  const currentCustomPercentages = columnsCustomPercentages.value.length === nextColumns.length
+    ? [...columnsCustomPercentages.value]
+    : []
+  if (currentCustomPercentages.length) {
+    const [movedPercent] = currentCustomPercentages.splice(fromIndex, 1)
+    currentCustomPercentages.splice(toIndex, 0, movedPercent ?? 100 / nextColumns.length)
+  }
+
+  nextJson.content = nextColumns
+  nextJson.attrs = {
+    ...(nextJson.attrs ?? {}),
+    columns: nextColumns.length,
+    proportions: normalizedProportions.map((value) => Math.max(1, Math.round(value))).join('-'),
+    customPercentages: currentCustomPercentages.length ? serializePercentages(currentCustomPercentages) : ''
   }
 
   replaceSelectedBlockJson('columnsBlock', nextJson)

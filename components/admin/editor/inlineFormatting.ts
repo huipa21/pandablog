@@ -14,5 +14,5 @@ export function inlineMenuLabel(label: string, active: boolean) {
 }
 
 export function hasAnyDropdownInlineActive(state: InlineActiveState) {
-  return state.code || state.subscript || state.superscript
+  return state.code || state.highlight || state.subscript || state.superscript
 }

@@ -1,6 +1,6 @@
 <template>
   <div
-    :class="['codeblock-public-wrap', `code-theme-${theme}`]"
+    :class="['codeblock-nodeview', 'codeblock-public-wrap', `code-theme-${theme}`]"
     :data-theme="theme"
     :data-language="language"
     :data-line-highlights="lineHighlights"
@@ -125,7 +125,7 @@ const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${lineNumber
 const initialRendered = renderLowlightHtml(code.value, language.value)
 htmlCache.set(initialCacheKey, initialRendered)
 const highlightedHtml = ref(initialRendered)
-const fallbackHtml = computed(() => `<pre class="codeblock-public"><code>${escapeHtml(code.value)}</code></pre>`)
+const fallbackHtml = computed(() => `<pre class="codeblock-pre hljs"><code>${escapeHtml(code.value)}</code></pre>`)
 
 // Collapse state
 const bodyEl = ref<HTMLElement | null>(null)
