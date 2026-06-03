@@ -1,6 +1,7 @@
 import argon2 from 'argon2'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
+import { getRuntimeFlags } from './settings'
 
 const COOKIE_NAME = 'pb_unlocked'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -71,11 +72,10 @@ export function addUnlockedId(event: H3Event, postId: string): void {
     iat: Math.floor(Date.now() / 1000)
   }
 
-  const config = useRuntimeConfig()
   setCookie(event, COOKIE_NAME, sign(payload), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: config.appEnv === 'prod',
+    secure: getRuntimeFlags().trust_proxy_headers,
     maxAge: COOKIE_MAX_AGE,
     path: '/'
   })

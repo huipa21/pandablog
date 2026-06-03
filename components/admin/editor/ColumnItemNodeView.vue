@@ -6,7 +6,7 @@
     @keydown.delete="handleKeyboardDelete"
     @keydown.backspace="handleKeyboardDelete"
   >
-    <div v-if="showHeaders" class="columns-block-header" contenteditable="false">
+    <div v-if="showHeaders" class="columns-block-header" contenteditable="false" @mousedown="selectParentColumnsBlock">
       <input
         class="columns-block-header-input"
         type="text"
@@ -41,6 +41,27 @@ function onHeaderInput(event: Event) {
   const target = event.target as HTMLInputElement | null
   const nextHeader = String(target?.value ?? '').trim()
   props.updateAttributes({ header: nextHeader })
+}
+
+function selectParentColumnsBlock(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (target && (target.tagName === 'INPUT' || target.closest('input'))) {
+    return
+  }
+
+  const getPos = props.getPos as (() => number) | number | undefined
+  const nodePos = typeof getPos === 'function' ? getPos() : typeof getPos === 'number' ? getPos : null
+  if (typeof nodePos !== 'number') return
+
+  const $pos = props.editor.state.doc.resolve(nodePos)
+  const parentDepth = $pos.depth
+  if (parentDepth < 1) return
+  const parentPos = $pos.before(parentDepth)
+  const parentNode = $pos.node(parentDepth)
+  if (parentNode?.type.name !== 'columnsBlock') return
+
+  event.preventDefault()
+  props.editor.chain().focus().setNodeSelection(parentPos).run()
 }
 
 function handleKeyboardDelete(event: KeyboardEvent) {

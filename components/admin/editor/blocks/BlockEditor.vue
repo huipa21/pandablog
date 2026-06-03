@@ -33,7 +33,7 @@
 
         <!-- Per-block + button shown on the active block -->
         <div
-          v-if="activeBlockRect && activeBlockIndex >= 0"
+          v-if="activeBlockRect && activeBlockRange"
           class="block-active-overlay pointer-events-none absolute inset-x-0"
           :style="{
             top: `${activeBlockRect.top}px`,
@@ -43,10 +43,10 @@
           <button
             ref="dragHandleRef"
             type="button"
-            draggable="true"
+            :draggable="activeBlockRange?.parentDepth === 0"
             class="block-grid-handle pointer-events-auto col-start-1 justify-self-center"
-            title="Drag block"
-            aria-label="Drag block"
+            :title="activeBlockRange?.parentDepth === 0 ? 'Drag block' : 'Use toolbar actions to move nested block'"
+            :aria-label="activeBlockRange?.parentDepth === 0 ? 'Drag block' : 'Nested block actions'"
             data-testid="block-drag-handle"
             @click.stop.prevent="onHandleClick"
             @dragstart="onBlockDragStart"
@@ -139,6 +139,48 @@
           v-model="relatedPostPickerOpen"
           @confirm="onRelatedPostSelect"
         />
+
+        <AdminPromptDialog
+          :open="editHtmlDialogOpen"
+          title="Edit HTML"
+          description="Update the HTML for the selected block."
+          label="HTML"
+          :initial-value="editHtmlInitialValue"
+          confirm-label="Apply HTML"
+          :required="false"
+          :trim="false"
+          multiline
+          :rows="12"
+          @update:open="(value) => { if (!value) closeEditHtmlDialog() }"
+          @cancel="closeEditHtmlDialog"
+          @confirm="confirmEditHtml"
+        />
+
+        <AdminPromptDialog
+          :open="embedUrlDialogOpen"
+          title="Insert Embed"
+          description="Paste a video, audio, or website URL to embed in the post."
+          label="Embed URL"
+          placeholder="https://example.com"
+          :validate="validateEmbedUrlInput"
+          confirm-label="Insert embed"
+          @update:open="(value) => { if (!value) closeEmbedUrlDialog() }"
+          @cancel="closeEmbedUrlDialog"
+          @confirm="confirmEmbedUrl"
+        />
+
+        <AdminPromptDialog
+          :open="mediaTextRemoteUrlDialogOpen"
+          title="Remote Media URL"
+          description="Use a remote image, video, audio, or document URL for this Media + Text block."
+          label="Remote media URL"
+          placeholder="https://example.com/media.jpg"
+          input-type="url"
+          confirm-label="Use URL"
+          @update:open="(value) => { if (!value) closeRemoteMediaTextDialog() }"
+          @cancel="closeRemoteMediaTextDialog"
+          @confirm="confirmRemoteMediaTextUrl"
+        />
       </div>
       <template #fallback>
         <div class="min-h-96 rounded-md border border-dashed border-stone-300 p-5 text-sm text-stone-500">Loading editor...</div>
@@ -212,6 +254,17 @@ import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 import { useMediaUrl } from '~/composables/useMediaUrl'
 
+interface ActiveBlockRange {
+  from: number
+  to: number
+  node: ProseMirrorNode
+  depth: number
+  parentDepth: number
+  parentChildCount: number
+  index: number
+  topLevelIndex: number
+}
+
 const props = defineProps<{
   modelValue: JsonContent
   useInlineInserter?: boolean
@@ -232,11 +285,18 @@ const relatedPostPickerOpen = ref(false)
 const relatedPostMode = ref<'inline' | 'at' | 'replace'>('inline')
 const relatedPostPendingPos = ref<number | null>(null)
 const relatedPostPendingRange = ref<{ from: number; to: number } | null>(null)
+const editHtmlDialogOpen = ref(false)
+const editHtmlInitialValue = ref('')
+const pendingEditHtml = ref<{ from: number; to: number; html: string } | null>(null)
+const embedUrlDialogOpen = ref(false)
+const pendingEmbedInsertPos = ref<number | null>(null)
+const mediaTextRemoteUrlDialogOpen = ref(false)
 let lastCtrlAStamp = 0
 
 // Active block tracking (for + button and drag handle placement)
 const activeBlockRect = ref<{ top: number; height: number } | null>(null)
 const activeBlockIndex = ref<number>(-1)
+const activeBlockRange = ref<ActiveBlockRange | null>(null)
 
 // Drag and drop state
 const draggingIndex = ref<number | null>(null)
@@ -260,8 +320,8 @@ const selectionTick = ref(0)
 const lastTextSelection = ref<{ from: number; to: number } | null>(null)
 let syncingFootnotes = false
 
-watch([activeBlockIndex, dragHandleRef], () => {
-  if (activeBlockIndex.value >= 0 && dragHandleRef.value) {
+watch([activeBlockRange, dragHandleRef], () => {
+  if (activeBlockRange.value && dragHandleRef.value) {
     actionsMenuReferenceEl.value = dragHandleRef.value
     actionsMenuVisible.value = true
   } else {
@@ -287,10 +347,11 @@ const slashItems = computed(() => {
   return items.filter((b) => b.implemented)
 })
 const ALLOWED_NESTED_BLOCK_CONTAINERS = new Set(['mediaText', 'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel'])
+const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel'])
 
 // Inserter state (also mirrored to editorStore so parent layout can switch to 3-column mode)
 const inserterOpen = ref(false)
-const insertAfterIndex = ref<number>(-1)
+const insertAfterPos = ref<number | null>(null)
 const pendingImageInsertPos = ref<number | null>(null)
 
 watch(inserterOpen, (open) => {
@@ -702,58 +763,34 @@ function trackActiveBlock(ed: Editor) {
   const container = editorContainer.value
   if (!container) {
     activeBlockRect.value = null
+    activeBlockRange.value = null
     return
   }
-  const selection = ed.state.selection
-  let blockStart = -1
+  const range = getActiveBlockRangeFromSelection(ed)
+  activeBlockRange.value = range
 
-  if (selection instanceof NodeSelection && selection.$from.depth === 0) {
-    blockStart = selection.from
-  } else {
-    const { $from } = selection
-    let blockDepth = 0
-    for (let d = $from.depth; d > 0; d--) {
-      if ($from.node(d - 1).type.name === 'doc') {
-        blockDepth = d
-        break
-      }
-    }
-
-    if (blockDepth === 0) {
-      activeBlockRect.value = null
-      activeBlockIndex.value = -1
-      return
-    }
-
-    blockStart = $from.before(blockDepth)
+  if (!range) {
+    activeBlockIndex.value = -1
+    activeBlockRect.value = null
+    return
   }
 
-  // Determine block index
-  let blockIndex = -1
-  let blockNodeType = ''
-  ed.state.doc.forEach((node, offset, index) => {
-    if (blockStart >= offset && blockStart < offset + node.nodeSize) {
-      blockIndex = index
-      blockNodeType = node.type.name
-    }
-  })
-
-  if (blockNodeType === 'footnotesBlock') {
+  if (range.node.type.name === 'footnotesBlock') {
     activeBlockIndex.value = -1
     activeBlockRect.value = null
     computeDropIndicators(container.getBoundingClientRect())
     return
   }
 
-  activeBlockIndex.value = blockIndex
+  activeBlockIndex.value = range.topLevelIndex
 
-  if (blockIndex < 0) {
+  if (range.topLevelIndex < 0) {
     activeBlockRect.value = null
     return
   }
 
   const containerRect = container.getBoundingClientRect()
-  const blockRect = getTopLevelBlockRect(blockIndex)
+  const blockRect = getBlockRectForRange(ed, range)
   if (!blockRect) {
     activeBlockRect.value = null
     return
@@ -795,6 +832,27 @@ function getTopLevelBlockRect(index: number) {
   return element?.getBoundingClientRect() ?? null
 }
 
+function getBlockRectForRange(ed: Editor, range: ActiveBlockRange) {
+  const dom = ed.view.nodeDOM(range.from)
+  if (dom instanceof HTMLElement) {
+    return dom.getBoundingClientRect()
+  }
+
+  if (dom instanceof Text) {
+    return dom.parentElement?.getBoundingClientRect() ?? null
+  }
+
+  const from = Math.max(1, Math.min(range.from + 1, ed.state.doc.content.size))
+  const to = Math.max(from, Math.min(range.to - 1, ed.state.doc.content.size))
+  try {
+    const start = ed.view.coordsAtPos(from)
+    const end = ed.view.coordsAtPos(to)
+    return new DOMRect(start.left, start.top, Math.max(end.right - start.left, 1), Math.max(end.bottom - start.top, 28))
+  } catch {
+    return getTopLevelBlockRect(range.topLevelIndex)
+  }
+}
+
 // ─── + BUTTON (ADD BLOCK AFTER CURRENT) ─────────────────────────────────────
 
 function addBlockAfterCurrent() {
@@ -804,8 +862,7 @@ function addBlockAfterCurrent() {
     return
   }
 
-  const fallbackIndex = Math.max(0, ed.state.doc.childCount - 1)
-  insertAfterIndex.value = activeBlockIndex.value >= 0 ? activeBlockIndex.value : fallbackIndex
+  insertAfterPos.value = activeBlockRange.value?.to ?? editableDocumentEndPos(ed)
   inserterOpen.value = true
 }
 
@@ -815,7 +872,9 @@ function closeInserter() {
 
 function handleInserterPick(name: string) {
   closeInserter()
-  insertBlockAtIndex(name, insertAfterIndex.value + 1)
+  const ed = editor.value
+  insertBlockAtPosition(name, insertAfterPos.value ?? (ed ? editableDocumentEndPos(ed) : 0))
+  insertAfterPos.value = null
 }
 
 // ─── BLOCK POPUP TOOLBAR HANDLERS ─────────────────────────────────────────
@@ -833,17 +892,10 @@ function runMoveDown() {
 function runDuplicate() {
   const ed = editor.value
   if (!ed) return
-  if (selectionIsInsideTopLevelNode(ed, 'footnotesBlock')) return
-  const { $from } = ed.state.selection
-  let blockDepth = 0
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
-  }
-  if (blockDepth === 0) return
-  const blockStart = $from.before(blockDepth)
-  const blockEnd = $from.after(blockDepth)
-  const slice = ed.state.doc.slice(blockStart, blockEnd)
-  ed.chain().focus().insertContentAt(blockEnd, slice.content.toJSON()).run()
+  const range = getActiveBlockRange()
+  if (!range || range.node.type.name === 'footnotesBlock') return
+  const slice = ed.state.doc.slice(range.from, range.to)
+  ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, range.to), slice.content.toJSON()).run()
   actionsMenuVisible.value = false
 }
 
@@ -852,8 +904,7 @@ function runDelete() {
   if (!ed) return
   const range = getActiveBlockRange()
   if (!range) return
-  if (ed.state.doc.nodeAt(range.from)?.type.name === 'footnotesBlock') return
-  ed.chain().focus().deleteRange(range).run()
+  deleteActiveBlockRange(ed, range)
   actionsMenuVisible.value = false
 }
 
@@ -878,29 +929,21 @@ function runTransform(target: string) {
 function getActiveBlockRange() {
   const ed = editor.value
   if (!ed) return null
-  if (activeBlockIndex.value >= 0) {
-    let from = 0
-    let to = 0
-    let found = false
-    ed.state.doc.forEach((node, pos, index) => {
-      if (index === activeBlockIndex.value) {
-        from = pos
-        to = pos + node.nodeSize
-        found = true
-      }
-    })
-    if (found) {
-      return { from, to }
-    }
+  return getActiveBlockRangeFromSelection(ed) ?? activeBlockRange.value
+}
+
+function deleteActiveBlockRange(ed: Editor, range: ActiveBlockRange) {
+  if (range.node.type.name === 'footnotesBlock') return false
+
+  if (range.parentDepth > 0 && range.parentChildCount <= 1) {
+    const paragraph = ed.schema.nodes.paragraph?.createAndFill()
+    if (!paragraph) return false
+    ed.chain().focus().insertContentAt({ from: range.from, to: range.to }, paragraph.toJSON()).run()
+    return true
   }
 
-  const { $from } = ed.state.selection
-  let blockDepth = 0
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d - 1).type.name === 'doc') { blockDepth = d; break }
-  }
-  if (blockDepth === 0) return null
-  return { from: $from.before(blockDepth), to: $from.after(blockDepth) }
+  ed.chain().focus().deleteRange({ from: range.from, to: range.to }).run()
+  return true
 }
 
 function runCopyBlock() {
@@ -917,11 +960,11 @@ function runCutBlock() {
   const ed = editor.value
   const range = getActiveBlockRange()
   if (!ed || !range) return
-  if (ed.state.doc.nodeAt(range.from)?.type.name === 'footnotesBlock') return
+  if (range.node.type.name === 'footnotesBlock') return
   const slice = ed.state.doc.slice(range.from, range.to)
   const text = slice.content.textBetween(0, slice.content.size, '\n')
   navigator.clipboard.writeText(text)
-  ed.chain().focus().deleteRange(range).run()
+  deleteActiveBlockRange(ed, range)
   actionsMenuVisible.value = false
 }
 
@@ -958,11 +1001,30 @@ async function runEditHtml() {
   const dom = serializer.serializeFragment(fragment)
   div.appendChild(dom)
   const html = div.innerHTML
-  const newHtml = window.prompt('Edit HTML:', html)
-  if (newHtml !== null && newHtml !== html) {
-    ed.chain().focus().deleteRange(range).insertContentAt(range.from, newHtml).run()
-  }
+  editHtmlInitialValue.value = html
+  pendingEditHtml.value = { from: range.from, to: range.to, html }
+  editHtmlDialogOpen.value = true
   actionsMenuVisible.value = false
+}
+
+function closeEditHtmlDialog() {
+  editHtmlDialogOpen.value = false
+  pendingEditHtml.value = null
+  editHtmlInitialValue.value = ''
+}
+
+function confirmEditHtml(newHtml: string) {
+  const ed = editor.value
+  const pending = pendingEditHtml.value
+  if (!ed || !pending) {
+    closeEditHtmlDialog()
+    return
+  }
+
+  if (newHtml !== pending.html) {
+    ed.chain().focus().deleteRange({ from: pending.from, to: pending.to }).insertContentAt(pending.from, newHtml).run()
+  }
+  closeEditHtmlDialog()
 }
 
 function runAddFootnote() {
@@ -1902,14 +1964,26 @@ function insertEmbedAtPosition(pos: number) {
   const ed = editor.value
   if (!ed) return
 
-  const rawUrl = window.prompt('Paste an embed URL (video, audio, or website):')?.trim()
-  if (!rawUrl) {
-    return
-  }
+  pendingEmbedInsertPos.value = pos
+  embedUrlDialogOpen.value = true
+}
 
+function closeEmbedUrlDialog() {
+  embedUrlDialogOpen.value = false
+  pendingEmbedInsertPos.value = null
+}
+
+function validateEmbedUrlInput(rawUrl: string) {
   const normalizedUrl = normalizeEmbedUrl(rawUrl)
-  if (!normalizedUrl) {
-    window.alert('Please enter a valid URL, e.g. https://example.com')
+  return normalizedUrl ? null : 'Please enter a valid URL, e.g. https://example.com'
+}
+
+function confirmEmbedUrl(rawUrl: string) {
+  const ed = editor.value
+  const pos = pendingEmbedInsertPos.value
+  const normalizedUrl = normalizeEmbedUrl(rawUrl)
+  if (!ed || pos === null || !normalizedUrl) {
+    closeEmbedUrlDialog()
     return
   }
 
@@ -1919,6 +1993,7 @@ function insertEmbedAtPosition(pos: number) {
     type: 'customHtml',
     attrs: { html: embedHtml }
   }).run()
+  closeEmbedUrlDialog()
 }
 
 function normalizeEmbedUrl(rawUrl: string) {
@@ -2050,6 +2125,11 @@ function onHandleClick(event: MouseEvent) {
 }
 
 function onBlockDragStart(event: DragEvent) {
+  if (activeBlockRange.value?.parentDepth !== 0) {
+    event.preventDefault()
+    return
+  }
+
   const idx = activeBlockIndex.value
   if (idx < 0) return
 
@@ -2434,8 +2514,16 @@ function triggerLocalFileUploadForMediaText() {
 }
 
 function promptRemoteUrlForMediaText() {
-  const url = window.prompt('Remote media URL')?.trim()
-  if (!url) return
+  if (mediaTextTargetPos.value === null) return
+  mediaTextRemoteUrlDialogOpen.value = true
+}
+
+function closeRemoteMediaTextDialog() {
+  mediaTextRemoteUrlDialogOpen.value = false
+}
+
+function confirmRemoteMediaTextUrl(url: string) {
+  mediaTextRemoteUrlDialogOpen.value = false
   // Best-effort fake MediaRecord shape so handleMediaTextPicked can apply it.
   const name = url.split('/').pop()?.split('?')[0] ?? url
   const ext = (name.split('.').pop() ?? '').toLowerCase()
@@ -2519,8 +2607,8 @@ function findTopLevelBlockEndingAt(ed: Editor, pos: number): { from: number; to:
 function onCustomHtmlInteract() {
   activeBlockRect.value = null
   activeBlockIndex.value = -1
+  activeBlockRange.value = null
   actionsMenuVisible.value = false
-  editorStore.selectBlock(null)
 }
 
 function debugEditor(message: string) {
@@ -2530,34 +2618,85 @@ function debugEditor(message: string) {
 }
 
 function syncSelectedBlock(ed: Editor) {
-  const sel = ed.state.selection
-  // Handle atom node selections (image, customHtml, mermaid, etc.) which don't have a parent block depth.
-  if (sel instanceof NodeSelection) {
-    const node = sel.node
-    const pos = sel.from
+  const range = getActiveBlockRangeFromSelection(ed)
+  if (range) {
     editorStore.selectBlock({
-      id: `${node.type.name}:${pos}`,
-      type: node.type.name,
-      attrs: node.attrs,
-      pos
+      id: `${range.node.type.name}:${range.from}`,
+      type: range.node.type.name,
+      attrs: range.node.attrs,
+      pos: range.from
     })
     return
   }
-  const { $from } = sel
-  for (let depth = $from.depth; depth > 0; depth--) {
-    if ($from.node(depth - 1).type.name === 'doc') {
-      const node = $from.node(depth)
-      const pos = $from.before(depth)
-      editorStore.selectBlock({
-        id: `${node.type.name}:${pos}`,
-        type: node.type.name,
-        attrs: node.attrs,
-        pos
-      })
-      return
+
+  editorStore.selectBlock(null)
+}
+
+function getActiveBlockRangeFromSelection(ed: Editor): ActiveBlockRange | null {
+  const { selection } = ed.state
+
+  if (selection instanceof NodeSelection) {
+    return createActiveBlockRange(ed, selection.from, selection.node)
+  }
+
+  const { $from } = selection
+  let rootDepth = 0
+  for (let depth = 1; depth <= $from.depth; depth += 1) {
+    if (NESTED_BLOCK_ROOT_TYPES.has($from.node(depth).type.name)) {
+      rootDepth = depth
     }
   }
-  editorStore.selectBlock(null)
+
+  const targetDepth = rootDepth + 1
+  if (targetDepth <= 0 || targetDepth > $from.depth) {
+    return null
+  }
+
+  return createActiveBlockRangeFromDepth(ed, $from, targetDepth)
+}
+
+function createActiveBlockRangeFromDepth(ed: Editor, resolved: ResolvedPos, depth: number): ActiveBlockRange {
+  const parentDepth = Math.max(0, depth - 1)
+  const from = resolved.before(depth)
+  const node = resolved.node(depth)
+
+  return {
+    from,
+    to: resolved.after(depth),
+    node,
+    depth,
+    parentDepth,
+    parentChildCount: resolved.node(parentDepth).childCount,
+    index: resolved.index(parentDepth),
+    topLevelIndex: getTopLevelBlockIndexAt(ed, from)
+  }
+}
+
+function createActiveBlockRange(ed: Editor, from: number, node: ProseMirrorNode): ActiveBlockRange {
+  const safeFrom = Math.max(0, Math.min(from, ed.state.doc.content.size))
+  const resolved = ed.state.doc.resolve(safeFrom)
+  const parentDepth = resolved.depth
+
+  return {
+    from: safeFrom,
+    to: safeFrom + node.nodeSize,
+    node,
+    depth: parentDepth + 1,
+    parentDepth,
+    parentChildCount: resolved.parent.childCount,
+    index: resolved.index(parentDepth),
+    topLevelIndex: getTopLevelBlockIndexAt(ed, safeFrom)
+  }
+}
+
+function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
+  let blockIndex = -1
+  ed.state.doc.forEach((node, offset, index) => {
+    if (pos >= offset && pos < offset + node.nodeSize) {
+      blockIndex = index
+    }
+  })
+  return blockIndex
 }
 </script>
 
@@ -2752,16 +2891,6 @@ function syncSelectedBlock(ed: Editor) {
   color: rgb(15 118 110);
   text-decoration: underline;
   text-underline-offset: 0.18em;
-}
-
-:deep(.pandablog-block-editor .ProseMirror code) {
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  background: #f6f8fa;
-  color: #24292f;
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 0.92em;
-  padding: 0.12rem 0.34rem;
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnote-jump-highlight) {

@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
+import { isSetupCompleted } from './settings'
 
 export interface AdminUser {
   username: string
@@ -18,6 +19,10 @@ export function constantTimeEqual(input: string, expected: string) {
 }
 
 export async function requireAdminUser(event: H3Event): Promise<AdminUser> {
+  if (!await isSetupCompleted()) {
+    throw createError({ statusCode: 503, message: 'Admin setup is required' })
+  }
+
   const session = await requireUserSession(event)
   const user = session.user as AdminUser | undefined
 

@@ -27,7 +27,7 @@
           <UToggle v-model="form.activity_log_enabled" label="Activity logs" />
           <UToggle v-model="form.error_log_enabled" label="Error logs" />
           <UToggle v-model="form.debug_enabled" label="Debug logs" />
-          <UToggle v-if="isProd" v-model="form.debug_override_prod" label="Override debug in production" />
+          <UToggle v-model="form.debug_override_prod" label="Override debug protection" />
         </div>
         <UAlert class="mt-3" color="warning" icon="i-lucide-triangle-alert" title="Debug is disabled in production unless override is enabled." />
       </section>
@@ -93,9 +93,6 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
-
-const config = useRuntimeConfig()
-const isProd = config.public.appEnv === 'prod'
 
 const { data, error, refresh } = await useAsyncData('admin-logging-settings', () => $fetch('/api/admin/settings/logging'))
 

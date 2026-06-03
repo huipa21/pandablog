@@ -60,7 +60,7 @@ async function loadPublicBootstrap(): Promise<PublicBootstrapPayload> {
   const db = await useDb()
   const response = await queryDb(
     db,
-    `SELECT * FROM app_setting;
+    `SELECT * FROM app_settings;
      SELECT * FROM tag ORDER BY name ASC;
      SELECT out, count() AS total FROM tagged WHERE in.status = 'published' GROUP BY out;
      SELECT * FROM category ORDER BY name ASC;

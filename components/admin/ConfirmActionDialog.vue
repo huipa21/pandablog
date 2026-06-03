@@ -20,6 +20,9 @@
             <p class="mt-2 text-sm leading-relaxed text-stone-600">
               {{ description }}
             </p>
+            <p v-if="error" class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm leading-relaxed text-red-950">
+              {{ error }}
+            </p>
           </div>
         </div>
 
@@ -45,10 +48,12 @@ const props = withDefaults(defineProps<{
   cancelLabel?: string
   confirmColor?: 'primary' | 'error' | 'warning' | 'neutral'
   loading?: boolean
+  error?: string
 }>(), {
   cancelLabel: 'Cancel',
   confirmColor: 'error',
-  loading: false
+  loading: false,
+  error: ''
 })
 
 const emit = defineEmits<{

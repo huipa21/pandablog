@@ -19,7 +19,7 @@
           :class="{ 'is-active': index === activeIndex }"
           role="tab"
           :aria-selected="index === activeIndex"
-          @mousedown.prevent="setActiveIndex(index)"
+          @mousedown.prevent="onTabMouseDown(index)"
         >
           {{ tab.title }}
         </button>
@@ -82,6 +82,14 @@ onUpdated(() => nextTick(refreshPanelState))
 
 function setActiveIndex(index: number) {
   props.updateAttributes({ activeIndex: index })
+}
+
+function onTabMouseDown(index: number) {
+  setActiveIndex(index)
+  const getPos = props.getPos as (() => number) | number | undefined
+  const nodePos = typeof getPos === 'function' ? getPos() : typeof getPos === 'number' ? getPos : null
+  if (typeof nodePos !== 'number') return
+  props.editor.chain().focus().setNodeSelection(nodePos).run()
 }
 
 function refreshPanelState() {

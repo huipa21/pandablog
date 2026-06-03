@@ -116,9 +116,7 @@
 </template>
 
 <script setup lang="ts">
-const config = useRuntimeConfig()
-const siteName = config.public.siteName
-const siteLogo = config.public.siteLogo
+const { siteName, siteLogo } = useSiteSettings()
 const route = useRoute()
 const hideSidebar = computed(() => route.meta.adminHideSidebar === true)
 

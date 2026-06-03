@@ -8,7 +8,9 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
     <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
+    <UAlert v-if="securityError" color="error" icon="i-lucide-circle-alert" :title="securityError" />
     <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
+    <UAlert v-if="securityNotice" color="success" icon="i-lucide-check" :title="securityNotice" />
 
     <form class="grid gap-5 rounded-lg border border-stone-200 bg-white p-5 shadow-sm" @submit.prevent="save">
       <div v-if="pending" class="grid gap-4">
@@ -46,6 +48,29 @@
         </div>
       </template>
     </form>
+
+    <form class="grid gap-5 rounded-lg border border-stone-200 bg-white p-5 shadow-sm" @submit.prevent="changePassword">
+      <header>
+        <h2 class="text-xl font-semibold tracking-normal text-stone-950">User Info</h2>
+        <p class="mt-1 text-sm text-stone-600">The admin username is fixed as admin. Change the password here when needed.</p>
+      </header>
+
+      <UFormField label="Current password" name="current_password">
+        <UInput v-model="securityForm.current_password" type="password" autocomplete="current-password" icon="i-lucide-key-round" />
+      </UFormField>
+
+      <UFormField label="New password" name="new_password">
+        <UInput v-model="securityForm.new_password" type="password" autocomplete="new-password" icon="i-lucide-key-round" />
+      </UFormField>
+
+      <UFormField label="Confirm new password" name="confirm_password">
+        <UInput v-model="securityForm.confirm_password" type="password" autocomplete="new-password" icon="i-lucide-key-round" />
+      </UFormField>
+
+      <div class="flex justify-end">
+        <UButton type="submit" icon="i-lucide-key-round" :loading="securitySaving">Change password</UButton>
+      </div>
+    </form>
   </section>
 </template>
 
@@ -67,8 +92,17 @@ const form = reactive({
 const avatarInput = ref<HTMLInputElement | null>(null)
 const uploadingAvatar = ref(false)
 const saving = ref(false)
+const securitySaving = ref(false)
 const notice = ref('')
 const saveError = ref('')
+const securityNotice = ref('')
+const securityError = ref('')
+
+const securityForm = reactive({
+  current_password: '',
+  new_password: '',
+  confirm_password: ''
+})
 
 watch(data, (value) => {
   const settings = value?.settings ?? {}
@@ -123,6 +157,33 @@ async function uploadAvatar(event: Event) {
     saveError.value = err?.statusMessage ?? err?.message ?? 'Upload failed'
   } finally {
     uploadingAvatar.value = false
+  }
+}
+
+async function changePassword() {
+  securitySaving.value = true
+  securityNotice.value = ''
+  securityError.value = ''
+
+  if (securityForm.new_password !== securityForm.confirm_password) {
+    securityError.value = 'Passwords do not match'
+    securitySaving.value = false
+    return
+  }
+
+  try {
+    await $fetch('/api/auth/change-password', {
+      method: 'POST',
+      body: { ...securityForm }
+    })
+    securityForm.current_password = ''
+    securityForm.new_password = ''
+    securityForm.confirm_password = ''
+    securityNotice.value = 'Password changed'
+  } catch (err: any) {
+    securityError.value = err?.data?.message ?? err?.statusMessage ?? err?.message ?? 'Could not change password'
+  } finally {
+    securitySaving.value = false
   }
 }
 

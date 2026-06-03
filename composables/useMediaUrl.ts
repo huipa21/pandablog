@@ -1,4 +1,4 @@
-function normalizeServiceFqdn(value: unknown) {
+function normalizeMediaBaseUrl(value: unknown) {
   const raw = typeof value === 'string' ? value.trim() : ''
   if (!raw) return ''
   return raw.replace(/\/+$/, '')
@@ -23,18 +23,17 @@ export function extractMediaHash(value: string) {
   return ''
 }
 
-export function buildPublicMediaUrl(hash: string, serviceFqdn: string) {
+export function buildPublicMediaUrl(hash: string, mediaBaseUrl: string) {
   const safeHash = encodeURIComponent(hash)
   if (!safeHash) return ''
-  if (!serviceFqdn) return `/api/media/file/${safeHash}`
-  return `${serviceFqdn}/media/${safeHash}`
+  if (!mediaBaseUrl) return `/api/media/file/${safeHash}`
+  return `${mediaBaseUrl}/media/${safeHash}`
 }
 
 export function useMediaUrl() {
-  const config = useRuntimeConfig()
-  const serviceFqdn = computed(() => {
-    const runtimeValue = config.public.mediaServiceFqdn || config.public.serviceFqdn
-    return normalizeServiceFqdn(runtimeValue)
+  const { settings } = useMediaConfig()
+  const mediaBaseUrl = computed(() => {
+    return normalizeMediaBaseUrl(settings.value?.public_base_url)
   })
 
   function toPublicMediaUrl(idOrHashOrUrl: string) {
@@ -49,7 +48,7 @@ export function useMediaUrl() {
       return value
     }
 
-    return buildPublicMediaUrl(hash, serviceFqdn.value)
+    return buildPublicMediaUrl(hash, mediaBaseUrl.value)
   }
 
   function resolveMediaUrl(value: string) {
@@ -67,11 +66,11 @@ export function useMediaUrl() {
       return source
     }
 
-    return buildPublicMediaUrl(hash, serviceFqdn.value)
+    return buildPublicMediaUrl(hash, mediaBaseUrl.value)
   }
 
   return {
-    serviceFqdn,
+    mediaBaseUrl,
     toPublicMediaUrl,
     resolveMediaUrl
   }

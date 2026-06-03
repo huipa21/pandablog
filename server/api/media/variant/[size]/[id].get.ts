@@ -8,7 +8,7 @@ import type { MediaVariantSize } from '~/types/content'
 const allowedSizes = new Set<MediaVariantSize>(['thumbnail', 'medium', 'large'])
 
 export default defineEventHandler(async (event) => {
-  assertLocalMediaRequest(event)
+  await assertLocalMediaRequest(event)
 
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const sizeParam = String(getRouterParam(event, 'size') ?? '').trim().toLowerCase() as MediaVariantSize

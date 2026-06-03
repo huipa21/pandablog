@@ -212,6 +212,49 @@
       @apply="handleAdvancedSearch"
     />
 
+    <AdminPromptDialog
+      :open="bulkTagsDialogOpen"
+      title="Edit Tags"
+      :description="bulkTagsDialogDescription"
+      label="Tags"
+      placeholder="e.g. screenshots, logos, references"
+      confirm-label="Update tags"
+      :required="false"
+      @update:open="(value) => { if (!value) bulkTagsDialogOpen = false }"
+      @cancel="bulkTagsDialogOpen = false"
+      @confirm="confirmBulkTags"
+    />
+
+    <AdminPromptDialog
+      :open="bulkCommentDialogOpen"
+      title="Edit Comment"
+      :description="bulkCommentDialogDescription"
+      label="Comment"
+      placeholder="Add an internal media note"
+      confirm-label="Update comment"
+      :required="false"
+      :trim="false"
+      multiline
+      :rows="3"
+      @update:open="(value) => { if (!value) bulkCommentDialogOpen = false }"
+      @cancel="bulkCommentDialogOpen = false"
+      @confirm="confirmBulkComment"
+    />
+
+    <AdminSelectDialog
+      :open="bulkAssignFolderDialogOpen"
+      title="Assign Folder"
+      :description="bulkAssignFolderDialogDescription"
+      label="Folder"
+      placeholder="Choose a folder"
+      :items="folderSelectItems"
+      :initial-value="bulkAssignFolderInitialValue"
+      confirm-label="Assign folder"
+      @update:open="(value) => { if (!value) bulkAssignFolderDialogOpen = false }"
+      @cancel="bulkAssignFolderDialogOpen = false"
+      @confirm="confirmBulkAssignFolder"
+    />
+
     <AdminConfirmActionDialog
       :open="bulkDeleteDialogOpen"
       title="Delete selected files?"
@@ -318,16 +361,28 @@ const searchModalOpen = ref(false)
 const smartFolderModalOpen = ref(false)
 const editingSmartFolder = ref<SmartFolder | null>(null)
 const folderModalOpen = ref(false)
+const bulkTagsDialogOpen = ref(false)
+const bulkCommentDialogOpen = ref(false)
+const bulkAssignFolderDialogOpen = ref(false)
 const bulkDeleteDialogOpen = ref(false)
 const bulkDeletePending = ref(false)
 const smartFolderDeleteDialogOpen = ref(false)
 const smartFolderDeletePending = ref(false)
 const pendingDeleteSmartFolderId = ref('')
+const selectedFileCountLabel = computed(() => `${selectedHashes.value.size} selected file${selectedHashes.value.size === 1 ? '' : 's'}`)
+const bulkTagsDialogDescription = computed(() => `Set tags on ${selectedFileCountLabel.value}. Separate tags with commas. Leave empty to clear tags.`)
+const bulkCommentDialogDescription = computed(() => `Set the comment on ${selectedFileCountLabel.value}. Leave empty to clear the comment.`)
+const bulkAssignFolderDialogDescription = computed(() => `Move ${selectedFileCountLabel.value} into a media folder.`)
 const bulkDeleteDialogDescription = computed(() => `Delete ${selectedHashes.value.size} file(s)? This cannot be undone.`)
 const smartFolderDeleteDialogDescription = computed(() => {
   const folder = smartFolders.value.find((item) => item.id === pendingDeleteSmartFolderId.value)
   return folder ? `Delete smart folder "${folder.name}"?` : 'Delete this smart folder?'
 })
+const folderSelectItems = computed(() => folders.value.map((folder) => ({
+  label: folder.name,
+  value: folder.id
+})))
+const bulkAssignFolderInitialValue = computed(() => selectedFolder.value || folders.value.find((folder) => folder.slug === 'default')?.id || folders.value[0]?.id || '')
 
 const filters = ref<MediaFilters>({
   search: '',
@@ -727,16 +782,30 @@ async function confirmBulkDelete() {
 }
 
 function promptBulkTags() {
-  const input = window.prompt('Enter tags (comma separated) to set on selected files:')
-  if (input === null) return
+  if (selectedHashes.value.size === 0) {
+    return
+  }
+
+  bulkTagsDialogOpen.value = true
+}
+
+function promptBulkComment() {
+  if (selectedHashes.value.size === 0) {
+    return
+  }
+
+  bulkCommentDialogOpen.value = true
+}
+
+function confirmBulkTags(input: string) {
+  bulkTagsDialogOpen.value = false
   const tags = input.split(',').map((tag) => tag.trim()).filter(Boolean)
   void handleBulkTags(tags)
 }
 
-function promptBulkComment() {
-  const input = window.prompt('Enter comment to set on selected files:')
-  if (input === null) return
-  void handleBulkComment(input)
+function confirmBulkComment(comment: string) {
+  bulkCommentDialogOpen.value = false
+  void handleBulkComment(comment)
 }
 
 async function handleBulkTags(tags: string[]) {
@@ -783,15 +852,21 @@ async function handleBulkMove(folderId: string) {
 }
 
 function promptBulkAssignFolder() {
-  const folderOptions = folders.value.map((f) => f.name).join(', ')
-  const input = window.prompt(`Assign to which folder? (${folderOptions})`)
-  if (input === null) return
-  const folder = folders.value.find((f) => f.name.toLowerCase() === input.trim().toLowerCase())
-  if (!folder) {
-    error.value = `Folder "${input}" not found`
+  if (selectedHashes.value.size === 0) {
     return
   }
-  void handleBulkMove(folder.id)
+
+  if (!folders.value.length) {
+    error.value = 'Create a folder before assigning files.'
+    return
+  }
+
+  bulkAssignFolderDialogOpen.value = true
+}
+
+function confirmBulkAssignFolder(folderId: string) {
+  bulkAssignFolderDialogOpen.value = false
+  void handleBulkMove(folderId)
 }
 
 async function handleBulkAddToFolder(folderId: string) {

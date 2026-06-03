@@ -180,7 +180,7 @@
                   @click.stop
                   @change="handleVisibilityChange(post)"
                   @keydown.esc.prevent="cancelCellEdit"
-                  @blur="saveCurrentCell({ close: true })"
+                  @blur="handleVisibilityBlur"
                 >
                   <option value="public">Public</option>
                   <option value="password">Password protected</option>
@@ -252,6 +252,18 @@
       @update:open="(value) => { if (!value) closeConfirmDialog() }"
       @cancel="closeConfirmDialog"
       @confirm="confirmBulkAction"
+    />
+
+    <AdminPromptDialog
+      :open="passwordDialogOpen"
+      title="Set Post Password"
+      description="Enter the password readers will need to open this post."
+      label="Password"
+      input-type="password"
+      confirm-label="Save password"
+      @update:open="(value) => { if (!value) cancelPasswordDialog() }"
+      @cancel="cancelPasswordDialog"
+      @confirm="confirmPasswordDialog"
     />
   </section>
 </template>
@@ -356,6 +368,8 @@ const quickEditEnabled = ref(false)
 const editingCell = ref<{ postId: string, field: EditableField } | null>(null)
 const savingCellKey = ref('')
 const rowClickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const passwordDialogOpen = ref(false)
+const pendingPasswordPost = ref<PostRecord | null>(null)
 const draft = reactive({
   title: '',
   status: 'draft' as PostStatus,
@@ -623,15 +637,35 @@ function updateBodyForCell(field: EditableField): Record<string, unknown> {
 
 async function handleVisibilityChange(post: PostRecord) {
   if (draft.visibility === 'password' && post.visibility !== 'password') {
-    const password = window.prompt('Password for this post')?.trim()
-    if (!password) {
-      draft.visibility = post.visibility ?? 'public'
-      return
-    }
-    draft.password = password
+    pendingPasswordPost.value = post
+    passwordDialogOpen.value = true
+    return
   }
 
   await saveCurrentCell({ close: true })
+}
+
+function cancelPasswordDialog() {
+  const post = pendingPasswordPost.value
+  passwordDialogOpen.value = false
+  pendingPasswordPost.value = null
+  draft.visibility = post?.visibility ?? 'public'
+  editingCell.value = null
+}
+
+async function confirmPasswordDialog(password: string) {
+  draft.password = password
+  passwordDialogOpen.value = false
+  pendingPasswordPost.value = null
+  await saveCurrentCell({ close: true })
+}
+
+function handleVisibilityBlur() {
+  if (passwordDialogOpen.value) {
+    return
+  }
+
+  void saveCurrentCell({ close: true })
 }
 
 function handleCellFocusOut(event: FocusEvent) {

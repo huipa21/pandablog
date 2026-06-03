@@ -1,5 +1,6 @@
 import { mediaCleanupOrphanFiles } from '../utils/mediaCleanup'
 import { useDb } from '../utils/db'
+import { getMediaSettings } from '../utils/settings'
 
 interface MediaCronLike {
   validate: (expression: string) => boolean
@@ -10,9 +11,9 @@ interface MediaCronLike {
 }
 
 export default defineNitroPlugin(async () => {
-  const config = useRuntimeConfig()
+  const settings = await getMediaSettings()
 
-  if (!config.mediaOrphanCleanupEnabled) {
+  if (!settings.orphan_cleanup_enabled) {
     return
   }
 
@@ -23,8 +24,8 @@ export default defineNitroPlugin(async () => {
     return
   }
 
-  const days = Number(config.mediaOrphanCleanupDays || 30)
-  const schedule = String(config.mediaOrphanCleanupCron || '0 4 * * *')
+  const days = Number(settings.orphan_cleanup_days || 30)
+  const schedule = String(settings.orphan_cleanup_cron || '0 4 * * *')
 
   if (!cron.validate(schedule)) {
     console.warn(`[media] invalid orphan cleanup cron expression: ${schedule}`)

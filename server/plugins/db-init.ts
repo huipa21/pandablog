@@ -3,33 +3,45 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { queryDb, useDb } from '../utils/db'
 import { initializeLoggingSettings } from '../utils/logging'
+import { initializeRuntimeSettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { computeContentStats } from '~/utils/contentStats'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v1'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
+const APP_SETTINGS_TABLE = 'app_settings'
+const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
 const MEDIA_STORAGE_VERSION = '2026-05-image-variants-v2'
 const DEFAULT_MEDIA_SETTINGS = {
   allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z'],
   max_file_size_mb: 10,
   max_files_per_upload: 5,
   enable_perceptual_dedup: false,
-  perceptual_dedup_threshold: 5
+  perceptual_dedup_threshold: 5,
+  download_cleanup_hours: 1,
+  public_base_url: '',
+  local_only: false,
+  orphan_cleanup_enabled: false,
+  orphan_cleanup_days: 30,
+  orphan_cleanup_cron: '0 4 * * *'
 }
 
 export default defineNitroPlugin(async () => {
   const db = await useDb()
+  await migrateLegacyAppSettingsTable(db)
   const schema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
   const schemaHash = createHash('sha256').update(schema).digest('hex')
 
   if (!await hasCurrentSchemaHash(db, schemaHash)) {
+    await resetPostStatsFieldDefinitionsBeforeSchema(db)
     await queryDb(db, schema, undefined, { label: 'schema initialization', timeoutMs: 30_000 })
     await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
   }
 
   await ensureMediaStorageVersion(db)
   await ensureDefaultMediaSettings(db)
+  await initializeRuntimeSettings(true)
   await ensureDefaultFolder(db)
   await backfillPostStats(db)
   await initializeLoggingSettings()
@@ -39,7 +51,7 @@ async function hasCurrentSchemaHash(db: Awaited<ReturnType<typeof useDb>>, schem
   try {
     const response = await queryDb<[Array<{ value?: string }> ]>(
       db,
-      'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+      'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
       { key: SCHEMA_HASH_KEY },
       { label: 'schema hash lookup', timeoutMs: 5_000 }
     )
@@ -53,7 +65,7 @@ async function hasCurrentSchemaHash(db: Awaited<ReturnType<typeof useDb>>, schem
 async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>) {
   const mediaSettings = await queryDb<[Array<{ value?: unknown }> ]>(
     db,
-    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
     { key: 'media' },
     { label: 'media settings lookup', timeoutMs: 10_000 }
   )
@@ -94,7 +106,7 @@ async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {
 async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) {
   const response = await queryDb(
     db,
-    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
     { key: MEDIA_STORAGE_VERSION_KEY },
     { label: 'media storage version lookup', timeoutMs: 5_000 }
   )
@@ -107,7 +119,7 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
   await queryDb(db, 'DELETE FROM files;', undefined, { label: 'media storage schema reset', timeoutMs: 30_000 })
   await queryDb(
     db,
-    `UPDATE app_setting SET
+    `UPDATE app_settings SET
       value = $value,
       updated_at = time::now()
     WHERE key = $key;`,
@@ -119,7 +131,7 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
   )
   const versionRow = await queryDb(
     db,
-    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
     { key: MEDIA_STORAGE_VERSION_KEY },
     { label: 'media storage version row check', timeoutMs: 5_000 }
   )
@@ -128,7 +140,7 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
   if (hasVersionRow) {
     await queryDb(
       db,
-      `UPDATE app_setting SET
+      `UPDATE app_settings SET
         value = $value,
         updated_at = time::now()
       WHERE key = $key;`,
@@ -143,7 +155,7 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
 
   await queryDb(
     db,
-    `CREATE app_setting CONTENT {
+    `CREATE app_settings CONTENT {
       key: $key,
       value: $value,
       updated_at: time::now()
@@ -159,7 +171,7 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
 async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
   const existing = await queryDb(
     db,
-    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
     { key: POST_STATS_BACKFILL_KEY },
     { label: 'post stats backfill marker check', timeoutMs: 5_000 }
   )
@@ -203,6 +215,23 @@ async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
   await setAppSetting(db, POST_STATS_BACKFILL_KEY, new Date().toISOString(), 'post stats backfill marker')
 }
 
+async function resetPostStatsFieldDefinitionsBeforeSchema(db: Awaited<ReturnType<typeof useDb>>) {
+  try {
+    await queryDb(
+      db,
+      `REMOVE FIELD IF EXISTS word_count ON post;
+       REMOVE FIELD IF EXISTS cjk_char_count ON post;`,
+      undefined,
+      { label: 'post stats field reset', timeoutMs: 10_000 }
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes('does not exist')) {
+      console.warn('[db-init] post stats field reset skipped', error)
+    }
+  }
+}
+
 async function setAppSetting(
   db: Awaited<ReturnType<typeof useDb>>,
   key: string,
@@ -211,7 +240,7 @@ async function setAppSetting(
 ) {
   const existing = await queryDb(
     db,
-    'SELECT * FROM app_setting WHERE key = $key LIMIT 1;',
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
     { key },
     { label: `${label} lookup`, timeoutMs: 5_000 }
   )
@@ -219,7 +248,7 @@ async function setAppSetting(
   if (firstRow(existing)) {
     await queryDb(
       db,
-      `UPDATE app_setting SET
+      `UPDATE app_settings SET
         value = $value,
         updated_at = time::now()
       WHERE key = $key;`,
@@ -231,7 +260,7 @@ async function setAppSetting(
 
   await queryDb(
     db,
-    `CREATE app_setting CONTENT {
+    `CREATE app_settings CONTENT {
       key: $key,
       value: $value,
       updated_at: time::now()
@@ -239,4 +268,56 @@ async function setAppSetting(
     { key, value },
     { label: `${label} create`, timeoutMs: 10_000 }
   )
+}
+
+async function migrateLegacyAppSettingsTable(db: Awaited<ReturnType<typeof useDb>>) {
+  try {
+    const response = await queryDb(
+      db,
+      `SELECT * FROM ${LEGACY_APP_SETTINGS_TABLE};`,
+      undefined,
+      { label: 'legacy app settings lookup', timeoutMs: 10_000 }
+    )
+    const rows = queryRows<Record<string, unknown>>(response)
+
+    if (!rows.length) {
+      return
+    }
+
+    for (const row of rows) {
+      const key = typeof row.key === 'string' ? row.key : ''
+      if (!key) {
+        continue
+      }
+
+      await queryDb(
+        db,
+        `UPSERT type::record($table, $id) CONTENT {
+          key: $key,
+          value: $value,
+          updated_at: time::now()
+        };`,
+        {
+          table: APP_SETTINGS_TABLE,
+          id: key,
+          key,
+          value: row.value
+        },
+        { label: 'legacy app settings copy', timeoutMs: 10_000 }
+      )
+    }
+
+    await queryDb(
+      db,
+      `REMOVE TABLE ${LEGACY_APP_SETTINGS_TABLE};`,
+      undefined,
+      { label: 'legacy app settings remove', timeoutMs: 10_000 }
+    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('does not exist')) {
+      return
+    }
+    console.warn('[db-init] legacy app settings migration skipped', error)
+  }
 }

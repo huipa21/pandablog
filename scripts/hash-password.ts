@@ -1,11 +1,10 @@
 /**
- * Hash a password with argon2id for use in .env (APP_LOGIN_PASSWORD_HASH).
+ * Hash a password with argon2id for emergency admin password recovery.
  *
  * Usage:
  *   npx tsx scripts/hash-password.ts "your-plaintext-password"
  *
- * Copy the output (the entire $argon2id$... string) into .env:
- *   APP_LOGIN_PASSWORD_HASH="$argon2id$v=19$m=65536,t=3,p=4$..."
+ * Normal setup and password rotation happen in the admin UI.
  */
 
 import argon2 from 'argon2'
@@ -29,9 +28,9 @@ async function main() {
     parallelism: 4
   })
 
-  console.log('\nCopy this into .env as APP_LOGIN_PASSWORD_HASH:\n')
+  console.log('\nEmergency password hash:\n')
   console.log(hash)
-  console.log('')
+  console.log('\nStore this in app_settings:admin_password_hash only if you cannot use the admin UI.\n')
 }
 
 main().catch((err) => {

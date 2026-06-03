@@ -1,5 +1,6 @@
 import { getRequestHeader, getRequestIP, getRequestURL } from 'h3'
 import { buildRequestId, logAccess, shouldExcludePath } from '../utils/logging'
+import { getRuntimeFlags } from '../utils/settings'
 
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)
@@ -16,7 +17,7 @@ export default defineEventHandler((event) => {
   event.node.res.on('finish', () => {
       try {
         const statusCode = event.node.res.statusCode
-        const ip = getRequestIP(event, { xForwardedFor: useRuntimeConfig().appEnv === 'prod' })
+        const ip = getRequestIP(event, { xForwardedFor: getRuntimeFlags().trust_proxy_headers })
 
         logAccess({
           method: event.node.req.method ?? 'GET',

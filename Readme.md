@@ -31,8 +31,6 @@ cp .env.example .env
 Required values:
 
 ```env
-APP_ENV="dev"
-
 SURREAL_URL="wss://your-surreal-host/rpc"
 SURREAL_NAMESPACE="main"
 SURREAL_DATABASE="main"
@@ -40,14 +38,9 @@ SURREAL_ROOT="root-or-admin-user"
 SURREAL_ROOT_PASSWORD="your-db-password"
 
 NUXT_SESSION_PASSWORD="at-least-32-random-characters"
-
-APP_LOGIN_USERNAME="admin"
-APP_LOGIN_PASSWORD_HASH="$argon2id$..."
 ```
 
-Set `APP_ENV` to `dev` on the Windows development machine and `prod` on the Ubuntu server. The `.env` file has highest priority over OS environment variables.
-
-See the [Auth setup](#auth-setup) section below for how to generate `APP_LOGIN_PASSWORD_HASH`.
+On first deployment, visit `/admin` and complete the setup wizard. Admin username is fixed as `admin`; the wizard stores the password hash in SurrealDB `app_settings`.
 
 ## Install And Run
 
@@ -169,13 +162,7 @@ Search supports combined filters for name/comment text, upload date range, type/
 
 Orphans are files where `reference_count = 0` and `referenced_by = []`. Use `GET /api/media/orphans` to list them and `POST /api/media/orphans/cleanup` to delete database records plus physical original/variant files. The admin UI requires confirmation for delete and orphan cleanup actions.
 
-Optional scheduled orphan cleanup is controlled by:
-
-| Variable | Default | Purpose |
-|---|---:|---|
-| `MEDIA_ORPHAN_CLEANUP_ENABLED` | `false` | Enable scheduled orphan deletion |
-| `MEDIA_ORPHAN_CLEANUP_DAYS` | `30` | Delete only orphans older than this many days |
-| `MEDIA_ORPHAN_CLEANUP_CRON` | `0 4 * * *` | Cron expression for cleanup |
+Optional scheduled orphan cleanup is configured in Admin -> Settings -> Media and stored in `app_settings`.
 
 ### Admin Editor
 
@@ -330,30 +317,18 @@ The admin login uses environment variables. The `.env` file in the project root 
 
 ### Configure admin credentials
 
-1. Choose a password.
-2. Hash it:
-   ```bash
-   npm run hash-password "your-strong-password"
-   ```
-3. Copy the output (`$argon2id$...`) into `.env` as `APP_LOGIN_PASSWORD_HASH`.
-4. Set `APP_LOGIN_USERNAME` in `.env`.
+On a fresh deployment, open `/admin` and complete the first-run setup wizard. The username is always `admin`; the password hash is stored in the SurrealDB `app_settings` table.
 
 ### Required env vars
 
 | Variable | Purpose | Required |
 |---|---|---|
-| `APP_ENV` | `dev` (local Windows) or `prod` (Ubuntu server) | Yes |
 | `SURREAL_URL` | SurrealDB RPC endpoint | Yes |
 | `SURREAL_NAMESPACE` | DB namespace | Yes |
 | `SURREAL_DATABASE` | DB name | Yes |
 | `SURREAL_ROOT` | Root user | Yes |
 | `SURREAL_ROOT_PASSWORD` | Root password | Yes |
 | `NUXT_SESSION_PASSWORD` | 32+ char random string for session cookie encryption | Yes (prod hard-fails without it) |
-| `APP_LOGIN_USERNAME` | Admin username | Yes |
-| `APP_LOGIN_PASSWORD_HASH` | argon2id hash of admin password | Yes |
-| `MEDIA_ORPHAN_CLEANUP_ENABLED` | Enable scheduled orphan cleanup | No |
-| `MEDIA_ORPHAN_CLEANUP_DAYS` | Orphan age threshold for scheduled cleanup | No |
-| `MEDIA_ORPHAN_CLEANUP_CRON` | Cron schedule for orphan cleanup | No |
 
 ### Rate limiting
 
@@ -361,11 +336,11 @@ Failed login attempts are tracked per IP. After 5 failed attempts within 15 minu
 
 ### Rotating the admin password
 
-Run `npm run hash-password "<new-password>"` and replace the value of `APP_LOGIN_PASSWORD_HASH` in `.env`. Restart the app. Existing sessions remain valid until expiry — log out from `/admin` to invalidate immediately.
+Open Admin -> Settings -> Profile -> User Info and change the password there. Existing sessions remain valid until expiry; log out from `/admin` to invalidate the current browser session immediately.
 
 ### Production reverse proxy (nginx)
 
-When `APP_ENV=prod`, the login endpoint trusts the `X-Forwarded-For` header to determine the client IP for rate limiting. **Your nginx config must strip any inbound `X-Forwarded-For` header from clients and set its own**, otherwise an attacker can spoof the header to bypass per-IP lockout.
+When Admin -> Settings -> Site -> Network -> Trust reverse proxy headers is enabled, the login endpoint trusts the `X-Forwarded-For` header to determine the client IP for rate limiting. **Your nginx config must strip any inbound `X-Forwarded-For` header from clients and set its own**, otherwise an attacker can spoof the header to bypass per-IP lockout.
 
 Recommended nginx location block:
 
@@ -386,11 +361,11 @@ Key point: `proxy_set_header X-Forwarded-For $remote_addr;` **replaces** any cli
 
 ### HTTP vs HTTPS in production
 
-If you serve over plain HTTP (no TLS), session cookies will still be sent because cookie `Secure` flag follows `APP_ENV`. However:
+If you serve over plain HTTP (no TLS), avoid production mode for admin traffic. However:
 - Anyone on the network path can read the session cookie.
 - `Secure` cookies cannot be transmitted over HTTP at all in modern browsers.
 
-Currently `Secure` is enabled when `APP_ENV=prod`. **If you must serve admin traffic over HTTP in prod**, sessions will silently fail to set in the browser. Either:
+Nuxt enables secure session cookies in production mode. **If you must serve admin traffic over HTTP in prod**, sessions will silently fail to set in the browser. Either:
 1. Use HTTPS for the admin area (strongly recommended), or
 2. Manually override the cookie config in `nuxt.config.ts` (not recommended; do this only with full awareness of the risk).
 
@@ -470,7 +445,7 @@ Set in **Admin -> Settings -> Visibility**.
 - **Public** (default): anyone can browse the site. Per-post rules still apply.
 - **Private**: anonymous visitors are redirected to login. Only the admin can browse.
 
-The setting is stored in `app_setting:site_visibility` and enforced via Nitro middleware.
+The setting is stored in `app_settings:site_visibility` and enforced via Nitro middleware.
 
 ### Per-post visibility
 

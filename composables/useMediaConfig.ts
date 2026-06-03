@@ -6,6 +6,7 @@ interface MediaSettings {
   max_files_per_upload: number
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
+  public_base_url: string
 }
 
 /**
@@ -29,7 +30,8 @@ export function useMediaConfig() {
         max_file_size_mb: 10,
         max_files_per_upload: 5,
         enable_perceptual_dedup: true,
-        perceptual_dedup_threshold: 5
+        perceptual_dedup_threshold: 5,
+        public_base_url: ''
       }
     } finally {
       loading.value = false

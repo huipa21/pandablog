@@ -24,7 +24,16 @@ export default defineEventHandler(async (event) => {
       : 5,
     download_cleanup_hours: typeof body.download_cleanup_hours === 'number'
       ? Math.max(1, Math.min(168, body.download_cleanup_hours))
-      : 1
+      : 1,
+    public_base_url: typeof body.public_base_url === 'string' ? body.public_base_url.trim().replace(/\/+$/, '') : '',
+    local_only: body.local_only === true,
+    orphan_cleanup_enabled: body.orphan_cleanup_enabled === true,
+    orphan_cleanup_days: typeof body.orphan_cleanup_days === 'number'
+      ? Math.max(1, Math.min(3650, body.orphan_cleanup_days))
+      : 30,
+    orphan_cleanup_cron: typeof body.orphan_cleanup_cron === 'string' && body.orphan_cleanup_cron.trim()
+      ? body.orphan_cleanup_cron.trim()
+      : '0 4 * * *'
   }
 
   if (settings.allowed_extensions.length === 0) {

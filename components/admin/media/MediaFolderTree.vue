@@ -60,6 +60,18 @@
     </div>
   </aside>
 
+  <AdminPromptDialog
+    :open="renameFolderDialogOpen"
+    title="Rename Folder"
+    description="Update the folder name shown in the media library."
+    label="Folder name"
+    :initial-value="pendingRenameFolder?.name ?? ''"
+    confirm-label="Rename"
+    @update:open="(value) => { if (!value) closeRenameFolderDialog() }"
+    @cancel="closeRenameFolderDialog"
+    @confirm="confirmRenameFolder"
+  />
+
   <AdminConfirmActionDialog
     :open="deleteFolderDialogOpen"
     title="Delete folder?"
@@ -112,6 +124,8 @@ const sortedFolders = computed(() => {
 })
 const deleteFolderDialogOpen = ref(false)
 const pendingDeleteFolder = ref<MediaFolderRecord | null>(null)
+const renameFolderDialogOpen = ref(false)
+const pendingRenameFolder = ref<MediaFolderRecord | null>(null)
 const deleteFolderDialogDescription = computed(() => pendingDeleteFolder.value
   ? `Delete folder "${pendingDeleteFolder.value.name}"? Files will stay in the library.`
   : 'Delete this folder?')
@@ -129,10 +143,7 @@ function folderMenu(folder: MediaFolderRecord) {
     {
       label: 'Rename',
       icon: 'i-lucide-pencil',
-      onSelect: () => {
-        const name = window.prompt('Folder name', folder.name)?.trim()
-        if (name) emit('rename-folder', folder.id, name)
-      }
+      onSelect: () => openRenameFolderDialog(folder)
     },
     {
       label: 'Delete',
@@ -141,6 +152,29 @@ function folderMenu(folder: MediaFolderRecord) {
       onSelect: () => openDeleteFolderDialog(folder)
     }
   ]]
+}
+
+function openRenameFolderDialog(folder: MediaFolderRecord) {
+  pendingRenameFolder.value = folder
+  renameFolderDialogOpen.value = true
+}
+
+function closeRenameFolderDialog() {
+  renameFolderDialogOpen.value = false
+  pendingRenameFolder.value = null
+}
+
+function confirmRenameFolder(name: string) {
+  const folder = pendingRenameFolder.value
+  if (!folder) {
+    closeRenameFolderDialog()
+    return
+  }
+
+  if (name !== folder.name) {
+    emit('rename-folder', folder.id, name)
+  }
+  closeRenameFolderDialog()
 }
 
 function openDeleteFolderDialog(folder: MediaFolderRecord) {

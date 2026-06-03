@@ -75,6 +75,7 @@
 
 <script setup lang="ts">
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
+import { NodeSelection } from '@tiptap/pm/state'
 import { all, createLowlight } from 'lowlight'
 
 type HighlightNode = {
@@ -122,15 +123,29 @@ function onHeaderMouseDown(event: MouseEvent) {
     return
   }
 
-  const pos = props.getPos?.()
-  if (typeof pos !== 'number') return
-  props.editor?.chain().focus().setNodeSelection(pos).run()
+  selectCustomHtmlNode()
 }
 
 function onBodyMouseDown() {
-  // Editing/preview interactions should not keep this node as the selected block.
-  editorStore.selectBlock(null)
+  selectCustomHtmlNode()
   emitCustomHtmlInteract()
+}
+
+function selectCustomHtmlNode() {
+  const pos = props.getPos?.()
+  const editor = props.editor
+  if (typeof pos !== 'number' || !editor) return
+
+  const node = editor.state.doc.nodeAt(pos)
+  if (!node || node.type.name !== 'customHtml') return
+
+  editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)))
+  editorStore.selectBlock({
+    id: `customHtml:${pos}`,
+    type: 'customHtml',
+    attrs: node.attrs,
+    pos
+  })
 }
 
 function emitCustomHtmlInteract() {
@@ -215,7 +230,7 @@ function onPreviewMessage(event: MessageEvent) {
   }
 
   if (event.data?.type === 'customhtml-preview-interact') {
-    editorStore.selectBlock(null)
+    selectCustomHtmlNode()
     emitCustomHtmlInteract()
   }
 }

@@ -1,6 +1,7 @@
 import { queryDb, useDb } from '../../../utils/db'
 import { addUnlockedId, fakePostPasswordHash, verifyPostPassword } from '../../../utils/post-password'
 import { checkLoginRateLimit, recordLoginAttempt } from '../../../utils/rate-limit'
+import { getRuntimeFlags } from '../../../utils/settings'
 import { stringifyRecordId } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
@@ -12,9 +13,8 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{ password?: string }>(event)
   const password = body.password ?? ''
 
-  const config = useRuntimeConfig()
-  const isProd = config.appEnv === 'prod'
-  const ip = getRequestIP(event, { xForwardedFor: isProd }) ?? null
+  const runtimeFlags = getRuntimeFlags()
+  const ip = getRequestIP(event, { xForwardedFor: runtimeFlags.trust_proxy_headers }) ?? null
 
   const rateKey = ip ? `unlock:${slug}:${ip}` : null
   if (rateKey) {
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
         message: `Too many attempts. Try again in ${rate.retryAfterSec}s.`
       })
     }
-  } else if (isProd) {
+  } else if (runtimeFlags.trust_proxy_headers) {
     throw createError({ statusCode: 400, message: 'Could not resolve client IP' })
   }
 

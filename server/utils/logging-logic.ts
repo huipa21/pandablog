@@ -1,11 +1,11 @@
 import type { LoggingSettings } from '~/types/logging'
 
-export function shouldAllowDebug(appEnv: string, settings: LoggingSettings) {
+export function shouldAllowDebug(settings: LoggingSettings) {
   if (!settings.enabled) {
     return false
   }
 
-  if (appEnv === 'prod' && !settings.debug_override_prod) {
+  if (!settings.debug_override_prod) {
     return false
   }
 

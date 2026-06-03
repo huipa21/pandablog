@@ -110,6 +110,7 @@
           confirm-label="Delete"
           confirm-color="error"
           :loading="deleting"
+          :error="deleteError"
           @update:open="(value) => { if (!value) closeDeleteDialog() }"
           @cancel="closeDeleteDialog"
           @confirm="confirmDeleteFile"
@@ -141,6 +142,7 @@ const tags = ref<string[]>([])
 const saving = ref(false)
 const deleting = ref(false)
 const deleteDialogOpen = ref(false)
+const deleteError = ref('')
 const deleteDialogDescription = computed(() => {
   const file = props.file
   if (!file) {
@@ -156,6 +158,7 @@ watch(() => props.file, (file) => {
   displayName.value = file?.original_name || ''
   comment.value = file?.comment || ''
   tags.value = [...(file?.tags || [])]
+  deleteError.value = ''
 }, { immediate: true })
 
 function viewOriginal() {
@@ -192,6 +195,7 @@ async function save() {
 
 async function deleteFile() {
   if (!props.file) return
+  deleteError.value = ''
   deleteDialogOpen.value = true
 }
 
@@ -201,6 +205,7 @@ function closeDeleteDialog() {
   }
 
   deleteDialogOpen.value = false
+  deleteError.value = ''
 }
 
 async function confirmDeleteFile() {
@@ -215,7 +220,7 @@ async function confirmDeleteFile() {
     closeDeleteDialog()
     emit('deleted', props.file)
   } catch (error: any) {
-    window.alert(error?.statusMessage || error?.message || 'Delete failed')
+    deleteError.value = error?.statusMessage || error?.message || 'Delete failed'
   } finally {
     deleting.value = false
   }

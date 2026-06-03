@@ -10,9 +10,7 @@ function env(name: string, fallback = ''): string {
   return localEnv[name] ?? process.env[name] ?? fallback
 }
 
-const appEnv = env('APP_ENV', 'dev')
-const isProd = appEnv === 'prod'
-const disableHmr = env('NUXT_DISABLE_HMR') === 'true' || env('APP_DISABLE_HMR') === 'true'
+const isProd = process.env.NODE_ENV === 'production'
 
 const sessionPassword = env('NUXT_SESSION_PASSWORD')
 if (!sessionPassword || sessionPassword.length < 32) {
@@ -27,20 +25,9 @@ if (!sessionPassword || sessionPassword.length < 32) {
   )
 }
 
-const adminPasswordHash = env('ADMIN_PASSWORD_HASH', env('APP_LOGIN_PASSWORD_HASH'))
-if (!adminPasswordHash) {
-  console.warn(
-    '⚠️  ADMIN_PASSWORD_HASH (or APP_LOGIN_PASSWORD_HASH) is not set. Login will fail. ' +
-    'Run: npm run hash-password "<your-password>" and put the result in .env'
-  )
-}
-
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-17',
   devtools: { enabled: true },
-  vite: {
-    server: disableHmr ? { hmr: false } : undefined
-  },
   modules: [
     '@nuxt/ui',
     '@nuxt/image',
@@ -50,18 +37,11 @@ export default defineNuxtConfig({
   ],
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
-    appEnv,
     surrealUrl: env('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
     surrealNamespace: env('SURREAL_NAMESPACE', 'main'),
     surrealDatabase: env('SURREAL_DATABASE', 'main'),
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
-    mediaOrphanCleanupEnabled: env('MEDIA_ORPHAN_CLEANUP_ENABLED', 'false') === 'true',
-    mediaLocalOnly: env('MEDIA_LOCAL_ONLY', 'false') === 'true',
-    mediaOrphanCleanupDays: Number(env('MEDIA_ORPHAN_CLEANUP_DAYS', '30')),
-    mediaOrphanCleanupCron: env('MEDIA_ORPHAN_CLEANUP_CRON', '0 4 * * *'),
-    adminUsername: env('ADMIN_USERNAME', env('APP_LOGIN_USERNAME', 'admin')),
-    adminPasswordHash,
     session: {
       password: sessionPassword || 'dev-only-insecure-fallback-do-not-use-in-prod-xx',
       maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -72,17 +52,6 @@ export default defineNuxtConfig({
       }
     },
     public: {
-      siteName: env('APP_SITE_TITLE', 'PandaBlog'),
-      siteSubtitle: env('APP_SITE_SUBTITLE', ''),
-      siteLogo: env('APP_SITE_LOGO', ''),
-      siteBanner: env('APP_SITE_BANNER', ''),
-      siteFavicon: env('APP_SITE_FAVICON', '/favicon.ico'),
-      ownerName: env('APP_OWNER_NAME', ''),
-      ownerBio: env('APP_OWNER_BIO', ''),
-      ownerAvatar: env('APP_OWNER_AVATAR', ''),
-      mediaServiceFqdn: env('APP_MEDIA_SERVICE_FQDN', env('APP_SERVICE_FQDN', env('SERVICE_FQDN'))),
-      serviceFqdn: env('APP_SERVICE_FQDN', env('SERVICE_FQDN')),
-      appEnv
     }
   },
   nitro: {
@@ -100,7 +69,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       link: [
-        { rel: 'icon', type: 'image/x-icon', href: env('APP_SITE_FAVICON', '/favicon.ico') }
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
       ]
     }
   },

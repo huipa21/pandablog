@@ -603,12 +603,9 @@
               <UInput :model-value="String(attrs.newLabel ?? 'After')" @update:model-value="setDiffNewLabel" />
             </UFormField>
           </div>
-          <UFormField label="Old text">
-            <UTextarea :model-value="String(attrs.oldText ?? '')" :rows="8" class="font-mono text-xs" @update:model-value="updateAttrs({ oldText: String($event) })" />
-          </UFormField>
-          <UFormField label="New text">
-            <UTextarea :model-value="String(attrs.newText ?? '')" :rows="8" class="font-mono text-xs" @update:model-value="updateAttrs({ newText: String($event) })" />
-          </UFormField>
+          <p class="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-900">
+            Select the diff block in the editor to edit the before and after text in two columns.
+          </p>
         </div>
       </details>
 

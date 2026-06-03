@@ -15,6 +15,31 @@
       :old-label="oldLabel"
       :new-label="newLabel"
     />
+
+    <div v-if="selected" class="diff-editor-source" contenteditable="false">
+      <div class="diff-editor-source-head">
+        <span>Edit diff source</span>
+        <span>Changes update the preview above.</span>
+      </div>
+      <div class="diff-editor-source-grid">
+        <label class="diff-editor-source-field">
+          <span>{{ oldLabel || 'Before' }}</span>
+          <textarea
+            :value="oldText"
+            spellcheck="false"
+            @input="updateOldText"
+          />
+        </label>
+        <label class="diff-editor-source-field">
+          <span>{{ newLabel || 'After' }}</span>
+          <textarea
+            :value="newText"
+            spellcheck="false"
+            @input="updateNewText"
+          />
+        </label>
+      </div>
+    </div>
   </NodeViewWrapper>
 </template>
 
@@ -36,4 +61,89 @@ const newText = computed(() => typeof props.node.attrs.newText === 'string' ? pr
 const language = computed(() => normalizeDiffLanguage(props.node.attrs.language))
 const oldLabel = computed(() => typeof props.node.attrs.oldLabel === 'string' ? props.node.attrs.oldLabel : DEFAULT_DIFF_OLD_LABEL)
 const newLabel = computed(() => typeof props.node.attrs.newLabel === 'string' ? props.node.attrs.newLabel : DEFAULT_DIFF_NEW_LABEL)
+
+const selected = computed(() => Boolean(props.selected))
+
+function updateOldText(event: Event) {
+  props.updateAttributes({ oldText: (event.target as HTMLTextAreaElement).value })
+}
+
+function updateNewText(event: Event) {
+  props.updateAttributes({ newText: (event.target as HTMLTextAreaElement).value })
+}
 </script>
+
+<style scoped>
+.diff-editor-source {
+  margin-top: 0.75rem;
+  border: 1px solid rgb(214 211 209);
+  border-radius: 0.5rem;
+  background: rgb(250 250 249);
+  box-shadow: 0 18px 40px rgba(41, 37, 36, 0.12);
+  overflow: hidden;
+}
+
+.diff-editor-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgb(231 229 228);
+  padding: 0.55rem 0.75rem;
+  color: rgb(68 64 60);
+  font-size: 0.75rem;
+}
+
+.diff-editor-source-head span:first-child {
+  color: rgb(28 25 23);
+  font-weight: 650;
+}
+
+.diff-editor-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.diff-editor-source-field {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+  color: rgb(68 64 60);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.diff-editor-source-field textarea {
+  width: 100%;
+  min-height: 14rem;
+  resize: vertical;
+  border: 1px solid rgb(214 211 209);
+  border-radius: 0.375rem;
+  background: white;
+  color: rgb(28 25 23);
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding: 0.65rem;
+  outline: none;
+}
+
+.diff-editor-source-field textarea:focus {
+  border-color: rgb(20 184 166);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
+}
+
+@media (max-width: 760px) {
+  .diff-editor-source-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .diff-editor-source-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}
+</style>

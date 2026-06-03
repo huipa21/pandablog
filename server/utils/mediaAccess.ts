@@ -1,12 +1,13 @@
 import type { H3Event } from 'h3'
+import { getMediaSettings } from './settings'
 
-export function isLocalMediaOnlyEnabled() {
-  const config = useRuntimeConfig()
-  return config.mediaLocalOnly === true
+export async function isLocalMediaOnlyEnabled() {
+  const settings = await getMediaSettings()
+  return settings.local_only === true
 }
 
-export function assertLocalMediaRequest(event: H3Event) {
-  if (!isLocalMediaOnlyEnabled()) {
+export async function assertLocalMediaRequest(event: H3Event) {
+  if (!await isLocalMediaOnlyEnabled()) {
     return
   }
 

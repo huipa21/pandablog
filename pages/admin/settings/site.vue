@@ -53,6 +53,21 @@
         />
         <input ref="faviconInput" type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_favicon')">
 
+        <fieldset class="rounded border border-stone-200 p-4">
+          <legend class="px-1 text-sm font-medium text-stone-700">Network</legend>
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              v-model="form.trust_proxy_headers"
+              type="checkbox"
+              class="mt-1 rounded border-stone-300"
+            >
+            <span class="grid gap-1">
+              <span class="font-medium text-stone-900">Trust reverse proxy headers</span>
+              <span class="text-xs text-stone-600">Use forwarded IP headers and secure unlock cookies when deployed behind an HTTPS reverse proxy.</span>
+            </span>
+          </label>
+        </fieldset>
+
         <div class="flex justify-end">
           <UButton type="submit" icon="i-lucide-save" :loading="saving">Save site settings</UButton>
         </div>
@@ -66,20 +81,28 @@ import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
 
 definePageMeta({ layout: 'admin' })
 
-type SiteSettingKey = 'site_title' | 'site_subtitle' | 'site_logo' | 'site_banner' | 'site_favicon'
+type SiteAssetKey = 'site_logo' | 'site_banner' | 'site_favicon'
+
+interface SiteSettingsForm {
+  site_title: string
+  site_subtitle: string
+  site_logo: string
+  site_banner: string
+  site_favicon: string
+  trust_proxy_headers: boolean
+}
 
 const { data, pending, error } = await useAsyncData('admin-settings-site', () => $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings'))
 
-const form = reactive<Record<SiteSettingKey, string>>({
+const form = reactive<SiteSettingsForm>({
   site_title: '',
   site_subtitle: '',
   site_logo: '',
   site_banner: '',
-  site_favicon: ''
+  site_favicon: '',
+  trust_proxy_headers: false
 })
-const uploading = reactive<Record<SiteSettingKey, boolean>>({
-  site_title: false,
-  site_subtitle: false,
+const uploading = reactive<Record<SiteAssetKey, boolean>>({
   site_logo: false,
   site_banner: false,
   site_favicon: false
@@ -98,6 +121,7 @@ watch(data, (value) => {
   form.site_logo = textValue(settings.site_logo)
   form.site_banner = textValue(settings.site_banner)
   form.site_favicon = textValue(settings.site_favicon)
+  form.trust_proxy_headers = settings.trust_proxy_headers === true
 }, { immediate: true })
 
 async function save() {
@@ -118,7 +142,7 @@ async function save() {
   }
 }
 
-async function uploadImage(event: Event, key: SiteSettingKey) {
+async function uploadImage(event: Event, key: SiteAssetKey) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''

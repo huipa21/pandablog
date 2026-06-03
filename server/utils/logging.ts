@@ -41,13 +41,10 @@ const updateSchema = z.object({
   cleanup_cron: z.string().min(5).max(100).optional()
 }).strict()
 
-export function defaultLoggingSettings(appEnv?: string): LoggingSettings {
-  const env = appEnv ?? useRuntimeConfig().appEnv
-  const isProd = env === 'prod'
-
+export function defaultLoggingSettings(): LoggingSettings {
   return {
     enabled: true,
-    debug_enabled: !isProd,
+    debug_enabled: false,
     debug_override_prod: false,
     access_log_enabled: true,
     activity_log_enabled: true,
@@ -61,7 +58,7 @@ export function defaultLoggingSettings(appEnv?: string): LoggingSettings {
     retention_error_days: 90,
     max_metadata_size_kb: 50,
     sampling_rate: 1,
-    console_output: !isProd,
+    console_output: false,
     cleanup_enabled: true,
     cleanup_cron: '0 3 * * *',
     updated_at: new Date().toISOString()
@@ -86,7 +83,7 @@ export function getLoggingSettings() {
 }
 
 export function isDebugEnabled() {
-  return shouldAllowDebug(useRuntimeConfig().appEnv, settingsCache)
+  return shouldAllowDebug(settingsCache)
 }
 
 export function shouldLogLevel(level: LogLevel) {

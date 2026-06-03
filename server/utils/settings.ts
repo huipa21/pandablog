@@ -17,7 +17,41 @@ export const PUBLIC_SETTING_KEYS = [
   'footer_social'
 ] as const
 
+export const RUNTIME_SETTING_KEYS = [
+  'trust_proxy_headers'
+] as const
+
+export const ADMIN_SETTING_KEYS = [
+  ...PUBLIC_SETTING_KEYS,
+  ...RUNTIME_SETTING_KEYS
+] as const
+
+const SECRET_SETTING_KEYS = [
+  'admin_password_hash'
+] as const
+
+export const ADMIN_USERNAME = 'admin'
+const ADMIN_USERNAME_KEY = 'admin_username'
+const ADMIN_PASSWORD_HASH_KEY = 'admin_password_hash'
+const SETUP_COMPLETED_KEY = 'setup_completed'
+
 export type PublicSettingKey = typeof PUBLIC_SETTING_KEYS[number]
+export type RuntimeSettingKey = typeof RUNTIME_SETTING_KEYS[number]
+
+export interface RuntimeFlags {
+  trust_proxy_headers: boolean
+}
+
+export interface AdminCredentials {
+  username: typeof ADMIN_USERNAME
+  passwordHash: string
+  setupCompleted: boolean
+}
+
+const APP_SETTINGS_TABLE = 'app_settings'
+const DEFAULT_RUNTIME_FLAGS: RuntimeFlags = {
+  trust_proxy_headers: process.env.NODE_ENV === 'production'
+}
 
 export interface SettingsLink {
   label: string
@@ -41,10 +75,14 @@ export interface PublicSiteSettings {
 }
 
 const publicSettingKeySet = new Set<string>(PUBLIC_SETTING_KEYS)
+const runtimeSettingKeySet = new Set<string>(RUNTIME_SETTING_KEYS)
+const secretSettingKeySet = new Set<string>(SECRET_SETTING_KEYS)
 
-export async function readAppSettings(keys: readonly string[] = PUBLIC_SETTING_KEYS): Promise<Record<string, unknown>> {
+let runtimeFlagsCache: RuntimeFlags = { ...DEFAULT_RUNTIME_FLAGS }
+
+async function readRawAppSettings(keys: readonly string[]): Promise<Record<string, unknown>> {
   const db = await useDb()
-  const response = await queryDb(db, 'SELECT * FROM app_setting;')
+  const response = await queryDb(db, 'SELECT * FROM app_settings;')
   const wanted = new Set(keys)
   const settings: Record<string, unknown> = {}
 
@@ -58,6 +96,13 @@ export async function readAppSettings(keys: readonly string[] = PUBLIC_SETTING_K
   return settings
 }
 
+export async function readAppSettings(keys: readonly string[] = PUBLIC_SETTING_KEYS): Promise<Record<string, unknown>> {
+  const settings = await readRawAppSettings(keys)
+  return Object.fromEntries(
+    Object.entries(settings).filter(([key]) => !secretSettingKeySet.has(key))
+  )
+}
+
 export async function writeAppSettings(values: Record<string, unknown>, keys: readonly string[] = PUBLIC_SETTING_KEYS): Promise<void> {
   const allowed = new Set(keys)
   const entries = Object.entries(values).filter(([key]) => allowed.has(key))
@@ -68,22 +113,92 @@ export async function writeAppSettings(values: Record<string, unknown>, keys: re
 
   const db = await useDb()
   for (const [key, value] of entries) {
-    await queryDb(
-      db,
-      `UPSERT type::record($table, $id) CONTENT {
-        key: $key,
-        value: $value,
-        updated_at: time::now()
-      };`,
-      { table: 'app_setting', id: key, key, value }
-    )
+    await upsertAppSetting(db, key, value)
   }
+
+  if (entries.some(([key]) => runtimeSettingKeySet.has(key))) {
+    await initializeRuntimeSettings()
+  }
+}
+
+async function upsertAppSetting(db: Awaited<ReturnType<typeof useDb>>, key: string, value: unknown): Promise<void> {
+  await queryDb(
+    db,
+    `UPSERT type::record($table, $id) CONTENT {
+      key: $key,
+      value: $value,
+      updated_at: time::now()
+    };`,
+    { table: APP_SETTINGS_TABLE, id: key, key, value }
+  )
 }
 
 export function filterPublicSettings(values: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(values).filter(([key]) => publicSettingKeySet.has(key))
   )
+}
+
+export function filterAdminSettings(values: Record<string, unknown>) {
+  const allowed = new Set<string>(ADMIN_SETTING_KEYS)
+  return Object.fromEntries(
+    Object.entries(values).filter(([key]) => allowed.has(key))
+  )
+}
+
+export function getRuntimeFlags(): RuntimeFlags {
+  return runtimeFlagsCache
+}
+
+export async function initializeRuntimeSettings(seedDefaults = false): Promise<RuntimeFlags> {
+  const settings = await readRawAppSettings(RUNTIME_SETTING_KEYS)
+
+  if (seedDefaults) {
+    const missingEntries = Object.entries(DEFAULT_RUNTIME_FLAGS).filter(([key]) => !(key in settings))
+    if (missingEntries.length) {
+      const db = await useDb()
+      for (const [key, value] of missingEntries) {
+        await upsertAppSetting(db, key, value)
+        settings[key] = value
+      }
+    }
+  }
+
+  runtimeFlagsCache = normalizeRuntimeFlags(settings)
+  return runtimeFlagsCache
+}
+
+export async function readAdminCredentials(): Promise<AdminCredentials> {
+  const settings = await readRawAppSettings([ADMIN_USERNAME_KEY, ADMIN_PASSWORD_HASH_KEY, SETUP_COMPLETED_KEY])
+  const passwordHash = stringValue(settings[ADMIN_PASSWORD_HASH_KEY])
+
+  return {
+    username: ADMIN_USERNAME,
+    passwordHash,
+    setupCompleted: settings[SETUP_COMPLETED_KEY] === true && Boolean(passwordHash)
+  }
+}
+
+export async function writeAdminCredentials(passwordHash: string): Promise<AdminCredentials> {
+  const db = await useDb()
+  await upsertAppSetting(db, ADMIN_USERNAME_KEY, ADMIN_USERNAME)
+  await upsertAppSetting(db, ADMIN_PASSWORD_HASH_KEY, passwordHash)
+  await upsertAppSetting(db, SETUP_COMPLETED_KEY, true)
+  return readAdminCredentials()
+}
+
+export async function isSetupCompleted(): Promise<boolean> {
+  return (await readAdminCredentials()).setupCompleted
+}
+
+function normalizeRuntimeFlags(values: Record<string, unknown>): RuntimeFlags {
+  return {
+    trust_proxy_headers: booleanValue(values.trust_proxy_headers, DEFAULT_RUNTIME_FLAGS.trust_proxy_headers)
+  }
+}
+
+function booleanValue(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback
 }
 
 export function normalizePublicSettings(values: Record<string, unknown>): PublicSiteSettings {
@@ -164,6 +279,11 @@ export interface MediaSettings {
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
   download_cleanup_hours: number
+  public_base_url: string
+  local_only: boolean
+  orphan_cleanup_enabled: boolean
+  orphan_cleanup_days: number
+  orphan_cleanup_cron: string
 }
 
 const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
@@ -172,12 +292,17 @@ const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   max_files_per_upload: 5,
   enable_perceptual_dedup: false,
   perceptual_dedup_threshold: 5,
-  download_cleanup_hours: 1
+  download_cleanup_hours: 1,
+  public_base_url: '',
+  local_only: false,
+  orphan_cleanup_enabled: false,
+  orphan_cleanup_days: 30,
+  orphan_cleanup_cron: '0 4 * * *'
 }
 
 export async function getMediaSettings(): Promise<MediaSettings> {
   const db = await useDb()
-  const response = await queryDb(db, 'SELECT * FROM app_setting WHERE key = $key LIMIT 1;', { key: 'media' })
+  const response = await queryDb(db, 'SELECT * FROM app_settings WHERE key = $key LIMIT 1;', { key: 'media' })
   const rows = queryRows<Record<string, unknown>>(response)
   
   if (!rows || !rows.length) {
@@ -194,17 +319,22 @@ export async function getMediaSettings(): Promise<MediaSettings> {
     allowed_extensions: Array.isArray(settings.allowed_extensions) ? settings.allowed_extensions as string[] : DEFAULT_MEDIA_SETTINGS.allowed_extensions,
     max_file_size_mb: typeof settings.max_file_size_mb === 'number' ? settings.max_file_size_mb : DEFAULT_MEDIA_SETTINGS.max_file_size_mb,
     max_files_per_upload: typeof settings.max_files_per_upload === 'number' ? settings.max_files_per_upload : DEFAULT_MEDIA_SETTINGS.max_files_per_upload,
-    enable_perceptual_dedup: settings.enable_perceptual_dedup === false ? false : DEFAULT_MEDIA_SETTINGS.enable_perceptual_dedup,
+    enable_perceptual_dedup: typeof settings.enable_perceptual_dedup === 'boolean' ? settings.enable_perceptual_dedup : DEFAULT_MEDIA_SETTINGS.enable_perceptual_dedup,
     perceptual_dedup_threshold: typeof settings.perceptual_dedup_threshold === 'number' ? settings.perceptual_dedup_threshold : DEFAULT_MEDIA_SETTINGS.perceptual_dedup_threshold,
-    download_cleanup_hours: typeof settings.download_cleanup_hours === 'number' ? settings.download_cleanup_hours : DEFAULT_MEDIA_SETTINGS.download_cleanup_hours
+    download_cleanup_hours: typeof settings.download_cleanup_hours === 'number' ? settings.download_cleanup_hours : DEFAULT_MEDIA_SETTINGS.download_cleanup_hours,
+    public_base_url: stringValue(settings.public_base_url).replace(/\/+$/, ''),
+    local_only: settings.local_only === true,
+    orphan_cleanup_enabled: settings.orphan_cleanup_enabled === true,
+    orphan_cleanup_days: typeof settings.orphan_cleanup_days === 'number' ? settings.orphan_cleanup_days : DEFAULT_MEDIA_SETTINGS.orphan_cleanup_days,
+    orphan_cleanup_cron: stringValue(settings.orphan_cleanup_cron) || DEFAULT_MEDIA_SETTINGS.orphan_cleanup_cron
   }
 }
 
 export async function updateMediaSettings(settings: MediaSettings): Promise<void> {
   const db = await useDb()
   // Remove any legacy record with a different ID that holds key='media' (fixes unique index conflict)
-  await queryDb(db, `DELETE FROM app_setting WHERE key = $key AND id != type::record($table, $id);`, {
-    table: 'app_setting', id: 'media', key: 'media'
+  await queryDb(db, `DELETE FROM app_settings WHERE key = $key AND id != type::record($table, $id);`, {
+    table: APP_SETTINGS_TABLE, id: 'media', key: 'media'
   })
   await queryDb(
     db,
@@ -213,6 +343,6 @@ export async function updateMediaSettings(settings: MediaSettings): Promise<void
       value: $value,
       updated_at: time::now()
     };`,
-    { table: 'app_setting', id: 'media', key: 'media', value: settings }
+    { table: APP_SETTINGS_TABLE, id: 'media', key: 'media', value: settings }
   )
 }

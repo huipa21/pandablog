@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -13,7 +13,7 @@ declare module '@tiptap/core' {
 /**
  * BlockReorderCommands extension.
  * Registers `moveBlockUp` and `moveBlockDown` commands that swap the current
- * top-level block with its sibling. After a move, the block receives a
+ * active block with its sibling. After a move, the block receives a
  * "just-dropped" class for settlement animation.
  */
 export const BlockReorderCommands = Extension.create({
@@ -24,25 +24,15 @@ export const BlockReorderCommands = Extension.create({
       moveBlockUp:
         () =>
         ({ state, dispatch, tr }) => {
-          const { $from } = state.selection
-          const blockInfo = getTopLevelBlock($from)
+          const blockInfo = getCurrentSiblingBlock(state.selection)
           if (!blockInfo) return false
 
-          const { blockStart, blockEnd, index, node } = blockInfo
+          const { blockStart, blockEnd, index, node, parent, parentStart } = blockInfo
           if (node.type.name === 'footnotesBlock') return false
           if (index === 0) return false // Already first block
 
-          // Find previous sibling
-          let prevStart = 0
-          let prevEnd = 0
-          let i = 0
-          state.doc.forEach((node, offset) => {
-            if (i === index - 1) {
-              prevStart = offset
-              prevEnd = offset + node.nodeSize
-            }
-            i++
-          })
+          const previous = getChildRange(parent, parentStart, index - 1)
+          if (!previous || previous.node.type.name === 'footnotesBlock') return false
 
           if (!dispatch) return true
 
@@ -50,60 +40,44 @@ export const BlockReorderCommands = Extension.create({
           const blockSlice = state.doc.slice(blockStart, blockEnd)
           const newTr = tr
             .delete(blockStart, blockEnd)
-            .insert(prevStart, blockSlice.content)
+            .insert(previous.from, blockSlice.content)
 
           // Maintain selection in the moved block
-          const newPos = prevStart + 1
+          const newPos = previous.from + 1
           newTr.setSelection(TextSelection.near(newTr.doc.resolve(newPos)))
 
           dispatch(newTr)
-          markJustDropped(blockStart, prevStart)
+          markJustDropped(blockStart, previous.from)
           return true
         },
 
       moveBlockDown:
         () =>
         ({ state, dispatch, tr }) => {
-          const { $from } = state.selection
-          const blockInfo = getTopLevelBlock($from)
+          const blockInfo = getCurrentSiblingBlock(state.selection)
           if (!blockInfo) return false
 
-          const { blockStart, blockEnd, index, node } = blockInfo
+          const { blockStart, blockEnd, index, node, parent, parentStart } = blockInfo
           if (node.type.name === 'footnotesBlock') return false
-          if (index >= state.doc.childCount - 1) return false // Already last block
+          if (index >= parent.childCount - 1) return false // Already last block
 
-          // Find next sibling
-          let nextStart = 0
-          let nextEnd = 0
-          let i = 0
-          state.doc.forEach((node, offset) => {
-            if (i === index + 1) {
-              nextStart = offset
-              nextEnd = offset + node.nodeSize
-              if (node.type.name === 'footnotesBlock') {
-                nextStart = -1
-                nextEnd = -1
-              }
-            }
-            i++
-          })
-
-          if (nextStart < 0 || nextEnd < 0) return false
+          const next = getChildRange(parent, parentStart, index + 1)
+          if (!next || next.node.type.name === 'footnotesBlock') return false
 
           if (!dispatch) return true
 
           // Swap: delete next block, insert before current
-          const nextSlice = state.doc.slice(nextStart, nextEnd)
+          const nextSlice = state.doc.slice(next.from, next.to)
           const newTr = tr
-            .delete(nextStart, nextEnd)
+            .delete(next.from, next.to)
             .insert(blockStart, nextSlice.content)
 
-          // Maintain selection in the moved block (which is now at nextStart position)
-          const newPos = blockStart + (nextEnd - nextStart) + 1
+          // Maintain selection in the moved block (which is now after the next sibling)
+          const newPos = blockStart + (next.to - next.from) + 1
           newTr.setSelection(TextSelection.near(newTr.doc.resolve(Math.min(newPos, newTr.doc.content.size))))
 
           dispatch(newTr)
-          markJustDropped(nextStart, blockStart + (nextEnd - nextStart))
+          markJustDropped(next.from, blockStart + (next.to - next.from))
           return true
         }
     }
@@ -117,29 +91,82 @@ export const BlockReorderCommands = Extension.create({
   }
 })
 
-function getTopLevelBlock($from: any) {
-  let blockDepth = 0
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d - 1).type.name === 'doc') {
-      blockDepth = d
-      break
+const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel'])
+
+interface SiblingBlockInfo {
+  blockStart: number
+  blockEnd: number
+  index: number
+  node: any
+  parent: any
+  parentStart: number
+}
+
+interface ChildRange {
+  from: number
+  to: number
+  node: any
+}
+
+function getCurrentSiblingBlock(selection: any): SiblingBlockInfo | null {
+  if (selection instanceof NodeSelection) {
+    const parentDepth = selection.$from.depth
+    const parent = selection.$from.parent
+    const parentStart = parentDepth === 0 ? 0 : selection.$from.start(parentDepth)
+    const index = selection.$from.index(parentDepth)
+
+    return {
+      blockStart: selection.from,
+      blockEnd: selection.from + selection.node.nodeSize,
+      index,
+      node: selection.node,
+      parent,
+      parentStart
     }
   }
-  if (blockDepth === 0) return null
 
-  const blockStart = $from.before(blockDepth)
-  const blockEnd = $from.after(blockDepth)
+  const { $from } = selection
+  let rootDepth = 0
+  for (let depth = 1; depth <= $from.depth; depth += 1) {
+    if (NESTED_BLOCK_ROOT_TYPES.has($from.node(depth).type.name)) {
+      rootDepth = depth
+    }
+  }
 
-  // Determine index
-  let index = -1
-  let i = 0
-  $from.doc.forEach((_node: any, offset: number) => {
-    if (offset === blockStart) index = i
-    i++
+  const blockDepth = rootDepth + 1
+  if (blockDepth <= 0 || blockDepth > $from.depth) return null
+
+  const parentDepth = blockDepth - 1
+  const parent = $from.node(parentDepth)
+  const parentStart = parentDepth === 0 ? 0 : $from.start(parentDepth)
+
+  return {
+    blockStart: $from.before(blockDepth),
+    blockEnd: $from.after(blockDepth),
+    index: $from.index(parentDepth),
+    node: $from.node(blockDepth),
+    parent,
+    parentStart
+  }
+}
+
+function getChildRange(parent: any, parentStart: number, targetIndex: number): ChildRange | null {
+  let range: ChildRange | null = null
+
+  parent.forEach((node: any, offset: number, index: number) => {
+    if (index === targetIndex) {
+      range = {
+        from: parentStart + offset,
+        to: parentStart + offset + node.nodeSize,
+        node
+      }
+      return false
+    }
+
+    return undefined
   })
 
-  if (index < 0) return null
-  return { blockStart, blockEnd, index, node: $from.node(blockDepth) }
+  return range
 }
 
 /**

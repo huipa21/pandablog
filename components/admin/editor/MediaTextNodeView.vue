@@ -1,7 +1,7 @@
 <template>
   <NodeViewWrapper class="mediatext-nodeview my-4 overflow-hidden rounded-lg border border-stone-200" data-node-view-wrapper :style="blockStyle">
     <div ref="rowEl" class="mediatext-row" :data-media-position="mediaPosition">
-      <div class="mediatext-media" :style="mediaStyle" contenteditable="false">
+      <div class="mediatext-media" :style="mediaStyle" contenteditable="false" @mousedown="selectMediaTextNode">
         <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
         <div class="relative">
           <template v-if="mediaSrc">
@@ -241,6 +241,20 @@ function emitPick(source: 'library' | 'upload' | 'url') {
     bubbles: true,
     detail: { source, nodePos: props.getPos?.() ?? null }
   }))
+}
+
+function selectMediaTextNode(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (target && target.closest('button, a, input, textarea, select')) {
+    return
+  }
+
+  const getPos = props.getPos as (() => number) | number | undefined
+  const nodePos = typeof getPos === 'function' ? getPos() : typeof getPos === 'number' ? getPos : null
+  if (typeof nodePos !== 'number') return
+
+  event.preventDefault()
+  props.editor.chain().focus().setNodeSelection(nodePos).run()
 }
 
 let dragStart = 0

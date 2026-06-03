@@ -1,7 +1,7 @@
 import { requireAdminUser } from '../../../utils/auth'
-import { readAppSettings } from '../../../utils/settings'
+import { ADMIN_SETTING_KEYS, readAppSettings } from '../../../utils/settings'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
-  return { settings: await readAppSettings() }
+  return { settings: await readAppSettings(ADMIN_SETTING_KEYS) }
 })

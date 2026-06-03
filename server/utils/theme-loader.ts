@@ -123,7 +123,7 @@ export function invalidateThemeCache(themeId?: string) {
 }
 
 /**
- * Get the active theme id from app_setting, falling back to "default".
+ * Get the active theme id from app_settings, falling back to "default".
  */
 export async function getActiveThemeId(): Promise<string> {
   if (activeThemeIdCache) {
@@ -145,7 +145,7 @@ export async function setActiveThemeId(themeId: string): Promise<void> {
   const db = await useDb()
   await queryDb(
     db,
-    `UPSERT app_setting:active_theme CONTENT { key: 'active_theme', value: $id }`,
+    `UPSERT app_settings:active_theme CONTENT { key: 'active_theme', value: $id }`,
     { id: themeId }
   )
 
@@ -158,7 +158,7 @@ async function readActiveThemeId(): Promise<string> {
     const db = await useDb()
     const result = await queryDb<[Array<{ value: string }> ]>(
       db,
-      `SELECT * FROM app_setting WHERE key = 'active_theme' LIMIT 1`
+      `SELECT * FROM app_settings WHERE key = 'active_theme' LIMIT 1`
     )
     const row = result[0]?.[0]
     return row?.value ?? 'default'

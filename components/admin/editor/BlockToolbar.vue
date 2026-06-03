@@ -430,8 +430,7 @@ function openLinkDialog() {
   const editor = props.editor
   if (!editor) return
 
-  const restored = restoreLastTextSelection(editor)
-  if (!restored && editor.state.selection.empty) {
+  if (editor.state.selection.empty) {
     return
   }
 
@@ -459,8 +458,7 @@ function applyLinkDialog() {
     return
   }
 
-  const restored = restoreLastTextSelection(editor)
-  if (!restored && editor.state.selection.empty) {
+  if (editor.state.selection.empty) {
     linkDialogOpen.value = false
     return
   }
@@ -474,23 +472,6 @@ function applyLinkDialog() {
     target: openMode === 'same-tab' ? null : '_blank',
     rel: openMode === 'same-tab' ? 'noopener noreferrer nofollow' : 'noopener noreferrer',
     openMode
-  }
-
-  if (empty) {
-    editor
-      .chain()
-      .focus()
-      .insertContent({
-        type: 'text',
-        text: displayText,
-        marks: [{ type: 'link', attrs: markAttrs }]
-      })
-      .run()
-
-    const cursor = from + displayText.length
-    editor.chain().focus().setTextSelection(cursor).unsetAllMarks().run()
-    linkDialogOpen.value = false
-    return
   }
 
   editor
@@ -533,10 +514,10 @@ function toggleInlineMark(mark: 'bold' | 'italic' | 'strike' | 'code' | 'highlig
       ;(chain as any).setHighlight({ color: DEFAULT_HIGHLIGHT_COLOR }).run()
       break
     case 'subscript':
-      chain.toggleSubscript().run()
+      chain.unsetSuperscript().toggleSubscript().run()
       break
     case 'superscript':
-      chain.toggleSuperscript().run()
+      chain.unsetSubscript().toggleSuperscript().run()
       break
   }
 
@@ -613,27 +594,6 @@ watch(() => props.visible, (visible) => {
 onMounted(() => {
   window.addEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
 })
-
-function restoreLastTextSelection(editor: Editor) {
-  if (!editor.state.selection.empty) {
-    return true
-  }
-
-  const saved = props.lastTextSelection
-  if (!saved) {
-    return false
-  }
-
-  const max = editor.state.doc.content.size
-  const from = Math.max(0, Math.min(saved.from, max))
-  const to = Math.max(0, Math.min(saved.to, max))
-  if (from === to) {
-    return false
-  }
-
-  editor.chain().focus().setTextSelection({ from: Math.min(from, to), to: Math.max(from, to) }).run()
-  return true
-}
 
 function selectionHasMark(editor: Editor, markName: string) {
   if (editor.isActive(markName)) {

@@ -22,21 +22,19 @@ export interface SiteSettings {
 }
 
 export function useSiteSettings() {
-  const config = useRuntimeConfig()
   const fallback = computed<SiteSettings>(() => {
-    const siteTitle = textValue(config.public.siteName) || 'PandaBlog'
-    const ownerBioText = textValue(config.public.ownerBio)
+    const siteTitle = 'PandaBlog'
 
     return {
       site_title: siteTitle,
-      site_subtitle: textValue(config.public.siteSubtitle),
-      site_logo: textValue(config.public.siteLogo),
-      site_banner: textValue(config.public.siteBanner),
-      site_favicon: textValue(config.public.siteFavicon) || '/favicon.ico',
-      owner_name: textValue(config.public.ownerName),
-      owner_avatar: textValue(config.public.ownerAvatar),
+      site_subtitle: '',
+      site_logo: '',
+      site_banner: '',
+      site_favicon: '/favicon.ico',
+      owner_name: '',
+      owner_avatar: '',
       owner_motto: '',
-      owner_bio: ownerBioText ? textDoc(ownerBioText) : null,
+      owner_bio: null,
       footer_copyright: `© ${new Date().getFullYear()} ${siteTitle}. All rights reserved.`,
       footer_links: [],
       footer_social: []
@@ -124,12 +122,3 @@ function linksValue(value: unknown): SiteSettingsLink[] {
     .filter((item): item is SiteSettingsLink => Boolean(item))
 }
 
-function textDoc(value: string): JsonContent {
-  return {
-    type: 'doc',
-    content: [{
-      type: 'paragraph',
-      content: [{ type: 'text', text: value }]
-    }]
-  }
-}

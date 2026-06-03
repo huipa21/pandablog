@@ -2,29 +2,26 @@ import argon2 from 'argon2'
 import { constantTimeEqual, type AdminUser } from '../../utils/auth'
 import { recordActivity } from '../../utils/activity'
 import { checkLoginRateLimit, recordLoginAttempt } from '../../utils/rate-limit'
+import { getRuntimeFlags, readAdminCredentials } from '../../utils/settings'
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig()
   const body = await readBody<{ username?: string, password?: string }>(event)
   const username = body.username?.trim() ?? ''
   const password = body.password ?? ''
+  const credentials = await readAdminCredentials()
+  const runtimeFlags = getRuntimeFlags()
 
   // ---- IP resolution -------------------------------------------------------
-  // Trust X-Forwarded-For ONLY in production, where the app sits behind nginx.
-  // In dev (no proxy) we use the raw socket IP to avoid spoofable headers.
-  const isProd = config.appEnv === 'prod'
-  const ip = getRequestIP(event, { xForwardedFor: isProd }) ?? null
+  const ip = getRequestIP(event, { xForwardedFor: runtimeFlags.trust_proxy_headers }) ?? null
 
-  // If we can't resolve an IP at all, fail closed in prod (something is wrong
-  // with the proxy chain) and warn-but-allow in dev (don't block local work).
   if (!ip) {
-    if (isProd) {
+    if (runtimeFlags.trust_proxy_headers) {
       throw createError({
         statusCode: 400,
         message: 'Could not resolve client IP. Check reverse proxy configuration.'
       })
     }
-    console.warn('⚠️  [auth] Could not resolve client IP in dev; rate limiting will be skipped for this request.')
+    console.warn('⚠️  [auth] Could not resolve client IP; rate limiting will be skipped for this request.')
   }
 
   // ---- Rate limit (skipped only when ip is null in dev) --------------------
@@ -40,19 +37,19 @@ export default defineEventHandler(async (event) => {
   }
 
   // ---- Config sanity check -------------------------------------------------
-  if (!config.adminPasswordHash) {
+  if (!credentials.setupCompleted) {
     throw createError({
-      statusCode: 500,
-      message: 'Admin password is not configured. Set ADMIN_PASSWORD_HASH (or APP_LOGIN_PASSWORD_HASH) in .env.'
+      statusCode: 503,
+      message: 'Admin setup is required.'
     })
   }
 
   // ---- Verify credentials --------------------------------------------------
   // Always run argon2.verify — even on bad username — to keep timing uniform.
-  const usernameOk = constantTimeEqual(username, config.adminUsername)
+  const usernameOk = constantTimeEqual(username, credentials.username)
   let passwordOk = false
   try {
-    passwordOk = await argon2.verify(config.adminPasswordHash, password)
+    passwordOk = await argon2.verify(credentials.passwordHash, password)
   } catch {
     passwordOk = false
   }
@@ -70,7 +67,7 @@ export default defineEventHandler(async (event) => {
 
   // ---- Issue session -------------------------------------------------------
   const user: AdminUser = {
-    username: config.adminUsername,
+    username: credentials.username,
     role: 'admin'
   }
 

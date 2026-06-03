@@ -1,5 +1,5 @@
 import { requireAdminUser } from '../../../utils/auth'
-import { filterPublicSettings, readAppSettings, writeAppSettings } from '../../../utils/settings'
+import { ADMIN_SETTING_KEYS, filterAdminSettings, readAppSettings, writeAppSettings } from '../../../utils/settings'
 
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
@@ -9,6 +9,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Settings payload must be an object' })
   }
 
-  await writeAppSettings(filterPublicSettings(body))
-  return { ok: true, settings: await readAppSettings() }
+  await writeAppSettings(filterAdminSettings(body), ADMIN_SETTING_KEYS)
+  return { ok: true, settings: await readAppSettings(ADMIN_SETTING_KEYS) }
 })

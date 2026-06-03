@@ -39,7 +39,7 @@
           class="diff-block-tool"
           :class="filter === 'changed' ? 'is-active' : ''"
           :aria-pressed="filter === 'changed'"
-          title="Show changed lines with context"
+          title="Show only changed lines"
           @click="toggleFilter"
         >
           <UIcon name="i-lucide-filter" class="diff-block-tool-icon" />
@@ -58,18 +58,13 @@
           v-for="row in visibleRows"
           :key="rowKey(row)"
           class="diff-row"
-          :class="row.kind === 'line' ? `is-${row.line.type}` : 'is-hidden'"
+          :class="`is-${row.line.type}`"
           role="row"
         >
-          <template v-if="row.kind === 'line'">
-            <span class="diff-ln diff-ln-old" role="cell">{{ row.line.oldNumber ?? '' }}</span>
-            <span class="diff-ln diff-ln-new" role="cell">{{ row.line.newNumber ?? '' }}</span>
-            <span class="diff-sign" role="cell">{{ signFor(row.line.type) }}</span>
-            <span class="diff-code" role="cell">{{ row.line.content || ' ' }}</span>
-          </template>
-          <button v-else type="button" class="diff-hidden-lines" @click="filter = 'all'">
-            Show {{ row.count }} hidden unchanged {{ row.count === 1 ? 'line' : 'lines' }}
-          </button>
+          <span class="diff-ln diff-ln-old" role="cell">{{ row.line.oldNumber ?? '' }}</span>
+          <span class="diff-ln diff-ln-new" role="cell">{{ row.line.newNumber ?? '' }}</span>
+          <span class="diff-sign" role="cell">{{ signFor(row.line.type) }}</span>
+          <span class="diff-code" role="cell">{{ row.line.content || ' ' }}</span>
         </div>
       </div>
 
@@ -82,24 +77,19 @@
           v-for="row in visibleRows"
           :key="rowKey(row)"
           class="diff-split-row"
-          :class="row.kind === 'line' ? `is-${row.line.type}` : 'is-hidden'"
+          :class="`is-${row.line.type}`"
           role="row"
         >
-          <template v-if="row.kind === 'line'">
-            <span class="diff-split-cell diff-old-cell" role="cell">
-              <span class="diff-ln">{{ row.line.oldNumber ?? '' }}</span>
-              <span class="diff-sign">{{ row.line.type === 'removed' ? '-' : ' ' }}</span>
-              <span class="diff-code">{{ row.line.type === 'added' ? ' ' : row.line.content || ' ' }}</span>
-            </span>
-            <span class="diff-split-cell diff-new-cell" role="cell">
-              <span class="diff-ln">{{ row.line.newNumber ?? '' }}</span>
-              <span class="diff-sign">{{ row.line.type === 'added' ? '+' : ' ' }}</span>
-              <span class="diff-code">{{ row.line.type === 'removed' ? ' ' : row.line.content || ' ' }}</span>
-            </span>
-          </template>
-          <button v-else type="button" class="diff-hidden-lines" @click="filter = 'all'">
-            Show {{ row.count }} hidden unchanged {{ row.count === 1 ? 'line' : 'lines' }}
-          </button>
+          <span class="diff-split-cell diff-old-cell" role="cell">
+            <span class="diff-ln">{{ row.line.oldNumber ?? '' }}</span>
+            <span class="diff-sign">{{ row.line.type === 'removed' ? '-' : ' ' }}</span>
+            <span class="diff-code">{{ row.line.type === 'added' ? ' ' : row.line.content || ' ' }}</span>
+          </span>
+          <span class="diff-split-cell diff-new-cell" role="cell">
+            <span class="diff-ln">{{ row.line.newNumber ?? '' }}</span>
+            <span class="diff-sign">{{ row.line.type === 'added' ? '+' : ' ' }}</span>
+            <span class="diff-code">{{ row.line.type === 'removed' ? ' ' : row.line.content || ' ' }}</span>
+          </span>
         </div>
       </div>
     </div>
@@ -112,7 +102,7 @@ import { buildDiffLines, diffLanguageLabel, diffStats } from '~/utils/diffBlock'
 
 type DiffMode = 'unified' | 'split'
 type DiffFilter = 'all' | 'changed'
-type VisibleRow = { kind: 'line', index: number, line: DiffLine } | { kind: 'hidden', key: string, count: number }
+type VisibleRow = { kind: 'line', index: number, line: DiffLine }
 
 const props = defineProps<{
   oldText: string
@@ -121,8 +111,6 @@ const props = defineProps<{
   oldLabel: string
   newLabel: string
 }>()
-
-const CONTEXT_LINES = 3
 
 const mode = ref<DiffMode>('unified')
 const filter = ref<DiffFilter>('all')
@@ -135,48 +123,11 @@ const diffLines = computed(() => buildDiffLines(props.oldText, props.newText))
 const stats = computed(() => diffStats(diffLines.value))
 
 const visibleRows = computed<VisibleRow[]>(() => {
-  if (filter.value === 'all') {
-    return diffLines.value.map((line, index) => ({ kind: 'line', index, line }))
-  }
+  const lines = filter.value === 'changed'
+    ? diffLines.value.filter((line) => line.type !== 'unchanged')
+    : diffLines.value
 
-  const changedIndexes = diffLines.value
-    .map((line, index) => line.type === 'unchanged' ? -1 : index)
-    .filter((index) => index >= 0)
-
-  if (!changedIndexes.length) {
-    return diffLines.value.map((line, index) => ({ kind: 'line', index, line }))
-  }
-
-  const visibleIndexes = new Set<number>()
-  for (const index of changedIndexes) {
-    const from = Math.max(0, index - CONTEXT_LINES)
-    const to = Math.min(diffLines.value.length - 1, index + CONTEXT_LINES)
-    for (let visibleIndex = from; visibleIndex <= to; visibleIndex += 1) {
-      visibleIndexes.add(visibleIndex)
-    }
-  }
-
-  const rows: VisibleRow[] = []
-  let hiddenCount = 0
-  for (let index = 0; index < diffLines.value.length; index += 1) {
-    const line = diffLines.value[index]!
-    if (!visibleIndexes.has(index)) {
-      hiddenCount += 1
-      continue
-    }
-
-    if (hiddenCount) {
-      rows.push({ kind: 'hidden', key: `hidden-${index}-${hiddenCount}`, count: hiddenCount })
-      hiddenCount = 0
-    }
-    rows.push({ kind: 'line', index, line })
-  }
-
-  if (hiddenCount) {
-    rows.push({ kind: 'hidden', key: `hidden-tail-${hiddenCount}`, count: hiddenCount })
-  }
-
-  return rows
+  return lines.map((line, index) => ({ kind: 'line', index, line }))
 })
 
 function toggleFilter() {
@@ -190,7 +141,7 @@ function signFor(type: DiffLine['type']) {
 }
 
 function rowKey(row: VisibleRow) {
-  return row.kind === 'hidden' ? row.key : row.line.id
+  return row.line.id
 }
 
 async function copyDiff() {

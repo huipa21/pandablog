@@ -8,10 +8,10 @@
 
       <form class="grid gap-4" @submit.prevent="login">
         <UFormField label="Username" name="username">
-          <UInput v-model="username" autocomplete="username" icon="i-lucide-user" autofocus />
+          <UInput v-model="username" autocomplete="username" icon="i-lucide-user" disabled />
         </UFormField>
         <UFormField label="Password" name="password">
-          <UInput v-model="password" type="password" autocomplete="current-password" icon="i-lucide-key-round" />
+          <UInput v-model="password" type="password" autocomplete="current-password" icon="i-lucide-key-round" autofocus />
         </UFormField>
         <UAlert v-if="errorMessage" color="error" icon="i-lucide-circle-alert" :title="errorMessage" />
         <UButton type="submit" icon="i-lucide-log-in" :loading="loading" block>
@@ -26,12 +26,18 @@
 definePageMeta({ layout: false })
 
 const route = useRoute()
-const username = ref('')
+const username = ref('admin')
 const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 
 onMounted(async () => {
+  const setup = await $fetch<{ completed: boolean }>('/api/auth/setup-status').catch(() => null)
+  if (setup && !setup.completed) {
+    await navigateTo({ path: '/admin/setup', query: { redirect: String(route.query.redirect ?? '/admin') } })
+    return
+  }
+
   const session = await $fetch<{ loggedIn: boolean }>('/api/auth/session').catch(() => null)
   if (session?.loggedIn) {
     await navigateTo(String(route.query.redirect ?? '/admin'))

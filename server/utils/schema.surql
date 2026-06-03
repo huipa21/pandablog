@@ -23,8 +23,8 @@ DEFINE FIELD IF NOT EXISTS created_at ON post TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON post TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS view_count ON post TYPE int DEFAULT 0;
 UPDATE post SET view_count = 0 WHERE view_count IS NONE;
-DEFINE FIELD IF NOT EXISTS word_count ON post TYPE int DEFAULT 0;
-DEFINE FIELD IF NOT EXISTS cjk_char_count ON post TYPE int DEFAULT 0;
+DEFINE FIELD IF NOT EXISTS word_count ON post TYPE option<int> DEFAULT 0;
+DEFINE FIELD IF NOT EXISTS cjk_char_count ON post TYPE option<int> DEFAULT 0;
 UPDATE post SET word_count = 0 WHERE word_count IS NONE;
 UPDATE post SET cjk_char_count = 0 WHERE cjk_char_count IS NONE;
 DEFINE INDEX IF NOT EXISTS post_slug_unique ON TABLE post COLUMNS slug UNIQUE;
@@ -82,11 +82,8 @@ DEFINE INDEX IF NOT EXISTS post_visibility ON TABLE post FIELDS visibility;
 -- Active key: 'site_visibility' with value 'public' | 'private'. Default: 'public'.
 
 -- ============ APP SETTINGS (key-value store) ============
-DEFINE TABLE IF NOT EXISTS app_setting SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS key ON app_setting TYPE string;
-DEFINE FIELD IF NOT EXISTS value ON app_setting TYPE any;
-DEFINE FIELD IF NOT EXISTS updated_at ON app_setting TYPE datetime DEFAULT time::now();
-DEFINE INDEX IF NOT EXISTS app_setting_key ON app_setting FIELDS key UNIQUE;
+DEFINE TABLE IF NOT EXISTS app_settings SCHEMALESS;
+DEFINE INDEX IF NOT EXISTS app_settings_key ON app_settings FIELDS key UNIQUE;
 
 -- ============ HASH-BASED FILE LIBRARY ============
 DEFINE TABLE IF NOT EXISTS folder SCHEMAFULL;

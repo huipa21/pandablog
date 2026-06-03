@@ -154,6 +154,55 @@
           </template>
         </UFormField>
 
+        <fieldset class="space-y-4 rounded border border-stone-200 p-4">
+          <legend class="text-sm font-medium text-stone-700">Delivery</legend>
+
+          <UFormField label="Public media base URL" name="public_base_url">
+            <UInput v-model="form.public_base_url" placeholder="https://media.example.com" icon="i-lucide-globe" />
+            <template #hint>
+              Leave blank to serve media through this app.
+            </template>
+          </UFormField>
+
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              v-model="form.local_only"
+              type="checkbox"
+              class="mt-1 rounded border-stone-300"
+            >
+            <span class="grid gap-1">
+              <span class="font-medium text-stone-900">Local-only media access</span>
+              <span class="text-xs text-stone-600">Allow direct media file requests only from localhost.</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <fieldset class="space-y-4 rounded border border-stone-200 p-4">
+          <legend class="text-sm font-medium text-stone-700">Scheduled orphan cleanup</legend>
+
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              v-model="form.orphan_cleanup_enabled"
+              type="checkbox"
+              class="mt-1 rounded border-stone-300"
+            >
+            <span class="grid gap-1">
+              <span class="font-medium text-stone-900">Enable scheduled cleanup</span>
+              <span class="text-xs text-stone-600">Delete unreferenced files on a schedule.</span>
+            </span>
+          </label>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <UFormField label="Minimum orphan age (days)" name="orphan_cleanup_days">
+              <UInput v-model.number="form.orphan_cleanup_days" type="number" min="1" max="3650" icon="i-lucide-calendar-clock" />
+            </UFormField>
+
+            <UFormField label="Cleanup cron" name="orphan_cleanup_cron">
+              <UInput v-model="form.orphan_cleanup_cron" icon="i-lucide-clock-3" />
+            </UFormField>
+          </div>
+        </fieldset>
+
         <!-- Save / Cancel -->
         <div class="flex gap-3 pt-4">
           <UButton type="submit" icon="i-lucide-save" :loading="saving">
@@ -178,6 +227,11 @@ interface MediaSettings {
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
   download_cleanup_hours: number
+  public_base_url: string
+  local_only: boolean
+  orphan_cleanup_enabled: boolean
+  orphan_cleanup_days: number
+  orphan_cleanup_cron: string
 }
 
 definePageMeta({ layout: 'admin' })
@@ -205,7 +259,12 @@ const form = reactive<MediaSettings>({
   max_files_per_upload: 5,
   enable_perceptual_dedup: true,
   perceptual_dedup_threshold: 5,
-  download_cleanup_hours: 1
+  download_cleanup_hours: 1,
+  public_base_url: '',
+  local_only: false,
+  orphan_cleanup_enabled: false,
+  orphan_cleanup_days: 30,
+  orphan_cleanup_cron: '0 4 * * *'
 })
 
 const hasAllImages = computed(() =>

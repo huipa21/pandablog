@@ -21,7 +21,7 @@ export type PostAccess =
 export async function getSiteVisibility(): Promise<SiteVisibility> {
   try {
     const db = await useDb()
-    const result = await queryDb(db, 'SELECT * FROM app_setting:site_visibility;')
+    const result = await queryDb(db, 'SELECT * FROM app_settings:site_visibility;')
 
     const setting = firstRow<{ value?: unknown }>(result)
     const value = setting?.value
@@ -39,7 +39,7 @@ export async function setSiteVisibility(mode: SiteVisibility): Promise<void> {
   const db = await useDb()
   await queryDb(
     db,
-    `UPSERT app_setting:site_visibility CONTENT {
+    `UPSERT app_settings:site_visibility CONTENT {
       key: 'site_visibility',
       value: $mode,
       updated_at: time::now()

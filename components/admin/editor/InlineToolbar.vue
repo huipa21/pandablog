@@ -44,6 +44,21 @@
       </div>
     </div>
   </BubbleMenu>
+
+  <AdminPromptDialog
+    :open="linkDialogOpen"
+    title="Edit Link"
+    description="Add or update the URL for the selected text. Leave empty to remove the link."
+    label="URL"
+    placeholder="https://example.com"
+    :initial-value="linkInitialHref"
+    input-type="url"
+    confirm-label="Apply link"
+    :required="false"
+    @update:open="(value) => { if (!value) linkDialogOpen = false }"
+    @cancel="linkDialogOpen = false"
+    @confirm="confirmLink"
+  />
 </template>
 
 <script setup lang="ts">
@@ -62,6 +77,8 @@ const bubbleTippyOptions = {
   placement: 'top' as const
 }
 const highlightColors = HIGHLIGHT_COLORS
+const linkDialogOpen = ref(false)
+const linkInitialHref = ref('')
 
 function shouldShow({ editor }: { editor: Editor }) {
   const { empty } = editor.state.selection
@@ -75,18 +92,25 @@ function setLink() {
   }
 
   const previousHref = editor.getAttributes('link').href as string | undefined
-  const href = window.prompt('URL', previousHref ?? 'https://')
+  linkInitialHref.value = previousHref ?? 'https://'
+  linkDialogOpen.value = true
+}
 
-  if (href === null) {
+function confirmLink(href: string) {
+  const editor = props.editor
+  if (!editor) {
+    linkDialogOpen.value = false
     return
   }
 
-  if (!href.trim()) {
+  linkDialogOpen.value = false
+
+  if (!href) {
     editor.chain().focus().extendMarkRange('link').unsetLink().run()
     return
   }
 
-  editor.chain().focus().extendMarkRange('link').setLink({ href: href.trim() }).run()
+  editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
 }
 
 function setTextColor(event: Event) {

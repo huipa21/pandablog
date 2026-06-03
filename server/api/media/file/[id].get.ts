@@ -5,7 +5,7 @@ import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../../utils/med
 import { firstRow } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  assertLocalMediaRequest(event)
+  await assertLocalMediaRequest(event)
 
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const db = await useDb()
