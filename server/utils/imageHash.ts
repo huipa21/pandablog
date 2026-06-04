@@ -3,7 +3,7 @@
  */
 
 import phash from 'sharp-phash'
-import distance from 'sharp-phash/distance'
+import distance from 'sharp-phash/distance.js'
 
 /**
  * Compute perceptual hash for an image buffer

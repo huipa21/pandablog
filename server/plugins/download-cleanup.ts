@@ -1,6 +1,10 @@
 import { readdir, stat, unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 import { getMediaSettings } from '../utils/settings'
+
+const nodeRequire = createRequire(pathToFileURL(resolve(process.cwd(), '.output/server/index.mjs')).href)
 
 interface DownloadCronLike {
   validate: (expression: string) => boolean
@@ -59,24 +63,12 @@ export default defineNitroPlugin(async () => {
 })
 
 async function resolveDownloadCron(): Promise<DownloadCronLike | null> {
-  const candidates = [
-    'node-cron/dist/cjs/node-cron.js',
-    'node-cron'
-  ]
-
-  for (const candidate of candidates) {
-    try {
-      const moduleValue = await import(candidate)
-      const resolved = normalizeDownloadCron(moduleValue)
-      if (resolved) {
-        return resolved
-      }
-    } catch {
-      // Try the next candidate module path.
-    }
+  try {
+    return normalizeDownloadCron(nodeRequire('node-cron'))
+  } catch (error) {
+    console.warn('[media] download cleanup require failed:', error instanceof Error ? error.message : error)
+    return null
   }
-
-  return null
 }
 
 function normalizeDownloadCron(moduleValue: unknown): DownloadCronLike | null {

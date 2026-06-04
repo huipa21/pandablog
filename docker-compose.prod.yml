@@ -1,0 +1,57 @@
+# Compose file for deploying ONLY the Pandablog app container on the cloud server.
+# nginx (TLS termination) and surrealdb already run separately on the host.
+#
+# Usage on the server:
+#   1. Copy this file + .env to /opt/pandablog/
+#   2. Put real secrets in .env (see below)
+#   3. Load the image on the server: podman load -i pandablog-latest.tar
+#   4. docker compose -f docker-compose.prod.yml up -d
+#   5. Point nginx upstream at http://127.0.0.1:3000  (or app:3000 if nginx
+#      is also in compose and shares a docker network).
+#
+# Required .env keys (Nitro reads these at runtime via NUXT_* prefix):
+#   NUXT_SURREAL_URL=ws://host.docker.internal:8000/rpc
+#   NUXT_SURREAL_NAMESPACE=main
+#   NUXT_SURREAL_DATABASE=main
+#   NUXT_SURREAL_ROOT=root
+#   NUXT_SURREAL_ROOT_PASSWORD=...
+#   NUXT_SESSION_PASSWORD=<32+ random chars>
+
+services:
+  app:
+    image: ${PANDABLOG_IMAGE:-localhost/pandablog:latest}
+    pull_policy: never
+    container_name: pandablog-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Bind only to localhost so nginx (on the host) reverse-proxies to it.
+    # If nginx runs in a docker network, drop "ports" and join that network.
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - app-storage:/app/storage
+      - app-data:/app/.data
+      # Themes are bundled into the image. Uncomment to allow live theme
+      # uploads to persist across container rebuilds:
+      # - app-themes:/app/themes
+    # If surrealdb runs in another container on this host (not in this
+    # compose file), use host.docker.internal or the surreal container's
+    # network. Example for joining an external network:
+    # networks:
+    #   - surreal-net
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  app-storage:
+  app-data:
+  # app-themes:
+
+# networks:
+#   surreal-net:
+#     external: true

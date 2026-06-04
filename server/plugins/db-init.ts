@@ -28,23 +28,32 @@ const DEFAULT_MEDIA_SETTINGS = {
 }
 
 export default defineNitroPlugin(async () => {
-  const db = await useDb()
-  await migrateLegacyAppSettingsTable(db)
-  const schema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
-  const schemaHash = createHash('sha256').update(schema).digest('hex')
+  try {
+    const db = await useDb()
+    await migrateLegacyAppSettingsTable(db)
+    const schema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
+    const schemaHash = createHash('sha256').update(schema).digest('hex')
 
-  if (!await hasCurrentSchemaHash(db, schemaHash)) {
-    await resetPostStatsFieldDefinitionsBeforeSchema(db)
-    await queryDb(db, schema, undefined, { label: 'schema initialization', timeoutMs: 30_000 })
-    await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
+    if (!await hasCurrentSchemaHash(db, schemaHash)) {
+      await resetPostStatsFieldDefinitionsBeforeSchema(db)
+      await queryDb(db, schema, undefined, { label: 'schema initialization', timeoutMs: 30_000 })
+      await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
+    }
+
+    await ensureMediaStorageVersion(db)
+    await ensureDefaultMediaSettings(db)
+    await initializeRuntimeSettings(true)
+    await ensureDefaultFolder(db)
+    await backfillPostStats(db)
+    await initializeLoggingSettings()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('[db-init] FATAL: database initialization failed:', message)
+    if (error instanceof Error && error.stack) {
+      console.error(error.stack)
+    }
+    throw error
   }
-
-  await ensureMediaStorageVersion(db)
-  await ensureDefaultMediaSettings(db)
-  await initializeRuntimeSettings(true)
-  await ensureDefaultFolder(db)
-  await backfillPostStats(db)
-  await initializeLoggingSettings()
 })
 
 async function hasCurrentSchemaHash(db: Awaited<ReturnType<typeof useDb>>, schemaHash: string) {

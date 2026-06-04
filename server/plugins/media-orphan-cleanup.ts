@@ -1,6 +1,11 @@
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+import { resolve } from 'node:path'
 import { mediaCleanupOrphanFiles } from '../utils/mediaCleanup'
 import { useDb } from '../utils/db'
 import { getMediaSettings } from '../utils/settings'
+
+const nodeRequire = createRequire(pathToFileURL(resolve(process.cwd(), '.output/server/index.mjs')).href)
 
 interface MediaCronLike {
   validate: (expression: string) => boolean
@@ -49,24 +54,12 @@ async function runScheduledMediaCleanup(days: number) {
 }
 
 async function resolveMediaCron(): Promise<MediaCronLike | null> {
-  const candidates = [
-    'node-cron/dist/cjs/node-cron.js',
-    'node-cron'
-  ]
-
-  for (const candidate of candidates) {
-    try {
-      const moduleValue = await import(candidate)
-      const resolved = normalizeMediaCron(moduleValue)
-      if (resolved) {
-        return resolved
-      }
-    } catch {
-      // Try the next candidate module path.
-    }
+  try {
+    return normalizeMediaCron(nodeRequire('node-cron'))
+  } catch (error) {
+    console.warn('[media] orphan cleanup require failed:', error instanceof Error ? error.message : error)
+    return null
   }
-
-  return null
 }
 
 function normalizeMediaCron(moduleValue: unknown): MediaCronLike | null {
