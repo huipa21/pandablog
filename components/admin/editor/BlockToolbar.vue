@@ -202,6 +202,7 @@
 <script setup lang="ts">
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue'
 import type { Editor } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import type { CSSProperties } from 'vue'
 import { hasAnyDropdownInlineActive, inlineMenuLabel } from './inlineFormatting'
 import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
@@ -233,9 +234,11 @@ const emit = defineEmits<{
 const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 const linkDialogOpen = ref(false)
+const linkDialogRange = ref<{ from: number; to: number } | null>(null)
 const highlightPaletteOpen = ref(false)
 const customHighlightColor = ref(DEFAULT_HIGHLIGHT_COLOR)
 const highlightColors = HIGHLIGHT_COLORS
+let pendingHighlightRange: { from: number; to: number } | null = null
 
 // ─── FREE DRAG ────────────────────────────────────────────────────────────────
 const dragging = ref(false)
@@ -431,15 +434,24 @@ function openLinkDialog() {
   if (!editor) return
 
   if (editor.state.selection.empty) {
-    return
+    if (!selectionHasMark(editor, 'link')) {
+      return
+    }
+
+    editor.chain().focus().extendMarkRange('link').run()
   }
 
   const { from, to, empty } = editor.state.selection
+  if (from === to) {
+    return
+  }
+
   const previousHref = editor.getAttributes('link').href as string | undefined
   const previousTarget = editor.getAttributes('link').target as string | null | undefined
   const previousOpenMode = editor.getAttributes('link').openMode as string | undefined
   const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, ' ', ' ').trim()
 
+  linkDialogRange.value = { from, to }
   linkForm.href = previousHref?.trim() || 'https://'
   linkForm.text = selectedText || previousHref?.trim() || ''
   linkForm.openMode = previousOpenMode === 'new-window' || previousOpenMode === 'new-tab' || previousOpenMode === 'same-tab'
@@ -455,16 +467,18 @@ function applyLinkDialog() {
   const href = linkForm.href.trim()
   if (!href) {
     linkDialogOpen.value = false
+    linkDialogRange.value = null
     return
   }
 
-  if (editor.state.selection.empty) {
+  const range = linkDialogRange.value ?? (editor.state.selection.empty ? null : { from: editor.state.selection.from, to: editor.state.selection.to })
+  if (!range || range.from === range.to) {
     linkDialogOpen.value = false
+    linkDialogRange.value = null
     return
   }
 
-  const { from, to, empty } = editor.state.selection
-  const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, ' ', ' ')
+  const selectedText = editor.state.doc.textBetween(range.from, range.to, ' ', ' ')
   const displayText = (linkForm.text || selectedText || href).trim()
   const openMode = linkForm.openMode
   const markAttrs: Record<string, unknown> = {
@@ -477,15 +491,16 @@ function applyLinkDialog() {
   editor
     .chain()
     .focus()
-    .insertContentAt({ from, to }, {
+    .insertContentAt({ from: range.from, to: range.to }, {
       type: 'text',
       text: displayText,
       marks: [{ type: 'link', attrs: markAttrs }]
     })
     .run()
 
-  const cursor = from + displayText.length
-  editor.chain().focus().setTextSelection(cursor).unsetAllMarks().run()
+  const cursor = range.from + displayText.length
+  collapseToTextPosition(editor, cursor, { clearStoredMarks: true })
+  linkDialogRange.value = null
   linkDialogOpen.value = false
 }
 
@@ -495,6 +510,7 @@ function toggleInlineMark(mark: 'bold' | 'italic' | 'strike' | 'code' | 'highlig
 
   const selectionEnd = ed.state.selection.to
   const hadRangeSelection = !ed.state.selection.empty
+  const shouldClearAfterRange = mark !== 'code' && mark !== 'highlight'
   const chain = ed.chain().focus()
 
   switch (mark) {
@@ -521,10 +537,10 @@ function toggleInlineMark(mark: 'bold' | 'italic' | 'strike' | 'code' | 'highlig
       break
   }
 
-  // After applying to a selected range, collapse to end and clear stored marks
-  // so newly typed text does not unintentionally continue the styling.
+  // After applying to a selected range, collapse to the end. Most marks clear
+  // stored marks; code and highlight intentionally stay active until Tab.
   if (hadRangeSelection) {
-    ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
+    collapseToTextPosition(ed, selectionEnd, { clearStoredMarks: shouldClearAfterRange })
   }
 }
 
@@ -532,15 +548,24 @@ function setHighlightColor(color: string) {
   const ed = props.editor
   if (!ed) return
 
-  const selectionEnd = ed.state.selection.to
-  const hadRangeSelection = !ed.state.selection.empty
-  ;(ed.chain().focus() as any).setHighlight({ color }).run()
-  customHighlightColor.value = color
+  const currentSelection = ed.state.selection
+  const range = normalizeRange(ed, pendingHighlightRange ?? (!currentSelection.empty ? { from: currentSelection.from, to: currentSelection.to } : null))
+  const chain = ed.chain().focus()
 
-  if (hadRangeSelection) {
-    ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
+  if (range) {
+    chain.setTextSelection(range)
   }
 
+  ;(chain as any).setHighlight({ color })
+
+  if (range) {
+    chain.setTextSelection(range.to)
+  }
+
+  chain.run()
+  customHighlightColor.value = color
+
+  pendingHighlightRange = null
   highlightPaletteOpen.value = false
 }
 
@@ -548,19 +573,62 @@ function unsetHighlightColor() {
   const ed = props.editor
   if (!ed) return
 
-  const selectionEnd = ed.state.selection.to
-  const hadRangeSelection = !ed.state.selection.empty
-  ;(ed.chain().focus() as any).unsetHighlight().run()
+  const currentSelection = ed.state.selection
+  const range = normalizeRange(ed, pendingHighlightRange ?? (!currentSelection.empty ? { from: currentSelection.from, to: currentSelection.to } : null))
+  const chain = ed.chain().focus()
 
-  if (hadRangeSelection) {
-    ed.chain().focus().setTextSelection(selectionEnd).unsetAllMarks().run()
+  if (range) {
+    chain.setTextSelection(range)
   }
 
+  ;(chain as any).unsetHighlight()
+
+  if (range) {
+    chain.setTextSelection(range.to)
+  }
+
+  chain.run()
+
+  if (range) {
+    collapseToTextPosition(ed, range.to, { clearStoredMarks: true })
+  }
+
+  pendingHighlightRange = null
   highlightPaletteOpen.value = false
 }
 
 function toggleHighlightPalette() {
-  highlightPaletteOpen.value = !highlightPaletteOpen.value
+  const ed = props.editor
+  if (!ed) {
+    highlightPaletteOpen.value = !highlightPaletteOpen.value
+    return
+  }
+
+  const { from, to, empty } = ed.state.selection
+  const selectionEnd = to
+  const isActive = selectionHasMark(ed, 'highlight')
+
+  if (isActive) {
+    ;(ed.chain().focus() as any).unsetHighlight().run()
+
+    if (!empty) {
+      collapseToTextPosition(ed, selectionEnd, { clearStoredMarks: true })
+    }
+
+    pendingHighlightRange = null
+    highlightPaletteOpen.value = false
+    return
+  }
+
+  pendingHighlightRange = empty ? null : { from, to }
+  ;(ed.chain().focus() as any).setHighlight({ color: DEFAULT_HIGHLIGHT_COLOR }).run()
+
+  if (!empty) {
+    collapseToTextPosition(ed, selectionEnd, { clearStoredMarks: false })
+  }
+
+  customHighlightColor.value = DEFAULT_HIGHLIGHT_COLOR
+  highlightPaletteOpen.value = true
 }
 
 function setCustomHighlightColor(event: Event) {
@@ -585,9 +653,33 @@ function closeHighlightPaletteOnOutsideClick(event: PointerEvent) {
   }
 }
 
+function normalizeRange(editor: Editor, range: { from: number; to: number } | null) {
+  if (!range) return null
+
+  const docSize = editor.state.doc.content.size
+  const from = Math.max(0, Math.min(range.from, docSize))
+  const to = Math.max(0, Math.min(range.to, docSize))
+
+  return from < to ? { from, to } : null
+}
+
+function collapseToTextPosition(editor: Editor, position: number, options: { clearStoredMarks?: boolean } = {}) {
+  const docSize = editor.state.doc.content.size
+  const safePosition = Math.max(0, Math.min(position, docSize))
+  const tr = editor.state.tr.setSelection(TextSelection.create(editor.state.doc, safePosition))
+
+  if (options.clearStoredMarks) {
+    tr.setStoredMarks([])
+  }
+
+  editor.view.dispatch(tr)
+  editor.view.focus()
+}
+
 watch(() => props.visible, (visible) => {
   if (!visible) {
     highlightPaletteOpen.value = false
+    pendingHighlightRange = null
   }
 })
 

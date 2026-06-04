@@ -191,6 +191,7 @@
 
 <script setup lang="ts">
 import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
+import { getMarkRange } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Color from '@tiptap/extension-color'
 import Dropcursor from '@tiptap/extension-dropcursor'
@@ -207,7 +208,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import type { Editor } from '@tiptap/core'
-import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
+import type { MarkType, Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
 import { Footnote } from '~/extensions/footnote'
 import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
@@ -553,6 +554,10 @@ const editor = useEditor({
       return false
     },
     handleKeyDown(view, event) {
+      if (handleInlineMarkTabExit(view, event)) {
+        return true
+      }
+
       // Ctrl/Cmd + A: first press selects current block, second within 400ms selects whole doc.
       if ((event.ctrlKey || event.metaKey) && (event.key === 'a' || event.key === 'A')) {
         const now = Date.now()
@@ -682,6 +687,39 @@ const editor = useEditor({
     scheduleTrackActiveBlock(ed)
   }
 })
+
+function handleInlineMarkTabExit(view: EditorView, event: KeyboardEvent) {
+  if (event.key !== 'Tab' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+    return false
+  }
+
+  const { state } = view
+  const activeMarkTypes = ['code', 'highlight']
+    .map((name) => state.schema.marks[name])
+    .filter((markType): markType is MarkType => !!markType && (state.storedMarks ?? state.selection.$from.marks()).some((mark) => mark.type === markType))
+
+  if (!activeMarkTypes.length) {
+    return false
+  }
+
+  let exitPos = state.selection.to
+  for (const markType of activeMarkTypes) {
+    const range = getMarkRange(state.selection.$from, markType)
+    if (range) {
+      exitPos = Math.max(exitPos, range.to)
+    }
+  }
+
+  const safePos = Math.max(0, Math.min(exitPos, state.doc.content.size))
+  const tr = state.tr
+    .setSelection(TextSelection.create(state.doc, safePos))
+    .setStoredMarks([])
+
+  view.dispatch(tr)
+  view.focus()
+  event.preventDefault()
+  return true
+}
 
 function updateSelectionState(ed: Editor) {
   const { selection } = ed.state
