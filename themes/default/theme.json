@@ -3,9 +3,9 @@
   "name": "Default",
   "version": "1.0.0",
   "author": "PandaBlog",
-  "description": "Notion-inspired clean reading experience with three-column layout",
+  "description": "Original PandaBlog light and dark color scheme with soft green surfaces, warm highlights, and balanced reading chrome.",
   "supports": ["light", "dark"],
-  "preview": "preview.png",
+  "preview": "preview.svg",
   "tokens": "tokens.json",
   "css": "theme.css",
   "layout": {
@@ -13,6 +13,7 @@
     "leftSidebar": "toc",
     "rightSidebar": "meta-graph",
     "maxContentWidth": "72rem",
+    "variant": "default",
     "showCoverImage": true,
     "stickyHeader": true
   }

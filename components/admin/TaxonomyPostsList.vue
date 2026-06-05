@@ -1,9 +1,9 @@
 <template>
-  <section class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-    <header class="flex flex-col gap-3 border-b border-stone-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+  <section class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
+    <header class="flex flex-col gap-3 border-b border-[var(--pb-divider)] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-stone-500">Posts</p>
-        <h2 class="text-lg font-semibold tracking-normal text-stone-950">{{ totalPosts }} post{{ totalPosts === 1 ? '' : 's' }}</h2>
+        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Posts</p>
+        <h2 class="text-lg font-semibold tracking-normal text-[var(--pb-text)]">{{ totalPosts }} post{{ totalPosts === 1 ? '' : 's' }}</h2>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <USelect v-model="statusFilter" :items="statusFilterOptions" size="sm" class="w-40" />
@@ -20,7 +20,7 @@
 
     <div v-else-if="posts.length" class="overflow-x-auto">
       <table class="w-full min-w-[980px] border-collapse text-left text-sm">
-        <thead class="bg-stone-50 text-xs uppercase tracking-wider text-stone-500">
+        <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
           <tr>
             <th class="min-w-64 px-4 py-3 font-medium">Title</th>
             <th class="min-w-48 px-4 py-3 font-medium">Tags</th>
@@ -31,10 +31,10 @@
             <th class="min-w-36 px-4 py-3 font-medium">Updated</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-stone-100">
-          <tr v-for="post in posts" :key="post.id" class="hover:bg-stone-50">
+        <tbody class="divide-y divide-[var(--pb-divider)]">
+          <tr v-for="post in posts" :key="post.id" class="hover:bg-[var(--pb-card-bg-hover)]">
             <td class="px-4 py-3 align-top">
-              <NuxtLink :to="`/admin/posts/${encodeURIComponent(post.id)}`" class="font-medium text-stone-950 hover:text-teal-700">
+              <NuxtLink :to="`/admin/posts/${encodeURIComponent(post.id)}`" class="font-medium text-[var(--pb-text)] hover:text-[var(--pb-link-hover)]">
                 {{ post.title || 'Untitled' }}
               </NuxtLink>
             </td>
@@ -42,16 +42,16 @@
               <span v-if="post.tags?.length" class="flex flex-wrap gap-1">
                 <UBadge v-for="tag in post.tags" :key="tag.id" color="neutral" variant="subtle">{{ tag.name }}</UBadge>
               </span>
-              <span v-else class="text-stone-400">No tags</span>
+              <span v-else class="text-[var(--pb-text-subtle)]">No tags</span>
             </td>
             <td class="px-4 py-3 align-top">
               <span v-if="post.categories?.length" class="flex flex-wrap gap-1">
                 <UBadge v-for="category in post.categories" :key="category.id" color="primary" variant="subtle">{{ category.name }}</UBadge>
               </span>
-              <span v-else class="text-stone-400">No categories</span>
+              <span v-else class="text-[var(--pb-text-subtle)]">No categories</span>
             </td>
             <td class="px-4 py-3 align-top">
-              <span class="inline-flex items-center gap-1.5 text-stone-700">
+              <span class="inline-flex items-center gap-1.5 text-[var(--pb-text-muted)]">
                 <UIcon :name="visibilityIcon(post.visibility)" class="size-4" />
                 <span>{{ visibilityLabel(post.visibility) }}</span>
               </span>
@@ -61,8 +61,8 @@
                 {{ post.status }}
               </UBadge>
             </td>
-            <td class="px-4 py-3 align-top text-stone-600">{{ formatDate(post.published_at) }}</td>
-            <td class="px-4 py-3 align-top text-stone-600">{{ formatDate(post.updated_at) }}</td>
+            <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">{{ formatDate(post.published_at) }}</td>
+            <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">{{ formatDate(post.updated_at) }}</td>
           </tr>
         </tbody>
       </table>
@@ -70,7 +70,7 @@
 
     <UEmpty v-else icon="i-lucide-file-text" title="No posts" description="Posts assigned here will appear in this list." class="py-12" />
 
-    <footer class="flex flex-col gap-3 border-t border-stone-100 px-4 py-3 text-sm text-stone-600 md:flex-row md:items-center md:justify-between">
+    <footer class="flex flex-col gap-3 border-t border-[var(--pb-divider)] px-4 py-3 text-sm text-[var(--pb-text-muted)] md:flex-row md:items-center md:justify-between">
       <span>{{ pageRangeLabel }}</span>
       <div class="flex items-center gap-2">
         <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" aria-label="First page" :disabled="page <= 1" @click="goToPage(1)" />

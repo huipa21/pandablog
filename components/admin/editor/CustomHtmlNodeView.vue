@@ -54,6 +54,7 @@
             :value="html"
             @input="onSourceInput"
             @scroll="syncSourceScroll"
+            @keydown.down="onArrowDown"
           />
         </div>
       </div>
@@ -111,6 +112,17 @@ const highlightedHtml = computed(() => {
     return renderPlainText(html.value)
   }
 })
+
+function onArrowDown(event: KeyboardEvent) {
+  const t = event.target as HTMLTextAreaElement
+  if (t.value.slice(t.selectionEnd).includes('\n')) return
+  event.preventDefault()
+  const pos = typeof props.getPos === 'function' ? props.getPos() : undefined
+  if (pos === undefined) return
+  const after = pos + props.node.nodeSize
+  const docSize = props.editor.state.doc.content.size
+  props.editor.chain().focus().setTextSelection(Math.min(after + 1, docSize - 1)).run()
+}
 
 function onSourceInput(event: Event) {
   const text = (event.target as HTMLTextAreaElement).value

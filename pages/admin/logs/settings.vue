@@ -1,10 +1,10 @@
 <template>
   <section class="grid gap-6 pb-24">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Logs</p>
-      <h1 class="mt-1 text-3xl font-semibold text-stone-950">Logging settings</h1>
-      <p class="mt-2 text-sm text-stone-600">Runtime logging controls backed by SurrealDB.</p>
-      <p class="mt-1 text-xs text-stone-500">Last updated: {{ form.updated_at || 'unknown' }}</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Logs</p>
+      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Logging settings</h1>
+      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">Runtime logging controls backed by SurrealDB.</p>
+      <p class="mt-1 text-xs text-[var(--pb-text-subtle)]">Last updated: {{ form.updated_at || 'unknown' }}</p>
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load logging settings" />
@@ -12,16 +12,16 @@
     <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
 
     <div class="grid gap-4">
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-stone-900">Master controls</h2>
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Master controls</h2>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <UToggle v-model="form.enabled" label="Enable logging" />
           <UToggle v-model="form.console_output" label="Console output" />
         </div>
       </section>
 
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-stone-900">Log categories</h2>
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Log categories</h2>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <UToggle v-model="form.access_log_enabled" label="Access logs" />
           <UToggle v-model="form.activity_log_enabled" label="Activity logs" />
@@ -32,8 +32,8 @@
         <UAlert class="mt-3" color="warning" icon="i-lucide-triangle-alert" title="Debug is disabled in production unless override is enabled." />
       </section>
 
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-stone-900">Levels and filtering</h2>
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Levels and filtering</h2>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <USelect v-model="form.log_level" :items="levelItems" />
           <UInput v-model.number="form.sampling_rate" type="number" min="0" max="1" step="0.01" placeholder="Sampling rate" />
@@ -43,15 +43,15 @@
         </div>
       </section>
 
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-stone-900">Limits</h2>
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Limits</h2>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <UInput v-model.number="form.max_metadata_size_kb" type="number" min="1" max="1024" placeholder="Max metadata size (KB)" />
         </div>
       </section>
 
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-stone-900">Retention and cleanup</h2>
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Retention and cleanup</h2>
         <div class="mt-3 grid gap-3 md:grid-cols-2">
           <UInput v-model.number="form.retention_access_days" type="number" min="1" placeholder="Access retention days" />
           <UInput v-model.number="form.retention_activity_days" type="number" min="1" placeholder="Activity retention days" />
@@ -65,12 +65,12 @@
         </div>
       </section>
 
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <UButton color="error" variant="outline" icon="i-lucide-rotate-ccw" :loading="resetting" @click="resetDefaults">Reset to defaults</UButton>
       </section>
     </div>
 
-    <footer v-if="isDirty" class="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
+    <footer v-if="isDirty" class="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--pb-divider)] bg-[color-mix(in_srgb,var(--pb-card-bg)_95%,transparent)] px-4 py-3 backdrop-blur">
       <div class="mx-auto flex max-w-6xl items-center justify-end gap-2">
         <UButton color="neutral" variant="ghost" @click="discard">Discard</UButton>
         <UButton icon="i-lucide-save" :loading="saving" @click="save">Save changes</UButton>

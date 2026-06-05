@@ -8,7 +8,7 @@
     <div class="quote-block" :style="blockStyle">
       <!-- Vertical bar style (default) -->
       <div v-if="quoteStyle === 'bar'" class="quote-bar-row">
-        <div class="quote-bar" :style="{ backgroundColor: theme || '#0f766e' }" />
+        <div class="quote-bar" :style="{ backgroundColor: theme || DEFAULT_QUOTE_THEME }" />
         <div class="quote-bar-content">
           <div class="quote-body">
             <ContentRenderer v-for="(child, i) in node.content ?? []" :key="i" :node="child" />
@@ -46,7 +46,7 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 import ContentRenderer from './ContentRenderer.vue'
-import { QUOTE_STYLES } from '~/extensions/blockquoteEnhanced'
+import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME, QUOTE_STYLES, resolveQuoteTheme } from '~/extensions/blockquoteEnhanced'
 
 const props = defineProps<{
   node: JsonContent
@@ -55,26 +55,16 @@ const props = defineProps<{
 const supportedStyles = new Set(QUOTE_STYLES.map((s) => s.value as string))
 
 // Legacy theme name → hex fallback (for posts saved before hex colour support)
-const LEGACY_THEME_MAP: Record<string, string> = {
-  amber: '#f59e0b',
-  teal: '#0f766e',
-  blue: '#1d4ed8',
-  rose: '#be123c',
-  violet: '#7c3aed',
-  slate: '#475569',
-}
-
 const quoteStyle = computed(() => {
   const v = String(props.node.attrs?.style ?? 'bar')
   return supportedStyles.has(v) ? v : 'bar'
 })
 const theme = computed(() => {
-  const v = String(props.node.attrs?.theme ?? '#0f766e')
-  return LEGACY_THEME_MAP[v] ?? v
+  return resolveQuoteTheme(props.node.attrs?.theme)
 })
 const fontFamily = computed(() => String(props.node.attrs?.fontFamily ?? 'sans'))
 const fontSize = computed(() => String(props.node.attrs?.fontSize ?? '1rem'))
-const fontColor = computed(() => String(props.node.attrs?.fontColor ?? '#1c1917'))
+const fontColor = computed(() => String(props.node.attrs?.fontColor ?? DEFAULT_QUOTE_FONT_COLOR))
 const backgroundColor = computed(() => String(props.node.attrs?.backgroundColor ?? ''))
 const authorName = computed(() => String(props.node.attrs?.authorName ?? ''))
 const authorTitle = computed(() => String(props.node.attrs?.authorTitle ?? ''))
@@ -100,10 +90,10 @@ const blockStyle = computed(() => {
 /* Shared quote-block styles — mirrors components/admin/editor/QuoteBlockNodeView.vue.
    Kept un-scoped so authors and readers see the exact same quote chrome. */
 .quote-block {
-  --quote-accent: #0f766e;
-  --quote-font-family: ui-sans-serif, system-ui, -apple-system;
+  --quote-accent: var(--color-quote-blue, #3e6ae1);
+  --quote-font-family: var(--pb-font-text);
   --quote-font-size: 1rem;
-  --quote-font-color: #1c1917;
+  --quote-font-color: var(--pb-text);
   --quote-bg-color: transparent;
 
   font-family: var(--quote-font-family);

@@ -2,11 +2,17 @@ import { requireAdminUser } from '../../../utils/auth'
 import { deleteTheme } from '../../../utils/theme-installer'
 import { getActiveThemeId, invalidateThemeCache } from '../../../utils/theme-loader'
 
+const BUILT_IN_THEME_IDS = new Set(['default', 'tesla', 'notion', 'clay'])
+
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event)
 
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'Missing theme id' })
+
+  if (BUILT_IN_THEME_IDS.has(id)) {
+    throw createError({ statusCode: 400, message: 'Built-in themes cannot be deleted.' })
+  }
 
   const activeId = await getActiveThemeId()
   if (id === activeId) {

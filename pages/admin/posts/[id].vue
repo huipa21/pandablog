@@ -1,13 +1,13 @@
 <template>
-  <section class="h-[calc(100vh-3.5rem)] overflow-hidden bg-stone-50">
-    <div class="z-20 flex min-h-14 items-center justify-between gap-3 border-b border-stone-200 bg-white px-4">
+  <section class="h-[calc(100vh-3.5rem)] overflow-hidden bg-[var(--pb-app-bg)]">
+    <div class="z-20 flex min-h-14 items-center justify-between gap-3 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-4">
       <div class="flex min-w-0 items-center gap-3">
         <UButton to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
           Posts
         </UButton>
         <div class="min-w-0">
-          <div class="truncate text-sm font-medium text-stone-900">{{ form.title || 'No title' }}</div>
-          <div class="flex items-center gap-2 text-xs text-stone-500">
+          <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ form.title || 'No title' }}</div>
+          <div class="flex items-center gap-2 text-xs text-[var(--pb-text-subtle)]">
             <span>{{ currentStatus }}</span>
             <span v-if="saveStatus" :class="saveStatusClass">· {{ saveStatus }}</span>
             <span v-else-if="post?.updated_at">· Saved {{ formatDate(post.updated_at) }}</span>
@@ -76,14 +76,14 @@
             <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
           </div>
 
-          <form class="pb-editor-grid-shell rounded-lg border border-stone-200 bg-white px-6 py-6 shadow-sm md:px-10 md:py-8" @submit.prevent="saveLocal()">
+          <form class="pb-editor-grid-shell rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-6 py-6 shadow-[var(--pb-shadow-sm)] md:px-10 md:py-8" @submit.prevent="saveLocal()">
             <div class="pb-editor-row mb-8">
               <div class="pb-editor-gutter" aria-hidden="true" />
               <input
                 v-model="form.title"
                 type="text"
                 placeholder="Add title"
-                class="w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-stone-900 outline-none placeholder:text-stone-400"
+                class="w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-[var(--pb-text)] outline-none placeholder:text-[var(--pb-text-placeholder)]"
               >
               <div class="pb-editor-gutter" aria-hidden="true" />
             </div>
@@ -93,10 +93,10 @@
         </div>
       </main>
 
-      <div class="relative h-full shrink-0 border-l border-stone-200 bg-white transition-[width]" :class="rightPaneCollapsed ? 'w-11' : 'w-[340px]'">
+      <div class="relative h-full shrink-0 border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width]" :class="rightPaneCollapsed ? 'w-11' : 'w-[340px]'">
         <button
           type="button"
-          class="absolute left-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded border border-stone-200 bg-white text-stone-500 hover:border-teal-400 hover:text-teal-700"
+          class="absolute left-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)]"
           :title="rightPaneCollapsed ? 'Expand right pane' : 'Collapse right pane'"
           @click="rightPaneCollapsed = !rightPaneCollapsed"
         >
@@ -122,12 +122,12 @@
         <UCard>
           <template #header>
             <div>
-              <h3 class="text-base font-semibold text-stone-900">Unsaved changes</h3>
-              <p class="text-xs text-stone-500">Leave this editor, save to database, or discard local edits.</p>
+              <h3 class="text-base font-semibold text-[var(--pb-text)]">Unsaved changes</h3>
+              <p class="text-xs text-[var(--pb-text-subtle)]">Leave this editor, save to database, or discard local edits.</p>
             </div>
           </template>
 
-          <div class="text-sm text-stone-600">
+          <div class="text-sm text-[var(--pb-text-muted)]">
             Your edits are not saved to the database yet.
           </div>
 
@@ -177,7 +177,7 @@ const hasLoadedDbSnapshot = ref(false)
 const savedDbSnapshot = ref('')
 
 const saveStatusClass = computed(() =>
-  saveStatusType.value === 'error' ? 'text-red-600' : 'text-stone-500'
+  saveStatusType.value === 'error' ? 'text-red-600' : 'text-[var(--pb-text-subtle)]'
 )
 
 function onInserterPick(name: string) {
@@ -194,6 +194,8 @@ const form = reactive<AdminPostEditorForm>({
   tag_ids: [],
   category_names: [],
   tag_names: [],
+  is_featured: false,
+  featured_at: null,
   visibility: 'public',
   password: '',
   password_hint: '',
@@ -242,6 +244,8 @@ watch(post, (value) => {
   form.tag_ids = [...(value.tag_ids ?? [])]
   form.category_names = []
   form.tag_names = []
+  form.is_featured = value.is_featured
+  form.featured_at = value.featured_at ?? null
   currentStatus.value = value.status === 'archived' ? 'draft' : value.status
   form.visibility = value.visibility ?? 'public'
   form.password_hint = value.password_hint ?? ''
@@ -275,6 +279,8 @@ function saveLocal() {
       tag_ids: form.tag_ids,
       category_names: form.category_names,
       tag_names: form.tag_names,
+      is_featured: form.is_featured,
+      featured_at: form.featured_at,
       visibility: form.visibility,
       password: form.password,
       password_hint: form.password_hint,
@@ -328,6 +334,8 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
         tag_ids: form.tag_ids,
         category_names: form.category_names,
         tag_names: form.tag_names,
+        is_featured: form.is_featured,
+        featured_at: form.featured_at,
         status: nextStatus,
         visibility: form.visibility,
         password: form.password,
@@ -342,6 +350,8 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     form.tag_ids = [...(saved.tag_ids ?? form.tag_ids)]
     form.category_names = []
     form.tag_names = []
+    form.is_featured = saved.is_featured
+    form.featured_at = saved.featured_at ?? null
     form.visibility = saved.visibility ?? form.visibility
     form.password_hint = saved.password_hint ?? ''
     form.password = ''
@@ -392,6 +402,8 @@ onMounted(() => {
       tag_ids: local.tag_ids ?? form.tag_ids,
       category_names: local.category_names ?? [],
       tag_names: local.tag_names ?? [],
+      is_featured: local.is_featured ?? form.is_featured,
+      featured_at: local.featured_at ?? form.featured_at,
       visibility: local.visibility ?? form.visibility,
       password: local.password ?? '',
       password_hint: local.password_hint ?? form.password_hint,
@@ -481,6 +493,8 @@ function serializeDbPayload() {
     tag_ids: form.tag_ids,
     category_names: form.category_names,
     tag_names: form.tag_names,
+    is_featured: form.is_featured,
+    featured_at: form.featured_at,
     visibility: form.visibility,
     password: form.password,
     password_hint: form.password_hint,

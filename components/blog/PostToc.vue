@@ -1,13 +1,13 @@
 <template>
-  <nav class="rounded-lg border border-stone-200 bg-white p-4">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">Table of Contents</h3>
+  <nav class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Table of Contents</h3>
     <div v-if="items.length" class="grid gap-1">
       <a
         v-for="item in items"
         :key="item.id"
         :href="`#${item.id}`"
-        class="rounded px-2 py-1 text-sm transition hover:bg-stone-50 hover:text-teal-700"
-        :class="item.id === activeId ? 'bg-teal-50 font-medium text-teal-700' : 'text-stone-600'"
+        class="rounded-[var(--pb-radius-sm)] px-2 py-1 text-sm transition hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
+        :class="item.id === activeId ? 'bg-[var(--pb-selected-bg)] font-medium text-[var(--pb-link)]' : 'text-[var(--pb-text-muted)]'"
         :style="{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }"
         @click.prevent="scrollToHeading(item.id)"
       >

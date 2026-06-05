@@ -1,0 +1,20 @@
+{
+  "id": "tesla",
+  "name": "Tesla",
+  "version": "1.0.0",
+  "author": "PandaBlog",
+  "description": "Tesla-inspired minimal reading experience with white surfaces, carbon text, electric blue actions, and restrained chrome.",
+  "supports": ["light", "dark"],
+  "preview": "preview.svg",
+  "tokens": "tokens.json",
+  "css": "theme.css",
+  "layout": {
+    "type": "three-column",
+    "leftSidebar": "toc",
+    "rightSidebar": "meta-graph",
+    "maxContentWidth": "72rem",
+    "variant": "tesla",
+    "showCoverImage": true,
+    "stickyHeader": true
+  }
+}

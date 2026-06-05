@@ -1,6 +1,6 @@
 <template>
-  <div class="rounded-lg border border-stone-200 bg-white p-4">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">Categories</h3>
+  <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Categories</h3>
     <div v-if="pending" class="grid gap-2">
       <USkeleton v-for="index in 4" :key="index" class="h-6" />
     </div>
@@ -9,13 +9,13 @@
         v-for="category in categories"
         :key="category.id"
         :to="`/category/${category.slug}`"
-        class="flex items-center justify-between rounded px-2 py-1 text-sm text-stone-700 hover:bg-stone-50 hover:text-teal-700"
+        class="flex items-center justify-between rounded-[var(--pb-radius-sm)] px-2 py-1 text-sm text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
       >
         <span>{{ category.name }}</span>
-        <span class="text-xs text-stone-400">{{ category.post_count ?? 0 }}</span>
+        <span class="text-xs text-[var(--pb-text-subtle)]">{{ category.post_count ?? 0 }}</span>
       </NuxtLink>
     </nav>
-    <p v-else class="text-sm italic text-stone-400">No categories yet.</p>
+    <p v-else class="text-sm italic text-[var(--pb-text-subtle)]">No categories yet.</p>
   </div>
 </template>
 

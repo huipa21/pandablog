@@ -1,10 +1,10 @@
 <template>
-  <main class="grid min-h-screen place-items-center bg-stone-100 px-5 py-12">
-    <section class="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+  <main class="grid min-h-screen place-items-center bg-[var(--pb-app-bg)] px-5 py-12">
+    <section class="w-full max-w-md rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-md)]">
       <div class="mb-6">
-        <p class="text-sm font-medium uppercase tracking-wider text-teal-700">First run</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-normal text-stone-950">Set up PandaBlog</h1>
-        <p class="mt-2 text-sm text-stone-600">Create the admin password for this deployment.</p>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">First run</p>
+        <h1 class="mt-2 text-2xl font-semibold tracking-normal text-[var(--pb-text)]">Set up PandaBlog</h1>
+        <p class="mt-2 text-sm text-[var(--pb-text-muted)]">Create the admin password for this deployment.</p>
       </div>
 
       <form class="grid gap-4" @submit.prevent="completeSetup">

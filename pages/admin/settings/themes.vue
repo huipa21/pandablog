@@ -1,39 +1,40 @@
 <template>
   <div class="space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">Themes</h1>
-      <p class="text-gray-500">Upload, preview, and activate themes for the public blog.</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Settings</p>
+      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Themes</h1>
+      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">Choose the active visual theme, preview it, or upload a custom theme package.</p>
     </header>
 
     <!-- Upload -->
-    <section class="border rounded-lg p-4">
-      <h2 class="font-medium mb-2">Upload theme</h2>
-      <form @submit.prevent="onUpload" class="flex items-center gap-3">
-        <input ref="fileInput" type="file" accept=".zip" class="border rounded px-2 py-1" />
-        <button
+    <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+      <h2 class="mb-2 font-medium text-[var(--pb-text)]">Upload theme</h2>
+      <form class="flex items-center gap-3" @submit.prevent="onUpload">
+        <input ref="fileInput" type="file" accept=".zip" class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-border)] px-2 py-1" />
+        <UButton
           type="submit"
-          class="px-3 py-1.5 bg-blue-600 text-white rounded disabled:opacity-50"
+          icon="i-lucide-upload"
           :disabled="uploading"
         >
           {{ uploading ? 'Uploading…' : 'Upload .zip' }}
-        </button>
+        </UButton>
       </form>
-      <p v-if="uploadError" class="text-red-600 text-sm mt-2">{{ uploadError }}</p>
-      <p v-if="uploadSuccess" class="text-green-600 text-sm mt-2">{{ uploadSuccess }}</p>
+      <p v-if="uploadError" class="mt-2 text-sm text-red-600">{{ uploadError }}</p>
+      <p v-if="uploadSuccess" class="mt-2 text-sm text-green-600">{{ uploadSuccess }}</p>
     </section>
 
     <!-- Theme list -->
     <section>
-      <h2 class="font-medium mb-3">Installed themes</h2>
+      <h2 class="mb-3 font-medium text-[var(--pb-text)]">Installed themes</h2>
       <div v-if="pending">Loading…</div>
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <article
           v-for="theme in data?.themes ?? []"
           :key="theme.id"
-          class="border rounded-lg overflow-hidden flex flex-col"
-          :class="{ 'ring-2 ring-blue-500': theme.id === data?.activeId }"
+          class="flex flex-col overflow-hidden rounded-[var(--pb-radius-card-outer)] border transition-colors"
+          :class="theme.id === data?.activeId ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)] ring-2 ring-[var(--pb-selected-border)]' : 'border-[var(--pb-card-border)] bg-[var(--pb-card-bg)]'"
         >
-          <div class="aspect-[16/9] bg-gray-100">
+          <div class="aspect-[16/9] bg-[var(--pb-surface-subtle)]">
             <img
               :src="`/themes/${theme.id}/${theme.preview}`"
               :alt="`${theme.name} preview`"
@@ -44,8 +45,8 @@
           <div class="p-3 flex-1 flex flex-col gap-2">
             <div>
               <h3 class="font-medium">{{ theme.name }}</h3>
-              <p class="text-sm text-gray-500">v{{ theme.version }} · {{ theme.author }}</p>
-              <p class="text-sm">{{ theme.description }}</p>
+              <p class="text-sm text-[var(--pb-text-subtle)]">v{{ theme.version }} · {{ theme.author }}</p>
+              <p class="text-sm text-[var(--pb-text-muted)]">{{ theme.description }}</p>
             </div>
             <div class="mt-auto flex gap-2 pt-2">
               <button
@@ -53,14 +54,14 @@
                 @click="openPreview(theme.id)"
               >Preview</button>
               <button
-                class="text-sm px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                class="text-sm px-2 py-1 bg-[var(--pb-primary)] text-[var(--pb-primary-contrast)] rounded disabled:opacity-50"
                 :disabled="theme.id === data?.activeId"
                 @click="activate(theme.id)"
               >
                 {{ theme.id === data?.activeId ? 'Active' : 'Activate' }}
               </button>
               <button
-                v-if="theme.id !== 'default' && theme.id !== data?.activeId"
+                v-if="!isBuiltInTheme(theme.id) && theme.id !== data?.activeId"
                 class="text-sm px-2 py-1 border border-red-300 text-red-600 rounded"
                 @click="requestRemove(theme.id)"
               >Delete</button>
@@ -121,9 +122,14 @@ const deleting = ref(false)
 const previewId = ref<string | null>(null)
 const deleteDialogOpen = ref(false)
 const pendingDeleteThemeId = ref<string | null>(null)
+const builtInThemeIds = new Set(['default', 'tesla', 'notion', 'clay'])
 const deleteDialogDescription = computed(() => pendingDeleteThemeId.value
   ? `Delete theme "${pendingDeleteThemeId.value}"?`
   : 'Delete this theme?')
+
+function isBuiltInTheme(themeId: string) {
+  return builtInThemeIds.has(themeId)
+}
 
 async function onUpload() {
   uploadError.value = ''
@@ -154,7 +160,16 @@ async function onUpload() {
 
 async function activate(themeId: string) {
   await $fetch('/api/admin/themes/activate', { method: 'POST', body: { themeId } })
+  refreshThemeStylesheet()
   await refresh()
+}
+
+function refreshThemeStylesheet() {
+  if (!import.meta.client) return
+  const link = document.querySelector<HTMLLinkElement>('link[data-theme-stylesheet="true"]')
+  if (link) {
+    link.href = `/api/theme/css?t=${Date.now()}`
+  }
 }
 
 function requestRemove(themeId: string) {

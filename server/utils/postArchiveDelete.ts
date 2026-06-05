@@ -68,7 +68,7 @@ export async function archiveOrDeletePostById(
 function archivePost(db: Awaited<ReturnType<typeof useDb>>, id: string) {
   return queryDb(
     db,
-    'UPDATE type::record($table, $id) MERGE { status: "archived", published_at: NONE, updated_at: time::now() } RETURN AFTER;',
+    'UPDATE type::record($table, $id) MERGE { status: "archived", is_featured: false, published_at: NONE, featured_at: NONE, updated_at: time::now() } RETURN AFTER;',
     {
       table: 'post',
       id

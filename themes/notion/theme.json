@@ -1,0 +1,20 @@
+{
+  "id": "notion",
+  "name": "Notion",
+  "version": "1.0.0",
+  "author": "PandaBlog",
+  "description": "Notion-inspired workspace theme with purple actions, warm editorial surfaces, rounded cards, and pastel accent tokens.",
+  "supports": ["light", "dark"],
+  "preview": "preview.svg",
+  "tokens": "tokens.json",
+  "css": "theme.css",
+  "layout": {
+    "type": "three-column",
+    "leftSidebar": "toc",
+    "rightSidebar": "meta-graph",
+    "maxContentWidth": "72rem",
+    "variant": "notion-paper",
+    "showCoverImage": true,
+    "stickyHeader": true
+  }
+}

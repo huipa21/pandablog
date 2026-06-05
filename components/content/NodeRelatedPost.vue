@@ -1,9 +1,9 @@
 <template>
-  <NuxtLink v-if="target" :to="`/blog/${target}`" class="related-post-chip inline-flex items-center gap-1 rounded border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-800 hover:bg-teal-100">
-    <UIcon name="i-lucide-link" class="size-3" />
+  <NuxtLink v-if="target" :to="`/blog/${target}`" class="related-post-chip inline-flex items-center gap-1 rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)] px-2 py-0.5 text-xs font-medium text-[var(--pb-link)] hover:text-[var(--pb-link-hover)]">
+    <UIcon name="i-lucide-link" class="size-3 text-[var(--pb-icon-accent)]" />
     {{ label }}
   </NuxtLink>
-  <span v-else class="text-stone-400">{{ label || '(unlinked)' }}</span>
+  <span v-else class="text-[var(--pb-text-subtle)]">{{ label || '(unlinked)' }}</span>
 </template>
 
 <script setup lang="ts">

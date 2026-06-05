@@ -1,5 +1,5 @@
 <template>
-  <div class="mermaid-nodeview my-4 overflow-hidden rounded-lg border border-stone-300 bg-white">
+  <div class="mermaid-nodeview my-4 overflow-hidden rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider-strong)] bg-[var(--pb-card-bg)]">
     <div class="mermaid-body mode-preview">
       <div class="mermaid-preview-pane">
         <ClientOnly>
@@ -89,7 +89,7 @@ async function loadMermaid() {
 .mermaid-body {
   display: grid;
   gap: 1px;
-  background: rgb(231 229 228);
+  background: var(--pb-divider);
   min-height: 12rem;
 }
 
@@ -103,7 +103,7 @@ async function loadMermaid() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--pb-card-bg);
 }
 
 .mermaid-preview {
@@ -119,12 +119,12 @@ async function loadMermaid() {
 }
 
 .mermaid-error {
-  color: rgb(190 18 60);
+  color: var(--color-danger, crimson);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   white-space: pre-wrap;
   padding: 0.5rem;
-  background: rgb(254 226 226);
+  background: color-mix(in srgb, var(--color-danger, crimson) 12%, var(--pb-card-bg));
   border-radius: 0.375rem;
   width: 100%;
 }
@@ -137,6 +137,6 @@ async function loadMermaid() {
   font-size: 0.85rem;
   line-height: 1.5;
   background: transparent;
-  color: rgb(41 37 36);
+  color: var(--pb-text);
 }
 </style>

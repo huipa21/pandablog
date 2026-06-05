@@ -2,8 +2,8 @@
   <section class="grid gap-6">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Tag</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">{{ tag ? `#${tag.name}` : 'Tag' }}</h1>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tag</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ tag ? `#${tag.name}` : 'Tag' }}</h1>
       </div>
       <UButton to="/admin/tags" variant="ghost" color="neutral" icon="i-lucide-arrow-left">
         Back to Tags
@@ -12,16 +12,16 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load tag" />
 
-    <div v-if="pending" class="grid gap-3 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+    <div v-if="pending" class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
       <USkeleton class="h-8 w-48" />
       <USkeleton class="h-16" />
     </div>
 
     <template v-else-if="tag">
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 class="text-xl font-semibold tracking-normal text-stone-950">#{{ tag.name }}</h2>
+            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">#{{ tag.name }}</h2>
           </div>
           <UButton :to="`/tag/${tag.slug}`" size="sm" variant="soft" icon="i-lucide-external-link">
             Public view
@@ -29,16 +29,16 @@
         </div>
         <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Slug</dt>
-            <dd class="mt-1 text-stone-800">/{{ tag.slug }}</dd>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Slug</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">/{{ tag.slug }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Posts</dt>
-            <dd class="mt-1 text-stone-800">{{ tag.post_count ?? 0 }}</dd>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Posts</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">{{ tag.post_count ?? 0 }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Media</dt>
-            <dd class="mt-1 text-stone-800">{{ tag.media_count ?? 0 }}</dd>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Media</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">{{ tag.media_count ?? 0 }}</dd>
           </div>
         </dl>
       </section>
@@ -46,7 +46,7 @@
       <AdminTaxonomyPostsList :tag-ids="[tag.id]" />
     </template>
 
-    <UEmpty v-else icon="i-lucide-tags" title="Tag not found" description="Return to tags to choose another item." class="rounded-lg border border-stone-200 bg-white py-12 shadow-sm" />
+    <UEmpty v-else icon="i-lucide-tags" title="Tag not found" description="Return to tags to choose another item." class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] py-12 shadow-[var(--pb-shadow-sm)]" />
   </section>
 </template>
 

@@ -28,6 +28,7 @@
             :value="oldText"
             spellcheck="false"
             @input="updateOldText"
+            @keydown.down="onArrowDown"
           />
         </label>
         <label class="diff-editor-source-field">
@@ -36,6 +37,7 @@
             :value="newText"
             spellcheck="false"
             @input="updateNewText"
+            @keydown.down="onArrowDown"
           />
         </label>
       </div>
@@ -63,6 +65,17 @@ const oldLabel = computed(() => typeof props.node.attrs.oldLabel === 'string' ? 
 const newLabel = computed(() => typeof props.node.attrs.newLabel === 'string' ? props.node.attrs.newLabel : DEFAULT_DIFF_NEW_LABEL)
 
 const selected = computed(() => Boolean(props.selected))
+
+function onArrowDown(event: KeyboardEvent) {
+  const t = event.target as HTMLTextAreaElement
+  if (t.value.slice(t.selectionEnd).includes('\n')) return
+  event.preventDefault()
+  const pos = typeof props.getPos === 'function' ? props.getPos() : undefined
+  if (pos === undefined) return
+  const after = pos + props.node.nodeSize
+  const docSize = props.editor.state.doc.content.size
+  props.editor.chain().focus().setTextSelection(Math.min(after + 1, docSize - 1)).run()
+}
 
 function updateOldText(event: Event) {
   props.updateAttributes({ oldText: (event.target as HTMLTextAreaElement).value })

@@ -2,15 +2,15 @@
   <section class="grid gap-6">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Posts</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">Categories</h1>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Posts</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Categories</h1>
       </div>
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load categories" />
     <UAlert v-if="formError" color="error" icon="i-lucide-circle-alert" :title="formError" />
 
-    <form class="grid gap-3 rounded-lg border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_1fr_1.5fr_auto]" @submit.prevent="createCategory">
+    <form class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] md:grid-cols-[1fr_1fr_1fr_1.5fr_auto]" @submit.prevent="createCategory">
       <UInput v-model="newCategory.name" placeholder="Name" icon="i-lucide-folder" />
       <UInput v-model="newCategory.slug" placeholder="Slug (optional)" icon="i-lucide-link" />
       <USelect v-model="newCategory.parent_id" :items="parentOptionsFor()" icon="i-lucide-folder-tree" />
@@ -18,13 +18,13 @@
       <UButton type="submit" icon="i-lucide-plus" :loading="creating">Add category</UButton>
     </form>
 
-    <div class="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
       <div v-if="pending" class="grid gap-3 p-5">
         <USkeleton v-for="index in 4" :key="index" class="h-12" />
       </div>
 
       <table v-else-if="categories.length" class="w-full border-collapse text-left text-sm">
-        <thead class="bg-stone-50 text-xs uppercase tracking-wider text-stone-500">
+        <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
           <tr>
             <th class="px-4 py-3 font-medium">Name</th>
             <th class="px-4 py-3 font-medium">Parent</th>
@@ -34,8 +34,8 @@
             <th class="px-4 py-3 text-right font-medium">Actions</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-stone-100">
-          <tr v-for="row in visibleCategoryRows" :key="row.category.id" class="hover:bg-stone-50">
+        <tbody class="divide-y divide-[var(--pb-divider)]">
+          <tr v-for="row in visibleCategoryRows" :key="row.category.id" class="hover:bg-[var(--pb-card-bg-hover)]">
             <template v-if="editingId === row.category.id">
               <td class="px-4 py-3"><UInput v-model="draft.name" size="sm" /></td>
               <td class="px-4 py-3">
@@ -43,14 +43,14 @@
               </td>
               <td class="px-4 py-3"><UInput v-model="draft.slug" size="sm" /></td>
               <td class="px-4 py-3"><UInput v-model="draft.description" size="sm" /></td>
-              <td class="px-4 py-3 text-stone-600">{{ row.category.post_count ?? 0 }}</td>
+              <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ row.category.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
                 <UButton icon="i-lucide-check" variant="ghost" color="primary" :loading="saving" @click="saveCategory(row.category.id)">Save</UButton>
                 <UButton icon="i-lucide-x" variant="ghost" color="neutral" @click="cancelEdit">Cancel</UButton>
               </td>
             </template>
             <template v-else>
-              <td class="px-4 py-3 font-medium text-stone-950">
+              <td class="px-4 py-3 font-medium text-[var(--pb-text)]">
                 <div class="flex items-center gap-2" :style="{ paddingLeft: `${row.level * 1.25}rem` }">
                   <UButton
                     v-if="row.hasChildren"
@@ -62,17 +62,17 @@
                     @click.stop="toggleCollapse(row.category.id)"
                   />
                   <span v-else class="w-7" />
-                  <NuxtLink :to="`/admin/categories/${encodeURIComponent(row.category.id)}`" class="hover:text-teal-700">
+                  <NuxtLink :to="`/admin/categories/${encodeURIComponent(row.category.id)}`" class="hover:text-[var(--pb-link-hover)]">
                     {{ row.category.name }}
                   </NuxtLink>
                   <UBadge v-if="isDefaultCategory(row.category)" color="neutral" variant="subtle">Default</UBadge>
                   <UBadge v-else color="primary" variant="subtle">Level {{ row.level + 1 }}</UBadge>
                 </div>
               </td>
-              <td class="px-4 py-3 text-stone-600">{{ parentName(row.category) }}</td>
-              <td class="px-4 py-3 text-stone-600">/{{ row.category.slug }}</td>
-              <td class="px-4 py-3 text-stone-600">{{ row.category.description || '-' }}</td>
-              <td class="px-4 py-3 text-stone-600">{{ row.category.post_count ?? 0 }}</td>
+              <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ parentName(row.category) }}</td>
+              <td class="px-4 py-3 text-[var(--pb-text-muted)]">/{{ row.category.slug }}</td>
+              <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ row.category.description || '-' }}</td>
+              <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ row.category.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
                 <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(row.category)">Edit</UButton>
                 <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === row.category.id" :disabled="isDefaultCategory(row.category)" @click="requestDeleteCategory(row.category)">Delete</UButton>

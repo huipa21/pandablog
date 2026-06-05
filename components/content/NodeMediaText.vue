@@ -1,8 +1,8 @@
 <template>
-  <div class="mediatext-nodeview my-4 overflow-hidden rounded-lg border border-stone-200" :style="blockStyle">
+  <div class="mediatext-nodeview my-4 overflow-hidden rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)]" :style="blockStyle">
     <div class="mediatext-row" :data-media-position="mediaPosition">
       <div class="mediatext-media" :style="{ flex: `0 0 ${(ratio * 100).toFixed(2)}%` }">
-        <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
+        <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-[var(--pb-text-subtle)]">{{ mediaTitle }}</div>
         <div class="relative">
           <template v-if="mediaSrc">
             <img
@@ -35,18 +35,18 @@
               :href="resolvedMediaSrc"
               target="_blank"
               rel="noopener"
-              class="flex items-center gap-3 rounded-md border border-stone-200 bg-white p-3 text-sm hover:border-teal-400 hover:bg-teal-50"
+              class="flex items-center gap-3 rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3 text-sm hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)]"
             >
-              <UIcon :name="icon" class="size-8 text-stone-500" />
+              <UIcon :name="icon" class="size-8 text-[var(--pb-icon-muted)]" />
               <span class="min-w-0 flex-1">
-                <span class="block truncate font-medium text-stone-800">{{ mediaName || mediaAlt || displayName }}</span>
-                <span class="block text-xs text-stone-500">{{ formatBytes(mediaSize) }} {{ mediaMime }}</span>
+                <span class="block truncate font-medium text-[var(--pb-text)]">{{ mediaName || mediaAlt || displayName }}</span>
+                <span class="block text-xs text-[var(--pb-text-subtle)]">{{ formatBytes(mediaSize) }} {{ mediaMime }}</span>
               </span>
-              <UIcon name="i-lucide-download" class="size-4 shrink-0 text-stone-400" />
+              <UIcon name="i-lucide-download" class="size-4 shrink-0 text-[var(--pb-icon-muted)]" />
             </a>
           </template>
         </div>
-        <div v-if="mediaTitle && mediaTitlePosition === 'bottom'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
+        <div v-if="mediaTitle && mediaTitlePosition === 'bottom'" class="px-2 py-1 text-center text-sm text-[var(--pb-text-subtle)]">{{ mediaTitle }}</div>
       </div>
 
       <div class="mediatext-divider" aria-hidden="true" />
@@ -207,15 +207,15 @@ const mediaElementStyle = computed(() => ({
 
 .mediatext-media {
   padding: 0.75rem;
-  background: rgb(250 250 249);
+  background: var(--pb-surface-subtle);
   min-width: 0;
 }
 
 .mediatext-divider {
   width: 6px;
   background: transparent;
-  border-left: 1px solid rgb(231 229 228);
-  border-right: 1px solid rgb(231 229 228);
+  border-left: 1px solid var(--pb-divider);
+  border-right: 1px solid var(--pb-divider);
   flex: 0 0 auto;
 }
 

@@ -1,8 +1,8 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Tag</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">#{{ slug }}</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tag</p>
+      <h1 class="mt-1 font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">#{{ slug }}</h1>
     </header>
 
     <BlogPostCardList

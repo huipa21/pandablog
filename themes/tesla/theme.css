@@ -1,0 +1,153 @@
+/*
+ * Tesla theme - token-first minimal chrome
+ * Tokens are injected as CSS custom properties under :root (light) and [data-theme="dark"] (dark)
+ * before this file. Use var(--color-bg), var(--font-sans), etc.
+ *
+ * Scope all selectors under `.theme-scope`; the class is applied to public and admin shells.
+ */
+
+.theme-scope {
+  font-family: var(--font-text, var(--font-sans));
+  font-size: var(--size-text-base);
+  line-height: 1.43;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Layout - three-column wrapper */
+.theme-scope .blog-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, var(--layout-max-content, 720px)) minmax(220px, 280px);
+  gap: var(--space-2xl);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+@media (max-width: 1024px) {
+  .theme-scope .blog-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-scope .blog-layout aside {
+    display: none;
+  }
+}
+
+/* Sidebars */
+.theme-scope .blog-sidebar {
+  font-size: var(--size-text-sm);
+  color: var(--color-text-muted);
+  position: sticky;
+  top: var(--space-xl);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--space-2xl));
+  overflow-y: auto;
+}
+
+.theme-scope .blog-sidebar h4 {
+  font-size: var(--size-text-xs);
+  color: var(--color-text-subtle);
+  margin: 0 0 var(--space-sm);
+  font-weight: 500;
+}
+
+.theme-scope .blog-sidebar a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  display: block;
+  padding: var(--space-xs) 0;
+  border-left: 2px solid transparent;
+  padding-left: var(--space-sm);
+  transition: color 0.33s cubic-bezier(0.5, 0, 0, 0.75), border-color 0.33s cubic-bezier(0.5, 0, 0, 0.75);
+}
+
+.theme-scope .blog-sidebar a:hover,
+.theme-scope .blog-sidebar a.active {
+  color: var(--color-text);
+  border-left-color: var(--color-accent);
+}
+
+/* Content rendering contract: structural prose/block styles live in assets/css/main.css
+   and component-local CSS so the admin editor and public post remain visually identical.
+   Theme CSS may set tokens and page chrome only; it must not constrain blog-content width
+   or override links, inline code, tables, separators, blockquotes, or code blocks. */
+.theme-scope .blog-content {
+  width: 100%;
+  max-width: none;
+}
+
+/* Header */
+.theme-scope .blog-header {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg);
+}
+
+.theme-scope .blog-header.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--color-bg) 75%, transparent);
+}
+
+/* Cover image */
+.theme-scope .blog-cover {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: var(--radius-card-outer, var(--radius-lg));
+  margin-bottom: var(--space-xl);
+}
+
+/* Tags / pills */
+.theme-scope .tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: var(--size-text-xs);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  margin-right: var(--space-xs);
+}
+
+.theme-scope .tag:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+}
+
+/* Selection */
+.theme-scope ::selection {
+  background: var(--color-highlight);
+  color: var(--color-text);
+}
+
+/* Tesla variant - crisp, wide, low-chrome reading surface. */
+.theme-scope[data-theme-variant="tesla"] {
+  --pb-prose-line-height: 1.58;
+}
+
+.theme-scope[data-theme-variant="tesla"] .home-hero,
+.theme-scope[data-theme-variant="tesla"] .post-hero,
+.theme-scope[data-theme-variant="tesla"] .post-reading-frame,
+.theme-scope[data-theme-variant="tesla"] .post-card-grid > article {
+  box-shadow: none;
+}
+
+.theme-scope[data-theme-variant="tesla"] .home-hero {
+  border-color: var(--color-border-strong);
+}
+
+.theme-scope[data-theme-variant="tesla"] .post-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+}
+
+@media (min-width: 1024px) {
+  .theme-scope[data-theme-variant="tesla"] .home-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.78fr);
+  }
+}

@@ -61,7 +61,7 @@
               <th class="w-12 px-4 py-3 font-medium">
                 <input
                   type="checkbox"
-                  class="rounded border-stone-300"
+                  class="rounded border-[var(--pb-border-strong)]"
                   :checked="allVisibleSelected"
                   :indeterminate.prop="someVisibleSelected"
                   @click.stop
@@ -88,7 +88,7 @@
               @dblclick="openPost(post)"
             >
               <td class="px-4 py-3 align-top" @click.stop>
-                <input v-model="selectedIds" type="checkbox" :value="post.id" class="rounded border-stone-300">
+                <input v-model="selectedIds" type="checkbox" :value="post.id" class="rounded border-[var(--pb-border-strong)]">
               </td>
 
               <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'title') : undefined">
@@ -96,13 +96,13 @@
                   v-if="isEditing(post, 'title')"
                   v-model="draft.title"
                   :data-inline-editor="inlineEditorKey(post.id, 'title')"
-                  class="w-full rounded border border-teal-300 bg-white px-2 py-1.5 text-sm font-medium text-stone-950 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-card-bg)] px-2 py-1.5 text-sm font-medium text-[var(--pb-text)] shadow-[var(--pb-shadow-sm)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
                   @click.stop
                   @keydown.enter.prevent="saveCurrentCell({ close: true })"
                   @keydown.esc.prevent="cancelCellEdit"
                   @blur="saveCurrentCell({ close: true })"
                 >
-                <button v-else type="button" class="block w-full text-left font-medium text-[var(--pb-text)] hover:text-[var(--pb-primary)]">
+                <button v-else type="button" class="block w-full text-left font-medium text-[var(--pb-text)] hover:text-[var(--pb-link-hover)]">
                   {{ post.title || 'Untitled' }}
                 </button>
               </td>
@@ -111,22 +111,22 @@
                 <div
                   v-if="isEditing(post, 'tags')"
                   :data-inline-editor="inlineEditorKey(post.id, 'tags')"
-                  class="grid gap-2 rounded border border-teal-300 bg-white p-2 shadow-sm"
+                  class="grid gap-2 rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-card-bg)] p-2 shadow-[var(--pb-shadow-sm)]"
                   tabindex="-1"
                   @click.stop
                   @keydown.esc.prevent="cancelCellEdit"
                   @focusout="handleCellFocusOut"
                 >
                   <div class="grid max-h-32 gap-1 overflow-y-auto pr-1">
-                    <label v-for="tag in tagOptions" :key="tag.id" class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-stone-700 hover:bg-stone-50">
-                      <input v-model="draft.tagIds" type="checkbox" :value="tag.id" class="rounded border-stone-300" @change="saveCurrentCell()">
+                    <label v-for="tag in tagOptions" :key="tag.id" class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-1 py-0.5 text-xs text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)]">
+                      <input v-model="draft.tagIds" type="checkbox" :value="tag.id" class="rounded border-[var(--pb-border-strong)]" @change="saveCurrentCell()">
                       <span>{{ tag.name }}</span>
                     </label>
-                    <p v-if="!tagOptions.length" class="text-xs text-stone-500">No tags yet.</p>
+                    <p v-if="!tagOptions.length" class="text-xs text-[var(--pb-text-subtle)]">No tags yet.</p>
                   </div>
                   <input
                     v-model="draft.tagNamesInput"
-                    class="w-full rounded border border-stone-300 px-2 py-1 text-xs outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] px-2 py-1 text-xs text-[var(--pb-text)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
                     placeholder="Add tags, comma separated"
                     @keydown.enter.prevent="saveCurrentCell({ close: true })"
                   >
@@ -135,7 +135,7 @@
                   <span v-if="post.tags?.length" class="flex flex-wrap gap-1">
                     <UBadge v-for="tag in post.tags" :key="tag.id" color="neutral" variant="subtle">{{ tag.name }}</UBadge>
                   </span>
-                  <span v-else class="text-stone-400">No tags</span>
+                  <span v-else class="text-[var(--pb-text-subtle)]">No tags</span>
                 </button>
               </td>
 
@@ -143,22 +143,22 @@
                 <div
                   v-if="isEditing(post, 'categories')"
                   :data-inline-editor="inlineEditorKey(post.id, 'categories')"
-                  class="grid gap-2 rounded border border-teal-300 bg-white p-2 shadow-sm"
+                  class="grid gap-2 rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-card-bg)] p-2 shadow-[var(--pb-shadow-sm)]"
                   tabindex="-1"
                   @click.stop
                   @keydown.esc.prevent="cancelCellEdit"
                   @focusout="handleCellFocusOut"
                 >
                   <div class="grid max-h-32 gap-1 overflow-y-auto pr-1">
-                    <label v-for="category in categoryOptions" :key="category.id" class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-stone-700 hover:bg-stone-50">
-                      <input v-model="draft.categoryIds" type="checkbox" :value="category.id" class="rounded border-stone-300" @change="saveCurrentCell()">
+                    <label v-for="category in categoryOptions" :key="category.id" class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-1 py-0.5 text-xs text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)]">
+                      <input v-model="draft.categoryIds" type="checkbox" :value="category.id" class="rounded border-[var(--pb-border-strong)]" @change="saveCurrentCell()">
                       <span>{{ category.name }}</span>
                     </label>
-                    <p v-if="!categoryOptions.length" class="text-xs text-stone-500">No categories yet.</p>
+                    <p v-if="!categoryOptions.length" class="text-xs text-[var(--pb-text-subtle)]">No categories yet.</p>
                   </div>
                   <input
                     v-model="draft.categoryNamesInput"
-                    class="w-full rounded border border-stone-300 px-2 py-1 text-xs outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] px-2 py-1 text-xs text-[var(--pb-text)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
                     placeholder="Add categories, comma separated"
                     @keydown.enter.prevent="saveCurrentCell({ close: true })"
                   >
@@ -167,7 +167,7 @@
                   <span v-if="post.categories?.length" class="flex flex-wrap gap-1">
                     <UBadge v-for="category in post.categories" :key="category.id" color="primary" variant="subtle">{{ category.name }}</UBadge>
                   </span>
-                  <span v-else class="text-stone-400">No categories</span>
+                  <span v-else class="text-[var(--pb-text-subtle)]">No categories</span>
                 </button>
               </td>
 
@@ -176,7 +176,7 @@
                   v-if="isEditing(post, 'visibility')"
                   v-model="draft.visibility"
                   :data-inline-editor="inlineEditorKey(post.id, 'visibility')"
-                  class="w-full rounded border border-teal-300 bg-white px-2 py-1.5 text-sm text-stone-700 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-card-bg)] px-2 py-1.5 text-sm text-[var(--pb-text-muted)] shadow-[var(--pb-shadow-sm)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
                   @click.stop
                   @change="handleVisibilityChange(post)"
                   @keydown.esc.prevent="cancelCellEdit"
@@ -186,7 +186,7 @@
                   <option value="password">Password protected</option>
                   <option value="private">Private</option>
                 </select>
-                <button v-else type="button" class="inline-flex items-center gap-1.5 text-stone-700 hover:text-teal-700">
+                <button v-else type="button" class="inline-flex items-center gap-1.5 text-[var(--pb-text-muted)] hover:text-[var(--pb-link-hover)]">
                   <UIcon :name="visibilityIcon(post.visibility)" class="size-4" />
                   <span>{{ visibilityLabel(post.visibility) }}</span>
                 </button>
@@ -197,7 +197,7 @@
                   v-if="isEditing(post, 'status')"
                   v-model="draft.status"
                   :data-inline-editor="inlineEditorKey(post.id, 'status')"
-                  class="w-full rounded border border-teal-300 bg-white px-2 py-1.5 text-sm text-stone-700 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                  class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-card-bg)] px-2 py-1.5 text-sm text-[var(--pb-text-muted)] shadow-[var(--pb-shadow-sm)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
                   @click.stop
                   @change="saveCurrentCell({ close: true })"
                   @keydown.esc.prevent="cancelCellEdit"
@@ -211,17 +211,17 @@
                 </UBadge>
               </td>
 
-              <td class="px-4 py-3 align-top text-stone-600">
+              <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">
                 <span class="block text-sm">{{ formatContentLength(post) }}</span>
               </td>
 
-              <td class="px-4 py-3 align-top text-stone-600">
+              <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">
                 {{ formatDate(post.published_at, 'Not published') }}
               </td>
 
-              <td class="px-4 py-3 align-top text-stone-600">
+              <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">
                 <span>{{ formatDate(post.updated_at, 'Not set') }}</span>
-                <span v-if="isSavingPost(post.id)" class="mt-1 block text-xs text-teal-700">Saving...</span>
+                <span v-if="isSavingPost(post.id)" class="mt-1 block text-xs text-[var(--pb-link)]">Saving...</span>
               </td>
             </tr>
           </tbody>

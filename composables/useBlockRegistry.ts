@@ -3,6 +3,8 @@ import {
   DEFAULT_DIFF_NEW_LABEL,
   DEFAULT_DIFF_OLD_LABEL,
 } from '~/utils/diffBlock'
+import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME } from '~/extensions/blockquoteEnhanced'
+import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
 
 export type BlockCategory = 'text' | 'media' | 'design' | 'embed' | 'advanced'
 
@@ -95,7 +97,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { color: true, spacing: true, border: true },
     createContent: () => ({
       type: 'blockquote',
-      attrs: { style: 'bar', theme: '#0f766e', fontFamily: 'sans', fontSize: '1rem', fontColor: '#1c1917', backgroundColor: '', authorName: '', authorTitle: '' },
+      attrs: { style: 'bar', theme: DEFAULT_QUOTE_THEME, fontFamily: 'sans', fontSize: '1rem', fontColor: DEFAULT_QUOTE_FONT_COLOR, backgroundColor: '', authorName: '', authorTitle: '' },
       content: [{ type: 'paragraph' }]
     })
   },
@@ -257,7 +259,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'horizontalRule',
-      attrs: { styleType: 'solid', thickness: 1, marginY: 16, color: '#d6d3d1' }
+      attrs: { styleType: 'solid', thickness: 1, marginY: 16, color: DEFAULT_SEPARATOR_COLOR }
     })
   },
   {

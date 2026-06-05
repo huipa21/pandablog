@@ -1,11 +1,11 @@
 <template>
   <section class="grid gap-4">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Logs</p>
-      <h1 class="mt-1 text-3xl font-semibold text-stone-950">Access logs</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Logs</p>
+      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Access logs</h1>
     </header>
 
-    <div class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+    <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
         <UInput v-model="filters.from" type="datetime-local" label="From" />
         <UInput v-model="filters.to" type="datetime-local" label="To" />
@@ -25,9 +25,9 @@
       </div>
     </div>
 
-    <div class="overflow-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+    <div class="overflow-auto rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
       <table class="min-w-full text-sm">
-        <thead class="sticky top-0 bg-stone-50 text-left text-stone-600">
+        <thead class="sticky top-0 bg-[var(--pb-surface-subtle)] text-left text-[var(--pb-text-muted)]">
           <tr>
             <th class="px-3 py-2">Time</th>
             <th class="px-3 py-2">Method</th>
@@ -42,12 +42,12 @@
             <td colspan="6" class="px-3 py-6"><USkeleton class="h-6" /></td>
           </tr>
           <tr v-else-if="!rows.length">
-            <td colspan="6" class="px-3 py-6 text-center text-stone-500">No access logs for current filter.</td>
+            <td colspan="6" class="px-3 py-6 text-center text-[var(--pb-text-subtle)]">No access logs for current filter.</td>
           </tr>
           <tr
             v-for="row in rows"
             :key="String(row.id)"
-            class="cursor-pointer border-t border-stone-100 hover:bg-stone-50"
+            class="cursor-pointer border-t border-[var(--pb-divider)] hover:bg-[var(--pb-card-bg-hover)]"
             :class="Number(row.status_code) >= 500 ? 'bg-rose-50/60' : Number(row.status_code) >= 400 ? 'bg-amber-50/60' : ''"
             @click="selectedRow = row"
           >
@@ -62,17 +62,17 @@
       </table>
     </div>
 
-    <div class="flex items-center justify-between rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
-      <p class="text-sm text-stone-600">Total: {{ total }}</p>
+    <div class="flex items-center justify-between rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-3 shadow-[var(--pb-shadow-sm)]">
+      <p class="text-sm text-[var(--pb-text-muted)]">Total: {{ total }}</p>
       <div class="flex gap-2">
         <UButton size="sm" color="neutral" :disabled="offset <= 0" @click="prevPage">Previous</UButton>
         <UButton size="sm" color="neutral" :disabled="offset + limit >= total" @click="nextPage">Next</UButton>
       </div>
     </div>
 
-    <div v-if="selectedRow" class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+    <div v-if="selectedRow" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="mb-2 flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-stone-900">Log details</h2>
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Log details</h2>
         <UButton size="xs" color="neutral" variant="ghost" @click="copySelected">Copy JSON</UButton>
       </div>
       <pre class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{{ JSON.stringify(selectedRow, null, 2) }}</pre>

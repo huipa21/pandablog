@@ -1,7 +1,7 @@
 <template>
   <footer v-if="footnotes.length > 0 && !hasExplicitFootnotesBlock" class="footnotes mt-12 pt-4">
-    <div class="mb-3 h-px w-3/5 bg-stone-500/70" />
-    <ol class="footnotes-list text-sm text-stone-700">
+    <div class="mb-3 h-px w-3/5 bg-[var(--pb-divider-strong)]" />
+    <ol class="footnotes-list text-sm text-[var(--pb-text-muted)]">
       <li v-for="fn in footnotes" :id="`fn-${fn.id}`" :key="fn.id" class="footnotes-list-item" :data-footnote-id="fn.id">
         <a class="footnote-backref" :href="`#fnref-${fn.id}`" :aria-label="`Back to footnote reference ${fn.index}`">{{ fn.index }}</a>
         <span>{{ fn.content }}</span>

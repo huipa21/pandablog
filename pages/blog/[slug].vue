@@ -15,27 +15,29 @@
       </template>
     </template>
 
-    <div class="pb-content-frame mx-auto">
-      <article v-if="post && !error && !isLocked(post)" class="theme-scope overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
-        <img
-          v-if="post.cover_image"
-          :src="post.cover_image"
-          :alt="post.title"
-          class="h-64 w-full object-cover"
-        >
-        <div class="p-6 md:p-8">
-          <header class="mb-8 border-b border-stone-200 pb-6">
+    <div class="post-shell mx-auto grid gap-8">
+      <article v-if="post && !error && !isLocked(post)" class="theme-scope grid gap-8">
+        <figure v-if="post.cover_image" class="post-hero overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-hero-bg)] shadow-[var(--pb-shadow-md)]">
+          <img
+            :src="post.cover_image"
+            :alt="post.title"
+            class="h-full w-full object-cover"
+          >
+        </figure>
+
+        <div class="post-reading-frame mx-auto w-full rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-sm)] md:p-8">
+          <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-500">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--pb-text-subtle)]">
                 <time v-if="post.published_at" :datetime="post.published_at">
                   {{ formatDate(post.published_at) }}
                 </time>
                 <span class="inline-flex items-center gap-1.5">
-                  <UIcon name="i-lucide-eye" class="size-4" />
+                  <UIcon name="i-lucide-eye" class="size-4 text-[var(--pb-icon-muted)]" />
                   {{ formatViews(post.view_count) }}
                 </span>
                 <span v-if="contentLengthLabel(post)" class="inline-flex items-center gap-1.5">
-                  <UIcon name="i-lucide-file-text" class="size-4" />
+                  <UIcon name="i-lucide-file-text" class="size-4 text-[var(--pb-icon-muted)]" />
                   {{ contentLengthLabel(post) }}
                 </span>
               </div>
@@ -48,8 +50,8 @@
                 </UButton>
               </div>
             </div>
-            <h1 class="mt-2 text-3xl font-bold tracking-normal text-stone-950 md:text-4xl">{{ post.title }}</h1>
-            <p v-if="post.summary" class="mt-3 text-lg leading-relaxed text-stone-600">{{ post.summary }}</p>
+            <h1 class="mt-5 font-[var(--pb-font-display)] text-[clamp(2.25rem,6vw,4.5rem)] font-semibold leading-[1.02] tracking-normal text-[var(--pb-text)]">{{ post.title }}</h1>
+            <p v-if="post.summary" class="mt-4 text-lg leading-relaxed text-[var(--pb-text-muted)] md:text-xl">{{ post.summary }}</p>
           </header>
 
           <div class="blog-content">
@@ -155,7 +157,18 @@ function isLocked(value: PostRecord | PostLockedResponse): value is PostLockedRe
 </script>
 
 <style scoped>
-.pb-content-frame {
+.post-shell {
+  max-width: min(100%, var(--pb-layout-content-max));
+}
+
+.post-hero {
+  aspect-ratio: 16 / 7;
+  min-height: 18rem;
+  max-height: 36rem;
+}
+
+.post-reading-frame {
+  width: clamp(min(100%, var(--pb-post-content-min-width)), 100%, var(--pb-post-content-fluid-width));
   max-width: var(--pb-post-content-max-width);
 }
 </style>

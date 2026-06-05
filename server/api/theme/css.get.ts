@@ -24,8 +24,8 @@ export default defineEventHandler(async (event) => {
   if (previewId) {
     setResponseHeader(event, 'Cache-Control', 'no-store')
   } else {
-    // Use mtime as cache key — clients revalidate when theme file changes
-    setResponseHeader(event, 'Cache-Control', 'public, max-age=300, must-revalidate')
+    // Theme activation changes app_settings without changing the URL, so always revalidate.
+    setResponseHeader(event, 'Cache-Control', 'public, max-age=0, must-revalidate')
     setResponseHeader(event, 'ETag', `"${theme.version}"`)
   }
 

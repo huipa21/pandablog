@@ -1,5 +1,19 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 
+export const DEFAULT_SEPARATOR_COLOR = '#d0d1d2'
+export const SEPARATOR_SELECTED_BORDER_COLOR = '#3e6ae1'
+
+export const SEPARATOR_PALETTE = [
+  DEFAULT_SEPARATOR_COLOR,
+  '#3e6ae1',
+  '#171a20',
+  '#393c41',
+  '#5c5e62',
+  '#8e8e8e',
+  '#eeeeee',
+  '#f4f4f4'
+] as const
+
 export const SeparatorNode = Node.create({
   name: 'horizontalRule',
   group: 'block',
@@ -25,9 +39,9 @@ export const SeparatorNode = Node.create({
         renderHTML: (attrs) => ({ 'data-separator-margin': String(attrs.marginY ?? 16) })
       },
       color: {
-        default: '#d6d3d1',
-        parseHTML: (element) => element.getAttribute('data-separator-color') ?? '#d6d3d1',
-        renderHTML: (attrs) => ({ 'data-separator-color': attrs.color ?? '#d6d3d1' })
+        default: DEFAULT_SEPARATOR_COLOR,
+        parseHTML: (element) => element.getAttribute('data-separator-color') ?? DEFAULT_SEPARATOR_COLOR,
+        renderHTML: (attrs) => ({ 'data-separator-color': attrs.color ?? DEFAULT_SEPARATOR_COLOR })
       }
     }
   },
@@ -40,7 +54,7 @@ export const SeparatorNode = Node.create({
     const styleType = String(node.attrs.styleType ?? 'solid')
     const thickness = Math.max(1, Number(node.attrs.thickness ?? 1))
     const marginY = Math.max(0, Number(node.attrs.marginY ?? 16))
-    const color = String(node.attrs.color ?? '#d6d3d1')
+    const color = String(node.attrs.color ?? DEFAULT_SEPARATOR_COLOR)
 
     const hrStyle = `width: 100%; border: 0; border-top: ${thickness}px ${styleType} ${color}; margin: ${marginY}px 0;`
 

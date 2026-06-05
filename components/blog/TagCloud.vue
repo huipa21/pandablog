@@ -1,6 +1,6 @@
 <template>
-  <div class="rounded-lg border border-stone-200 bg-white p-4">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">Tags</h3>
+  <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Tags</h3>
     <div v-if="pending" class="flex flex-wrap gap-2">
       <USkeleton v-for="index in 5" :key="index" class="h-7 w-16 rounded-full" />
     </div>
@@ -9,14 +9,14 @@
         v-for="tag in tags"
         :key="tag.id"
         :to="`/tag/${tag.slug}`"
-        class="rounded-full bg-stone-100 px-3 py-1 font-medium text-stone-700 transition hover:-translate-y-0.5 hover:bg-teal-50 hover:text-teal-700"
+        class="rounded-full border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] px-3 py-1 font-medium text-[var(--pb-text-muted)] transition hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
         :style="tagStyle(tag.post_count ?? 0)"
       >
         #{{ tag.name }}
-        <span v-if="tag.post_count" class="ml-1 text-stone-400">{{ tag.post_count }}</span>
+        <span v-if="tag.post_count" class="ml-1 text-[var(--pb-text-subtle)]">{{ tag.post_count }}</span>
       </NuxtLink>
     </div>
-    <p v-else class="text-sm italic text-stone-400">No tags yet.</p>
+    <p v-else class="text-sm italic text-[var(--pb-text-subtle)]">No tags yet.</p>
   </div>
 </template>
 

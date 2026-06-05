@@ -39,6 +39,8 @@ export interface PostRecord {
   cover_image?: string | null
   author_username: string
   published_at?: string | null
+  is_featured: boolean
+  featured_at?: string | null
   created_at: string
   updated_at: string
   view_count: number
@@ -61,6 +63,8 @@ export interface PostListItem {
   summary?: string | null
   cover_image?: string | null
   published_at?: string | null
+  is_featured?: boolean
+  featured_at?: string | null
   visibility?: PostVisibility
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="node.type === 'doc'" class="content-body">
+  <div v-if="node.type === 'doc'" class="pb-prose">
     <ContentRenderer v-for="(child, index) in visibleDocChildren" :key="index" :node="child" />
   </div>
   <ContentText v-else-if="node.type === 'text'" :text="node.text ?? ''" :marks="node.marks" />
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
+import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
 import NodeCodeBlock from './NodeCodeBlock.vue'
 import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeDiffBlock from './NodeDiffBlock.vue'
@@ -71,19 +72,19 @@ const tag = computed(() => {
 const nodeClass = computed(() => {
   switch (props.node.type) {
     case 'doc':
-      return 'content-body'
+      return 'pb-prose'
     case 'bulletList':
       return 'list-disc pl-6'
     case 'orderedList':
       return 'list-decimal pl-6'
     case 'blockquote':
-      return 'border-l-4 border-teal-600 pl-4 text-stone-700'
+      return 'border-l-4 border-[var(--pb-link)] pl-4 text-[var(--pb-text-muted)]'
     case 'table':
-      return 'my-6 w-full border-collapse overflow-hidden rounded-lg'
+      return 'my-6 w-full border-collapse overflow-hidden rounded-[var(--pb-radius-lg)]'
     case 'tableHeader':
-      return 'border border-stone-200 bg-stone-100 p-2 font-semibold'
+      return 'border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-2 font-semibold'
     case 'tableCell':
-      return 'border border-stone-200 p-2 align-top'
+      return 'border border-[var(--pb-divider)] p-2 align-top'
     case 'footnotesBlock':
       return 'footnotes-block'
     default:
@@ -111,7 +112,7 @@ const separatorStyle = computed(() => {
   const styleType = String(props.node.attrs?.styleType ?? 'solid')
   const thickness = Math.max(1, Number(props.node.attrs?.thickness ?? 1))
   const marginY = Math.max(0, Number(props.node.attrs?.marginY ?? 16))
-  const color = String(props.node.attrs?.color ?? '#d6d3d1')
+  const color = String(props.node.attrs?.color ?? DEFAULT_SEPARATOR_COLOR)
 
   return {
     border: 0,

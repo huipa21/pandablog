@@ -1,7 +1,7 @@
 <template>
   <div class="imageblock-nodeview my-4 flex" :class="alignClass" :data-align="align">
     <figure class="imageblock-figure relative inline-block" :style="figureStyle">
-      <figcaption v-if="title && titlePosition === 'top'" class="text-center text-sm text-stone-500">{{ title }}</figcaption>
+      <figcaption v-if="title && titlePosition === 'top'" class="text-center text-sm text-[var(--pb-text-subtle)]">{{ title }}</figcaption>
       <div class="relative inline-block w-full">
         <img
           :src="resolvedSrc"
@@ -13,7 +13,7 @@
           loading="lazy"
         >
       </div>
-      <figcaption v-if="title && titlePosition !== 'top'" class="mt-2 text-center text-sm text-stone-500">{{ title }}</figcaption>
+      <figcaption v-if="title && titlePosition !== 'top'" class="mt-2 text-center text-sm text-[var(--pb-text-subtle)]">{{ title }}</figcaption>
     </figure>
   </div>
 </template>

@@ -34,6 +34,8 @@ export function normalizePost(record: Record<string, unknown>): PostRecord {
     cover_image: record.cover_image === undefined ? null : record.cover_image as string | null,
     author_username: String(record.author_username ?? 'admin'),
     published_at: serializeDate(record.published_at),
+    is_featured: cleanFeatured(record.is_featured),
+    featured_at: serializeDate(record.featured_at),
     created_at: serializeDate(record.created_at) ?? new Date().toISOString(),
     updated_at: serializeDate(record.updated_at) ?? new Date().toISOString(),
     view_count: Number(record.view_count ?? 0),
@@ -67,11 +69,13 @@ export function buildPostPayload(input: Record<string, unknown>, authorUsername:
   const now = new Date()
   const summary = stringOrNull(input.summary)
   const coverImage = stringOrNull(input.cover_image)
+  const isFeatured = cleanFeatured(input.is_featured)
   const payload: Record<string, unknown> = {
     title,
     slug: slugify(String(input.slug || title)),
     status,
     author_username: authorUsername,
+    is_featured: isFeatured,
     updated_at: now
   }
 
@@ -87,7 +91,15 @@ export function buildPostPayload(input: Record<string, unknown>, authorUsername:
     payload.published_at = input.published_at ?? now
   }
 
+  if (isFeatured) {
+    payload.featured_at = input.featured_at ?? now
+  }
+
   return payload
+}
+
+export function cleanFeatured(value: unknown) {
+  return value === true || value === 'true' || value === 1 || value === '1'
 }
 
 export function stringOrNull(value: unknown): string | null {

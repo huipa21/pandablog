@@ -14,11 +14,11 @@
 
     <div
       v-if="open"
-      class="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg"
+      class="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]"
       @click.stop
     >
-      <div class="flex items-center justify-between border-b border-stone-100 px-3 py-2">
-        <span class="text-xs font-semibold uppercase tracking-wide text-stone-500">{{ label }}</span>
+      <div class="flex items-center justify-between border-b border-[var(--pb-divider)] px-3 py-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ label }}</span>
         <UButton size="xs" variant="ghost" color="neutral" :disabled="!modelValue.length" @click="clearSelection">
           Clear
         </UButton>
@@ -27,20 +27,20 @@
         <label
           v-for="item in items"
           :key="item.id"
-          class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
+          class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-2 py-1.5 text-sm text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-text)]"
           :class="item.disabled ? 'cursor-not-allowed opacity-50' : ''"
           :style="{ paddingLeft: `${0.5 + (item.level ?? 0) * 1}rem` }"
         >
           <input
             type="checkbox"
-            class="rounded border-stone-300"
+            class="rounded border-[var(--pb-border-strong)]"
             :checked="selectedSet.has(item.id)"
             :disabled="item.disabled"
             @change="toggleItem(item.id, $event)"
           >
           <span class="truncate">{{ item.label ?? item.name }}</span>
         </label>
-        <p v-if="!items.length" class="px-2 py-3 text-sm text-stone-500">No options</p>
+        <p v-if="!items.length" class="px-2 py-3 text-sm text-[var(--pb-text-subtle)]">No options</p>
       </div>
     </div>
   </div>

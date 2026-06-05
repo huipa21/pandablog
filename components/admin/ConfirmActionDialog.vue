@@ -8,16 +8,16 @@
       :aria-labelledby="titleId"
       @click.self="handleCancel"
     >
-      <div class="w-full max-w-lg rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
+      <div class="w-full max-w-lg rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-lg)]">
         <div class="flex items-start gap-3">
           <div class="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
             <UIcon name="i-lucide-triangle-alert" class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
-            <h2 :id="titleId" class="text-lg font-semibold text-stone-950">
+            <h2 :id="titleId" class="text-lg font-semibold text-[var(--pb-text)]">
               {{ title }}
             </h2>
-            <p class="mt-2 text-sm leading-relaxed text-stone-600">
+            <p class="mt-2 text-sm leading-relaxed text-[var(--pb-text-muted)]">
               {{ description }}
             </p>
             <p v-if="error" class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm leading-relaxed text-red-950">

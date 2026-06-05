@@ -1,5 +1,5 @@
 /*
- * Default theme — Notion-inspired
+ * Default theme - original PandaBlog scheme
  * Tokens are injected as CSS custom properties under :root (light) and [data-theme="dark"] (dark)
  * before this file. Use var(--color-bg), var(--font-sans), etc.
  *
@@ -7,7 +7,7 @@
  */
 
 .theme-scope {
-  font-family: var(--font-sans);
+  font-family: var(--font-text, var(--font-sans));
   font-size: var(--size-text-base);
   line-height: 1.7;
   color: var(--color-text);
@@ -16,7 +16,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Layout — three-column wrapper */
+/* Layout - three-column wrapper */
 .theme-scope .blog-layout {
   display: grid;
   grid-template-columns: minmax(200px, 240px) minmax(0, var(--layout-max-content, 720px)) minmax(220px, 280px);
@@ -30,6 +30,7 @@
   .theme-scope .blog-layout {
     grid-template-columns: 1fr;
   }
+
   .theme-scope .blog-layout aside {
     display: none;
   }

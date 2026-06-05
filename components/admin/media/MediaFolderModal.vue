@@ -2,9 +2,9 @@
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex items-center justify-center">
       <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close" @click="emit('close')" />
-      <section class="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 class="text-lg font-semibold text-stone-950">Create Folder</h2>
-        <p class="mt-1 text-sm text-stone-500">Add a folder to organize files in the media library.</p>
+      <section class="relative w-full max-w-md rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-lg)]">
+        <h2 class="text-lg font-semibold text-[var(--pb-text)]">Create Folder</h2>
+        <p class="mt-1 text-sm text-[var(--pb-text-subtle)]">Add a folder to organize files in the media library.</p>
 
         <form class="mt-5 space-y-4" @submit.prevent="submit">
           <UFormField label="Folder name">

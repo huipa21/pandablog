@@ -1,16 +1,16 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Settings</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">Site</h1>
-      <p class="mt-2 max-w-2xl text-sm text-stone-600">Configure the public header, site identity, and browser icon.</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Settings</p>
+      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Site</h1>
+      <p class="mt-2 max-w-2xl text-sm text-[var(--pb-text-muted)]">Configure the public header, site identity, and browser icon.</p>
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
     <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
     <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
 
-    <form class="grid gap-5 rounded-lg border border-stone-200 bg-white p-5 shadow-sm" @submit.prevent="save">
+    <form class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]" @submit.prevent="save">
       <div v-if="pending" class="grid gap-4">
         <USkeleton class="h-10" />
         <USkeleton class="h-10" />
@@ -53,17 +53,17 @@
         />
         <input ref="faviconInput" type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_favicon')">
 
-        <fieldset class="rounded border border-stone-200 p-4">
-          <legend class="px-1 text-sm font-medium text-stone-700">Network</legend>
+        <fieldset class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+          <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">Network</legend>
           <label class="flex cursor-pointer items-start gap-3 text-sm">
             <input
               v-model="form.trust_proxy_headers"
               type="checkbox"
-              class="mt-1 rounded border-stone-300"
+              class="mt-1 rounded border-[var(--pb-border-strong)]"
             >
             <span class="grid gap-1">
-              <span class="font-medium text-stone-900">Trust reverse proxy headers</span>
-              <span class="text-xs text-stone-600">Use forwarded IP headers and secure unlock cookies when deployed behind an HTTPS reverse proxy.</span>
+              <span class="font-medium text-[var(--pb-text)]">Trust reverse proxy headers</span>
+              <span class="text-xs text-[var(--pb-text-muted)]">Use forwarded IP headers and secure unlock cookies when deployed behind an HTTPS reverse proxy.</span>
             </span>
           </label>
         </fieldset>

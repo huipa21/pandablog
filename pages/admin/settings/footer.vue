@@ -1,16 +1,16 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Settings</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">Footer</h1>
-      <p class="mt-2 max-w-2xl text-sm text-stone-600">Configure copyright text, footer links, and social icon links.</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Settings</p>
+      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Footer</h1>
+      <p class="mt-2 max-w-2xl text-sm text-[var(--pb-text-muted)]">Configure copyright text, footer links, and social icon links.</p>
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
     <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
     <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
 
-    <form class="grid gap-6 rounded-lg border border-stone-200 bg-white p-5 shadow-sm" @submit.prevent="save">
+    <form class="grid gap-6 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]" @submit.prevent="save">
       <div v-if="pending" class="grid gap-4">
         <USkeleton class="h-10" />
         <USkeleton class="h-24" />
@@ -24,33 +24,33 @@
 
         <section class="grid gap-3">
           <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-stone-950">Footer links</h2>
+            <h2 class="text-base font-semibold text-[var(--pb-text)]">Footer links</h2>
             <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addFooterLink">Add link</UButton>
           </div>
           <div v-if="form.footer_links.length" class="grid gap-3">
-            <div v-for="(link, index) in form.footer_links" :key="index" class="grid gap-2 rounded-lg border border-stone-200 p-3 md:grid-cols-[1fr_1.6fr_auto]">
+            <div v-for="(link, index) in form.footer_links" :key="index" class="grid gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 md:grid-cols-[1fr_1.6fr_auto]">
               <UInput v-model="link.label" placeholder="Label" icon="i-lucide-type" />
               <UInput v-model="link.url" placeholder="/about or https://..." icon="i-lucide-link" />
               <UButton type="button" icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeFooterLink(index)" />
             </div>
           </div>
-          <p v-else class="rounded-lg border border-dashed border-stone-300 p-4 text-sm text-stone-500">No footer links yet.</p>
+          <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">No footer links yet.</p>
         </section>
 
         <section class="grid gap-3">
           <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-stone-950">Social links</h2>
+            <h2 class="text-base font-semibold text-[var(--pb-text)]">Social links</h2>
             <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addSocialLink">Add social</UButton>
           </div>
           <div v-if="form.footer_social.length" class="grid gap-3">
-            <div v-for="(link, index) in form.footer_social" :key="index" class="grid gap-2 rounded-lg border border-stone-200 p-3 md:grid-cols-[1fr_1fr_1.6fr_auto]">
+            <div v-for="(link, index) in form.footer_social" :key="index" class="grid gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 md:grid-cols-[1fr_1fr_1.6fr_auto]">
               <UInput v-model="link.label" placeholder="Label" icon="i-lucide-type" />
               <UInput v-model="link.icon" placeholder="i-lucide-github" icon="i-lucide-smile" />
               <UInput v-model="link.url" placeholder="https://..." icon="i-lucide-link" />
               <UButton type="button" icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeSocialLink(index)" />
             </div>
           </div>
-          <p v-else class="rounded-lg border border-dashed border-stone-300 p-4 text-sm text-stone-500">No social links yet.</p>
+          <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">No social links yet.</p>
         </section>
 
         <div class="flex justify-end">

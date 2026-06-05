@@ -1,0 +1,42 @@
+{
+  "plugins": ["stylelint-declaration-strict-value"],
+  "ignoreFiles": [
+    "node_modules/**",
+    ".nuxt/**",
+    ".output/**",
+    "coverage/**",
+    "test-results/**",
+    "playwright-report/**"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.vue"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "/color$/",
+        "background-color",
+        "border-color",
+        "box-shadow",
+        "font-family",
+        "border-radius"
+      ],
+      {
+        "severity": "warning",
+        "ignoreValues": [
+          "0",
+          "none",
+          "transparent",
+          "currentColor",
+          "inherit",
+          "initial",
+          "unset"
+        ],
+        "expandShorthand": true
+      }
+    ]
+  }
+}

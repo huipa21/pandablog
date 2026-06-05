@@ -6,6 +6,7 @@ import { initializeLoggingSettings } from '../utils/logging'
 import { initializeRuntimeSettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { computeContentStats } from '~/utils/contentStats'
+import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v1'
@@ -42,6 +43,7 @@ export default defineNitroPlugin(async () => {
 
     await ensureMediaStorageVersion(db)
     await ensureDefaultMediaSettings(db)
+    await ensureDefaultAdminColorMode(db)
     await initializeRuntimeSettings(true)
     await ensureDefaultFolder(db)
     await backfillPostStats(db)
@@ -84,6 +86,21 @@ async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>)
   }
 
   await setAppSetting(db, 'media', DEFAULT_MEDIA_SETTINGS, 'media settings init')
+}
+
+async function ensureDefaultAdminColorMode(db: Awaited<ReturnType<typeof useDb>>) {
+  const colorMode = await queryDb<[Array<{ value?: unknown }> ]>(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: ADMIN_COLOR_MODE_KEY },
+    { label: 'admin color mode lookup', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(colorMode)) {
+    return
+  }
+
+  await setAppSetting(db, ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE, 'admin color mode init')
 }
 
 async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {

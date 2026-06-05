@@ -24,10 +24,10 @@ export default defineEventHandler(async (event) => {
   const taxonomyFilter = filteredPostIds ? 'AND id IN $postIds' : ''
   const response = await queryDb(
     db,
-    `SELECT id, slug, title, summary, cover_image, published_at, visibility
+    `SELECT id, slug, title, summary, cover_image, published_at, visibility, is_featured, featured_at
      FROM post
      WHERE status = "published" ${visibilityFilter} ${taxonomyFilter}
-     ORDER BY published_at DESC
+     ORDER BY is_featured DESC, featured_at DESC, published_at DESC
      LIMIT $limit START $start;
      SELECT count() AS total FROM post WHERE status = "published" ${visibilityFilter} ${taxonomyFilter} GROUP ALL;`,
     { limit, start, postIds: filteredPostIds ?? [] }
@@ -39,6 +39,8 @@ export default defineEventHandler(async (event) => {
     summary: post.summary === undefined ? null : post.summary as string | null,
     cover_image: post.cover_image === undefined ? null : post.cover_image as string | null,
     published_at: post.published_at ? String(post.published_at) : null,
+    is_featured: post.is_featured === true,
+    featured_at: post.featured_at ? String(post.featured_at) : null,
     visibility: normalizeVisibility(post.visibility)
   }))
   const count = firstRow<{ total?: number }>(response, 1)

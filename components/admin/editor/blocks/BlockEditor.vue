@@ -4,7 +4,7 @@
       <div class="relative">
         <div class="block-editor-grid">
           <div class="editor-gutter-col" aria-hidden="true" />
-          <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor tiptap-editor editor-content-col" />
+          <EditorContent v-if="editor" :editor="editor" class="pandablog-block-editor pb-prose editor-content-col" />
           <div class="editor-gutter-col" aria-hidden="true" />
         </div>
 
@@ -13,7 +13,7 @@
           v-if="editor"
           :editor="editor"
           :reference-el="actionsMenuReferenceEl"
-          :visible="actionsMenuVisible"
+          :visible="actionsMenuVisible && !slashOpen"
           :block-type="editorStore.selectedBlockType"
           :has-text-selection="hasTextSelection"
           :selection-tick="selectionTick"
@@ -384,7 +384,7 @@ const editor = useEditor({
     Highlight.configure({ multicolor: true }),
     FontFamily,
     SeparatorNode,
-    Dropcursor.configure({ color: '#0f766e', width: 2 }),
+    Dropcursor.configure({ color: 'var(--pb-primary)', width: 2 }),
     CodeBlockEnhanced.configure({
       lowlight,
       defaultLanguage: 'text'
@@ -602,6 +602,26 @@ const editor = useEditor({
           event.preventDefault()
           return true
         }
+      }
+
+      if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const { selection } = view.state
+        if (selection instanceof NodeSelection) {
+          const ed = editor.value
+          if (!ed) return false
+          const editableEnd = editableDocumentEndPos(ed)
+          const trailingPara = findTopLevelBlockEndingAt(ed, editableEnd)
+          if (
+            trailingPara?.node.type.name === 'paragraph'
+            && trailingPara.node.content.size === 0
+            && selection.to === trailingPara.from
+          ) {
+            ed.chain().focus().setTextSelection(trailingPara.from + 1).run()
+            event.preventDefault()
+            return true
+          }
+        }
+        return false
       }
 
       if (!slashOpen.value) return false

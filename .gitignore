@@ -22,14 +22,22 @@ storage/downloads/*
 !storage/downloads/.gitkeep
 pandablog.code-workspace
 
-# Themes — keep default, ignore others
+# Themes - keep built-ins, ignore uploaded/custom themes
 themes/*
 !themes/default/
 !themes/default/**
+!themes/tesla/
+!themes/tesla/**
+!themes/notion/
+!themes/notion/**
+!themes/clay/
+!themes/clay/**
 
 
 tests
 test-results
 .playwright-mcp/
 .vscode/
-.github/
+.github/*
+!.github/workflows/
+!.github/workflows/**

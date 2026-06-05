@@ -438,13 +438,13 @@
             <div class="flex items-center gap-2">
               <input
                 type="color"
-                :value="String(attrs.theme ?? '#0f766e')"
+                :value="String(attrs.theme ?? DEFAULT_QUOTE_THEME)"
                 class="h-10 w-16 rounded border border-stone-200"
                 @input="updateAttrs({ theme: ($event.target as HTMLInputElement).value })"
               >
               <UInput
-                :model-value="String(attrs.theme ?? '#0f766e')"
-                placeholder="#0f766e"
+                :model-value="String(attrs.theme ?? DEFAULT_QUOTE_THEME)"
+                :placeholder="DEFAULT_QUOTE_THEME"
                 class="flex-1"
                 @update:model-value="updateAttrs({ theme: String($event) })"
               />
@@ -481,13 +481,13 @@
               <div class="flex items-center gap-2">
                 <input
                   type="color"
-                  :value="String(attrs.fontColor ?? '#1c1917')"
+                  :value="String(attrs.fontColor ?? DEFAULT_QUOTE_FONT_COLOR)"
                   class="h-10 w-16 rounded border border-stone-200"
                   @input="updateAttrs({ fontColor: ($event.target as HTMLInputElement).value })"
                 >
                 <UInput
-                  :model-value="String(attrs.fontColor ?? '#1c1917')"
-                  placeholder="#1c1917"
+                  :model-value="String(attrs.fontColor ?? DEFAULT_QUOTE_FONT_COLOR)"
+                  :placeholder="DEFAULT_QUOTE_FONT_COLOR"
                   class="flex-1"
                   @update:model-value="updateAttrs({ fontColor: String($event) })"
                 />
@@ -554,7 +554,7 @@
                 :key="`sep-${color}`"
                 type="button"
                 class="h-7 rounded border"
-                :style="{ backgroundColor: color, borderColor: color === String(attrs.color ?? '#d6d3d1') ? '#0f766e' : '#d6d3d1' }"
+                :style="{ backgroundColor: color, borderColor: color === String(attrs.color ?? DEFAULT_SEPARATOR_COLOR) ? SEPARATOR_SELECTED_BORDER_COLOR : DEFAULT_SEPARATOR_COLOR }"
                 :title="color"
                 @click="setSeparatorColor(color)"
               />
@@ -563,8 +563,8 @@
           <details class="rounded-md border border-stone-200 p-2">
             <summary class="cursor-pointer text-xs font-medium text-stone-700">Advanced color (picker + RGB/HEX)</summary>
             <div class="mt-2 grid grid-cols-[auto,1fr] items-center gap-2">
-              <input type="color" :value="String(attrs.color ?? '#d6d3d1')" class="h-9 w-12 rounded border border-stone-200" @input="setSeparatorColor(($event.target as HTMLInputElement).value)">
-              <UInput :model-value="String(attrs.color ?? '#d6d3d1')" placeholder="#d6d3d1" @update:model-value="setSeparatorColorHex" />
+              <input type="color" :value="String(attrs.color ?? DEFAULT_SEPARATOR_COLOR)" class="h-9 w-12 rounded border border-stone-200" @input="setSeparatorColor(($event.target as HTMLInputElement).value)">
+              <UInput :model-value="String(attrs.color ?? DEFAULT_SEPARATOR_COLOR)" :placeholder="DEFAULT_SEPARATOR_COLOR" @update:model-value="setSeparatorColorHex" />
             </div>
           </details>
           <UFormField label="Vertical margin (px)">
@@ -632,7 +632,8 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES } from '~/extensions/codeBlockEnhanced'
-import { QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
+import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME, QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
+import { DEFAULT_SEPARATOR_COLOR, SEPARATOR_PALETTE, SEPARATOR_SELECTED_BORDER_COLOR } from '~/extensions/separator'
 import type { JsonContent } from '~/types/content'
 import { DIFF_BLOCK_LANGUAGES, normalizeDiffLanguage } from '~/utils/diffBlock'
 
@@ -730,7 +731,7 @@ const ratioPresetItems = [
   { label: '70 / 30', value: '70' }
 ]
 
-const separatorPalette = ['#d6d3d1', '#0f766e', '#1d4ed8', '#7c3aed', '#be123c', '#d97706', '#111827', '#9ca3af']
+const separatorPalette = [...SEPARATOR_PALETTE]
 
 const quoteStyleItems = QUOTE_STYLES.map((s) => ({ label: s.label, value: s.value as string }))
 const fontFamilyItems = QUOTE_FONT_FAMILIES.map((f) => ({ label: f.label, value: f.value as string }))
@@ -1173,7 +1174,7 @@ function setSeparatorMargin(value: unknown) {
 }
 
 function setSeparatorColor(value: string) {
-  updateAttrs({ color: value || '#d6d3d1' })
+  updateAttrs({ color: value || DEFAULT_SEPARATOR_COLOR })
 }
 
 function setSeparatorColorHex(value: unknown) {

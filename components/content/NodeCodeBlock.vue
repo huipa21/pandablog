@@ -1,6 +1,6 @@
 <template>
   <div
-    :class="['codeblock-nodeview', 'codeblock-public-wrap', `code-theme-${theme}`]"
+    :class="['codeblock-nodeview', 'codeblock-wrap', `code-theme-${theme}`]"
     :data-theme="theme"
     :data-language="language"
     :data-line-highlights="lineHighlights"
@@ -9,12 +9,12 @@
     :style="{ '--pb-code-zoom': String(zoom) }"
   >
     <div
-      class="codeblock-public-header"
+      class="codeblock-header"
     >
-      <div class="codeblock-public-header-left">
+      <div class="codeblock-header-left">
         <button
           type="button"
-          class="codeblock-public-action"
+          class="codeblock-action"
           :title="collapsed ? 'Expand code' : 'Collapse code'"
           @click="toggleCollapsed"
         >
@@ -26,19 +26,19 @@
         <span v-if="showTotalLines" class="opacity-50">·</span>
         <span v-if="showTotalLines" class="opacity-70">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
       </div>
-      <div class="codeblock-public-header-right">
+      <div class="codeblock-header-right">
         <button
           type="button"
-          class="codeblock-public-action"
+          class="codeblock-action"
           title="Zoom out"
           @click="adjustZoom(-0.1)"
         >
           <UIcon name="i-lucide-minus" class="size-3" />
         </button>
-        <span class="codeblock-public-zoom">{{ Math.round(zoom * 100) }}%</span>
+        <span class="codeblock-zoom">{{ Math.round(zoom * 100) }}%</span>
         <button
           type="button"
-          class="codeblock-public-action"
+          class="codeblock-action"
           title="Zoom in"
           @click="adjustZoom(0.1)"
         >
@@ -46,7 +46,7 @@
         </button>
         <button
           type="button"
-          class="codeblock-public-action"
+          class="codeblock-action"
           :class="wrapLines ? 'is-active' : ''"
           :aria-pressed="wrapLines ? 'true' : 'false'"
           :title="wrapLines ? 'Wrap: on' : 'Wrap: off'"
@@ -58,7 +58,7 @@
         <span class="codeblock-lang-pill">{{ languageLabel }}</span>
         <button
           type="button"
-          class="codeblock-public-copy"
+          class="codeblock-copy"
           :title="copied ? 'Copied!' : 'Copy code'"
           @click="copy"
         >
@@ -69,12 +69,12 @@
     </div>
     <div
       ref="bodyEl"
-      class="codeblock-public-body-wrap"
+      class="codeblock-body-wrap"
       :class="{ 'is-collapsed': collapsible && collapsed }"
       :style="bodyStyle"
     >
-      <div :class="['codeblock-public-body', lineNumbers ? 'with-line-numbers' : '', wrapLines ? 'is-wrapped' : '']" v-html="highlightedHtml || fallbackHtml" />
-      <div v-if="collapsed && collapsible" class="codeblock-public-fade" />
+      <div :class="['codeblock-body', lineNumbers ? 'with-line-numbers' : '', wrapLines ? 'is-wrapped' : '']" v-html="highlightedHtml || fallbackHtml" />
+      <div v-if="collapsed && collapsible" class="codeblock-fade" />
     </div>
     <div v-if="collapsible" class="codeblock-tail">
       <button type="button" class="codeblock-tail-btn" @click="toggleCollapsed">
@@ -374,7 +374,7 @@ function escapeAttr(value: string) {
 <style>
 @import '~/assets/css/code-themes.css';
 
-.codeblock-public-wrap {
+.codeblock-wrap {
   /* Slightly smaller font and explicit line-height to match VS Code rhythm */
   --code-font-size: var(--pb-code-font-size);
   --code-line-height: var(--pb-code-line-height);
@@ -390,7 +390,7 @@ function escapeAttr(value: string) {
   box-shadow: none;
 }
 
-.codeblock-public-header {
+.codeblock-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -406,30 +406,30 @@ function escapeAttr(value: string) {
   letter-spacing: normal;
 }
 
-.codeblock-public-wrap[data-theme="github-light"] .codeblock-public-header,
-.codeblock-public-wrap[data-theme="vs-light"] .codeblock-public-header,
-.codeblock-public-wrap[data-theme="solarized-light"] .codeblock-public-header {
+.codeblock-wrap[data-theme="github-light"] .codeblock-header,
+.codeblock-wrap[data-theme="vs-light"] .codeblock-header,
+.codeblock-wrap[data-theme="solarized-light"] .codeblock-header {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.codeblock-public-header-left,
-.codeblock-public-header-right {
+.codeblock-header-left,
+.codeblock-header-right {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
 }
 
-.codeblock-public-header-left {
+.codeblock-header-left {
   font-weight: 500;
 }
 
-.codeblock-public-header-right {
+.codeblock-header-right {
   gap: 0.5rem;
   flex-shrink: 0;
 }
 
-.codeblock-public-action {
+.codeblock-action {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
@@ -443,17 +443,17 @@ function escapeAttr(value: string) {
   line-height: 1;
 }
 
-.codeblock-public-action:hover {
+.codeblock-action:hover {
   opacity: 1;
   border-color: rgba(127, 127, 127, 0.44);
 }
 
-.codeblock-public-action.is-active {
+.codeblock-action.is-active {
   background: rgba(127, 127, 127, 0.2);
   opacity: 1;
 }
 
-.codeblock-public-zoom {
+.codeblock-zoom {
   font-size: 0.68rem;
   opacity: 0.8;
   min-width: 2.2rem;
@@ -473,7 +473,7 @@ function escapeAttr(value: string) {
   opacity: 0.85;
 }
 
-.codeblock-public-copy {
+.codeblock-copy {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -488,22 +488,22 @@ function escapeAttr(value: string) {
   line-height: 1;
 }
 
-.codeblock-public-copy:hover {
+.codeblock-copy:hover {
   opacity: 1;
   border-color: rgba(127, 127, 127, 0.44);
 }
 
-.codeblock-public-body-wrap {
+.codeblock-body-wrap {
   position: relative;
   overflow: hidden;
   transition: max-height 0.25s ease;
 }
 
-.codeblock-public-body-wrap.is-collapsed {
+.codeblock-body-wrap.is-collapsed {
   overflow: hidden;
 }
 
-.codeblock-public-fade {
+.codeblock-fade {
   position: absolute;
   left: 0;
   right: 0;
@@ -513,7 +513,7 @@ function escapeAttr(value: string) {
   background: linear-gradient(to bottom, transparent, var(--code-bg, #1e1e1e));
 }
 
-.codeblock-public-body pre {
+.codeblock-body pre {
   margin: 0;
   padding: var(--code-block-padding-y) 1rem;
   overflow-x: auto;
@@ -527,8 +527,8 @@ function escapeAttr(value: string) {
   outline: 0 !important;
 }
 
-.codeblock-public-body pre code,
-.codeblock-public-body pre code * {
+.codeblock-body pre code,
+.codeblock-body pre code * {
   line-height: calc(var(--code-line-height) * var(--pb-code-zoom));
   font-size: calc(var(--code-font-size) * var(--pb-code-zoom));
   border: 0 !important;
@@ -536,25 +536,25 @@ function escapeAttr(value: string) {
   outline: 0 !important;
 }
 
-.codeblock-public-body pre code {
+.codeblock-body pre code {
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
 }
 
-.codeblock-public-body.is-wrapped pre code {
+.codeblock-body.is-wrapped pre code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.codeblock-public-body .hljs,
-.codeblock-public-body .hljs code,
-.codeblock-public-body .line {
+.codeblock-body .hljs,
+.codeblock-body .hljs code,
+.codeblock-body .line {
   background: transparent !important;
   color: inherit;
 }
 
-.codeblock-public-body .line {
+.codeblock-body .line {
   display: block;
   width: 100%;
   min-height: var(--code-line-height);
@@ -562,27 +562,27 @@ function escapeAttr(value: string) {
   font-size: var(--code-font-size);
 }
 
-.codeblock-public-body .line.is-highlighted {
+.codeblock-body .line.is-highlighted {
   background: rgba(250, 204, 21, 0.16) !important;
 }
 
-.codeblock-public-body.with-line-numbers .line.line-numbered.is-highlighted .ln {
+.codeblock-body.with-line-numbers .line.line-numbered.is-highlighted .ln {
   color: rgba(250, 204, 21, 0.95);
   background: rgba(250, 204, 21, 0.12);
 }
 
-.codeblock-public-body.with-line-numbers pre code {
+.codeblock-body.with-line-numbers pre code {
   counter-reset: code-line;
   display: block;
 }
 
-.codeblock-public-body.with-line-numbers .line.line-numbered {
+.codeblock-body.with-line-numbers .line.line-numbered {
   display: grid;
   grid-template-columns: var(--code-line-number-gutter-width) minmax(0, 1fr);
   align-items: start;
 }
 
-.codeblock-public-body.with-line-numbers .line.line-numbered .ln {
+.codeblock-body.with-line-numbers .line.line-numbered .ln {
   display: inline-block;
   height: var(--code-line-height);
   line-height: var(--code-line-height);
@@ -596,19 +596,19 @@ function escapeAttr(value: string) {
   user-select: none;
 }
 
-.codeblock-public-body.with-line-numbers .line.line-numbered .lc {
+.codeblock-body.with-line-numbers .line.line-numbered .lc {
   min-width: 0;
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
 }
 
-.codeblock-public-body.is-wrapped.with-line-numbers .line.line-numbered .lc {
+.codeblock-body.is-wrapped.with-line-numbers .line.line-numbered .lc {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.codeblock-public-body.with-line-numbers .line:not(:has(.ln)) {
+.codeblock-body.with-line-numbers .line:not(:has(.ln)) {
   display: block;
   width: 100%;
   padding-left: var(--code-line-number-gutter-width);
@@ -618,7 +618,7 @@ function escapeAttr(value: string) {
   font-size: var(--code-font-size);
 }
 
-.codeblock-public-body.with-line-numbers .line:not(:has(.ln))::before {
+.codeblock-body.with-line-numbers .line:not(:has(.ln))::before {
   counter-increment: code-line;
   content: counter(code-line);
   position: absolute;
@@ -639,13 +639,13 @@ function escapeAttr(value: string) {
 }
 
 /* When server-rendered HTML includes explicit .ln nodes, disable pseudo-counter numbers. */
-.codeblock-public-body.with-line-numbers .line:has(.ln)::before {
+.codeblock-body.with-line-numbers .line:has(.ln)::before {
   content: none;
   counter-increment: none;
   display: none;
 }
 
-.codeblock-public-body.with-line-numbers .line:has(.ln) {
+.codeblock-body.with-line-numbers .line:has(.ln) {
   padding-left: 0;
   position: static;
 }

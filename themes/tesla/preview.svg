@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-label="Tesla theme preview">
+  <rect width="1280" height="720" fill="#ffffff"/>
+  <rect y="0" width="1280" height="72" fill="#ffffff"/>
+  <text x="72" y="45" font-family="Arial, sans-serif" font-size="22" font-weight="600" fill="#171a20">PandaBlog</text>
+  <text x="1030" y="44" font-family="Arial, sans-serif" font-size="14" fill="#393c41">Search</text>
+  <rect x="1115" y="22" width="110" height="32" rx="4" fill="#3e6ae1"/>
+  <text x="1142" y="43" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#ffffff">Write</text>
+  <rect x="72" y="122" width="210" height="420" fill="#ffffff"/>
+  <rect x="330" y="118" width="620" height="500" fill="#ffffff"/>
+  <rect x="998" y="122" width="210" height="300" fill="#ffffff"/>
+  <text x="330" y="178" font-family="Arial, sans-serif" font-size="52" font-weight="500" fill="#171a20">A quiet reading space</text>
+  <text x="330" y="226" font-family="Arial, sans-serif" font-size="17" fill="#393c41">White canvas, carbon text, and electric blue moments.</text>
+  <rect x="330" y="282" width="620" height="1" fill="#eeeeee"/>
+  <rect x="330" y="330" width="620" height="14" rx="4" fill="#f4f4f4"/>
+  <rect x="330" y="366" width="520" height="14" rx="4" fill="#f4f4f4"/>
+  <rect x="330" y="402" width="585" height="14" rx="4" fill="#f4f4f4"/>
+  <rect x="330" y="462" width="190" height="40" rx="4" fill="#3e6ae1"/>
+  <rect x="538" y="462" width="190" height="40" rx="4" fill="#ffffff" stroke="#d0d1d2"/>
+  <circle cx="177" cy="142" r="4" fill="#3e6ae1"/>
+  <rect x="100" y="172" width="130" height="8" rx="3" fill="#eeeeee"/>
+  <rect x="100" y="202" width="160" height="8" rx="3" fill="#eeeeee"/>
+  <rect x="1028" y="152" width="130" height="10" rx="3" fill="#eeeeee"/>
+  <rect x="1028" y="184" width="100" height="10" rx="3" fill="#eeeeee"/>
+</svg>

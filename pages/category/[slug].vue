@@ -1,8 +1,8 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Category</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">{{ title }}</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Category</p>
+      <h1 class="mt-1 font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ title }}</h1>
     </header>
 
     <BlogPostCardList

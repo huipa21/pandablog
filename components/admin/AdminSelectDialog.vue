@@ -8,11 +8,11 @@
       :aria-labelledby="titleId"
       @click.self="handleCancel"
     >
-      <section class="w-full max-w-lg rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
-        <h2 :id="titleId" class="text-lg font-semibold text-stone-950">
+      <section class="w-full max-w-lg rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-lg)]">
+        <h2 :id="titleId" class="text-lg font-semibold text-[var(--pb-text)]">
           {{ title }}
         </h2>
-        <p v-if="description" class="mt-2 text-sm leading-relaxed text-stone-600">
+        <p v-if="description" class="mt-2 text-sm leading-relaxed text-[var(--pb-text-muted)]">
           {{ description }}
         </p>
 

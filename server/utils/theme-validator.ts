@@ -15,6 +15,7 @@ export const ThemeManifestSchema = z.object({
     leftSidebar: z.enum(['toc', 'nav']).nullable(),
     rightSidebar: z.enum(['meta-graph', 'meta', 'related']).nullable(),
     maxContentWidth: z.string().regex(/^\d+(\.\d+)?(px|rem|em|ch|%)$/),
+    variant: z.string().regex(/^[a-z0-9][a-z0-9-]{1,49}$/).optional(),
     showCoverImage: z.boolean(),
     stickyHeader: z.boolean()
   })
@@ -28,7 +29,8 @@ const TokenGroupSchema = z.object({
   size: z.record(z.string(), z.string()).optional(),
   space: z.record(z.string(), z.string()).optional(),
   radius: z.record(z.string(), z.string()).optional(),
-  shadow: z.record(z.string(), z.string()).optional()
+  shadow: z.record(z.string(), z.string()).optional(),
+  layout: z.record(z.string(), z.string()).optional()
 })
 
 export const ThemeTokensSchema = z.object({

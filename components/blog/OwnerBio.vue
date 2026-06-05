@@ -1,5 +1,5 @@
 <template>
-  <div v-if="hasProfile" class="rounded-lg border border-stone-200 bg-white p-4">
+  <div v-if="hasProfile" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
     <div class="flex items-center gap-3">
       <img
         v-if="ownerAvatar"
@@ -7,12 +7,12 @@
         :alt="ownerName"
         class="h-12 w-12 rounded-full object-cover"
       >
-      <div v-else class="flex h-12 w-12 items-center justify-center rounded-full bg-teal-100 text-teal-700">
-        <UIcon name="i-lucide-user" class="size-6" />
+      <div v-else class="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--pb-selected-bg)] text-[var(--pb-icon-accent)]">
+        <UIcon name="i-lucide-user" class="size-6 text-[var(--pb-icon-accent)]" />
       </div>
       <div>
-        <div class="font-semibold text-stone-900">{{ ownerName }}</div>
-        <div v-if="ownerMotto" class="mt-0.5 text-xs text-stone-500">{{ ownerMotto }}</div>
+        <div class="font-semibold text-[var(--pb-text)]">{{ ownerName }}</div>
+        <div v-if="ownerMotto" class="mt-0.5 text-xs text-[var(--pb-text-subtle)]">{{ ownerMotto }}</div>
       </div>
     </div>
     <div v-if="ownerBio" class="prose prose-stone mt-3 max-w-none text-sm leading-relaxed">

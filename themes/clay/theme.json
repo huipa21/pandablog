@@ -1,0 +1,20 @@
+{
+  "id": "clay",
+  "name": "Clay",
+  "version": "1.0.0",
+  "author": "PandaBlog",
+  "description": "Clay-inspired cream-canvas theme with black actions, rounded display type, saturated accent tokens, and warm card chrome.",
+  "supports": ["light", "dark"],
+  "preview": "preview.svg",
+  "tokens": "tokens.json",
+  "css": "theme.css",
+  "layout": {
+    "type": "three-column",
+    "leftSidebar": "toc",
+    "rightSidebar": "meta-graph",
+    "maxContentWidth": "72rem",
+    "variant": "clay-magazine",
+    "showCoverImage": true,
+    "stickyHeader": true
+  }
+}

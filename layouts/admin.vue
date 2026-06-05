@@ -6,7 +6,7 @@
       :class="hideSidebar ? 'md:left-0' : (collapsed ? 'md:left-[68px]' : 'md:left-64')"
     >
       <div class="pb-admin-topbar flex h-14 items-center justify-between px-4">
-        <div class="flex items-center gap-3">
+        <div class="flex min-w-0 items-center gap-3">
           <button
             v-if="!hideSidebar"
             class="grid size-10 place-items-center rounded-[var(--pb-radius-md)] text-[var(--pb-text-muted)] md:hidden"
@@ -20,11 +20,37 @@
             <PandaLogo v-else :size="28" class="text-[var(--pb-primary)]" />
             <span class="hidden sm:inline">{{ siteName }}</span>
           </NuxtLink>
+          <nav v-if="breadcrumbs.length" class="hidden min-w-0 items-center gap-1 text-sm text-[var(--pb-text-subtle)] xl:flex" aria-label="Admin breadcrumbs">
+            <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0" />
+            <template v-for="(crumb, index) in breadcrumbs" :key="crumb.to">
+              <NuxtLink
+                v-if="index < breadcrumbs.length - 1"
+                :to="crumb.to"
+                class="max-w-40 truncate rounded-[var(--pb-radius-sm)] px-2 py-1 transition hover:bg-[var(--pb-surface-subtle)] hover:text-[var(--pb-text)]"
+              >
+                {{ crumb.label }}
+              </NuxtLink>
+              <span v-else class="max-w-52 truncate px-2 py-1 font-medium text-[var(--pb-text)]">
+                {{ crumb.label }}
+              </span>
+              <UIcon v-if="index < breadcrumbs.length - 1" name="i-lucide-chevron-right" class="size-4 shrink-0" />
+            </template>
+          </nav>
         </div>
         <div class="flex items-center gap-2">
           <div class="hidden md:block">
             <BlogSearchBar variant="header" placeholder="Search posts…" />
           </div>
+          <UButton
+            variant="ghost"
+            color="neutral"
+            :icon="themeModeIcon"
+            :aria-label="themeModeLabel"
+            :title="themeModeLabel"
+            size="sm"
+            :loading="themeModeSaving"
+            @click="toggleThemeMode"
+          />
           <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-external-link" size="sm">
             View site
           </UButton>
@@ -50,13 +76,13 @@
     >
       <NuxtLink
         to="/admin"
-        class="mb-4 flex h-12 items-center gap-3 rounded-[var(--pb-radius-lg)] bg-white/12 px-3 text-white"
+        class="mb-4 flex h-12 items-center gap-3 rounded-[var(--pb-radius-lg)] bg-[var(--pb-surface-subtle)] px-3 text-[var(--pb-text)]"
         :class="collapsed ? 'md:justify-center md:px-0' : ''"
         :title="collapsed ? siteName : undefined"
         @click="closeIfMobile"
       >
         <img v-if="siteLogo" :src="siteLogo" alt="" class="h-7 w-7 shrink-0">
-        <PandaLogo v-else :size="28" class="text-white" />
+        <PandaLogo v-else :size="28" class="text-[var(--pb-primary)]" />
         <span v-if="!collapsed" class="truncate font-semibold">{{ siteName }}</span>
       </NuxtLink>
 
@@ -64,13 +90,13 @@
         <template v-for="section in navSections" :key="section.label || 'root'">
           <div
             v-if="section.label && !collapsed"
-            class="mt-4 mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-white/60"
+            class="mt-4 mb-1 px-3 text-xs font-medium text-[var(--pb-text-subtle)]"
           >
             {{ section.label }}
           </div>
           <div
             v-else-if="section.label && collapsed"
-            class="mx-2 my-3 hidden border-t border-white/20 md:block"
+            class="mx-2 my-3 hidden border-t border-[var(--pb-border)] md:block"
             aria-hidden="true"
           />
           <NuxtLink
@@ -81,8 +107,8 @@
             :class="[
               collapsed ? 'md:justify-center md:px-0' : '',
               isActiveNav(item.to)
-                ? 'bg-white text-[var(--pb-primary)] shadow-[var(--pb-shadow-sm)]'
-                : 'text-white/90 hover:bg-white/14 hover:text-white'
+                ? 'bg-[var(--pb-selected-bg)] text-[var(--pb-primary)]'
+                : 'text-[var(--pb-text-muted)] hover:bg-[var(--pb-surface-subtle)] hover:text-[var(--pb-text)]'
             ]"
             :title="collapsed ? item.label : undefined"
             @click="closeIfMobile"
@@ -95,7 +121,7 @@
 
       <button
         type="button"
-        class="mt-3 hidden h-10 items-center gap-2 rounded-[var(--pb-radius-lg)] px-3 text-sm font-medium text-white/85 transition hover:bg-white/14 hover:text-white md:flex"
+        class="mt-3 hidden h-10 items-center gap-2 rounded-[var(--pb-radius-lg)] px-3 text-sm font-medium text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-surface-subtle)] hover:text-[var(--pb-text)] md:flex"
         :class="collapsed ? 'md:justify-center md:px-0' : ''"
         :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
         :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
@@ -116,7 +142,28 @@
 </template>
 
 <script setup lang="ts">
+import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
+
 const { siteName, siteLogo } = useSiteSettings()
+const { data: adminSettings } = await useAsyncData('admin-layout-settings', () => $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings'), {
+  default: () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE } })
+})
+const {
+  toggleIcon: themeModeIcon,
+  toggleLabel: themeModeLabel,
+  saving: themeModeSaving,
+  toggleThemeMode
+} = useThemeMode({
+  defaultMode: DEFAULT_ADMIN_COLOR_MODE,
+  initialMode: () => adminSettings.value?.settings?.[ADMIN_COLOR_MODE_KEY],
+  persist: async (mode) => {
+    const response = await $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings', {
+      method: 'POST',
+      body: { [ADMIN_COLOR_MODE_KEY]: mode }
+    })
+    adminSettings.value = response
+  }
+})
 const route = useRoute()
 const hideSidebar = computed(() => route.meta.adminHideSidebar === true)
 
@@ -202,6 +249,41 @@ const navSections = [
     ]
   }
 ]
+
+const breadcrumbLabels: Record<string, string> = {
+  admin: 'Dashboard',
+  posts: 'Posts',
+  categories: 'Categories',
+  tags: 'Tags',
+  media: 'Media library',
+  settings: 'Settings',
+  site: 'Site',
+  profile: 'Profile',
+  footer: 'Footer',
+  visibility: 'Visibility',
+  themes: 'Themes',
+  logs: 'Logs',
+  access: 'Access',
+  activity: 'Activity',
+  errors: 'Errors',
+  setup: 'Setup',
+  login: 'Login'
+}
+
+const breadcrumbs = computed(() => {
+  const parts = route.path.split('/').filter(Boolean)
+  if (parts[0] !== 'admin' || parts.length <= 1) {
+    return []
+  }
+
+  return parts.map((part, index) => {
+    const to = `/${parts.slice(0, index + 1).join('/')}`
+    return {
+      to,
+      label: breadcrumbLabels[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
+    }
+  })
+})
 
 function isActiveNav(to: string) {
   if (to === '/admin') return route.path === to

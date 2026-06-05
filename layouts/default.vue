@@ -1,25 +1,26 @@
 <template>
   <div class="flex min-h-screen flex-col bg-[var(--pb-app-bg)] text-[var(--pb-text)]">
     <!-- Full-width header with optional banner -->
-    <header class="relative bg-[var(--pb-primary)] text-[var(--pb-primary-contrast)]">
+    <header class="relative border-b border-[var(--pb-divider)] bg-[var(--pb-surface)] text-[var(--pb-text)]">
       <img
         v-if="siteBanner"
         :src="siteBanner"
         alt=""
-        class="absolute inset-0 h-full w-full object-cover opacity-60"
+        class="absolute inset-0 h-full w-full object-cover opacity-70"
       >
-      <div class="relative flex w-full items-center gap-4 px-5 py-6">
+      <div v-if="siteBanner" class="absolute inset-0 bg-[var(--pb-hero-overlay)]" />
+      <div class="relative mx-auto flex w-full max-w-[var(--pb-layout-content-max)] items-center gap-4 px-5 py-6">
         <img v-if="siteLogo" :src="siteLogo" alt="" class="h-10 w-auto rounded">
         <div>
-          <h1 class="text-xl font-bold tracking-tight">{{ siteName }}</h1>
+          <h1 class="font-[var(--pb-font-display)] text-2xl font-semibold tracking-normal">{{ siteName }}</h1>
           <p v-if="siteSubtitle" class="text-sm opacity-80">{{ siteSubtitle }}</p>
         </div>
       </div>
     </header>
 
     <!-- Navigation strip -->
-    <nav class="sticky top-0 z-20 border-b border-[var(--pb-border)] bg-[color-mix(in_srgb,var(--pb-surface)_94%,transparent)] shadow-[var(--pb-shadow-sm)] backdrop-blur">
-      <div class="flex w-full items-center justify-between px-5">
+    <nav class="sticky top-0 z-20 border-b border-[var(--pb-border)] bg-[color-mix(in_srgb,var(--pb-surface)_75%,transparent)] backdrop-blur">
+      <div class="mx-auto flex w-full max-w-[var(--pb-layout-content-max)] items-center justify-between gap-4 px-5">
         <div class="flex items-center gap-1">
           <button class="py-3 md:hidden" @click="mobileNav = !mobileNav">
             <UIcon name="i-lucide-menu" class="size-5 text-[var(--pb-text-muted)]" />
@@ -29,9 +30,20 @@
             <UButton to="/" variant="ghost" color="neutral" size="sm">Blog</UButton>
           </div>
         </div>
-        <UButton :to="authLink" variant="ghost" color="neutral" :icon="authIcon" size="sm">
-          {{ authLabel }}
-        </UButton>
+        <div class="flex items-center gap-2">
+          <UButton
+            variant="ghost"
+            color="neutral"
+            :icon="themeModeIcon"
+            :aria-label="themeModeLabel"
+            :title="themeModeLabel"
+            size="sm"
+            @click="toggleThemeMode"
+          />
+          <UButton :to="authLink" variant="ghost" color="neutral" :icon="authIcon" size="sm">
+            {{ authLabel }}
+          </UButton>
+        </div>
       </div>
       <!-- Mobile nav dropdown -->
       <div v-if="mobileNav" class="border-t border-[var(--pb-border)] px-5 py-2 md:hidden">
@@ -41,14 +53,14 @@
     </nav>
 
     <!-- Two-column body -->
-    <div class="grid w-full max-w-[88rem] mx-auto flex-1 items-start gap-6 px-5 py-8 md:grid-cols-[minmax(0,1fr)_280px]">
+    <div class="mx-auto grid w-full max-w-[var(--pb-layout-content-max)] flex-1 items-start gap-8 px-5 py-8 md:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
       <!-- Main content -->
       <main class="min-w-0">
         <slot />
       </main>
 
       <!-- Right sidebar (widgets) -->
-      <aside class="hidden space-y-4 md:block sticky top-[4.5rem] max-h-[calc(100vh-5rem)] overflow-y-auto">
+      <aside class="sticky top-[4.5rem] hidden max-h-[calc(100vh-5rem)] space-y-4 overflow-y-auto md:block">
         <slot name="sidebar">
           <BlogOwnerBio />
           <BlogSearchBar />
@@ -60,7 +72,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-[var(--pb-border)] bg-[var(--pb-surface)] text-sm text-[var(--pb-text-muted)]">
-      <div class="grid w-full gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
+      <div class="mx-auto grid w-full max-w-[var(--pb-layout-content-max)] gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
         <div>
           <div class="font-medium text-[var(--pb-text)]">{{ siteName }}</div>
           <p class="mt-1">{{ footerCopyright }}</p>
@@ -71,7 +83,7 @@
             v-for="link in footerLinks"
             :key="`${link.label}:${link.url}`"
             :to="link.url"
-            class="hover:text-[var(--pb-primary)]"
+            class="hover:text-[var(--pb-link-hover)]"
           >
             {{ link.label }}
           </NuxtLink>
@@ -107,6 +119,11 @@ const {
 } = useSiteSettings()
 
 const mobileNav = ref(false)
+const {
+  toggleIcon: themeModeIcon,
+  toggleLabel: themeModeLabel,
+  toggleThemeMode
+} = useThemeMode({ storageKey: 'pb-public-color-mode' })
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const authLink = computed(() => isLoggedIn.value ? '/admin' : '/admin/login')

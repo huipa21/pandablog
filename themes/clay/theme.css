@@ -1,0 +1,171 @@
+/*
+ * Clay theme - cream-canvas chrome with saturated brand accents.
+ * Prose/block parity styles remain in assets/css/main.css and component-local CSS.
+ */
+
+.theme-scope {
+  font-family: var(--font-text, var(--font-sans));
+  font-size: var(--size-text-base);
+  line-height: 1.55;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.theme-scope .blog-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, var(--layout-max-content, 72rem)) minmax(220px, 280px);
+  gap: var(--space-2xl);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-xl) var(--space-3xl);
+}
+
+@media (max-width: 1024px) {
+  .theme-scope .blog-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-scope .blog-layout aside {
+    display: none;
+  }
+}
+
+.theme-scope .blog-sidebar {
+  position: sticky;
+  top: var(--space-xl);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--space-3xl));
+  overflow-y: auto;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card-outer, var(--radius-xl));
+  background: var(--color-surface-subtle);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-subtle);
+  font-size: var(--size-text-sm);
+}
+
+.theme-scope .blog-sidebar h4 {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-text);
+  font-size: var(--size-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.theme-scope .blog-sidebar a {
+  display: block;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-subtle);
+  text-decoration: none;
+}
+
+.theme-scope .blog-sidebar a:hover,
+.theme-scope .blog-sidebar a.active {
+  color: var(--color-primary-contrast);
+  background: var(--color-primary);
+}
+
+.theme-scope .blog-content {
+  width: 100%;
+  max-width: none;
+}
+
+.theme-scope .blog-header {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-xl);
+  background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+}
+
+.theme-scope .blog-header.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(14px);
+}
+
+.theme-scope .blog-cover {
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card-outer, var(--radius-xl));
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-2xl);
+}
+
+.theme-scope .tag {
+  display: inline-block;
+  padding: 4px 12px;
+  margin-right: var(--space-xs);
+  border-radius: 9999px;
+  background: var(--color-bg-muted);
+  color: var(--color-text);
+  font-size: var(--size-text-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.theme-scope .tag:nth-of-type(3n + 1) {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.theme-scope .tag:nth-of-type(3n + 2) {
+  background: var(--color-warm);
+  color: var(--color-warm-contrast);
+}
+
+.theme-scope .tag:hover {
+  color: var(--color-primary-contrast);
+  background: var(--color-primary);
+}
+
+.theme-scope ::selection {
+  background: var(--color-highlight);
+  color: var(--color-text);
+}
+
+/* Clay Magazine variant — warm, visual, and asymmetric. */
+.theme-scope[data-theme-variant="clay-magazine"] {
+  --pb-prose-line-height: 1.68;
+}
+
+.theme-scope[data-theme-variant="clay-magazine"] .home-hero {
+  max-width: var(--pb-layout-hero-max);
+  margin-inline: auto;
+}
+
+.theme-scope[data-theme-variant="clay-magazine"] .home-hero-copy {
+  background: color-mix(in srgb, var(--color-card-bg) 86%, var(--color-warm-soft));
+}
+
+.theme-scope[data-theme-variant="clay-magazine"] .post-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+.theme-scope[data-theme-variant="clay-magazine"] .post-card-grid > article:nth-child(4n + 1) {
+  transform: rotate(-0.25deg);
+}
+
+.theme-scope[data-theme-variant="clay-magazine"] .post-card-grid > article:nth-child(4n + 3) {
+  transform: rotate(0.2deg);
+}
+
+.theme-scope[data-theme-variant="clay-magazine"] .post-card-grid > article:hover {
+  transform: translateY(-0.125rem) rotate(0deg);
+}
+
+@media (min-width: 1024px) {
+  .theme-scope[data-theme-variant="clay-magazine"] .home-hero {
+    grid-template-columns: minmax(24rem, 0.9fr) minmax(0, 1fr);
+  }
+
+  .theme-scope[data-theme-variant="clay-magazine"] .home-hero-media {
+    order: -1;
+  }
+}

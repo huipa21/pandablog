@@ -1,7 +1,7 @@
 <template>
-  <div class="mx-auto max-w-3xl space-y-6">
+  <div class="mx-auto max-w-4xl space-y-6">
     <header class="space-y-3">
-      <h1 class="text-2xl font-semibold tracking-tight">Search</h1>
+      <h1 class="font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Search</h1>
       <div class="flex flex-wrap items-end gap-3">
         <form class="flex flex-1 items-center gap-2" role="search" @submit.prevent="onSubmit">
           <UInput
@@ -21,46 +21,46 @@
           class="w-44"
         />
       </div>
-      <p v-if="data" class="text-sm text-stone-500">
+      <p v-if="data" class="text-sm text-[var(--pb-text-subtle)]">
         <template v-if="data.query">
           {{ data.total }} matching post<span v-if="data.total !== 1">s</span> for
-          <span class="font-medium text-stone-700">"{{ data.query }}"</span>
+          <span class="font-medium text-[var(--pb-text-muted)]">"{{ data.query }}"</span>
         </template>
         <template v-else>Type a query above to search the blog.</template>
       </p>
     </header>
 
-    <div v-if="pending" class="text-stone-500">Searching…</div>
+    <div v-if="pending" class="text-[var(--pb-text-subtle)]">Searching…</div>
 
     <ul v-else-if="data && data.results.length" class="space-y-6">
       <li
         v-for="result in data.results"
         :key="result.post.id"
-        class="rounded-lg border border-stone-200 bg-white p-5 shadow-sm"
+        class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]"
       >
-        <NuxtLink :to="`/blog/${result.post.slug}`" class="text-lg font-semibold text-teal-700 hover:text-teal-900">
+        <NuxtLink :to="`/blog/${result.post.slug}`" class="text-lg font-semibold text-[var(--pb-link)] hover:text-[var(--pb-link-hover)]">
           {{ result.post.title || result.post.slug }}
         </NuxtLink>
-        <p v-if="result.post.summary" class="mt-1 text-sm text-stone-600">{{ result.post.summary }}</p>
+        <p v-if="result.post.summary" class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ result.post.summary }}</p>
         <div class="mt-3 space-y-2">
           <div
             v-for="match in result.matches"
             :key="match.blockId"
-            class="rounded border border-stone-100 bg-stone-50 px-3 py-2 text-sm text-stone-700"
+            class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] px-3 py-2 text-sm text-[var(--pb-text-muted)]"
           >
-            <span class="mr-2 inline-block rounded bg-stone-200 px-1.5 py-0.5 text-xs uppercase tracking-wide text-stone-600">
+            <span class="mr-2 inline-block rounded-[var(--pb-radius-sm)] bg-[var(--pb-selected-bg)] px-1.5 py-0.5 text-xs uppercase tracking-wide text-[var(--pb-link)]">
               {{ match.type }}
             </span>
             <span v-html="match.snippet" />
           </div>
         </div>
-        <p v-if="result.totalMatches > result.matches.length" class="mt-2 text-xs text-stone-500">
+        <p v-if="result.totalMatches > result.matches.length" class="mt-2 text-xs text-[var(--pb-text-subtle)]">
           +{{ result.totalMatches - result.matches.length }} more match<span v-if="result.totalMatches - result.matches.length !== 1">es</span>
         </p>
       </li>
     </ul>
 
-    <p v-else-if="data && data.query" class="text-stone-500">No matches for "{{ data.query }}".</p>
+    <p v-else-if="data && data.query" class="text-[var(--pb-text-subtle)]">No matches for "{{ data.query }}".</p>
   </div>
 </template>
 

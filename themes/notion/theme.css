@@ -1,0 +1,152 @@
+/*
+ * Notion theme - workspace-style chrome.
+ * Structural prose and block parity styles stay in assets/css/main.css and block components.
+ */
+
+.theme-scope {
+  font-family: var(--font-text, var(--font-sans));
+  font-size: var(--size-text-base);
+  line-height: 1.55;
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.theme-scope .blog-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, var(--layout-max-content, 72rem)) minmax(220px, 280px);
+  gap: var(--space-2xl);
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-xl) var(--space-3xl);
+}
+
+@media (max-width: 1024px) {
+  .theme-scope .blog-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-scope .blog-layout aside {
+    display: none;
+  }
+}
+
+.theme-scope .blog-sidebar {
+  position: sticky;
+  top: var(--space-xl);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--space-3xl));
+  overflow-y: auto;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg-subtle));
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-subtle);
+  font-size: var(--size-text-sm);
+}
+
+.theme-scope .blog-sidebar h4 {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-text-muted);
+  font-size: var(--size-text-xs);
+  font-weight: 600;
+}
+
+.theme-scope .blog-sidebar a {
+  display: block;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-subtle);
+  text-decoration: none;
+}
+
+.theme-scope .blog-sidebar a:hover,
+.theme-scope .blog-sidebar a.active {
+  color: var(--color-text);
+  background: var(--color-selected-bg);
+}
+
+.theme-scope .blog-content {
+  width: 100%;
+  max-width: none;
+}
+
+.theme-scope .blog-header {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-xl);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+}
+
+.theme-scope .blog-header.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(14px);
+}
+
+.theme-scope .blog-cover {
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card-outer, var(--radius-lg));
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-2xl);
+}
+
+.theme-scope .tag {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--color-selected-bg);
+  color: var(--color-primary);
+  font-size: var(--size-text-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.theme-scope .tag:hover {
+  color: var(--color-primary-contrast);
+  background: var(--color-primary);
+}
+
+.theme-scope ::selection {
+  background: var(--color-highlight);
+  color: var(--color-text);
+}
+
+/* Notion Paper variant — narrower, quieter, more editorial whitespace. */
+.theme-scope[data-theme-variant="notion-paper"] {
+  --pb-prose-line-height: 1.74;
+}
+
+.theme-scope[data-theme-variant="notion-paper"] .home-hero {
+  max-width: var(--pb-layout-hero-max);
+  margin-inline: auto;
+  background: color-mix(in srgb, var(--color-card-bg) 82%, var(--color-hero-bg));
+}
+
+.theme-scope[data-theme-variant="notion-paper"] .home-hero-copy {
+  justify-content: center;
+}
+
+.theme-scope[data-theme-variant="notion-paper"] .post-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+.theme-scope[data-theme-variant="notion-paper"] .post-reading-frame {
+  border-color: color-mix(in srgb, var(--color-card-border) 72%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .theme-scope[data-theme-variant="notion-paper"] .home-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .theme-scope[data-theme-variant="notion-paper"] .home-hero-media {
+    max-height: 24rem;
+  }
+}

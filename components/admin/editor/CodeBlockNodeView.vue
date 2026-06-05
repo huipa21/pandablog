@@ -14,9 +14,9 @@
     data-node-view-wrapper
     :style="{ '--pb-code-zoom': String(zoom) }"
   >
-    <div class="codeblock-titlebar" contenteditable="false">
-      <div class="codeblock-titlebar-left">
-        <button type="button" class="codeblock-ctrl" :title="collapsed ? 'Expand code' : 'Collapse code'" @click="toggleCollapsed">
+    <div class="codeblock-header" contenteditable="false">
+      <div class="codeblock-header-left">
+        <button type="button" class="codeblock-action" :title="collapsed ? 'Expand code' : 'Collapse code'" @click="toggleCollapsed">
           <UIcon :name="collapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'" class="size-3" />
         </button>
         <UIcon :name="fileIcon" class="size-3.5 shrink-0" />
@@ -25,17 +25,17 @@
         <span v-if="showTotalLines" class="opacity-50">·</span>
         <span v-if="showTotalLines" class="opacity-70">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
       </div>
-      <div class="codeblock-titlebar-right">
-        <button type="button" class="codeblock-ctrl" title="Zoom out" @click="adjustZoom(-0.1)">
+      <div class="codeblock-header-right">
+        <button type="button" class="codeblock-action" title="Zoom out" @click="adjustZoom(-0.1)">
           <UIcon name="i-lucide-minus" class="size-3" />
         </button>
-        <span class="codeblock-zoom-label">{{ Math.round(zoom * 100) }}%</span>
-        <button type="button" class="codeblock-ctrl" title="Zoom in" @click="adjustZoom(0.1)">
+        <span class="codeblock-zoom">{{ Math.round(zoom * 100) }}%</span>
+        <button type="button" class="codeblock-action" title="Zoom in" @click="adjustZoom(0.1)">
           <UIcon name="i-lucide-plus" class="size-3" />
         </button>
         <button
           type="button"
-          class="codeblock-ctrl"
+          class="codeblock-action"
           :class="wrapLines ? 'is-active' : ''"
           :aria-pressed="wrapLines ? 'true' : 'false'"
           :title="wrapLines ? 'Wrap: on' : 'Wrap: off'"
@@ -221,7 +221,7 @@ watch([lineCount, wrapLines, zoom], async () => {
   box-shadow: none;
 }
 
-.codeblock-titlebar {
+.codeblock-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -234,13 +234,13 @@ watch([lineCount, wrapLines, zoom], async () => {
   opacity: 0.95;
 }
 
-.codeblock-nodeview[data-theme="github-light"] .codeblock-titlebar,
-.codeblock-nodeview[data-theme="vs-light"] .codeblock-titlebar,
-.codeblock-nodeview[data-theme="solarized-light"] .codeblock-titlebar {
+.codeblock-nodeview[data-theme="github-light"] .codeblock-header,
+.codeblock-nodeview[data-theme="vs-light"] .codeblock-header,
+.codeblock-nodeview[data-theme="solarized-light"] .codeblock-header {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.codeblock-titlebar-left {
+.codeblock-header-left {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -248,14 +248,14 @@ watch([lineCount, wrapLines, zoom], async () => {
   font-weight: 500;
 }
 
-.codeblock-titlebar-right {
+.codeblock-header-right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
 }
 
-.codeblock-ctrl {
+.codeblock-action {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
@@ -269,17 +269,17 @@ watch([lineCount, wrapLines, zoom], async () => {
   line-height: 1;
 }
 
-.codeblock-ctrl:hover {
+.codeblock-action:hover {
   opacity: 1;
   border-color: rgba(127, 127, 127, 0.44);
 }
 
-.codeblock-ctrl.is-active {
+.codeblock-action.is-active {
   background: rgba(127, 127, 127, 0.2);
   opacity: 1;
 }
 
-.codeblock-zoom-label {
+.codeblock-zoom {
   font-size: 0.68rem;
   opacity: 0.8;
   min-width: 2.2rem;

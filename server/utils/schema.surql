@@ -19,10 +19,13 @@ DEFINE FIELD IF NOT EXISTS status ON post TYPE string DEFAULT 'draft' ASSERT $va
 DEFINE FIELD IF NOT EXISTS cover_image ON post TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS author_username ON post TYPE string DEFAULT 'admin';
 DEFINE FIELD IF NOT EXISTS published_at ON post TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS is_featured ON post TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS featured_at ON post TYPE option<datetime> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS created_at ON post TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON post TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS view_count ON post TYPE int DEFAULT 0;
 UPDATE post SET view_count = 0 WHERE view_count IS NONE;
+UPDATE post SET is_featured = false WHERE is_featured IS NONE;
 DEFINE FIELD IF NOT EXISTS word_count ON post TYPE option<int> DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS cjk_char_count ON post TYPE option<int> DEFAULT 0;
 UPDATE post SET word_count = 0 WHERE word_count IS NONE;
@@ -30,6 +33,7 @@ UPDATE post SET cjk_char_count = 0 WHERE cjk_char_count IS NONE;
 DEFINE INDEX IF NOT EXISTS post_slug_unique ON TABLE post COLUMNS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS post_status ON TABLE post COLUMNS status;
 DEFINE INDEX IF NOT EXISTS post_published_at ON TABLE post COLUMNS published_at;
+DEFINE INDEX IF NOT EXISTS post_featured ON TABLE post COLUMNS is_featured, featured_at;
 DEFINE INDEX IF NOT EXISTS post_title_fts ON TABLE post COLUMNS title FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 DEFINE INDEX IF NOT EXISTS post_summary_fts ON TABLE post COLUMNS summary FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-label="Default theme preview">
+  <rect width="1280" height="720" fill="#edf8ec"/>
+  <rect x="48" y="40" width="1184" height="640" rx="28" fill="#ffffff"/>
+  <rect x="48" y="40" width="1184" height="86" rx="28" fill="#f6fbf4"/>
+  <text x="92" y="93" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#14211f">PandaBlog</text>
+  <text x="970" y="93" font-family="Arial, sans-serif" font-size="14" fill="#5d6d68">Search</text>
+  <rect x="1060" y="68" width="112" height="36" rx="12" fill="#24a48c"/>
+  <text x="1093" y="92" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff">Write</text>
+  <rect x="92" y="176" width="188" height="360" rx="16" fill="#f6fbf4"/>
+  <rect x="324" y="164" width="626" height="430" rx="20" fill="#ffffff" stroke="#d8e8da"/>
+  <rect x="994" y="176" width="188" height="260" rx="16" fill="#f6fbf4"/>
+  <text x="372" y="230" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#14211f">Original reading color</text>
+  <text x="372" y="276" font-family="Arial, sans-serif" font-size="17" fill="#5d6d68">Soft green surfaces with warm orange highlights.</text>
+  <rect x="372" y="326" width="524" height="12" rx="6" fill="#e3f1e1"/>
+  <rect x="372" y="360" width="436" height="12" rx="6" fill="#e3f1e1"/>
+  <rect x="372" y="394" width="482" height="12" rx="6" fill="#e3f1e1"/>
+  <rect x="372" y="452" width="176" height="42" rx="12" fill="#24a48c"/>
+  <rect x="568" y="452" width="176" height="42" rx="12" fill="#ffe3d4"/>
+  <circle cx="138" cy="210" r="7" fill="#ff6231"/>
+  <rect x="158" y="205" width="82" height="10" rx="5" fill="#b7d6c0"/>
+  <rect x="120" y="248" width="126" height="9" rx="5" fill="#d8e8da"/>
+  <rect x="120" y="282" width="104" height="9" rx="5" fill="#d8e8da"/>
+  <rect x="1026" y="212" width="112" height="10" rx="5" fill="#b7d6c0"/>
+  <rect x="1026" y="248" width="90" height="10" rx="5" fill="#d8e8da"/>
+</svg>

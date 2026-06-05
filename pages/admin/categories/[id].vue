@@ -2,8 +2,8 @@
   <section class="grid gap-6">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Category</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-stone-950">{{ category?.name || 'Category' }}</h1>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Category</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ category?.name || 'Category' }}</h1>
       </div>
       <UButton to="/admin/categories" variant="ghost" color="neutral" icon="i-lucide-arrow-left">
         Back to Categories
@@ -12,21 +12,21 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load category" />
 
-    <div v-if="pending" class="grid gap-3 rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+    <div v-if="pending" class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
       <USkeleton class="h-8 w-48" />
       <USkeleton class="h-16" />
     </div>
 
     <template v-else-if="category">
-      <section class="rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+      <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="text-xl font-semibold tracking-normal text-stone-950">{{ category.name }}</h2>
+              <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ category.name }}</h2>
               <UBadge v-if="isDefaultCategory(category)" color="neutral" variant="subtle">Default</UBadge>
               <UBadge v-else color="primary" variant="subtle">Level {{ categoryLevel(category.id) + 1 }}</UBadge>
             </div>
-            <p class="mt-2 max-w-3xl text-sm text-stone-600">{{ category.description || 'No description' }}</p>
+            <p class="mt-2 max-w-3xl text-sm text-[var(--pb-text-muted)]">{{ category.description || 'No description' }}</p>
           </div>
           <UButton :to="`/category/${category.slug}`" size="sm" variant="soft" icon="i-lucide-external-link">
             Public view
@@ -34,16 +34,16 @@
         </div>
         <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Slug</dt>
-            <dd class="mt-1 text-stone-800">/{{ category.slug }}</dd>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Slug</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">/{{ category.slug }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Parent</dt>
-            <dd class="mt-1 text-stone-800">{{ parentName(category) }}</dd>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Parent</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">{{ parentName(category) }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-stone-500">Posts</dt>
-            <dd class="mt-1 text-stone-800">{{ category.post_count ?? 0 }}</dd>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Posts</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">{{ category.post_count ?? 0 }}</dd>
           </div>
         </dl>
       </section>
@@ -51,7 +51,7 @@
       <AdminTaxonomyPostsList :category-ids="[category.id]" />
     </template>
 
-    <UEmpty v-else icon="i-lucide-folder-x" title="Category not found" description="Return to categories to choose another item." class="rounded-lg border border-stone-200 bg-white py-12 shadow-sm" />
+    <UEmpty v-else icon="i-lucide-folder-x" title="Category not found" description="Return to categories to choose another item." class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] py-12 shadow-[var(--pb-shadow-sm)]" />
   </section>
 </template>
 

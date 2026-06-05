@@ -27,6 +27,7 @@
           placeholder="graph TD;&#10;  A[Start] --> B[End]"
           @input="updateCode"
           @keydown.tab.prevent="onTab"
+          @keydown.down="onArrowDown"
         />
       </div>
       <div v-if="viewMode !== 'code'" class="mermaid-preview-pane">
@@ -60,6 +61,17 @@ const previewEl = ref<HTMLElement | null>(null)
 function updateCode(event: Event) {
   const textarea = event.target as HTMLTextAreaElement
   props.updateAttributes({ code: textarea.value })
+}
+
+function onArrowDown(event: KeyboardEvent) {
+  const t = event.target as HTMLTextAreaElement
+  if (t.value.slice(t.selectionEnd).includes('\n')) return
+  event.preventDefault()
+  const pos = typeof props.getPos === 'function' ? props.getPos() : undefined
+  if (pos === undefined) return
+  const after = pos + props.node.nodeSize
+  const docSize = props.editor.state.doc.content.size
+  props.editor.chain().focus().setTextSelection(Math.min(after + 1, docSize - 1)).run()
 }
 
 function onTab(event: KeyboardEvent) {

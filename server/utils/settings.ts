@@ -1,6 +1,7 @@
 import { queryDb, useDb } from './db'
 import { queryRows } from './surrealResult'
 import type { JsonContent } from '~/types/content'
+import { ADMIN_COLOR_MODE_KEY, normalizeThemeMode, type ThemeMode } from '~/utils/themeMode'
 
 export const PUBLIC_SETTING_KEYS = [
   'site_title',
@@ -21,9 +22,14 @@ export const RUNTIME_SETTING_KEYS = [
   'trust_proxy_headers'
 ] as const
 
+const ADMIN_ONLY_SETTING_KEYS = [
+  ADMIN_COLOR_MODE_KEY
+] as const
+
 export const ADMIN_SETTING_KEYS = [
   ...PUBLIC_SETTING_KEYS,
-  ...RUNTIME_SETTING_KEYS
+  ...RUNTIME_SETTING_KEYS,
+  ...ADMIN_ONLY_SETTING_KEYS
 ] as const
 
 const SECRET_SETTING_KEYS = [
@@ -37,6 +43,7 @@ const SETUP_COMPLETED_KEY = 'setup_completed'
 
 export type PublicSettingKey = typeof PUBLIC_SETTING_KEYS[number]
 export type RuntimeSettingKey = typeof RUNTIME_SETTING_KEYS[number]
+export type ThemeModeSetting = ThemeMode
 
 export interface RuntimeFlags {
   trust_proxy_headers: boolean
@@ -122,6 +129,19 @@ export async function writeAppSettings(values: Record<string, unknown>, keys: re
 }
 
 async function upsertAppSetting(db: Awaited<ReturnType<typeof useDb>>, key: string, value: unknown): Promise<void> {
+  const updated = await queryDb(
+    db,
+    `UPDATE app_settings SET
+      value = $value,
+      updated_at = time::now()
+    WHERE key = $key;`,
+    { key, value }
+  )
+
+  if (queryRows(updated).length) {
+    return
+  }
+
   await queryDb(
     db,
     `UPSERT type::record($table, $id) CONTENT {
@@ -141,9 +161,22 @@ export function filterPublicSettings(values: Record<string, unknown>) {
 
 export function filterAdminSettings(values: Record<string, unknown>) {
   const allowed = new Set<string>(ADMIN_SETTING_KEYS)
-  return Object.fromEntries(
+  const filtered = Object.fromEntries(
     Object.entries(values).filter(([key]) => allowed.has(key))
   )
+
+  if (ADMIN_COLOR_MODE_KEY in filtered) {
+    const colorMode = normalizeAdminColorMode(filtered[ADMIN_COLOR_MODE_KEY])
+    if (colorMode) {
+      filtered[ADMIN_COLOR_MODE_KEY] = colorMode
+    } else {
+      return Object.fromEntries(
+        Object.entries(filtered).filter(([key]) => key !== ADMIN_COLOR_MODE_KEY)
+      )
+    }
+  }
+
+  return filtered
 }
 
 export function getRuntimeFlags(): RuntimeFlags {
@@ -199,6 +232,10 @@ function normalizeRuntimeFlags(values: Record<string, unknown>): RuntimeFlags {
 
 function booleanValue(value: unknown, fallback: boolean) {
   return typeof value === 'boolean' ? value : fallback
+}
+
+function normalizeAdminColorMode(value: unknown): ThemeModeSetting | null {
+  return normalizeThemeMode(value)
 }
 
 export function normalizePublicSettings(values: Record<string, unknown>): PublicSiteSettings {

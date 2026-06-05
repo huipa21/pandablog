@@ -1,9 +1,9 @@
 <template>
-  <main class="grid min-h-screen place-items-center bg-stone-100 px-5 py-12">
-    <section class="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+  <main class="grid min-h-screen place-items-center bg-[var(--pb-app-bg)] px-5 py-12">
+    <section class="w-full max-w-md rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-md)]">
       <div class="mb-6">
-        <p class="text-sm font-medium uppercase tracking-wider text-teal-700">Admin</p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-normal text-stone-950">Sign in to PandaBlog</h1>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Admin</p>
+        <h1 class="mt-2 text-2xl font-semibold tracking-normal text-[var(--pb-text)]">Sign in to PandaBlog</h1>
       </div>
 
       <form class="grid gap-4" @submit.prevent="login">
