@@ -1,9 +1,9 @@
-import { requireAdmin } from '../../../utils/auth'
+import { requireSuperadmin } from '../../../utils/auth'
 import { parseLogType } from '../../../utils/logging-admin'
 import { purgeLogType } from '../../../utils/logging'
 
 export default defineEventHandler(async (event) => {
-  await requireAdmin(event)
+  await requireSuperadmin(event)
 
   const { type } = getRouterParams(event)
   if (!type) {

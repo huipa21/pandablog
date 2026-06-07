@@ -144,8 +144,28 @@
 <script setup lang="ts">
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
+type AdminRole = 'superadmin' | 'admin' | 'author' | 'viewer'
+
+interface AdminSessionUser {
+  id: string
+  username: string
+  role: AdminRole
+}
+
 const { siteName, siteLogo } = useSiteSettings()
-const { data: adminSettings } = await useAsyncData('admin-layout-settings', () => $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings'), {
+const { data: authSession } = await useAsyncData('admin-layout-session', () => $fetch<{ loggedIn: boolean, user: AdminSessionUser | null }>('/api/auth/session'), {
+  default: () => ({ loggedIn: false, user: null })
+})
+const adminRole = computed(() => authSession.value?.user?.role ?? null)
+const isSuperadmin = computed(() => adminRole.value === 'superadmin')
+const defaultAdminSettings = () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE } })
+const { data: adminSettings } = await useAsyncData('admin-layout-settings', () => {
+  if (!isSuperadmin.value) {
+    return Promise.resolve(defaultAdminSettings())
+  }
+
+  return $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings')
+}, {
   default: () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE } })
 })
 const {
@@ -157,6 +177,10 @@ const {
   defaultMode: DEFAULT_ADMIN_COLOR_MODE,
   initialMode: () => adminSettings.value?.settings?.[ADMIN_COLOR_MODE_KEY],
   persist: async (mode) => {
+    if (!isSuperadmin.value) {
+      return
+    }
+
     const response = await $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings', {
       method: 'POST',
       body: { [ADMIN_COLOR_MODE_KEY]: mode }
@@ -212,43 +236,64 @@ onBeforeUnmount(() => {
   }
 })
 
-const navSections = [
-  {
-    label: '',
-    items: [
-      { to: '/admin', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' }
-    ]
-  },
-  {
-    label: 'Posts',
-    items: [
-      { to: '/admin/posts', label: 'All posts', icon: 'i-lucide-file-text' },
-      { to: '/admin/categories', label: 'Categories', icon: 'i-lucide-folder' },
-      { to: '/admin/tags', label: 'Tags', icon: 'i-lucide-tags' },
-      { to: '/admin/media', label: 'Media library', icon: 'i-lucide-image' }
-    ]
-  },
-  {
-    label: 'Settings',
-    items: [
-      { to: '/admin/settings/site', label: 'Site', icon: 'i-lucide-globe' },
-      { to: '/admin/settings/profile', label: 'Profile', icon: 'i-lucide-user' },
-      { to: '/admin/settings/footer', label: 'Footer', icon: 'i-lucide-panel-bottom' },
-      { to: '/admin/settings/visibility', label: 'Visibility', icon: 'i-lucide-eye' },
-      { to: '/admin/settings/themes', label: 'Themes', icon: 'i-lucide-palette' }
-    ]
-  },
-  {
-    label: 'Logs',
-    items: [
-      { to: '/admin/logs', label: 'Dashboard', icon: 'i-lucide-chart-column' },
-      { to: '/admin/logs/access', label: 'Access logs', icon: 'i-lucide-globe' },
-      { to: '/admin/logs/activity', label: 'Activity logs', icon: 'i-lucide-notebook-pen' },
-      { to: '/admin/logs/errors', label: 'Error logs', icon: 'i-lucide-triangle-alert' },
-      { to: '/admin/logs/settings', label: 'Logging settings', icon: 'i-lucide-settings-2' }
-    ]
+const navSections = computed(() => {
+  const sections = [
+    {
+      label: '',
+      items: [
+        { to: '/admin', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' }
+      ]
+    }
+  ]
+
+  if (adminRole.value === 'admin' || adminRole.value === 'author') {
+    sections.push({
+      label: 'Posts',
+      items: [
+        { to: '/admin/posts', label: 'All posts', icon: 'i-lucide-file-text' },
+        { to: '/admin/categories', label: 'Categories', icon: 'i-lucide-folder' },
+        { to: '/admin/tags', label: 'Tags', icon: 'i-lucide-tags' },
+        { to: '/admin/media', label: 'Media library', icon: 'i-lucide-image' }
+      ]
+    })
   }
-]
+
+  if (adminRole.value === 'superadmin' || adminRole.value === 'admin') {
+    sections.push({
+      label: 'People',
+      items: [
+        { to: '/admin/users', label: 'Users', icon: 'i-lucide-users' }
+      ]
+    })
+  }
+
+  if (adminRole.value === 'superadmin') {
+    sections.push(
+      {
+        label: 'Settings',
+        items: [
+          { to: '/admin/settings/site', label: 'Site', icon: 'i-lucide-globe' },
+          { to: '/admin/settings/profile', label: 'Profile', icon: 'i-lucide-user' },
+          { to: '/admin/settings/footer', label: 'Footer', icon: 'i-lucide-panel-bottom' },
+          { to: '/admin/settings/visibility', label: 'Visibility', icon: 'i-lucide-eye' },
+          { to: '/admin/settings/themes', label: 'Themes', icon: 'i-lucide-palette' }
+        ]
+      },
+      {
+        label: 'Logs',
+        items: [
+          { to: '/admin/logs', label: 'Dashboard', icon: 'i-lucide-chart-column' },
+          { to: '/admin/logs/access', label: 'Access logs', icon: 'i-lucide-globe' },
+          { to: '/admin/logs/activity', label: 'Activity logs', icon: 'i-lucide-notebook-pen' },
+          { to: '/admin/logs/errors', label: 'Error logs', icon: 'i-lucide-triangle-alert' },
+          { to: '/admin/logs/settings', label: 'Logging settings', icon: 'i-lucide-settings-2' }
+        ]
+      }
+    )
+  }
+
+  return sections
+})
 
 const breadcrumbLabels: Record<string, string> = {
   admin: 'Dashboard',
@@ -256,6 +301,7 @@ const breadcrumbLabels: Record<string, string> = {
   categories: 'Categories',
   tags: 'Tags',
   media: 'Media library',
+  users: 'Users',
   settings: 'Settings',
   site: 'Site',
   profile: 'Profile',
@@ -294,7 +340,7 @@ async function logout() {
   loggingOut.value = true
   try {
     await $fetch('/api/auth/logout', { method: 'POST' })
-    await navigateTo('/admin/login')
+    await navigateTo('/login')
   } finally {
     loggingOut.value = false
   }

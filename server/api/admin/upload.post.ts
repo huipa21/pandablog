@@ -1,12 +1,13 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { useDb } from '../../utils/db'
 import { mediaCreateOrReuseFileRecord } from '../../utils/mediaLibrary'
 import { getMediaSettings } from '../../utils/settings'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const formData = await readMultipartFormData(event)
   const file = formData?.find((item) => item.filename && item.data?.length)
+  const visibility = formData?.find((item) => item.name === 'visibility')?.data?.toString('utf8') === 'private' ? 'private' : 'public'
 
   if (!file) {
     throw createError({ statusCode: 400, message: 'File is required' })
@@ -18,7 +19,9 @@ export default defineEventHandler(async (event) => {
     originalName: file.filename || 'upload',
     data: file.data,
     mimeType: file.type,
-    uploadedBy: user.username
+    uploadedBy: user.username,
+    createdBy: user.id,
+    visibility
   }, settings)
   const record = result.record ?? result.similar_to
 

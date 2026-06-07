@@ -1,5 +1,6 @@
 import { queryDb, useDb } from './db'
 import { queryRows } from './surrealResult'
+import { createUserWithPasswordHash, findUserByUsername, setUserPasswordHash, updateUser } from './users'
 import type { JsonContent } from '~/types/content'
 import { ADMIN_COLOR_MODE_KEY, normalizeThemeMode, type ThemeMode } from '~/utils/themeMode'
 
@@ -8,6 +9,10 @@ export const PUBLIC_SETTING_KEYS = [
   'site_subtitle',
   'site_logo',
   'site_banner',
+  'site_banner_position_x',
+  'site_banner_position_y',
+  'site_banner_zoom',
+  'site_hero_height_vh',
   'site_favicon',
   'owner_name',
   'owner_avatar',
@@ -71,6 +76,10 @@ export interface PublicSiteSettings {
   site_subtitle: string
   site_logo: string
   site_banner: string
+  site_banner_position_x: number
+  site_banner_position_y: number
+  site_banner_zoom: number
+  site_hero_height_vh: number
   site_favicon: string
   owner_name: string
   owner_avatar: string
@@ -202,7 +211,16 @@ export async function initializeRuntimeSettings(seedDefaults = false): Promise<R
 }
 
 export async function readAdminCredentials(): Promise<AdminCredentials> {
-  const settings = await readRawAppSettings([ADMIN_USERNAME_KEY, ADMIN_PASSWORD_HASH_KEY, SETUP_COMPLETED_KEY])
+  const adminUser = await findUserByUsername(ADMIN_USERNAME).catch(() => null)
+  if (adminUser?.password_hash && adminUser.active) {
+    return {
+      username: ADMIN_USERNAME,
+      passwordHash: adminUser.password_hash,
+      setupCompleted: true
+    }
+  }
+
+  const settings = await readRawAppSettings([ADMIN_PASSWORD_HASH_KEY, SETUP_COMPLETED_KEY])
   const passwordHash = stringValue(settings[ADMIN_PASSWORD_HASH_KEY])
 
   return {
@@ -214,6 +232,24 @@ export async function readAdminCredentials(): Promise<AdminCredentials> {
 
 export async function writeAdminCredentials(passwordHash: string): Promise<AdminCredentials> {
   const db = await useDb()
+  const existing = await findUserByUsername(ADMIN_USERNAME).catch(() => null)
+  if (existing) {
+    await setUserPasswordHash(existing.id, passwordHash)
+    await updateUser(existing.id, {
+      role: 'superadmin',
+      display_name: existing.display_name || 'Administrator',
+      active: true
+    })
+  } else {
+    await createUserWithPasswordHash({
+      username: ADMIN_USERNAME,
+      password_hash: passwordHash,
+      role: 'superadmin',
+      display_name: 'Administrator',
+      active: true
+    })
+  }
+
   await upsertAppSetting(db, ADMIN_USERNAME_KEY, ADMIN_USERNAME)
   await upsertAppSetting(db, ADMIN_PASSWORD_HASH_KEY, passwordHash)
   await upsertAppSetting(db, SETUP_COMPLETED_KEY, true)
@@ -244,6 +280,10 @@ export function normalizePublicSettings(values: Record<string, unknown>): Public
     site_subtitle: stringValue(values.site_subtitle),
     site_logo: stringValue(values.site_logo),
     site_banner: stringValue(values.site_banner),
+    site_banner_position_x: numberValue(values.site_banner_position_x, 50, 0, 100),
+    site_banner_position_y: numberValue(values.site_banner_position_y, 50, 0, 100),
+    site_banner_zoom: numberValue(values.site_banner_zoom, 100, 100, 200),
+    site_hero_height_vh: numberValue(values.site_hero_height_vh, 34, 18, 58),
     site_favicon: stringValue(values.site_favicon),
     owner_name: stringValue(values.owner_name),
     owner_avatar: stringValue(values.owner_avatar),
@@ -257,6 +297,15 @@ export function normalizePublicSettings(values: Record<string, unknown>): Public
 
 function stringValue(value: unknown) {
   return typeof value === 'string' ? value : ''
+}
+
+function numberValue(value: unknown, fallback: number, min: number, max: number) {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number)) {
+    return fallback
+  }
+
+  return Math.min(max, Math.max(min, number))
 }
 
 function jsonContentValue(value: unknown): JsonContent | null {

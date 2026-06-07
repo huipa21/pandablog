@@ -29,29 +29,62 @@
         <MediaSettingField
           label="Logo"
           :model-value="form.site_logo"
-          :loading="uploading.site_logo"
           @update:model-value="form.site_logo = $event"
-          @upload="logoInput?.click()"
+          @browse="openMediaPicker('site_logo')"
         />
-        <input ref="logoInput" type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_logo')">
 
         <MediaSettingField
-          label="Header banner"
+          label="Hero photo"
           :model-value="form.site_banner"
-          :loading="uploading.site_banner"
+          preview-class="h-52"
+          :preview-style="heroPhotoPreviewStyle"
           @update:model-value="form.site_banner = $event"
-          @upload="bannerInput?.click()"
+          @browse="openMediaPicker('site_banner')"
         />
-        <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_banner')">
+
+        <fieldset class="grid gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+          <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">Hero photo framing</legend>
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
+              <span class="flex items-center justify-between gap-3">
+                <span>Height</span>
+                <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_hero_height_vh }}vh</span>
+              </span>
+              <input v-model.number="form.site_hero_height_vh" type="range" min="18" max="58" step="1" class="accent-[var(--pb-primary)]">
+            </label>
+
+            <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
+              <span class="flex items-center justify-between gap-3">
+                <span>Photo size</span>
+                <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_banner_zoom }}%</span>
+              </span>
+              <input v-model.number="form.site_banner_zoom" type="range" min="100" max="200" step="5" class="accent-[var(--pb-primary)]">
+            </label>
+
+            <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
+              <span class="flex items-center justify-between gap-3">
+                <span>Horizontal focus</span>
+                <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_banner_position_x }}%</span>
+              </span>
+              <input v-model.number="form.site_banner_position_x" type="range" min="0" max="100" step="1" class="accent-[var(--pb-primary)]">
+            </label>
+
+            <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
+              <span class="flex items-center justify-between gap-3">
+                <span>Vertical focus</span>
+                <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_banner_position_y }}%</span>
+              </span>
+              <input v-model.number="form.site_banner_position_y" type="range" min="0" max="100" step="1" class="accent-[var(--pb-primary)]">
+            </label>
+          </div>
+        </fieldset>
 
         <MediaSettingField
           label="Favicon"
           :model-value="form.site_favicon"
-          :loading="uploading.site_favicon"
           @update:model-value="form.site_favicon = $event"
-          @upload="faviconInput?.click()"
+          @browse="openMediaPicker('site_favicon')"
         />
-        <input ref="faviconInput" type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_favicon')">
 
         <fieldset class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
           <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">Network</legend>
@@ -73,10 +106,19 @@
         </div>
       </template>
     </form>
+
+    <MediaPicker
+      :open="mediaPickerOpen"
+      return-value="url"
+      type-filter="image"
+      @update:open="setMediaPickerOpen"
+      @select="handleMediaPicked"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
+import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
 
 definePageMeta({ layout: 'admin' })
@@ -88,6 +130,10 @@ interface SiteSettingsForm {
   site_subtitle: string
   site_logo: string
   site_banner: string
+  site_banner_position_x: number
+  site_banner_position_y: number
+  site_banner_zoom: number
+  site_hero_height_vh: number
   site_favicon: string
   trust_proxy_headers: boolean
 }
@@ -99,20 +145,20 @@ const form = reactive<SiteSettingsForm>({
   site_subtitle: '',
   site_logo: '',
   site_banner: '',
+  site_banner_position_x: 50,
+  site_banner_position_y: 50,
+  site_banner_zoom: 100,
+  site_hero_height_vh: 34,
   site_favicon: '',
   trust_proxy_headers: false
 })
-const uploading = reactive<Record<SiteAssetKey, boolean>>({
-  site_logo: false,
-  site_banner: false,
-  site_favicon: false
-})
-const logoInput = ref<HTMLInputElement | null>(null)
-const bannerInput = ref<HTMLInputElement | null>(null)
-const faviconInput = ref<HTMLInputElement | null>(null)
+const mediaPickerOpen = ref(false)
+const mediaPickerKey = ref<SiteAssetKey | null>(null)
 const saving = ref(false)
 const notice = ref('')
 const saveError = ref('')
+
+const heroPhotoPreviewStyle = computed(() => heroPhotoStyle({ height: `${Math.max(144, Math.round(form.site_hero_height_vh * 4.5))}px` }))
 
 watch(data, (value) => {
   const settings = value?.settings ?? {}
@@ -120,6 +166,10 @@ watch(data, (value) => {
   form.site_subtitle = textValue(settings.site_subtitle)
   form.site_logo = textValue(settings.site_logo)
   form.site_banner = textValue(settings.site_banner)
+  form.site_banner_position_x = numberValue(settings.site_banner_position_x, 50, 0, 100)
+  form.site_banner_position_y = numberValue(settings.site_banner_position_y, 50, 0, 100)
+  form.site_banner_zoom = numberValue(settings.site_banner_zoom, 100, 100, 200)
+  form.site_hero_height_vh = numberValue(settings.site_hero_height_vh, 34, 18, 58)
   form.site_favicon = textValue(settings.site_favicon)
   form.trust_proxy_headers = settings.trust_proxy_headers === true
 }, { immediate: true })
@@ -130,10 +180,12 @@ async function save() {
   saveError.value = ''
 
   try {
-    await $fetch('/api/admin/settings', {
+    const response = await $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings', {
       method: 'POST',
       body: { ...form }
     })
+    data.value = response
+    await refreshNuxtData('public-bootstrap')
     notice.value = 'Site settings saved'
   } catch (err: any) {
     saveError.value = err?.statusMessage ?? err?.message ?? 'Could not save site settings'
@@ -142,32 +194,45 @@ async function save() {
   }
 }
 
-async function uploadImage(event: Event, key: SiteAssetKey) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
+function openMediaPicker(key: SiteAssetKey) {
+  mediaPickerKey.value = key
+  mediaPickerOpen.value = true
+}
 
-  uploading[key] = true
-  saveError.value = ''
-  try {
-    const body = new FormData()
-    body.append('file', file)
-    const asset = await $fetch<{ url?: string }>('/api/admin/upload', {
-      method: 'POST',
-      body
-    })
-    if (asset.url) {
-      form[key] = asset.url
-    }
-  } catch (err: any) {
-    saveError.value = err?.statusMessage ?? err?.message ?? 'Upload failed'
-  } finally {
-    uploading[key] = false
+function setMediaPickerOpen(value: boolean) {
+  mediaPickerOpen.value = value
+  if (!value) {
+    mediaPickerKey.value = null
+  }
+}
+
+function handleMediaPicked(files: Array<{ url?: string }>) {
+  const key = mediaPickerKey.value
+  const url = files[0]?.url
+  if (key && url) {
+    form[key] = url
   }
 }
 
 function textValue(value: unknown) {
   return typeof value === 'string' ? value : ''
+}
+
+function numberValue(value: unknown, fallback: number, min: number, max: number) {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number)) {
+    return fallback
+  }
+
+  return Math.min(max, Math.max(min, number))
+}
+
+function heroPhotoStyle(extra: Record<string, string> = {}) {
+  return {
+    objectPosition: `${form.site_banner_position_x}% ${form.site_banner_position_y}%`,
+    transform: `scale(${form.site_banner_zoom / 100})`,
+    transformOrigin: `${form.site_banner_position_x}% ${form.site_banner_position_y}%`,
+    ...extra
+  }
 }
 </script>

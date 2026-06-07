@@ -10,6 +10,20 @@ REMOVE INDEX IF EXISTS post_content_fts ON post;
 -- ============ ANALYZER ============
 DEFINE ANALYZER IF NOT EXISTS blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ascii;
 
+-- ============ USERS ============
+DEFINE TABLE IF NOT EXISTS users SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS username ON users TYPE string;
+DEFINE FIELD IF NOT EXISTS password_hash ON users TYPE string;
+DEFINE FIELD IF NOT EXISTS role ON users TYPE string DEFAULT 'viewer' ASSERT $value IN ['superadmin', 'admin', 'author', 'viewer'];
+DEFINE FIELD IF NOT EXISTS display_name ON users TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS email ON users TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS active ON users TYPE bool DEFAULT true;
+DEFINE FIELD IF NOT EXISTS last_login_at ON users TYPE option<datetime> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS created_at ON users TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS updated_at ON users TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS users_username_unique ON TABLE users COLUMNS username UNIQUE;
+DEFINE INDEX IF NOT EXISTS users_role ON TABLE users FIELDS role;
+
 -- ============ POST (metadata only — block content lives in `block` table) ============
 DEFINE TABLE IF NOT EXISTS post SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS title ON post TYPE string;
@@ -17,6 +31,7 @@ DEFINE FIELD IF NOT EXISTS slug ON post TYPE string;
 DEFINE FIELD IF NOT EXISTS summary ON post TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS status ON post TYPE string DEFAULT 'draft' ASSERT $value IN ['draft', 'published', 'archived'];
 DEFINE FIELD IF NOT EXISTS cover_image ON post TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS author ON post TYPE option<record<users>> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS author_username ON post TYPE string DEFAULT 'admin';
 DEFINE FIELD IF NOT EXISTS published_at ON post TYPE option<datetime>;
 DEFINE FIELD IF NOT EXISTS is_featured ON post TYPE bool DEFAULT false;
@@ -40,15 +55,19 @@ DEFINE INDEX IF NOT EXISTS post_summary_fts ON TABLE post COLUMNS summary FULLTE
 DEFINE TABLE IF NOT EXISTS tag SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS name ON tag TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON tag TYPE string;
+DEFINE FIELD IF NOT EXISTS created_by ON tag TYPE option<record<users>> DEFAULT NONE;
 DEFINE INDEX IF NOT EXISTS tag_slug_unique ON TABLE tag COLUMNS slug UNIQUE;
+DEFINE INDEX IF NOT EXISTS tag_created_by ON TABLE tag FIELDS created_by;
 
 DEFINE TABLE IF NOT EXISTS category SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS name ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS description ON category TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS parent ON category TYPE option<record<category>> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS created_by ON category TYPE option<record<users>> DEFAULT NONE;
 DEFINE INDEX IF NOT EXISTS category_slug_unique ON TABLE category COLUMNS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS category_parent ON TABLE category FIELDS parent;
+DEFINE INDEX IF NOT EXISTS category_created_by ON TABLE category FIELDS created_by;
 
 DEFINE TABLE IF NOT EXISTS tagged TYPE RELATION FROM post TO tag;
 DEFINE TABLE IF NOT EXISTS categorized_as TYPE RELATION FROM post TO category;
@@ -115,6 +134,8 @@ DEFINE FIELD IF NOT EXISTS folders ON files TYPE array<record<folder>> DEFAULT [
 DEFINE FIELD IF NOT EXISTS tags ON files TYPE array<string> DEFAULT [];
 DEFINE FIELD IF NOT EXISTS reference_count ON files TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS referenced_by ON files TYPE array<record> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS visibility ON files TYPE string DEFAULT 'public' ASSERT $value IN ['public', 'private'];
+DEFINE FIELD IF NOT EXISTS created_by ON files TYPE option<record<users>> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS original_path ON files TYPE string;
 DEFINE FIELD IF NOT EXISTS variants ON files TYPE option<object> FLEXIBLE DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS perceptual_hash ON files TYPE option<string> DEFAULT NONE;
@@ -128,6 +149,8 @@ DEFINE INDEX IF NOT EXISTS files_uploaded_at ON TABLE files FIELDS uploaded_at;
 DEFINE INDEX IF NOT EXISTS files_mime_type ON TABLE files FIELDS mime_type;
 DEFINE INDEX IF NOT EXISTS files_is_image ON TABLE files FIELDS is_image;
 DEFINE INDEX IF NOT EXISTS files_reference_count ON TABLE files FIELDS reference_count;
+DEFINE INDEX IF NOT EXISTS files_visibility ON TABLE files FIELDS visibility;
+DEFINE INDEX IF NOT EXISTS files_created_by ON TABLE files FIELDS created_by;
 
 -- ============ MEDIA TAGS ============
 -- File tags are stored independently in files.tags and are not shared with post tags.

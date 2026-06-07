@@ -1,13 +1,22 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
-import { mediaNormalizeFileRecord, mediaNormalizeFolderId, mediaNormalizeHash } from '../../utils/mediaLibrary'
+import { mediaNormalizeFileRecord, mediaNormalizeFolderId, mediaNormalizeHash, mediaRecordManageableByUser } from '../../utils/mediaLibrary'
 import { firstRow } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const body = await readBody<Record<string, unknown>>(event)
   const db = await useDb()
+  const existingResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'files', id })
+  const existing = firstRow<Record<string, unknown>>(existingResponse)
+  if (!existing) {
+    throw createError({ statusCode: 404, message: 'Media file not found' })
+  }
+  if (!mediaRecordManageableByUser(mediaNormalizeFileRecord(existing), user)) {
+    throw createError({ statusCode: 403, message: 'You can only update media you uploaded' })
+  }
+
   const assignments: string[] = ['updated_at = time::now()']
   const params: Record<string, unknown> = {
     table: 'files',
@@ -44,6 +53,11 @@ export default defineEventHandler(async (event) => {
     })
     params.folder_table = 'folder'
     assignments.push(`folders = [${folderExpressions.join(', ')}]`)
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'visibility')) {
+    params.visibility = body.visibility === 'private' ? 'private' : 'public'
+    assignments.push('visibility = $visibility')
   }
 
   const response = await queryDb(

@@ -1,12 +1,12 @@
 import { createReadStream } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
 import { resolve, basename } from 'node:path'
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 
 const downloadsRoot = resolve(process.cwd(), 'storage/downloads')
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const filename = getRouterParam(event, 'filename') ?? ''
 
   // Validate filename to prevent path traversal

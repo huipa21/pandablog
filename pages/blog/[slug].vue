@@ -25,7 +25,7 @@
           >
         </figure>
 
-        <div class="post-reading-frame mx-auto w-full rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-6 shadow-[var(--pb-shadow-sm)] md:p-8">
+        <div class="post-reading-frame mx-auto w-full rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-6 shadow-[var(--pb-shadow-sm)] md:p-8">
           <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--pb-text-subtle)]">
@@ -170,5 +170,10 @@ function isLocked(value: PostRecord | PostLockedResponse): value is PostLockedRe
 .post-reading-frame {
   width: clamp(min(100%, var(--pb-post-content-min-width)), 100%, var(--pb-post-content-fluid-width));
   max-width: var(--pb-post-content-max-width);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pb-card-bg) 90%, var(--pb-selected-bg)),
+    color-mix(in srgb, var(--pb-card-bg) 96%, var(--pb-selected-bg))
+  );
 }
 </style>

@@ -27,12 +27,14 @@ export default defineEventHandler(async (event) => {
 
   const access = await evaluatePostAccess(event, {
     id: stringifyRecordId(post.id),
-    visibility: toPostVisibility(post.visibility)
+    visibility: toPostVisibility(post.visibility),
+    author: post.author,
+    author_username: typeof post.author_username === 'string' ? post.author_username : null
   })
 
   if (access.state === 'site-private') {
     const currentPath = event.path ?? `/api/posts/${slug}`
-    return sendRedirect(event, `/admin/login?redirect=${encodeURIComponent(currentPath)}`, 302)
+    return sendRedirect(event, `/login?redirect=${encodeURIComponent(currentPath)}`, 302)
   }
 
   if (access.state === 'not-found') {

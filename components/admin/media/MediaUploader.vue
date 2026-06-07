@@ -28,6 +28,14 @@
         </UFormField>
       </div>
 
+      <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3" :class="privateUpload ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-stone-200 bg-white'">
+        <USwitch v-model="privateUpload" />
+        <span class="grid gap-0.5">
+          <span class="font-medium text-stone-900">Private upload</span>
+          <span class="text-xs text-stone-500">Only admins and the uploader can view this file directly.</span>
+        </span>
+      </label>
+
       <div class="overflow-x-auto rounded-lg border border-stone-200">
         <table class="min-w-full table-fixed divide-y divide-stone-200 text-sm">
           <colgroup>
@@ -154,6 +162,7 @@ const isDragging = ref(false)
 const items = ref<UploadQueueItem[]>([])
 const generalComment = ref('')
 const generalTags = ref<string[]>([])
+const privateUpload = ref(false)
 const uploadResults = ref<UploadFileResult[]>([])
 const uploading = ref(false)
 
@@ -251,7 +260,7 @@ async function uploadQueuedFiles() {
       const uploadFile = fileWithDisplayName(item.file, item.displayName)
       const response = await uploadFiles([uploadFile], (_file, progress) => {
         item.progress = progress
-      })
+      }, { visibility: privateUpload.value ? 'private' : 'public' })
       const result = response.results[0]
       if (!result) continue
 

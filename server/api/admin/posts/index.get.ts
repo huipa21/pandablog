@@ -2,7 +2,7 @@ import { queryDb, useDb } from '../../../utils/db'
 import { normalizePost } from '../../../utils/content'
 import { normalizeCategory, normalizeTag } from '../../../utils/taxonomy'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 import type { PostRecord, PostStatus } from '~/types/content'
 
 const statuses: Array<PostStatus | 'all'> = ['all', 'draft', 'published', 'archived']
@@ -15,7 +15,7 @@ const sortOrders = {
 type AdminPostSort = keyof typeof sortOrders
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
 
   const query = getQuery(event)
   const limit = normalizeLimit(query.limit)
@@ -25,6 +25,9 @@ export default defineEventHandler(async (event) => {
   const tagIds = relationIds(query.tag_ids ?? query.tags, 'tag')
   const categoryIds = relationIds(query.category_ids ?? query.categories, 'category')
   const where = status === 'all' ? 'status != "archived"' : 'status = $status'
+  const ownerFilter = user.role === 'author'
+    ? 'AND (author = type::record($userTable, $userId) OR (author IS NONE AND author_username = $username))'
+    : ''
   const db = await useDb()
   const filteredPostIds = await resolveFilteredPostIds(db, { tagIds, categoryIds })
 
@@ -37,13 +40,13 @@ export default defineEventHandler(async (event) => {
 
   const response = await queryDb(
     db,
-    `SELECT * FROM post WHERE ${where} ${taxonomyFilter} ORDER BY ${orderBy} LIMIT $limit START $start;
-     SELECT count() AS total FROM post WHERE ${where} ${taxonomyFilter} GROUP ALL;
+    `SELECT * FROM post WHERE ${where} ${ownerFilter} ${taxonomyFilter} ORDER BY ${orderBy} LIMIT $limit START $start;
+     SELECT count() AS total FROM post WHERE ${where} ${ownerFilter} ${taxonomyFilter} GROUP ALL;
      SELECT * FROM tag ORDER BY name ASC;
      SELECT * FROM category ORDER BY name ASC;
     SELECT in, out FROM tagged;
     SELECT in, out FROM categorized_as;`,
-    { status, limit, start, postIds: filteredPostIds ?? [] }
+    { status, limit, start, postIds: filteredPostIds ?? [], userTable: 'users', userId: recordIdPart(user.id, 'users'), username: user.username }
   )
 
   const posts = queryRows<Record<string, unknown>>(response, 0).map(normalizePost)

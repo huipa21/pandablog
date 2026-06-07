@@ -11,7 +11,7 @@
         :to="`/category/${category.slug}`"
         class="flex items-center justify-between rounded-[var(--pb-radius-sm)] px-2 py-1 text-sm text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
       >
-        <span>{{ category.name }}</span>
+        <span>{{ categoryLabel(category.name) }}</span>
         <span class="text-xs text-[var(--pb-text-subtle)]">{{ category.post_count ?? 0 }}</span>
       </NuxtLink>
     </nav>
@@ -22,4 +22,9 @@
 <script setup lang="ts">
 const { data, pending } = await usePublicBootstrap()
 const categories = computed(() => data.value?.categories ?? [])
+
+function categoryLabel(value: string) {
+  const name = value.trim()
+  return name.toLowerCase() === 'default' ? 'Uncategorized' : name
+}
 </script>

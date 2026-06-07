@@ -1,10 +1,10 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
-import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../utils/mediaLibrary'
+import { mediaNormalizeFileRecord, mediaNormalizeHash, mediaRecordVisibleToUser } from '../../utils/mediaLibrary'
 import { firstRow } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const db = await useDb()
   const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
@@ -17,5 +17,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Media file not found' })
   }
 
-  return mediaNormalizeFileRecord(record)
+  const file = mediaNormalizeFileRecord(record)
+  if (!mediaRecordVisibleToUser(file, user)) {
+    throw createError({ statusCode: 404, message: 'Media file not found' })
+  }
+
+  return file
 })

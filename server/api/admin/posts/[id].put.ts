@@ -1,7 +1,8 @@
 import { queryDb, useDb } from '../../../utils/db'
 import { buildPostPayload, cleanFeatured, normalizePost, stringOrNull } from '../../../utils/content'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
+import { assertCanManagePostRecord } from '../../../utils/permissions'
 import { uniquePostSlug } from '../../../utils/posts'
 import { hashPostPassword } from '../../../utils/post-password'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
@@ -18,7 +19,7 @@ import { computeContentStats } from '~/utils/contentStats'
 import type { BlockRecord, JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const id = recordIdPart(getRouterParam(event, 'id') ?? '', 'post')
   const body = await readBody<Record<string, unknown>>(event)
   const db = await useDb()
@@ -31,13 +32,14 @@ export default defineEventHandler(async (event) => {
   if (!existing) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }
+  assertCanManagePostRecord(user, existing)
 
   const previousPost = normalizePost(existing)
   const previousBlocks = await loadBlocksForPost(db, previousPost.id)
   const previousDoc = buildDocFromBlocks(previousBlocks)
 
   const merged = { ...existing, ...body }
-  const payload = buildPostPayload(merged, user.username)
+  const payload = buildPostPayload(merged, user.role === 'author' ? user.username : previousPost.author_username)
 
   if (!payload.title) {
     throw createError({ statusCode: 400, message: 'Title is required' })

@@ -1,6 +1,6 @@
 import { readPublicBootstrap } from '../../utils/publicBootstrap'
 
 export default defineEventHandler(async (event) => {
-  setResponseHeader(event, 'Cache-Control', 'public, max-age=30, stale-while-revalidate=120')
+  setResponseHeader(event, 'Cache-Control', 'no-cache, max-age=0, must-revalidate')
   return await readPublicBootstrap()
 })

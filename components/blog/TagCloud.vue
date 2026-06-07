@@ -22,7 +22,11 @@
 
 <script setup lang="ts">
 const { data, pending } = await usePublicBootstrap()
-const tags = computed(() => data.value?.tags ?? [])
+const tags = computed(() => (data.value?.tags ?? []).filter((tag) => {
+  const name = String(tag.name ?? '').trim().toLowerCase()
+  const slug = String(tag.slug ?? '').trim().toLowerCase()
+  return Boolean(name) && name !== 'null' && slug !== 'null'
+}))
 const maxCount = computed(() => Math.max(1, ...tags.value.map((tag) => tag.post_count ?? 0)))
 
 function tagStyle(count: number) {

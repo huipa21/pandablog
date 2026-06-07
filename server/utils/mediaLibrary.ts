@@ -8,6 +8,7 @@ import { slugify, serializeDate } from './content'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { getExpectedMimeType, getExtension, validateUpload } from './validateUpload'
 import type { MediaSettings } from './settings'
+import type { SessionUser } from './users'
 import type { MediaFolderRecord, MediaRecord, MediaVariantRecord, MediaVariantSize, UploadFileResult } from '~/types/content'
 
 export interface MediaCreateUploadInput {
@@ -15,6 +16,8 @@ export interface MediaCreateUploadInput {
   data: Buffer
   mimeType?: string
   uploadedBy?: string
+  createdBy?: string
+  visibility?: 'public' | 'private'
 }
 
 export interface MediaSearchOptions {
@@ -39,6 +42,8 @@ export interface MediaSearchOptions {
   uploaded_from?: string
   uploaded_to?: string
   orphan?: boolean
+  visibility?: string
+  visibleToUser?: SessionUser
 }
 
 export interface MediaAdvancedGroup {
@@ -85,6 +90,9 @@ export function mediaNormalizeFileRecord(record: Record<string, unknown>): Media
     comment: stringOrNull(record.comment),
     reference_count: Number(record.reference_count ?? 0),
     referenced_by: normalizeRecordIdArray(record.referenced_by),
+    visibility: record.visibility === 'private' ? 'private' : 'public',
+    created_by: record.created_by ? stringifyRecordId(record.created_by) : null,
+    uploaded_by: stringOrNull(record.uploaded_by),
     perceptual_hash: stringOrNull(record.perceptual_hash),
     created_at: uploadedAt,
     uploaded_at: uploadedAt,
@@ -159,6 +167,8 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
     const variantsExpression = optionalParamExpression(image.variants, 'variants')
     const perceptualHashExpression = optionalParamExpression(image.perceptual_hash, 'perceptual_hash')
     const uploadedByExpression = optionalParamExpression(input.uploadedBy, 'uploaded_by')
+    const createdByExpression = input.createdBy ? 'type::record($userTable, $created_by)' : 'NONE'
+    const visibility = input.visibility === 'private' ? 'private' : 'public'
     const createResponse = await queryDb(
       db,
       `CREATE type::record($table, $id) CONTENT {
@@ -177,6 +187,8 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
         tags: [],
         reference_count: 0,
         referenced_by: [],
+        visibility: $visibility,
+        created_by: ${createdByExpression},
         original_path: $original_path,
         variants: ${variantsExpression},
         perceptual_hash: ${perceptualHashExpression},
@@ -197,7 +209,10 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
         original_path: originalPath,
         variants: image.variants,
         perceptual_hash: image.perceptual_hash,
-        uploaded_by: input.uploadedBy ?? null
+        uploaded_by: input.uploadedBy ?? null,
+        visibility,
+        userTable: 'users',
+        created_by: input.createdBy ? recordIdPart(input.createdBy, 'users') : null
       }
     )
     const created = firstRow<Record<string, unknown>>(createResponse)
@@ -266,6 +281,8 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   const tagRelation = options.tag_relation === 'or' ? 'or' : 'and'
 
   const filtered = allFiles
+    .filter((file) => mediaRecordVisibleToUser(file, options.visibleToUser))
+    .filter((file) => !options.visibility || options.visibility === 'all' || file.visibility === options.visibility)
     .filter((file) => !options.type || options.type === 'all' || mediaRecordMatchesType(file, options.type))
     .filter((file) => !options.mime_type || file.mime_type === options.mime_type)
     .filter((file) => !normalizedFolderId || mediaFileMatchesFolder(file, normalizedFolderId, selectedDefaultFolderId))
@@ -291,6 +308,30 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     limit,
     pages: Math.ceil(total / limit)
   }
+}
+
+export function mediaRecordVisibleToUser(file: MediaRecord, user?: SessionUser | null) {
+  if (file.visibility !== 'private') {
+    return true
+  }
+
+  if (!user) {
+    return false
+  }
+
+  if (user.role === 'superadmin' || user.role === 'admin') {
+    return true
+  }
+
+  return file.created_by === user.id || file.uploaded_by === user.username
+}
+
+export function mediaRecordManageableByUser(file: MediaRecord, user: SessionUser) {
+  if (user.role === 'admin') {
+    return true
+  }
+
+  return file.created_by === user.id || file.uploaded_by === user.username
 }
 
 async function mediaReadFolderById(db: Surreal, folderId: string) {

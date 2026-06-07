@@ -39,7 +39,7 @@ const errorMessage = ref('')
 onMounted(async () => {
   const setup = await $fetch<{ completed: boolean }>('/api/auth/setup-status').catch(() => null)
   if (setup?.completed) {
-    await navigateTo('/admin/login')
+    await navigateTo('/login')
   }
 })
 

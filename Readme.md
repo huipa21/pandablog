@@ -83,12 +83,69 @@ npm run typecheck
 Browser e2e tests:
 
 ```bash
-$env:E2E_ADMIN_USERNAME="admin"
-$env:E2E_ADMIN_PASSWORD="your-admin-password"
+$env:E2E_ADMIN_USERNAME="<your-e2e-admin-username>"
+$env:E2E_ADMIN_PASSWORD="<your-e2e-admin-password>"
 npm run test:e2e
 ```
 
 The e2e suite starts the Nuxt dev server when `PLAYWRIGHT_BASE_URL` is not set. Set `PLAYWRIGHT_BASE_URL` to test an already-running local or staging instance.
+
+## Build Docker Image
+
+Build the production image from `Dockerfile`:
+
+```bash
+docker build -t pandablog:latest .
+```
+
+Optional: export the image as a tarball for transfer to another host:
+
+```bash
+docker save -o pandablog-latest.tar pandablog:latest
+```
+
+If your target host uses Podman:
+
+```bash
+podman load -i pandablog-latest.tar
+```
+
+Run the image directly:
+
+```bash
+docker run -d \
+  --name pandablog \
+  -p 127.0.0.1:3000:3000 \
+  --env-file .env \
+  -v pandablog-storage:/app/storage \
+  -v pandablog-data:/app/.data \
+  pandablog:latest
+```
+
+Or use the provided production compose file:
+
+```bash
+# Option A: use locally built image
+set PANDABLOG_IMAGE=pandablog:latest
+
+# Option B: if loaded as localhost/pandablog:latest
+# set PANDABLOG_IMAGE=localhost/pandablog:latest
+
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Verify container health/logs:
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f app
+```
+
+Notes:
+
+- Keep real secrets in runtime `.env`; do not bake secrets into the image.
+- `docker-compose.prod.yml` expects `NUXT_*` variables (for example `NUXT_SURREAL_URL`, `NUXT_SESSION_PASSWORD`) in `.env`.
+- First deployment still requires opening `/admin` once to complete setup if `app_settings` is empty.
 
 ## Project Layout
 

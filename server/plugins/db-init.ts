@@ -9,6 +9,7 @@ import { computeContentStats } from '~/utils/contentStats'
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
+const USER_TABLE_MIGRATION_KEY = '__user_table_migration_v1'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v1'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const APP_SETTINGS_TABLE = 'app_settings'
@@ -41,6 +42,7 @@ export default defineNitroPlugin(async () => {
       await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
     }
 
+    await ensureUserTableMigration(db)
     await ensureMediaStorageVersion(db)
     await ensureDefaultMediaSettings(db)
     await ensureDefaultAdminColorMode(db)
@@ -86,6 +88,72 @@ async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>)
   }
 
   await setAppSetting(db, 'media', DEFAULT_MEDIA_SETTINGS, 'media settings init')
+}
+
+async function ensureUserTableMigration(db: Awaited<ReturnType<typeof useDb>>) {
+  const marker = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: USER_TABLE_MIGRATION_KEY },
+    { label: 'user table migration marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(marker)) {
+    return
+  }
+
+  const existingAdmin = await queryDb(
+    db,
+    'SELECT id FROM users WHERE username = $username LIMIT 1;',
+    { username: 'admin' },
+    { label: 'seed admin user check', timeoutMs: 5_000 }
+  )
+  let adminId = firstRow<{ id?: unknown }>(existingAdmin)?.id
+
+  if (!adminId) {
+    const legacyPassword = await queryDb(
+      db,
+      'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+      { key: 'admin_password_hash' },
+      { label: 'legacy admin password lookup', timeoutMs: 5_000 }
+    )
+    const passwordHash = String(firstRow<{ value?: unknown }>(legacyPassword)?.value ?? '')
+
+    if (passwordHash) {
+      const created = await queryDb(
+        db,
+        `UPSERT type::record($table, $id) CONTENT {
+          username: 'admin',
+          password_hash: $passwordHash,
+          role: 'superadmin',
+          display_name: 'Administrator',
+          email: NONE,
+          active: true,
+          last_login_at: NONE,
+          created_at: time::now(),
+          updated_at: time::now()
+        };`,
+        { table: 'users', id: 'admin', passwordHash },
+        { label: 'seed admin user create', timeoutMs: 10_000 }
+      )
+      adminId = firstRow<{ id?: unknown }>(created)?.id
+    }
+  }
+
+  if (adminId) {
+    await queryDb(
+      db,
+      `UPDATE post SET author = $adminId WHERE author IS NONE;
+       UPDATE tag SET created_by = $adminId WHERE created_by IS NONE;
+       UPDATE category SET created_by = $adminId WHERE created_by IS NONE;
+       UPDATE files SET created_by = $adminId WHERE created_by IS NONE;
+       UPDATE files SET visibility = 'public' WHERE visibility IS NONE;`,
+      { adminId },
+      { label: 'ownership backfill to seed admin', timeoutMs: 30_000 }
+    )
+  }
+
+  await setAppSetting(db, USER_TABLE_MIGRATION_KEY, new Date().toISOString(), 'user table migration marker')
 }
 
 async function ensureDefaultAdminColorMode(db: Awaited<ReturnType<typeof useDb>>) {

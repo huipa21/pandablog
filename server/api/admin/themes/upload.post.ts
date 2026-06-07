@@ -1,9 +1,9 @@
-import { requireAdminUser } from '../../../utils/auth'
+import { requireSuperadmin } from '../../../utils/auth'
 import { installThemeFromZip } from '../../../utils/theme-installer'
 import { invalidateThemeCache } from '../../../utils/theme-loader'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireSuperadmin(event)
 
   const parts = await readMultipartFormData(event)
   const file = parts?.find(p => p.name === 'theme' && p.filename)

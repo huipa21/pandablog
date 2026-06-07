@@ -1,9 +1,9 @@
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 import { queryDb, useDb } from '../../../utils/db'
 import { queryRows, stringifyRecordId } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const db = await useDb()
 
   const response = await queryDb(db, 'SELECT * FROM media_smart_folder ORDER BY name ASC;')

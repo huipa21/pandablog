@@ -1,13 +1,13 @@
 import { queryDb, useDb } from '../../../utils/db'
-import { queryRows, stringifyRecordId } from '../../../utils/surrealResult'
-import { requireAdminUser } from '../../../utils/auth'
+import { queryRows, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
+import { requireContentManager } from '../../../utils/auth'
 
 /**
  * Search posts by title or slug — used by the editor's Related Post picker.
  * Returns at most 20 suggestions ordered by recency / relevance.
  */
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const q = String(getQuery(event).q ?? '').trim()
 
   if (!q) {
@@ -15,15 +15,18 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await useDb()
-  const pattern = `%${q.toLowerCase()}%`
+  const ownerFilter = user.role === 'author'
+    ? 'AND (author = type::record($userTable, $userId) OR (author IS NONE AND author_username = $username))'
+    : ''
   const response = await queryDb(
     db,
     `SELECT id, slug, title FROM post
      WHERE status != 'archived'
+       ${ownerFilter}
        AND (string::lowercase(title) CONTAINS $needle OR slug CONTAINS $needle)
      ORDER BY updated_at DESC
      LIMIT 20;`,
-    { needle: pattern.replace(/%/g, '') }
+    { needle: q.toLowerCase(), userTable: 'users', userId: recordIdPart(user.id, 'users'), username: user.username }
   )
 
   const items = queryRows<{ id: unknown, slug?: unknown, title?: unknown }>(response, 0).map((row) => ({

@@ -1,10 +1,10 @@
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 import { queryDb, useDb } from '../../../utils/db'
 import { mediaCleanFolderName, mediaNormalizeFolderId, mediaNormalizeFolderRecord, mediaUniqueFolderSlug } from '../../../utils/mediaLibrary'
 import { firstRow } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const body = await readBody<Record<string, unknown>>(event)
   const name = mediaCleanFolderName(body.name)
   const db = await useDb()

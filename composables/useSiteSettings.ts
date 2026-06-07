@@ -11,6 +11,10 @@ export interface SiteSettings {
   site_subtitle: string
   site_logo: string
   site_banner: string
+  site_banner_position_x: number
+  site_banner_position_y: number
+  site_banner_zoom: number
+  site_hero_height_vh: number
   site_favicon: string
   owner_name: string
   owner_avatar: string
@@ -30,6 +34,10 @@ export function useSiteSettings() {
       site_subtitle: '',
       site_logo: '',
       site_banner: '',
+      site_banner_position_x: 50,
+      site_banner_position_y: 50,
+      site_banner_zoom: 100,
+      site_hero_height_vh: 34,
       site_favicon: '/favicon.ico',
       owner_name: '',
       owner_avatar: '',
@@ -53,6 +61,10 @@ export function useSiteSettings() {
       site_subtitle: textValue(remote.site_subtitle) || fallback.value.site_subtitle,
       site_logo: textValue(remote.site_logo) || fallback.value.site_logo,
       site_banner: textValue(remote.site_banner) || fallback.value.site_banner,
+      site_banner_position_x: numberValue(remote.site_banner_position_x, fallback.value.site_banner_position_x, 0, 100),
+      site_banner_position_y: numberValue(remote.site_banner_position_y, fallback.value.site_banner_position_y, 0, 100),
+      site_banner_zoom: numberValue(remote.site_banner_zoom, fallback.value.site_banner_zoom, 100, 200),
+      site_hero_height_vh: numberValue(remote.site_hero_height_vh, fallback.value.site_hero_height_vh, 18, 58),
       site_favicon: textValue(remote.site_favicon) || fallback.value.site_favicon,
       owner_name: textValue(remote.owner_name) || fallback.value.owner_name,
       owner_avatar: textValue(remote.owner_avatar) || fallback.value.owner_avatar,
@@ -73,6 +85,10 @@ export function useSiteSettings() {
     siteSubtitle: computed(() => settings.value.site_subtitle),
     siteLogo: computed(() => settings.value.site_logo),
     siteBanner: computed(() => settings.value.site_banner),
+    siteBannerPositionX: computed(() => settings.value.site_banner_position_x),
+    siteBannerPositionY: computed(() => settings.value.site_banner_position_y),
+    siteBannerZoom: computed(() => settings.value.site_banner_zoom),
+    siteHeroHeightVh: computed(() => settings.value.site_hero_height_vh),
     siteFavicon: computed(() => settings.value.site_favicon),
     ownerName: computed(() => settings.value.owner_name),
     ownerAvatar: computed(() => settings.value.owner_avatar),
@@ -86,6 +102,15 @@ export function useSiteSettings() {
 
 function textValue(value: unknown) {
   return typeof value === 'string' ? value : ''
+}
+
+function numberValue(value: unknown, fallback: number, min: number, max: number) {
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number)) {
+    return fallback
+  }
+
+  return Math.min(max, Math.max(min, number))
 }
 
 function jsonContentValue(value: unknown): JsonContent | null {

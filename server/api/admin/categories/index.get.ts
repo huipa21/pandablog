@@ -1,11 +1,11 @@
 import { queryDb, useDb } from '../../../utils/db'
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 import { normalizeCategory } from '../../../utils/taxonomy'
 import { queryRows, stringifyRecordId } from '../../../utils/surrealResult'
 import type { CategoryRecord } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
 
   const db = await useDb()
   const response = await queryDb(

@@ -1,11 +1,11 @@
-import { requireAdminUser } from '../../../utils/auth'
+import { requireSuperadmin } from '../../../utils/auth'
 import { deleteTheme } from '../../../utils/theme-installer'
 import { getActiveThemeId, invalidateThemeCache } from '../../../utils/theme-loader'
 
 const BUILT_IN_THEME_IDS = new Set(['default', 'tesla', 'notion', 'clay'])
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireSuperadmin(event)
 
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'Missing theme id' })

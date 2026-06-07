@@ -162,6 +162,9 @@ export interface MediaRecord {
   comment?: string | null
   reference_count?: number
   referenced_by?: string[]
+  visibility?: 'public' | 'private'
+  created_by?: string | null
+  uploaded_by?: string | null
   thumbnail_url?: string | null
   perceptual_hash?: string | null
   created_at: string

@@ -1,14 +1,15 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { useDb } from '../../utils/db'
 import { mediaCreateOrReuseFileRecord } from '../../utils/mediaLibrary'
 import { getMediaSettings } from '../../utils/settings'
 import type { UploadFileResult } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const settings = await getMediaSettings()
   const db = await useDb()
   const form = await readMultipartFormData(event)
+  const visibility = form?.find((field) => field.name === 'visibility')?.data?.toString('utf8') === 'private' ? 'private' : 'public'
 
   if (!form?.length) {
     throw createError({ statusCode: 400, message: 'No files provided' })
@@ -35,7 +36,9 @@ export default defineEventHandler(async (event) => {
         originalName: file.filename || 'upload',
         data: file.data,
         mimeType: file.type,
-        uploadedBy: user.username
+        uploadedBy: user.username,
+        createdBy: user.id,
+        visibility
       }, settings))
     } catch (error) {
       results.push({

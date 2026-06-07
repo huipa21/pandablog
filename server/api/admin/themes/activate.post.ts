@@ -1,8 +1,8 @@
-import { requireAdminUser } from '../../../utils/auth'
+import { requireSuperadmin } from '../../../utils/auth'
 import { setActiveThemeId, loadTheme, invalidateThemeCache } from '../../../utils/theme-loader'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireSuperadmin(event)
 
   const body = await readBody<{ themeId?: string }>(event)
   const themeId = body.themeId?.trim()

@@ -34,6 +34,11 @@ interface MediaListOptions {
   uploaded_from?: string
   uploaded_to?: string
   orphan?: boolean
+  visibility?: 'all' | 'public' | 'private'
+}
+
+interface UploadOptions {
+  visibility?: 'public' | 'private'
 }
 
 export function useMedia() {
@@ -60,23 +65,25 @@ export function useMedia() {
     if (options.uploaded_from) query.set('uploaded_from', options.uploaded_from)
     if (options.uploaded_to) query.set('uploaded_to', options.uploaded_to)
     if (options.orphan) query.set('orphan', 'true')
+    if (options.visibility && options.visibility !== 'all') query.set('visibility', options.visibility)
 
     return await $fetch<MediaListResponse>(`/api/media/search?${query}`)
   }
 
-  async function uploadFiles(files: File[], onProgress?: (file: File, progress: number) => void) {
+  async function uploadFiles(files: File[], onProgress?: (file: File, progress: number) => void, options: UploadOptions = {}) {
     if (!import.meta.client) {
       const formData = new FormData()
       for (const file of files) {
         formData.append('files', file)
       }
+      formData.append('visibility', options.visibility === 'private' ? 'private' : 'public')
       return await $fetch<UploadResponse>('/api/media/upload', {
         method: 'POST',
         body: formData
       })
     }
 
-    const responses = await Promise.all(files.map((file) => uploadSingleFile(file, onProgress)))
+    const responses = await Promise.all(files.map((file) => uploadSingleFile(file, onProgress, options)))
     return {
       results: responses.flatMap((response) => response.results)
     }
@@ -201,11 +208,12 @@ export function useMedia() {
   }
 }
 
-function uploadSingleFile(file: File, onProgress?: (file: File, progress: number) => void) {
+function uploadSingleFile(file: File, onProgress?: (file: File, progress: number) => void, options: UploadOptions = {}) {
   return new Promise<UploadResponse>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const formData = new FormData()
     formData.append('files', file)
+    formData.append('visibility', options.visibility === 'private' ? 'private' : 'public')
 
     xhr.open('POST', '/api/media/upload')
     xhr.withCredentials = true

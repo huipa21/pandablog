@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="pending" class="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+    <div v-if="pending" class="post-card-grid grid gap-6">
       <USkeleton v-for="index in 6" :key="index" class="h-80 rounded-[var(--pb-radius-card-outer)]" />
     </div>
 
@@ -12,11 +12,11 @@
       :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to view posts.' : undefined"
     />
 
-    <div v-else-if="posts.length" class="post-card-grid grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+    <div v-else-if="posts.length" class="post-card-grid grid gap-6">
       <article
         v-for="post in posts"
         :key="post.id"
-        class="group overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]"
+        class="group flex h-full flex-col overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]"
       >
         <NuxtLink :to="`/blog/${post.slug}`" class="block overflow-hidden bg-[var(--pb-surface-subtle)]">
           <img
@@ -29,21 +29,23 @@
             <UIcon name="i-lucide-newspaper" class="size-10 text-[var(--pb-icon-muted)]" />
           </div>
         </NuxtLink>
-        <div class="p-5">
-          <div class="mb-3 flex items-center gap-3 text-xs text-[var(--pb-text-subtle)]">
-            <time v-if="post.published_at" :datetime="post.published_at">{{ formatDate(post.published_at) }}</time>
-            <UBadge v-if="post.visibility === 'password'" color="warning" variant="subtle" size="xs">
-              Protected
-            </UBadge>
-          </div>
+        <div class="flex flex-1 flex-col p-5">
           <h2 class="font-[var(--pb-font-display)] text-xl font-semibold leading-tight text-[var(--pb-text)]">
             <NuxtLink :to="`/blog/${post.slug}`" class="hover:text-[var(--pb-link-hover)]">{{ post.title }}</NuxtLink>
           </h2>
-          <p v-if="post.summary" class="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--pb-text-muted)]">{{ post.summary }}</p>
-          <NuxtLink :to="`/blog/${post.slug}`" class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--pb-link)] hover:text-[var(--pb-link-hover)] hover:underline">
-            Read more
-            <UIcon name="i-lucide-arrow-right" class="size-4" />
-          </NuxtLink>
+          <p v-if="post.summary" class="mt-3 line-clamp-2 text-sm leading-relaxed text-[var(--pb-text-muted)]">{{ post.summary }}</p>
+          <div class="mt-auto pt-5">
+            <div class="mb-3 flex items-center gap-3 text-xs text-[var(--pb-text-subtle)]">
+              <time v-if="post.published_at" :datetime="post.published_at">{{ formatDate(post.published_at) }}</time>
+              <UBadge v-if="post.visibility === 'password'" color="warning" variant="subtle" size="xs">
+                Protected
+              </UBadge>
+            </div>
+            <NuxtLink :to="`/blog/${post.slug}`" class="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--pb-link)] hover:text-[var(--pb-link-hover)] hover:underline">
+              Read more
+              <UIcon name="i-lucide-arrow-right" class="size-4" />
+            </NuxtLink>
+          </div>
         </div>
       </article>
     </div>
@@ -85,3 +87,10 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 </script>
+
+<style scoped>
+.post-card-grid {
+  gap: clamp(1.5rem, 2vw, 2rem);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14.75rem), 1fr));
+}
+</style>

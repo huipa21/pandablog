@@ -1,9 +1,7 @@
 import { getSiteVisibility } from '../utils/visibility'
-import { isAdminAuthenticated } from '../utils/auth'
+import { isAuthenticated } from '../utils/auth'
 
 const ALWAYS_ALLOWED_PREFIXES = [
-  '/admin',
-  '/api/admin',
   '/api/auth',
   '/api/site/visibility',
   '/api/health',
@@ -14,14 +12,16 @@ const ALWAYS_ALLOWED_PREFIXES = [
 ]
 
 const ALWAYS_ALLOWED_EXACT = new Set([
+  '/login',
   '/favicon.ico',
   '/robots.txt',
   '/sitemap.xml'
 ])
 
 export default defineEventHandler(async (event) => {
-  const url = event.path ?? ''
-  const originalUrl = event.node.req.url ?? url
+  const requestUrl = getRequestURL(event)
+  const url = requestUrl.pathname
+  const originalUrl = event.node.req.url ?? requestUrl.pathname
 
   if (ALWAYS_ALLOWED_EXACT.has(url)) return
 
@@ -34,7 +34,11 @@ export default defineEventHandler(async (event) => {
   const site = await getSiteVisibility()
   if (site === 'public') return
 
-  if (await isAdminAuthenticated(event)) return
+  if (await isAuthenticated(event)) return
 
-  return sendRedirect(event, `/admin/login?redirect=${encodeURIComponent(originalUrl)}`, 302)
+  if (url.startsWith('/api/')) {
+    throw createError({ statusCode: 401, message: 'Authentication required' })
+  }
+
+  return sendRedirect(event, `/login?redirect=${encodeURIComponent(originalUrl)}`, 302)
 })

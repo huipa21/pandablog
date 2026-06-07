@@ -1,11 +1,11 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFolderId, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
 import { firstRow, stringifyRecordId } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const body = await readBody<{
     action: 'delete' | 'update'
     hashes: string[]

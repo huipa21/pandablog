@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaResolveOriginalPath } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
@@ -14,7 +14,7 @@ const archiver: typeof import('archiver') = require('archiver')
 const downloadsRoot = resolve(process.cwd(), 'storage/downloads')
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const body = await readBody<{ hashes: string[] }>(event)
 
   if (!Array.isArray(body.hashes) || !body.hashes.length) {

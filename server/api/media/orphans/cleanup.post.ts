@@ -1,9 +1,9 @@
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 import { useDb } from '../../../utils/db'
 import { mediaCleanupOrphanFiles } from '../../../utils/mediaCleanup'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const body = await readBody<Record<string, unknown>>(event)
   const olderThanDays = typeof body.older_than_days === 'number' ? body.older_than_days : undefined
   const db = await useDb()

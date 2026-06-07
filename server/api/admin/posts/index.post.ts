@@ -1,7 +1,7 @@
 import { queryDb, useDb } from '../../../utils/db'
 import { buildPostPayload, normalizePost, stringOrNull } from '../../../utils/content'
-import { firstRow, recordIdPart } from '../../../utils/surrealResult'
-import { requireAdminUser } from '../../../utils/auth'
+import { firstRow, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
+import { requireContentManager } from '../../../utils/auth'
 import { uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
@@ -11,7 +11,7 @@ import { buildDocFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks
 import type { JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const body = await readBody<Record<string, unknown>>(event)
   const payload = buildPostPayload(body, user.username)
   const visibility = normalizeVisibility(body.visibility)
@@ -50,6 +50,12 @@ export default defineEventHandler(async (event) => {
   if (!post) {
     throw createError({ statusCode: 500, message: 'Post was not created' })
   }
+
+  await queryDb(
+    db,
+    'UPDATE type::record($table, $id) SET author = type::record($userTable, $userId);',
+    { table: 'post', id: recordIdPart(stringifyRecordId(post.id), 'post'), userTable: 'users', userId: recordIdPart(user.id, 'users') }
+  )
 
   const normalizedPost = normalizePost(post)
   if (normalizedPost.is_featured && normalizedPost.status === 'published') {

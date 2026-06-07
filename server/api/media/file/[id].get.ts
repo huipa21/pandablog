@@ -1,7 +1,8 @@
+import { getSessionUser } from '../../../utils/auth'
 import { queryDb, useDb } from '../../../utils/db'
 import { mediaCreateOriginalStream, mediaStatOriginal } from '../../../utils/fileStorage'
 import { assertLocalMediaRequest } from '../../../utils/mediaAccess'
-import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../../utils/mediaLibrary'
+import { mediaNormalizeFileRecord, mediaNormalizeHash, mediaRecordVisibleToUser } from '../../../utils/mediaLibrary'
 import { firstRow } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
@@ -20,6 +21,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const file = mediaNormalizeFileRecord(record)
+  const user = await getSessionUser(event)
+  if (!mediaRecordVisibleToUser(file, user)) {
+    throw createError({ statusCode: 404, message: 'File not found' })
+  }
 
   try {
     const stats = await mediaStatOriginal(file.original_path || '')

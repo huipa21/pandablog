@@ -1,6 +1,7 @@
-import { requireAdminUser } from '../../../utils/auth'
-import { useDb } from '../../../utils/db'
-import { recordIdPart } from '../../../utils/surrealResult'
+import { requireContentManager } from '../../../utils/auth'
+import { queryDb, useDb } from '../../../utils/db'
+import { firstRow, recordIdPart } from '../../../utils/surrealResult'
+import { assertCanManagePostRecord } from '../../../utils/permissions'
 import { archiveOrDeletePostById } from '../../../utils/postArchiveDelete'
 
 type BulkBody = {
@@ -8,7 +9,7 @@ type BulkBody = {
 }
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
 
   const body = await readBody<BulkBody>(event)
   const rawIds = Array.isArray(body?.ids) ? body.ids : []
@@ -29,6 +30,13 @@ export default defineEventHandler(async (event) => {
 
   await runWithConcurrency(ids, 6, async (id) => {
     try {
+      const existingResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'post', id })
+      const existing = firstRow<Record<string, unknown>>(existingResponse)
+      if (!existing) {
+        throw createError({ statusCode: 404, message: 'Post not found' })
+      }
+      assertCanManagePostRecord(user, existing)
+
       const result = await archiveOrDeletePostById(db, id)
       if (result.kind === 'archived') {
         archivedIds.push(result.post.id)

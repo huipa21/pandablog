@@ -1,11 +1,11 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { slugify, serializeDate } from '../../utils/content'
 import { queryRows } from '../../utils/surrealResult'
 import type { MediaTagSummary } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  await requireContentManager(event)
   const query = getQuery(event)
   const search = typeof query.q === 'string' ? query.q.trim().toLowerCase() : ''
   const db = await useDb()

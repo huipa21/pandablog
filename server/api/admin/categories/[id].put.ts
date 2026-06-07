@@ -1,16 +1,27 @@
 import { queryDb, useDb } from '../../../utils/db'
-import { requireAdminUser } from '../../../utils/auth'
+import { requireContentManager } from '../../../utils/auth'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
+import { assertCanManageOwnedRecord } from '../../../utils/permissions'
 import { assertValidCategoryParent, normalizeCategory, taxonomyName, taxonomyParentId, uniqueTaxonomySlug } from '../../../utils/taxonomy'
 import { stringOrNull } from '../../../utils/content'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
 
   const id = recordIdPart(getRouterParam(event, 'id') ?? '', 'category')
   const body = await readBody<Record<string, unknown>>(event)
   const name = taxonomyName(body.name)
   const db = await useDb()
+  const existingResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'category', id })
+  const existing = firstRow<Record<string, unknown>>(existingResponse)
+  if (!existing) {
+    throw createError({ statusCode: 404, message: 'Category not found' })
+  }
+  assertCanManageOwnedRecord(user, existing, {
+    ownerField: 'created_by',
+    message: 'You can only edit categories you created'
+  })
+
   const slug = await uniqueTaxonomySlug(db, 'category', String(body.slug || name), `category:${id}`)
   const description = stringOrNull(body.description)
   const hasParentInput = Object.prototype.hasOwnProperty.call(body, 'parent_id') || Object.prototype.hasOwnProperty.call(body, 'parent')

@@ -1,6 +1,15 @@
+type PublicUserRole = 'superadmin' | 'admin' | 'author' | 'viewer'
+
+interface PublicSessionUser {
+  id: string
+  username: string
+  role: PublicUserRole
+  display_name?: string | null
+}
+
 interface PublicAuthSession {
   loggedIn: boolean
-  user: unknown | null
+  user: PublicSessionUser | null
 }
 
 type PublicFetch = <T>(url: string) => Promise<T>

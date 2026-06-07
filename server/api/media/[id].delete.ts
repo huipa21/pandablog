@@ -1,11 +1,11 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
-import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../utils/mediaLibrary'
+import { mediaNormalizeFileRecord, mediaNormalizeHash, mediaRecordManageableByUser } from '../../utils/mediaLibrary'
 import { firstRow } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const force = getQuery(event).force === 'true'
   const db = await useDb()
@@ -20,6 +20,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const file = mediaNormalizeFileRecord(record)
+  if (!mediaRecordManageableByUser(file, user)) {
+    throw createError({ statusCode: 403, message: 'You can only delete media you uploaded' })
+  }
 
   if (!force && (file.reference_count ?? 0) > 0) {
     throw createError({ statusCode: 409, message: 'File is still referenced. Remove references or force delete.' })

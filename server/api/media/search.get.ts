@@ -1,10 +1,10 @@
-import { requireAdminUser } from '../../utils/auth'
+import { requireContentManager } from '../../utils/auth'
 import { useDb } from '../../utils/db'
 import { mediaSearchFileRecords } from '../../utils/mediaLibrary'
 import type { MediaAdvancedGroup } from '../../utils/mediaLibrary'
 
 export default defineEventHandler(async (event) => {
-  await requireAdminUser(event)
+  const user = await requireContentManager(event)
   const query = getQuery(event)
   const db = await useDb()
   const searchRegex = query.search_regex === 'true'
@@ -34,7 +34,9 @@ export default defineEventHandler(async (event) => {
     tag: stringQuery(query.tag),
     uploaded_from: stringQuery(query.uploaded_from),
     uploaded_to: stringQuery(query.uploaded_to),
-    orphan: query.orphan === 'true'
+    orphan: query.orphan === 'true',
+    visibility: stringQuery(query.visibility),
+    visibleToUser: user
   })
 })
 

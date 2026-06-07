@@ -1,14 +1,12 @@
-import argon2 from 'argon2'
-import { constantTimeEqual, type AdminUser } from '../../utils/auth'
 import { recordActivity } from '../../utils/activity'
 import { checkLoginRateLimit, recordLoginAttempt } from '../../utils/rate-limit'
-import { getRuntimeFlags, readAdminCredentials } from '../../utils/settings'
+import { getRuntimeFlags, isSetupCompleted } from '../../utils/settings'
+import { findUserByUsername, toSessionUser, touchUserLogin, verifyUserPassword } from '../../utils/users'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ username?: string, password?: string }>(event)
   const username = body.username?.trim() ?? ''
   const password = body.password ?? ''
-  const credentials = await readAdminCredentials()
   const runtimeFlags = getRuntimeFlags()
 
   // ---- IP resolution -------------------------------------------------------
@@ -37,7 +35,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // ---- Config sanity check -------------------------------------------------
-  if (!credentials.setupCompleted) {
+  if (!await isSetupCompleted()) {
     throw createError({
       statusCode: 503,
       message: 'Admin setup is required.'
@@ -45,16 +43,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // ---- Verify credentials --------------------------------------------------
-  // Always run argon2.verify — even on bad username — to keep timing uniform.
-  const usernameOk = constantTimeEqual(username, credentials.username)
-  let passwordOk = false
-  try {
-    passwordOk = await argon2.verify(credentials.passwordHash, password)
-  } catch {
-    passwordOk = false
-  }
-
-  const isValid = usernameOk && passwordOk
+  const account = await findUserByUsername(username).catch(() => null)
+  const passwordOk = await verifyUserPassword(account, password)
+  const isValid = Boolean(account?.active && passwordOk)
 
   // ---- Record attempt (only when we have an IP) ----------------------------
   if (ip) {
@@ -66,22 +57,20 @@ export default defineEventHandler(async (event) => {
   }
 
   // ---- Issue session -------------------------------------------------------
-  const user: AdminUser = {
-    username: credentials.username,
-    role: 'admin'
-  }
+  const user = toSessionUser(account!)
 
   await setUserSession(event, {
     user,
     loggedInAt: new Date().toISOString()
   })
+  await touchUserLogin(user.id)
 
   recordActivity(event, {
     action: 'auth.login',
     resource_type: 'session',
-    resource_id: user.username,
-    metadata: { username: user.username },
-    description: 'Admin user signed in'
+    resource_id: user.id,
+    metadata: { username: user.username, role: user.role },
+    description: 'User signed in'
   })
 
   return { user }

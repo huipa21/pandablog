@@ -1,7 +1,7 @@
 import { adminPasswordProblem, hashAdminPassword } from '../../utils/admin-password'
-import { type AdminUser } from '../../utils/auth'
 import { recordActivity } from '../../utils/activity'
 import { readAdminCredentials, writeAdminCredentials } from '../../utils/settings'
+import { findUserByUsername, toSessionUser } from '../../utils/users'
 
 export default defineEventHandler(async (event) => {
   const existing = await readAdminCredentials()
@@ -24,10 +24,11 @@ export default defineEventHandler(async (event) => {
 
   const passwordHash = await hashAdminPassword(password)
   const credentials = await writeAdminCredentials(passwordHash)
-  const user: AdminUser = {
-    username: credentials.username,
-    role: 'admin'
+  const adminUser = await findUserByUsername(credentials.username)
+  if (!adminUser) {
+    throw createError({ statusCode: 500, message: 'Admin account was not created' })
   }
+  const user = toSessionUser(adminUser)
 
   await setUserSession(event, {
     user,
@@ -37,8 +38,8 @@ export default defineEventHandler(async (event) => {
   recordActivity(event, {
     action: 'auth.setup',
     resource_type: 'session',
-    resource_id: user.username,
-    metadata: { username: user.username },
+    resource_id: user.id,
+    metadata: { username: user.username, role: user.role },
     description: 'Admin account setup completed'
   })
 

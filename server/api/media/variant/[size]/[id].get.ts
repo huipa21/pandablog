@@ -1,7 +1,8 @@
+import { getSessionUser } from '../../../../utils/auth'
 import { queryDb, useDb } from '../../../../utils/db'
 import { mediaCreateVariantStream, mediaStatVariant } from '../../../../utils/fileStorage'
 import { assertLocalMediaRequest } from '../../../../utils/mediaAccess'
-import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../../../utils/mediaLibrary'
+import { mediaNormalizeFileRecord, mediaNormalizeHash, mediaRecordVisibleToUser } from '../../../../utils/mediaLibrary'
 import { firstRow } from '../../../../utils/surrealResult'
 import type { MediaVariantSize } from '~/types/content'
 
@@ -29,6 +30,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const file = mediaNormalizeFileRecord(record)
+  const user = await getSessionUser(event)
+  if (!mediaRecordVisibleToUser(file, user)) {
+    throw createError({ statusCode: 404, message: 'Variant not found' })
+  }
+
   const variant = file.variants?.[sizeParam]
   if (!variant?.path) {
     throw createError({ statusCode: 404, message: 'Variant not found' })

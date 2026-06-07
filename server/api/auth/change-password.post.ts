@@ -1,17 +1,17 @@
-import { adminPasswordProblem, hashAdminPassword, verifyAdminPassword } from '../../utils/admin-password'
-import { requireAdminUser } from '../../utils/auth'
+import { adminPasswordProblem } from '../../utils/admin-password'
+import { requireAuthenticatedUser } from '../../utils/auth'
 import { recordActivity } from '../../utils/activity'
-import { readAdminCredentials, writeAdminCredentials } from '../../utils/settings'
+import { findUserById, setUserPassword, verifyUserPassword } from '../../utils/users'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireAdminUser(event)
+  const user = await requireAuthenticatedUser(event)
   const body = await readBody<{ current_password?: string, new_password?: string, confirm_password?: string }>(event)
   const currentPassword = body.current_password ?? ''
   const newPassword = body.new_password ?? ''
   const confirmPassword = body.confirm_password ?? ''
 
-  const credentials = await readAdminCredentials()
-  const currentOk = await verifyAdminPassword(credentials.passwordHash, currentPassword)
+  const account = await findUserById(user.id)
+  const currentOk = await verifyUserPassword(account, currentPassword)
   if (!currentOk) {
     throw createError({ statusCode: 400, message: 'Current password is incorrect' })
   }
@@ -25,15 +25,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Passwords do not match' })
   }
 
-  const passwordHash = await hashAdminPassword(newPassword)
-  await writeAdminCredentials(passwordHash)
+  await setUserPassword(user.id, newPassword)
 
   recordActivity(event, {
     action: 'auth.password.change',
     resource_type: 'session',
-    resource_id: user.username,
-    metadata: { username: user.username },
-    description: 'Admin password changed'
+    resource_id: user.id,
+    metadata: { username: user.username, role: user.role },
+    description: 'User password changed'
   })
 
   return { ok: true }
