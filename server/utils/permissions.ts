@@ -4,7 +4,7 @@ import { stringifyRecordId } from './surrealResult'
 import type { SessionUser } from './users'
 
 export function canManageAllContent(user: SessionUser) {
-  return user.role === 'admin'
+  return user.role === 'superadmin' || user.role === 'admin'
 }
 
 export function isOwnedByUser(record: Record<string, unknown>, ownerField: string, usernameField: string, user: SessionUser) {

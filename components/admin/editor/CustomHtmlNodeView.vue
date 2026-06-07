@@ -77,7 +77,9 @@
 <script setup lang="ts">
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import { NodeSelection } from '@tiptap/pm/state'
-import { all, createLowlight } from 'lowlight'
+// CustomHtml only highlights JavaScript, which is in lowlight's `common` set.
+// Using `common` instead of `all` avoids loading 150+ unused grammars.
+import { common, createLowlight } from 'lowlight'
 
 type HighlightNode = {
   type?: string
@@ -88,7 +90,7 @@ type HighlightNode = {
 }
 
 const props = defineProps(nodeViewProps)
-const lowlight = createLowlight(all)
+const lowlight = createLowlight(common)
 
 const editorStore = useEditorStore()
 const nodeViewEl = ref<HTMLElement | null>(null)

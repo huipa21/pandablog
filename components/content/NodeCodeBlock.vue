@@ -87,11 +87,14 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
-import { all, createLowlight } from 'lowlight'
+// `common` covers every language exposed by `CODE_BLOCK_LANGUAGES` and avoids
+// pulling in 150+ unused Highlight.js grammars (each a separate request in
+// dev mode, and dead weight in the production bundle).
+import { common, createLowlight } from 'lowlight'
 
 const htmlCache = new Map<string, string>()
 const COLLAPSE_THRESHOLD = 300
-const lowlight = createLowlight(all)
+const lowlight = createLowlight(common)
 
 const props = defineProps<{
   node: JsonContent

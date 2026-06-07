@@ -1,8 +1,8 @@
 <template>
   <div class="grid gap-2">
     <label class="text-sm font-medium text-stone-700">{{ label }}</label>
-    <div v-if="modelValue" class="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
-      <img :src="modelValue" :alt="label" class="w-full object-cover" :class="previewClass || 'h-36'" :style="previewStyle">
+    <div v-if="previewSource" class="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
+      <img :src="previewSource" :alt="label" class="w-full object-cover" :class="previewClass || 'h-36'" :style="previewStyle">
       <button
         type="button"
         class="absolute right-2 top-2 rounded-full bg-white/90 p-1 shadow hover:bg-white"
@@ -15,7 +15,7 @@
       <UInput
         :model-value="modelValue"
         icon="i-lucide-link"
-        placeholder="/uploads/... or https://..."
+        :placeholder="placeholder || '/uploads/... or https://...'"
         @update:model-value="emit('update:modelValue', String($event ?? ''))"
       />
       <UButton type="button" icon="i-lucide-image-plus" variant="soft" @click="emit('browse')">
@@ -26,12 +26,16 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   label: string
   modelValue: string
+  previewValue?: string
+  placeholder?: string
   previewClass?: string
   previewStyle?: Record<string, string>
 }>()
+
+const previewSource = computed(() => props.previewValue || props.modelValue)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

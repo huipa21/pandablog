@@ -5,6 +5,8 @@ interface PublicSessionUser {
   username: string
   role: PublicUserRole
   display_name?: string | null
+  avatar?: string | null
+  avatar_url?: string | null
 }
 
 interface PublicAuthSession {

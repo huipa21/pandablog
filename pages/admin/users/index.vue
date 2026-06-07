@@ -574,7 +574,7 @@ function roleLabel(role: Role) {
 }
 
 function isRole(value: string): value is Role {
-  return value === 'superadmin' || value === 'admin' || value === 'author' || value === 'viewer'
+  return value === 'admin' || value === 'author' || value === 'viewer'
 }
 
 function formatDate(value: string | null) {

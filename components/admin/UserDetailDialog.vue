@@ -141,14 +141,10 @@ const disabledValue = computed({
   }
 })
 const isSelf = computed(() => !!props.user && props.user.id === props.currentUserId)
-const canResetPassword = computed(() => !!props.user && props.user.id !== 'users:admin' && !isSelf.value)
-const roleDisabled = computed(() => isSelf.value || props.user?.id === 'users:admin')
+const canResetPassword = computed(() => !!props.user && !isSelf.value)
+const roleDisabled = computed(() => isSelf.value)
 const activeDisabled = computed(() => isSelf.value)
 const roleValues = computed<Role[]>(() => {
-  if (props.user?.id === 'users:admin') {
-    return ['superadmin']
-  }
-
   return props.currentUserRole === 'superadmin'
     ? ['admin', 'author', 'viewer']
     : ['author', 'viewer']

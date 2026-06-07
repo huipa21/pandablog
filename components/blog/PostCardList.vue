@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="pending" class="post-card-grid grid gap-6">
+    <div v-if="pending" class="post-card-grid grid gap-6" :class="{ 'post-card-grid-fixed': fixedColumns }">
       <USkeleton v-for="index in 6" :key="index" class="h-80 rounded-[var(--pb-radius-card-outer)]" />
     </div>
 
@@ -12,7 +12,7 @@
       :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to view posts.' : undefined"
     />
 
-    <div v-else-if="posts.length" class="post-card-grid grid gap-6">
+    <div v-else-if="posts.length" class="post-card-grid grid gap-6" :class="{ 'post-card-grid-fixed': fixedColumns }">
       <article
         v-for="post in posts"
         :key="post.id"
@@ -63,10 +63,13 @@ const props = withDefaults(defineProps<{
   error?: unknown
   emptyTitle?: string
   emptyDescription?: string
+  fixedColumns?: boolean
 }>(), {
   pending: false,
+  error: undefined,
   emptyTitle: 'No published posts yet',
-  emptyDescription: 'Publish your first note from the admin area.'
+  emptyDescription: 'Publish your first note from the admin area.',
+  fixedColumns: false
 })
 
 const isSitePrivateError = computed(() => {
@@ -92,5 +95,11 @@ function formatDate(value: string) {
 .post-card-grid {
   gap: clamp(1.5rem, 2vw, 2rem);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14.75rem), 1fr));
+}
+
+@media (min-width: 768px) {
+  .post-card-grid-fixed {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 </style>

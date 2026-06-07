@@ -2,10 +2,10 @@
   <div class="pb-admin-shell">
     <!-- Top bar -->
     <header
-      class="fixed inset-x-0 top-0 z-30 px-3 py-3 md:px-6"
+      class="fixed inset-x-0 top-0 z-30"
       :class="hideSidebar ? 'md:left-0' : (collapsed ? 'md:left-[68px]' : 'md:left-64')"
     >
-      <div class="pb-admin-topbar flex h-14 items-center justify-between px-4">
+      <div class="pb-admin-topbar flex h-14 items-center justify-between px-4 md:px-6">
         <div class="flex min-w-0 items-center gap-3">
           <button
             v-if="!hideSidebar"
@@ -15,13 +15,7 @@
           >
             <UIcon name="i-lucide-menu" class="size-5" />
           </button>
-          <NuxtLink to="/admin" class="flex items-center gap-2 text-xl font-semibold text-[var(--pb-text)]">
-            <img v-if="siteLogo" :src="siteLogo" alt="" class="h-7 w-auto">
-            <PandaLogo v-else :size="28" class="text-[var(--pb-primary)]" />
-            <span class="hidden sm:inline">{{ siteName }}</span>
-          </NuxtLink>
           <nav v-if="breadcrumbs.length" class="hidden min-w-0 items-center gap-1 text-sm text-[var(--pb-text-subtle)] xl:flex" aria-label="Admin breadcrumbs">
-            <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0" />
             <template v-for="(crumb, index) in breadcrumbs" :key="crumb.to">
               <NuxtLink
                 v-if="index < breadcrumbs.length - 1"
@@ -51,12 +45,16 @@
             :loading="themeModeSaving"
             @click="toggleThemeMode"
           />
-          <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-external-link" size="sm">
-            View site
-          </UButton>
-          <UButton variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
-            <span class="hidden sm:inline">Sign out</span>
-          </UButton>
+          <UDropdownMenu :items="accountMenuItems">
+            <button type="button" class="flex h-10 max-w-48 items-center gap-2 rounded-[var(--pb-radius-lg)] px-2 text-sm font-medium text-[var(--pb-text)] transition hover:bg-[var(--pb-surface-subtle)]" :disabled="loggingOut">
+              <span class="grid size-8 place-items-center overflow-hidden rounded-full bg-[var(--pb-selected-bg)] text-xs font-semibold text-[var(--pb-primary)]">
+                <img v-if="accountAvatarUrl" :src="accountAvatarUrl" alt="" class="h-full w-full object-cover">
+                <span v-else>{{ accountInitials }}</span>
+              </span>
+              <span class="hidden truncate sm:inline">{{ accountName }}</span>
+              <UIcon name="i-lucide-chevron-down" class="hidden size-4 shrink-0 text-[var(--pb-text-subtle)] sm:block" />
+            </button>
+          </UDropdownMenu>
         </div>
       </div>
     </header>
@@ -133,7 +131,7 @@
     </aside>
 
     <!-- Main content -->
-    <div class="pt-20" :class="hideSidebar ? '' : (collapsed ? 'md:pl-[68px]' : 'md:pl-64')">
+    <div class="pt-14" :class="hideSidebar ? '' : (collapsed ? 'md:pl-[68px]' : 'md:pl-64')">
       <main :class="mainClass">
         <slot />
       </main>
@@ -150,10 +148,13 @@ interface AdminSessionUser {
   id: string
   username: string
   role: AdminRole
+  display_name?: string | null
+  avatar_url?: string | null
 }
 
 const { siteName, siteLogo } = useSiteSettings()
-const { data: authSession } = await useAsyncData('admin-layout-session', () => $fetch<{ loggedIn: boolean, user: AdminSessionUser | null }>('/api/auth/session'), {
+const sessionFetch = useSessionFetch()
+const { data: authSession } = await useAsyncData('admin-layout-session', () => sessionFetch<{ loggedIn: boolean, user: AdminSessionUser | null }>('/api/auth/session'), {
   default: () => ({ loggedIn: false, user: null })
 })
 const adminRole = computed(() => authSession.value?.user?.role ?? null)
@@ -164,7 +165,7 @@ const { data: adminSettings } = await useAsyncData('admin-layout-settings', () =
     return Promise.resolve(defaultAdminSettings())
   }
 
-  return $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings')
+  return sessionFetch<{ settings: Record<string, unknown> }>('/api/admin/settings')
 }, {
   default: () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE } })
 })
@@ -194,6 +195,16 @@ const hideSidebar = computed(() => route.meta.adminHideSidebar === true)
 const sidebarOpen = ref(false)
 const loggingOut = ref(false)
 const mainClass = computed(() => route.meta.adminWide === true ? 'min-w-0' : 'min-w-0 px-4 py-8 md:px-8')
+const accountUser = computed(() => authSession.value?.user ?? null)
+const accountName = computed(() => accountUser.value?.display_name || accountUser.value?.username || 'Account')
+const accountAvatarUrl = computed(() => accountUser.value?.avatar_url || '')
+const accountInitials = computed(() => initialsFor(accountName.value))
+const accountMenuItems = computed(() => [[
+  { label: 'My profile', icon: 'i-lucide-user', onSelect: () => navigateTo('/profile') },
+  { label: 'View site', icon: 'i-lucide-external-link', onSelect: () => navigateTo('/') }
+], [
+  { label: 'Sign out', icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }
+]])
 
 const STORAGE_KEY = 'pb-admin-sidebar-collapsed'
 const AUTO_COLLAPSE_BREAKPOINT = 1280
@@ -246,7 +257,7 @@ const navSections = computed(() => {
     }
   ]
 
-  if (adminRole.value === 'admin' || adminRole.value === 'author') {
+  if (adminRole.value === 'superadmin' || adminRole.value === 'admin' || adminRole.value === 'author') {
     sections.push({
       label: 'Posts',
       items: [
@@ -344,5 +355,11 @@ async function logout() {
   } finally {
     loggingOut.value = false
   }
+}
+
+function initialsFor(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  const letters = parts.length > 1 ? `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}` : value.slice(0, 2)
+  return letters.toUpperCase() || 'U'
 }
 </script>

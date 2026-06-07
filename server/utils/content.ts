@@ -59,6 +59,35 @@ export function serializeDate(value: unknown): string | null {
 }
 
 /**
+ * Coerce a value into a JS `Date` suitable for SurrealDB `datetime` bindings.
+ * SurrealDB's schemafull `datetime` fields will NOT accept raw ISO strings via
+ * parameter binding, so any string coming from the client must be parsed into
+ * a `Date` before it reaches the query. Returns `null` for empty/invalid input.
+ */
+export function toDatetime(value: unknown): Date | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : null
+  }
+
+  if (typeof value === 'string') {
+    const parsed = new Date(value)
+    return Number.isFinite(parsed.getTime()) ? parsed : null
+  }
+
+  // Already a SurrealDB-native datetime (tagged object) — let the driver
+  // pass it through unchanged.
+  if (typeof value === 'object') {
+    return value as unknown as Date
+  }
+
+  return null
+}
+
+/**
  * Build the persisted post-meta payload from form input. Block content is
  * handled separately by `syncPostBlocks` and is intentionally *not* included
  * in the returned payload.
@@ -88,11 +117,11 @@ export function buildPostPayload(input: Record<string, unknown>, authorUsername:
   }
 
   if (status === 'published') {
-    payload.published_at = input.published_at ?? now
+    payload.published_at = toDatetime(input.published_at) ?? now
   }
 
   if (isFeatured) {
-    payload.featured_at = input.featured_at ?? now
+    payload.featured_at = toDatetime(input.featured_at) ?? now
   }
 
   return payload

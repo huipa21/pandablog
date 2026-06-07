@@ -157,6 +157,49 @@
         </button>
       </UDropdownMenu>
 
+      <!-- Annotate (ruby) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="bt-btn"
+          :class="{ 'bt-btn-active': annotateBusy }"
+          :title="`Annotate (${annotateLang.toUpperCase()})`"
+          :disabled="annotateBusy"
+          @mousedown.prevent="runAnnotate"
+        >
+          <UIcon :name="annotateBusy ? 'i-lucide-loader-circle' : 'i-lucide-languages'" class="size-4" :class="{ 'animate-spin': annotateBusy }" />
+        </button>
+        <button
+          type="button"
+          class="bt-btn bt-btn-suffix"
+          title="Choose annotation language"
+          :disabled="annotateBusy"
+          @mousedown.prevent="annotateLangPickerOpen = !annotateLangPickerOpen"
+        >
+          <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
+        </button>
+
+        <div
+          v-if="annotateLangPickerOpen"
+          class="bt-annotate-popover"
+          role="dialog"
+          aria-label="Annotation language"
+          @mousedown.prevent
+        >
+          <button
+            v-for="option in annotateLangOptions"
+            :key="option.value"
+            type="button"
+            class="bt-annotate-lang-option"
+            :class="{ 'is-active': annotateLang === option.value }"
+            @click="selectAnnotateLang(option.value)"
+          >
+            <span class="bt-annotate-lang-label">{{ option.label }}</span>
+            <span class="bt-annotate-lang-hint">{{ option.hint }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- 3-dot More menu -->
       <UDropdownMenu :items="moreItems">
         <button type="button" class="bt-btn" title="More options">
@@ -203,9 +246,12 @@
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue'
 import type { Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
+import { Fragment } from '@tiptap/pm/model'
 import type { CSSProperties } from 'vue'
 import { hasAnyDropdownInlineActive, inlineMenuLabel } from './inlineFormatting'
 import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
+import { DEFAULT_ANNOT_LANG, isAnnotLang, type AnnotLang } from '~/extensions/rubyUnit'
+import { useReadings } from '~/composables/editor/useReadings'
 
 const props = defineProps<{
   editor: Editor | null
@@ -286,6 +332,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onDragMouseMove)
   window.removeEventListener('mouseup', onDragMouseUp)
   window.removeEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
+  window.removeEventListener('pointerdown', closeAnnotatePopoverOnOutsideClick)
 })
 const linkForm = reactive({
   href: 'https://',
@@ -298,6 +345,18 @@ const linkOpenModeItems = [
   { label: 'Open in new tab', value: 'new-tab' },
   { label: 'Open in new window', value: 'new-window' }
 ]
+
+// Annotate (ruby) state
+const ANNOTATE_LANG_STORAGE_KEY = 'pandablog:annotate-lang'
+const annotateLang = ref<AnnotLang>(loadAnnotateLang())
+const annotateLangPickerOpen = ref(false)
+const annotateBusy = ref(false)
+const annotateLangOptions: Array<{ value: AnnotLang, label: string, hint: string }> = [
+  { value: 'cmn', label: 'Mandarin', hint: 'Pinyin (tone marks)' },
+  { value: 'yue', label: 'Cantonese', hint: 'Jyutping' },
+  { value: 'jpn', label: 'Japanese', hint: 'Furigana (hiragana)' }
+]
+const { annotate } = useReadings()
 
 const { floatingStyles } = useFloating(refEl, toolbarEl, {
   placement: 'top-start',
@@ -653,6 +712,22 @@ function closeHighlightPaletteOnOutsideClick(event: PointerEvent) {
   }
 }
 
+function closeAnnotatePopoverOnOutsideClick(event: PointerEvent) {
+  if (!annotateLangPickerOpen.value) {
+    return
+  }
+
+  const target = event.target as Node | null
+  if (!target) {
+    annotateLangPickerOpen.value = false
+    return
+  }
+
+  if (!toolbarEl.value?.contains(target)) {
+    annotateLangPickerOpen.value = false
+  }
+}
+
 function normalizeRange(editor: Editor, range: { from: number; to: number } | null) {
   if (!range) return null
 
@@ -680,11 +755,13 @@ watch(() => props.visible, (visible) => {
   if (!visible) {
     highlightPaletteOpen.value = false
     pendingHighlightRange = null
+    annotateLangPickerOpen.value = false
   }
 })
 
 onMounted(() => {
   window.addEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
+  window.addEventListener('pointerdown', closeAnnotatePopoverOnOutsideClick)
 })
 
 function selectionHasMark(editor: Editor, markName: string) {
@@ -715,6 +792,105 @@ function selectionHasMark(editor: Editor, markName: string) {
   })
 
   return found
+}
+
+function loadAnnotateLang(): AnnotLang {
+  if (typeof window === 'undefined') return DEFAULT_ANNOT_LANG
+  try {
+    const stored = window.localStorage.getItem(ANNOTATE_LANG_STORAGE_KEY)
+    return isAnnotLang(stored) ? stored : DEFAULT_ANNOT_LANG
+  } catch {
+    return DEFAULT_ANNOT_LANG
+  }
+}
+
+function persistAnnotateLang(value: AnnotLang) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(ANNOTATE_LANG_STORAGE_KEY, value)
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+function selectAnnotateLang(value: AnnotLang) {
+  annotateLang.value = value
+  persistAnnotateLang(value)
+  annotateLangPickerOpen.value = false
+}
+
+function resolveAnnotateLang(): AnnotLang {
+  const ed = props.editor
+  if (!ed) return annotateLang.value
+
+  // If the selection lives inside an annotationBlock, prefer the block's lang.
+  const { $from } = ed.state.selection
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type.name === 'annotationBlock') {
+      const blockLang = node.attrs?.lang
+      if (isAnnotLang(blockLang)) return blockLang
+    }
+  }
+
+  return annotateLang.value
+}
+
+async function runAnnotate() {
+  if (annotateBusy.value) return
+  const ed = props.editor
+  if (!ed) return
+
+  const range = currentTextRange(ed)
+  if (!range) return
+
+  const text = ed.state.doc.textBetween(range.from, range.to, '\u2028', '\u2028')
+  if (!text || !text.trim()) return
+
+  const lang = resolveAnnotateLang()
+
+  annotateBusy.value = true
+  try {
+    const segments = await annotate(text, lang)
+    if (segments.length === 0) return
+
+    const schema = ed.state.schema
+    const rubyType = schema.nodes.rubyUnit
+    if (!rubyType) return
+
+    const fragmentNodes = segments.flatMap((segment) => {
+      if (segment.kind === 'ruby') {
+        return [rubyType.create({ base: segment.base, reading: segment.reading, lang })]
+      }
+      if (segment.text) {
+        return [schema.text(segment.text)]
+      }
+      return []
+    })
+
+    if (fragmentNodes.length === 0) return
+
+    const tr = ed.state.tr
+    tr.replaceWith(range.from, range.to, Fragment.fromArray(fragmentNodes))
+    tr.setMeta('addToHistory', true)
+    ed.view.dispatch(tr)
+    ed.commands.focus()
+  } catch (error) {
+    console.error('[annotate] failed', error)
+  } finally {
+    annotateBusy.value = false
+  }
+}
+
+function currentTextRange(editor: Editor): { from: number, to: number } | null {
+  const { selection } = editor.state
+  if (!selection.empty) {
+    return { from: selection.from, to: selection.to }
+  }
+  if (props.lastTextSelection && props.lastTextSelection.from !== props.lastTextSelection.to) {
+    return { from: props.lastTextSelection.from, to: props.lastTextSelection.to }
+  }
+  return null
 }
 
 </script>
@@ -826,5 +1002,59 @@ function selectionHasMark(editor: Editor, markName: string) {
 .bt-highlight-clear:hover {
   border-color: rgb(45 212 191);
   color: rgb(15 118 110);
+}
+
+.bt-btn-suffix {
+  padding-left: 2px;
+  padding-right: 2px;
+  margin-left: -3px;
+}
+
+.bt-annotate-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid rgb(231 229 228);
+  border-radius: 0.5rem;
+  background: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.bt-annotate-lang-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 0.375rem;
+  text-align: left;
+  color: rgb(68 64 60);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.bt-annotate-lang-option:hover {
+  background: rgb(245 245 244);
+}
+
+.bt-annotate-lang-option.is-active {
+  background: rgb(204 251 241);
+  color: rgb(15 118 110);
+}
+
+.bt-annotate-lang-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bt-annotate-lang-hint {
+  font-size: 0.7rem;
+  color: rgb(120 113 108);
 }
 </style>

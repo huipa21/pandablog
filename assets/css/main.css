@@ -174,7 +174,6 @@ html {
   box-shadow: none;
 }
 
-.pb-admin-topbar,
 .pb-admin-surface {
   border: 1px solid color-mix(in srgb, var(--pb-border) 78%, transparent);
   border-radius: var(--pb-radius-card-outer);
@@ -183,6 +182,9 @@ html {
 }
 
 .pb-admin-topbar {
+  border-bottom: 1px solid color-mix(in srgb, var(--pb-border) 78%, transparent);
+  background: color-mix(in srgb, var(--pb-surface) 86%, transparent);
+  box-shadow: none;
   backdrop-filter: blur(16px);
 }
 

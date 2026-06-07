@@ -7,7 +7,7 @@ import { uniquePostSlug } from '../../../utils/posts'
 import { hashPostPassword } from '../../../utils/post-password'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { clearOtherFeaturedPosts } from '../../../utils/featuredPost'
-import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
+import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import {
   buildDocFromBlocks,
   extractBlocksFromDoc,
@@ -114,6 +114,7 @@ export default defineEventHandler(async (event) => {
     [previousPost.cover_image, previousDoc],
     [normalizedPost.cover_image, reassembledDoc]
   )
+  await mediaCascadeVisibilityForPost(db, normalizedPost.id, normalizedPost.visibility ?? 'public', [normalizedPost.cover_image, reassembledDoc])
 
   return {
     ...normalizedPost,

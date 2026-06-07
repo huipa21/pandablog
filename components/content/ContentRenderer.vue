@@ -10,6 +10,8 @@
   <NodeDiffBlock v-else-if="node.type === 'diffBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
   <NodeRelatedPost v-else-if="node.type === 'relatedPost'" :node="node" />
+  <NodeRubyUnit v-else-if="node.type === 'rubyUnit'" :node="node" />
+  <NodeAnnotationBlock v-else-if="node.type === 'annotationBlock'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
   <NodeColumnsBlock v-else-if="node.type === 'columnsBlock'" :node="node" />
@@ -34,6 +36,8 @@ import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
 import NodeQuoteBlock from './NodeQuoteBlock.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
+import NodeRubyUnit from './NodeRubyUnit.vue'
+import NodeAnnotationBlock from './NodeAnnotationBlock.vue'
 import NodeTabsBlock from './NodeTabsBlock.vue'
 
 const props = defineProps<{

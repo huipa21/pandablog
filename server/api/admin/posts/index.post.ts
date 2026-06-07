@@ -6,7 +6,7 @@ import { uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
 import { clearOtherFeaturedPosts } from '../../../utils/featuredPost'
-import { mediaSyncRecordReferences } from '../../../utils/referenceTracker'
+import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import { buildDocFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks } from '../../../utils/blocks'
 import type { JsonContent, PostVisibility } from '~/types/content'
 
@@ -77,6 +77,7 @@ export default defineEventHandler(async (event) => {
     body.category_names
   )
   await mediaSyncRecordReferences(db, normalizedPost.id, [], [normalizedPost.cover_image, reassembledDoc])
+  await mediaCascadeVisibilityForPost(db, normalizedPost.id, normalizedPost.visibility ?? 'public', [normalizedPost.cover_image, reassembledDoc])
 
   return {
     ...normalizedPost,

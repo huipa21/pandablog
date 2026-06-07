@@ -2,6 +2,12 @@ import type { Surreal } from 'surrealdb'
 import { queryDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { mediaNormalizeFileRecord } from './mediaLibrary'
+import type { PostVisibility } from '~/types/content'
+
+interface MediaVisibilityCascadeResult {
+  madePrivate: string[]
+  madePublic: string[]
+}
 
 function mediaExtractReferencedHashes(...values: unknown[]) {
   const hashes = new Set<string>()
@@ -28,6 +34,64 @@ export async function mediaSyncRecordReferences(db: Surreal, sourceRecordId: str
       await mediaRemoveFileReference(db, hash, sourceRecordId)
     }
   }
+}
+
+export async function mediaCascadeVisibilityForPost(
+  db: Surreal,
+  sourceRecordId: string,
+  postVisibility: PostVisibility,
+  referencedValues: unknown[]
+): Promise<MediaVisibilityCascadeResult> {
+  const hashes = [...mediaExtractReferencedHashes(...referencedValues)]
+  const result: MediaVisibilityCascadeResult = { madePrivate: [], madePublic: [] }
+
+  if (!hashes.length) {
+    return result
+  }
+
+  const response = await queryDb(db, 'SELECT * FROM files WHERE hash IN $hashes;', { hashes })
+  const files = queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
+  const normalizedSource = normalizeSourceRecordId(sourceRecordId)
+  const restrictedPost = isRestrictedPostVisibility(postVisibility)
+  const publicCandidates: Array<{ hash: string, otherPostReferences: string[] }> = []
+
+  for (const file of files) {
+    const otherPostReferences = uniquePostReferences(file.referenced_by ?? [], normalizedSource.full)
+
+    if (restrictedPost) {
+      if (file.visibility === 'public' && otherPostReferences.length === 0) {
+        result.madePrivate.push(file.hash)
+      }
+      continue
+    }
+
+    if (file.visibility !== 'private') {
+      continue
+    }
+
+    if (otherPostReferences.length === 0) {
+      result.madePublic.push(file.hash)
+    } else {
+      publicCandidates.push({ hash: file.hash, otherPostReferences })
+    }
+  }
+
+  if (!restrictedPost && publicCandidates.length) {
+    const postVisibilities = await readPostVisibilities(db, publicCandidates.flatMap((candidate) => candidate.otherPostReferences))
+
+    for (const candidate of publicCandidates) {
+      const hasRestrictedReference = candidate.otherPostReferences.some((postId) => isRestrictedPostVisibility(postVisibilities.get(postId) ?? 'private'))
+
+      if (!hasRestrictedReference) {
+        result.madePublic.push(candidate.hash)
+      }
+    }
+  }
+
+  await updateFileVisibility(db, result.madePrivate, 'private')
+  await updateFileVisibility(db, result.madePublic, 'public')
+
+  return result
 }
 
 export async function mediaRemoveAllReferencesForSource(db: Surreal, sourceRecordId: string) {
@@ -119,6 +183,59 @@ async function writeFileReferences(db: Surreal, hash: string, references: string
     `UPDATE type::record($table, $id) SET referenced_by = [${referenceExpressions.join(', ')}], reference_count = $reference_count, updated_at = time::now() RETURN AFTER;`,
     params
   )
+}
+
+async function readPostVisibilities(db: Surreal, postRecordIds: string[]) {
+  const uniqueIds = [...new Set(postRecordIds)]
+  const params: Record<string, unknown> = {}
+  const expressions = uniqueIds.map((postRecordId, index) => {
+    const source = normalizeSourceRecordId(postRecordId)
+    params[`post_table_${index}`] = source.table
+    params[`post_id_${index}`] = source.id
+    return `type::record($post_table_${index}, $post_id_${index})`
+  })
+  const visibilities = new Map<string, PostVisibility>()
+
+  if (!expressions.length) {
+    return visibilities
+  }
+
+  const response = await queryDb(db, `SELECT id, visibility FROM post WHERE id IN [${expressions.join(', ')}];`, params)
+
+  for (const row of queryRows<Record<string, unknown>>(response)) {
+    visibilities.set(stringifyRecordId(row.id), normalizePostVisibility(row.visibility))
+  }
+
+  return visibilities
+}
+
+async function updateFileVisibility(db: Surreal, hashes: string[], visibility: 'public' | 'private') {
+  const uniqueHashes = [...new Set(hashes)]
+
+  if (!uniqueHashes.length) {
+    return
+  }
+
+  await queryDb(
+    db,
+    'UPDATE files SET visibility = $visibility, updated_at = time::now() WHERE hash IN $hashes;',
+    { visibility, hashes: uniqueHashes }
+  )
+}
+
+function uniquePostReferences(references: string[], currentPostRecordId: string) {
+  return [...new Set(references)]
+    .map((reference) => stringifyRecordId(reference))
+    .filter((reference) => reference !== currentPostRecordId && reference.startsWith('post:'))
+}
+
+function isRestrictedPostVisibility(visibility: PostVisibility) {
+  return visibility === 'private' || visibility === 'password'
+}
+
+function normalizePostVisibility(value: unknown): PostVisibility {
+  if (value === 'private' || value === 'password') return value
+  return 'public'
 }
 
 function collectHashes(value: unknown, hashes: Set<string>) {

@@ -219,7 +219,12 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import '~/assets/css/editor-craft.css'
 import '~/assets/css/code-themes.css'
 import type { EditorView } from '@tiptap/pm/view'
-import { all, createLowlight } from 'lowlight'
+// Use `common` (~36 popular languages) instead of `all` (180+). `all` pulls in
+// every Highlight.js grammar; in dev mode Vite serves each as its own ESM
+// request, ballooning the editor page to >1k requests. Every language exposed
+// by `CODE_BLOCK_LANGUAGES` is part of `common`, so this is functionally
+// equivalent for our UI.
+import { common, createLowlight } from 'lowlight'
 import type { JsonContent, MediaRecord } from '~/types/content'
 import { MermaidNode } from '~/extensions/mermaid'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
@@ -232,6 +237,8 @@ import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
 import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
+import { RubyUnit } from '~/extensions/rubyUnit'
+import { AnnotationBlockNode } from '~/extensions/annotationBlock'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.vue'
 import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
@@ -244,6 +251,8 @@ import ColumnItemNodeView from '~/components/admin/editor/ColumnItemNodeView.vue
 import TabsBlockNodeView from '~/components/admin/editor/TabsBlockNodeView.vue'
 import TabPanelNodeView from '~/components/admin/editor/TabPanelNodeView.vue'
 import QuoteBlockNodeView from '~/components/admin/editor/QuoteBlockNodeView.vue'
+import RubyUnitNodeView from '~/components/admin/editor/RubyUnitNodeView.vue'
+import AnnotationBlockNodeView from '~/components/admin/editor/AnnotationBlockNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
 // would not auto-resolve. Importing them directly guarantees they render.
@@ -275,7 +284,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: JsonContent]
 }>()
 
-const lowlight = createLowlight(all)
+const lowlight = createLowlight(common)
 const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
 const editorContainer = ref<HTMLElement | null>(null)
@@ -490,7 +499,17 @@ const editor = useEditor({
     Superscript,
     Footnote,
     ListItemEnhanced,
-    FootnotesBlockNode
+    FootnotesBlockNode,
+    RubyUnit.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(RubyUnitNodeView)
+      }
+    }),
+    AnnotationBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(AnnotationBlockNodeView)
+      }
+    })
   ],
   editorProps: {
     attributes: {

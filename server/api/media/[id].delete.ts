@@ -33,6 +33,10 @@ export default defineEventHandler(async (event) => {
     table: 'files',
     id
   })
+  await queryDb(db, 'UPDATE users SET avatar = NONE, updated_at = time::now() WHERE avatar = type::record($table, $id);', {
+    table: 'files',
+    id
+  })
 
   return { success: true }
 })

@@ -33,11 +33,8 @@ themes/*
 !themes/clay/
 !themes/clay/**
 
-
 tests
 test-results
 .playwright-mcp/
 .vscode/
 .github/*
-!.github/workflows/
-!.github/workflows/**

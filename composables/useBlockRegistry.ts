@@ -4,6 +4,7 @@ import {
   DEFAULT_DIFF_OLD_LABEL,
 } from '~/utils/diffBlock'
 import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME } from '~/extensions/blockquoteEnhanced'
+import { DEFAULT_ANNOT_LANG } from '~/extensions/rubyUnit'
 import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
 
 export type BlockCategory = 'text' | 'media' | 'design' | 'embed' | 'advanced'
@@ -310,6 +311,20 @@ const blockDefinitions: BlockDefinition[] = [
     keywords: ['related', 'link', 'post', 'wiki'],
     implemented: true,
     supports: {}
+  },
+  {
+    name: 'annotationBlock',
+    title: 'Annotation',
+    description: 'Annotate text with phonetic readings (pinyin, jyutping, furigana).',
+    icon: 'i-lucide-languages',
+    category: 'text',
+    keywords: ['annotation', 'ruby', 'pinyin', 'jyutping', 'furigana', 'cmn', 'yue', 'jpn', 'reading'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'annotationBlock',
+      attrs: { lang: DEFAULT_ANNOT_LANG }
+    })
   }
 ]
 

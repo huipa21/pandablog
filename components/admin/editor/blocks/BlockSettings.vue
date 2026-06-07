@@ -625,6 +625,22 @@
           <UButton type="button" icon="i-lucide-trash" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteRow')">Delete row</UButton>
         </div>
       </details>
+
+      <details v-if="blockName === 'annotationBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Annotation</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Default language">
+            <USelect
+              :model-value="String(attrs.lang ?? 'cmn')"
+              :items="annotationLangItems"
+              @update:model-value="updateAttrs({ lang: String($event) })"
+            />
+          </UFormField>
+          <p class="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-900">
+            Use the Annotate button in the block toolbar to generate readings. The block's default language is used unless the toolbar overrides it.
+          </p>
+        </div>
+      </details>
     </template>
   </div>
 </template>
@@ -735,6 +751,12 @@ const separatorPalette = [...SEPARATOR_PALETTE]
 
 const quoteStyleItems = QUOTE_STYLES.map((s) => ({ label: s.label, value: s.value as string }))
 const fontFamilyItems = QUOTE_FONT_FAMILIES.map((f) => ({ label: f.label, value: f.value as string }))
+
+const annotationLangItems = [
+  { label: 'Mandarin (pinyin)', value: 'cmn' },
+  { label: 'Cantonese (jyutping)', value: 'yue' },
+  { label: 'Japanese (furigana)', value: 'jpn' }
+]
 
 const parseFontSize = (size: string) => {
   const match = size.match(/^([\d.]+)rem$/)

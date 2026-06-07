@@ -14,6 +14,8 @@ export interface UserRecord {
   role: UserRole
   display_name: string | null
   email: string | null
+  avatar: string | null
+  avatar_url: string | null
   active: boolean
   last_login_at: string | null
   created_at: string
@@ -29,6 +31,8 @@ export interface SessionUser {
   username: string
   role: UserRole
   display_name?: string | null
+  avatar?: string | null
+  avatar_url?: string | null
 }
 
 interface CreateUserInput {
@@ -37,6 +41,7 @@ interface CreateUserInput {
   role: UserRole
   display_name?: string | null
   email?: string | null
+  avatar?: string | null
   active?: boolean
 }
 
@@ -46,6 +51,7 @@ interface CreateUserWithHashInput {
   role: UserRole
   display_name?: string | null
   email?: string | null
+  avatar?: string | null
   active?: boolean
 }
 
@@ -53,6 +59,7 @@ interface UpdateUserInput {
   role?: UserRole
   display_name?: string | null
   email?: string | null
+  avatar?: string | null
   active?: boolean
 }
 
@@ -136,12 +143,15 @@ export async function verifyUserPassword(user: UserWithPassword | null, password
 }
 
 export function normalizeUser(record: Record<string, unknown>): UserRecord {
+  const avatar = normalizeAvatarRecordId(record.avatar, false)
   return {
     id: stringifyRecordId(record.id),
     username: String(record.username ?? ''),
     role: isUserRole(record.role) ? record.role : 'viewer',
     display_name: stringOrNull(record.display_name),
     email: stringOrNull(record.email),
+    avatar,
+    avatar_url: avatar ? avatarUrlFromRecordId(avatar) : null,
     active: record.active !== false,
     last_login_at: serializeDate(record.last_login_at),
     created_at: serializeDate(record.created_at) ?? new Date().toISOString(),
@@ -161,7 +171,9 @@ export function toSessionUser(user: UserRecord): SessionUser {
     id: user.id,
     username: user.username,
     role: user.role,
-    display_name: user.display_name
+    display_name: user.display_name,
+    avatar: user.avatar,
+    avatar_url: user.avatar_url
   }
 }
 
@@ -194,6 +206,9 @@ export async function searchUsers(options: SearchUsersOptions = {}): Promise<{ u
   const where: string[] = []
   const params: Record<string, unknown> = {}
   const actorRole = options.actor?.role
+
+  where.push('role != $hiddenRole')
+  params.hiddenRole = 'superadmin'
 
   if (actorRole === 'admin') {
     where.push('role IN $visibleRoles')
@@ -271,6 +286,7 @@ export async function createUserWithPasswordHash(input: CreateUserWithHashInput)
 
   const displayName = stringOrNull(input.display_name)
   const email = stringOrNull(input.email)
+  const avatar = normalizeAvatarInput(input.avatar)
   const db = await useDb()
   const response = await queryDb(
     db,
@@ -280,6 +296,7 @@ export async function createUserWithPasswordHash(input: CreateUserWithHashInput)
       role: $role,
       display_name: ${optionalParamExpression(displayName, 'displayName')},
       email: ${optionalParamExpression(email, 'email')},
+      avatar: ${avatar.expression},
       active: $active,
       last_login_at: NONE,
       created_at: time::now(),
@@ -293,6 +310,7 @@ export async function createUserWithPasswordHash(input: CreateUserWithHashInput)
       role,
       displayName,
       email,
+      ...avatar.params,
       active: input.active !== false
     }
   )
@@ -329,6 +347,11 @@ export async function updateUser(idOrUsername: string, input: UpdateUserInput): 
     const email = stringOrNull(input.email)
     updates.push(`email: ${optionalParamExpression(email, 'email')}`)
     params.email = email
+  }
+  if (input.avatar !== undefined) {
+    const avatar = normalizeAvatarInput(input.avatar)
+    updates.push(`avatar: ${avatar.expression}`)
+    Object.assign(params, avatar.params)
   }
   if (input.active !== undefined) {
     updates.push('active: $active')
@@ -395,6 +418,41 @@ function stringOrNull(value: unknown) {
 
 function optionalParamExpression(value: unknown, name: string) {
   return value === null || value === undefined || value === '' ? 'NONE' : `$${name}`
+}
+
+function normalizeAvatarInput(value: unknown) {
+  const avatar = normalizeAvatarRecordId(value, true)
+
+  if (!avatar) {
+    return { expression: 'NONE', params: {} }
+  }
+
+  return {
+    expression: 'type::record($avatarTable, $avatarId)',
+    params: {
+      avatarTable: 'files',
+      avatarId: recordIdPart(avatar, 'files')
+    }
+  }
+}
+
+function normalizeAvatarRecordId(value: unknown, strict: boolean) {
+  if (!value) return null
+
+  const recordId = stringifyRecordId(value)
+  const id = recordIdPart(recordId, 'files').trim()
+  if (!/^[a-f0-9]{64}$/i.test(id)) {
+    if (strict) {
+      throw createError({ statusCode: 400, message: 'Avatar must reference an existing media record' })
+    }
+    return null
+  }
+
+  return `files:${id.toLowerCase()}`
+}
+
+function avatarUrlFromRecordId(value: string) {
+  return `/api/media/file/${encodeURIComponent(recordIdPart(value, 'files'))}`
 }
 
 function serializeDate(value: unknown): string | null {

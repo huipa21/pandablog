@@ -3,7 +3,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const setupStatus = await $fetch<{ completed: boolean }>('/api/auth/setup-status').catch(() => null)
+  const sessionFetch = useSessionFetch()
+  const setupStatus = await sessionFetch<{ completed: boolean }>('/api/auth/setup-status').catch(() => null)
 
   if (setupStatus && !setupStatus.completed && to.path !== '/admin/setup') {
     return navigateTo({ path: '/admin/setup', query: { redirect: to.fullPath } })
@@ -24,7 +25,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const session = await $fetch<{ loggedIn: boolean, user: { role?: string } | null }>('/api/auth/session').catch(() => null)
+  const session = await sessionFetch<{ loggedIn: boolean, user: { role?: string } | null }>('/api/auth/session').catch(() => null)
 
   // Nuxt dev server restarts can briefly make API routes unavailable.
   // Do not force a logout redirect on transient transport/runtime errors.
@@ -53,15 +54,4 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  if (
-    role === 'superadmin'
-    && (
-      to.path.startsWith('/admin/posts')
-      || to.path.startsWith('/admin/categories')
-      || to.path.startsWith('/admin/tags')
-      || to.path.startsWith('/admin/media')
-    )
-  ) {
-    return navigateTo('/admin/users')
-  }
 })

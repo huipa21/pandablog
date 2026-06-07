@@ -161,6 +161,7 @@ const writeFetchTimeoutMs = 30_000
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const apiPath = computed(() => `/api/admin/posts/${encodeURIComponent(id.value)}`)
+const sessionFetch = useSessionFetch()
 const savingAction = ref<'save-local' | 'save-db' | 'publish' | 'unpublish' | null>(null)
 const saveStatus = ref('')
 const saveStatusType = ref<'success' | 'error'>('success')
@@ -542,7 +543,7 @@ function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {
   const method = String(options.method ?? 'GET').toUpperCase()
   const timeoutMs = method === 'GET' ? readFetchTimeoutMs : writeFetchTimeoutMs
 
-  return $fetch<T>(url, {
+  return sessionFetch<T>(url, {
     timeout: timeoutMs,
     ...options
   })

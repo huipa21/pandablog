@@ -67,8 +67,8 @@ export async function requireAdminTier(event: H3Event): Promise<AdminUser> {
   return await requireUser(event, { roles: ['superadmin', 'admin'] }) as AdminUser
 }
 
-export async function requireContentManager(event: H3Event): Promise<SessionUser & { role: 'admin' | 'author' }> {
-  return await requireUser(event, { roles: ['admin', 'author'] }) as SessionUser & { role: 'admin' | 'author' }
+export async function requireContentManager(event: H3Event): Promise<SessionUser & { role: 'superadmin' | 'admin' | 'author' }> {
+  return await requireUser(event, { roles: ['superadmin', 'admin', 'author'] }) as SessionUser & { role: 'superadmin' | 'admin' | 'author' }
 }
 
 export async function requireAuthenticatedUser(event: H3Event): Promise<SessionUser> {
@@ -100,8 +100,8 @@ export function isAdminTier(user: SessionUser | null | undefined): user is Sessi
   return Boolean(user && (user.role === 'superadmin' || user.role === 'admin'))
 }
 
-export function isContentManager(user: SessionUser | null | undefined): user is SessionUser & { role: 'admin' | 'author' } {
-  return Boolean(user && (user.role === 'admin' || user.role === 'author'))
+export function isContentManager(user: SessionUser | null | undefined): user is SessionUser & { role: 'superadmin' | 'admin' | 'author' } {
+  return Boolean(user && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'author'))
 }
 
 function isRole(value: unknown): value is UserRole {

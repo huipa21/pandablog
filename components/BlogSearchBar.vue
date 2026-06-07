@@ -116,13 +116,14 @@ function submit() {
   flex: 0 0 auto;
   place-items: center;
   border-radius: var(--pb-radius-card-inner);
-  background: var(--pb-primary);
-  color: var(--pb-primary-contrast);
-  transition: background var(--pb-transition-default), transform var(--pb-transition-default);
+  background: transparent;
+  color: var(--pb-text-subtle);
+  transition: background var(--pb-transition-default), color var(--pb-transition-default), transform var(--pb-transition-default);
 }
 
 .blog-search-hero-submit:hover {
-  background: var(--pb-primary-hover);
+  background: color-mix(in srgb, var(--pb-surface) 50%, transparent);
+  color: var(--pb-link);
   transform: translateY(-1px);
 }
 

@@ -17,6 +17,7 @@ DEFINE FIELD IF NOT EXISTS password_hash ON users TYPE string;
 DEFINE FIELD IF NOT EXISTS role ON users TYPE string DEFAULT 'viewer' ASSERT $value IN ['superadmin', 'admin', 'author', 'viewer'];
 DEFINE FIELD IF NOT EXISTS display_name ON users TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS email ON users TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS avatar ON users TYPE option<record<files>> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS active ON users TYPE bool DEFAULT true;
 DEFINE FIELD IF NOT EXISTS last_login_at ON users TYPE option<datetime> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS created_at ON users TYPE datetime DEFAULT time::now();

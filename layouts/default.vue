@@ -48,8 +48,14 @@
               size="sm"
               @click="toggleThemeMode"
             />
-            <UButton :to="authLink" variant="ghost" color="neutral" :icon="authIcon" size="sm">
-              {{ authLabel }}
+            <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
+              Admin
+            </UButton>
+            <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
+              Logout
+            </UButton>
+            <UButton v-else to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
+              Login
             </UButton>
           </div>
         </div>
@@ -118,8 +124,14 @@
             size="sm"
             @click="toggleThemeMode"
           />
-          <UButton :to="authLink" variant="ghost" color="neutral" :icon="authIcon" size="sm">
-            <span class="hidden sm:inline">{{ authLabel }}</span>
+          <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
+            Admin
+          </UButton>
+          <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
+            <span class="hidden sm:inline">Logout</span>
+          </UButton>
+          <UButton v-else to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
+            <span class="hidden sm:inline">Login</span>
           </UButton>
         </div>
       </div>
@@ -209,15 +221,7 @@ const {
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const authRole = computed(() => authSession.value?.user?.role ?? null)
-const authLink = computed(() => {
-  if (!isLoggedIn.value) return '/login'
-  return authRole.value === 'viewer' ? '/' : '/admin'
-})
-const authIcon = computed(() => isLoggedIn.value && authRole.value !== 'viewer' ? 'i-lucide-layout-dashboard' : 'i-lucide-log-in')
-const authLabel = computed(() => {
-  if (!isLoggedIn.value) return 'Login'
-  return authRole.value === 'viewer' ? 'Signed in' : 'Admin'
-})
+const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
 const isHome = computed(() => route.path === '/')
 const hasLayoutSidebar = computed(() => !isHome.value || hasPageSidebar.value)
@@ -243,6 +247,17 @@ useHead(() => ({
     ? [{ rel: 'icon', href: siteFavicon.value }]
     : []
 }))
+
+async function logout() {
+  loggingOut.value = true
+  try {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+    await refreshNuxtData('public-auth-session')
+    await navigateTo('/')
+  } finally {
+    loggingOut.value = false
+  }
+}
 </script>
 
 <style scoped>

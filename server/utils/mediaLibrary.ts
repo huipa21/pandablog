@@ -319,7 +319,7 @@ export function mediaRecordVisibleToUser(file: MediaRecord, user?: SessionUser |
     return false
   }
 
-  if (user.role === 'superadmin' || user.role === 'admin') {
+  if (user.role === 'superadmin') {
     return true
   }
 
@@ -327,7 +327,11 @@ export function mediaRecordVisibleToUser(file: MediaRecord, user?: SessionUser |
 }
 
 export function mediaRecordManageableByUser(file: MediaRecord, user: SessionUser) {
-  if (user.role === 'admin') {
+  if (user.role === 'superadmin') {
+    return true
+  }
+
+  if (file.visibility !== 'private' && user.role === 'admin') {
     return true
   }
 

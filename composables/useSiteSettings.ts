@@ -33,7 +33,7 @@ export function useSiteSettings() {
       site_title: siteTitle,
       site_subtitle: '',
       site_logo: '',
-      site_banner: '',
+      site_banner: '/defaults/site-banner.jpg',
       site_banner_position_x: 50,
       site_banner_position_y: 50,
       site_banner_zoom: 100,

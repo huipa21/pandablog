@@ -6,12 +6,15 @@
       <div>
         <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Publish activity</p>
         <h2 class="mt-1 font-[var(--pb-font-display)] text-xl font-semibold tracking-normal text-[var(--pb-text)] md:text-2xl">
-          Last 12 months
+          {{ yearTitle }}
         </h2>
       </div>
-      <p v-if="!pending && !error" class="text-sm text-[var(--pb-text-subtle)]">
-        {{ totalPosts }} post<span v-if="totalPosts !== 1">s</span> published
-      </p>
+      <div class="flex flex-col items-start gap-2 sm:items-end">
+        <USelect v-model="selectedYear" :items="yearOptions" size="sm" class="w-32" aria-label="Publish activity year" />
+        <p v-if="!pending && !error" class="text-sm text-[var(--pb-text-subtle)]">
+          {{ totalPosts }} post<span v-if="totalPosts !== 1">s</span> published
+        </p>
+      </div>
     </header>
 
     <div v-if="pending">
@@ -26,45 +29,49 @@
     />
 
     <div v-else class="publish-heatmap-scroll overflow-x-auto">
-      <div class="publish-heatmap-frame">
-        <div
-          class="publish-heatmap-months"
-          :style="{ gridTemplateColumns: `repeat(${weeks}, var(--cell-size))` }"
-        >
-          <span
-            v-for="label in monthLabels"
-            :key="`${label.label}-${label.column}`"
-            :style="{ gridColumn: String(label.column) }"
-          >
-            {{ label.label }}
-          </span>
-        </div>
-
-        <div class="publish-heatmap-weekdays">
-          <span v-for="(label, index) in weekdayLabels" :key="index">{{ label }}</span>
-        </div>
-
-        <div class="publish-heatmap-cells">
+      <div class="publish-heatmap-board">
+        <div class="publish-heatmap-frame">
           <div
-            v-for="cell in cells"
-            :key="cell.iso"
-            class="publish-heatmap-cell"
-            :style="cell.placeholder ? cellPlaceholderStyle : { backgroundColor: cellColor(cell.level) }"
-            :title="cell.placeholder ? undefined : cell.tooltip"
-            :aria-label="cell.placeholder ? undefined : cell.tooltip"
-          />
-        </div>
-      </div>
+            class="publish-heatmap-months"
+            :style="{ gridTemplateColumns: `repeat(${weeks}, var(--cell-size))` }"
+          >
+            <span
+              v-for="label in monthLabels"
+              :key="`${label.label}-${label.column}`"
+              :style="{ gridColumn: String(label.column) }"
+            >
+              {{ label.label }}
+            </span>
+          </div>
 
-      <div class="publish-heatmap-legend">
-        <span>Less</span>
-        <span
-          v-for="level in 5"
-          :key="level"
-          class="publish-heatmap-cell"
-          :style="{ backgroundColor: cellColor(level - 1) }"
-        />
-        <span>More</span>
+          <div class="publish-heatmap-weekdays">
+            <span v-for="(label, index) in weekdayLabels" :key="index">{{ label }}</span>
+          </div>
+
+          <div class="publish-heatmap-cells">
+            <div
+              v-for="cell in cells"
+              :key="cell.iso"
+              class="publish-heatmap-cell"
+              :class="{ 'is-placeholder': cell.placeholder }"
+              :style="cell.placeholder ? cellPlaceholderStyle : { backgroundColor: cellColor(cell.level) }"
+              :title="cell.placeholder ? undefined : cell.tooltip"
+              :aria-label="cell.placeholder ? undefined : cell.tooltip"
+              :data-tooltip="cell.placeholder ? undefined : cell.tooltip"
+            />
+          </div>
+        </div>
+
+        <div class="publish-heatmap-legend">
+          <span>Less</span>
+          <span
+            v-for="level in 5"
+            :key="level"
+            class="publish-heatmap-cell"
+            :style="{ backgroundColor: cellColor(level - 1) }"
+          />
+          <span>More</span>
+        </div>
       </div>
     </div>
   </section>
@@ -79,11 +86,6 @@ interface PublishFrequencyEntry {
 
 interface PublishFrequencyResponse {
   posts: PublishFrequencyEntry[]
-  range: {
-    start: string
-    end: string
-    weeks: number
-  }
 }
 
 interface HeatmapCell {
@@ -113,6 +115,9 @@ const fetchWithSession: PublicFetch = (url) => {
   return clientFetch(url)
 }
 
+const currentYear = new Date().getFullYear()
+const selectedYear = ref(String(currentYear))
+
 const { data, pending, error } = await useAsyncData('public-publish-frequency', () =>
   fetchWithSession<PublishFrequencyResponse>('/api/posts/publish-frequency')
 )
@@ -123,12 +128,49 @@ const weekdayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', '']
 
 const cellPlaceholderStyle = { backgroundColor: 'transparent', visibility: 'hidden' as const }
 
-const weeks = computed(() => data.value?.range.weeks ?? 53)
-const totalPosts = computed(() => data.value?.posts.length ?? 0)
+const availableYears = computed(() => {
+  const years = new Set<number>()
+  for (const post of data.value?.posts ?? []) {
+    const year = yearFor(post.published_at)
+    if (year) years.add(year)
+  }
+  return [...years].sort((a, b) => b - a)
+})
+
+const yearOptions = computed(() => {
+  const years = availableYears.value.length ? availableYears.value : [currentYear]
+  return years.map((year) => ({ label: String(year), value: String(year) }))
+})
+
+watch(yearOptions, (options) => {
+  if (!options.some((option) => option.value === selectedYear.value)) {
+    selectedYear.value = options[0]?.value ?? String(currentYear)
+  }
+}, { immediate: true })
+
+const activeYear = computed(() => Number(selectedYear.value) || currentYear)
+const yearTitle = computed(() => String(activeYear.value))
+const yearPosts = computed(() => (data.value?.posts ?? []).filter((post) => yearFor(post.published_at) === activeYear.value))
+const totalPosts = computed(() => yearPosts.value.length)
+
+const gridRange = computed(() => {
+  const startOfYear = new Date(activeYear.value, 0, 1)
+  const endOfYear = new Date(activeYear.value, 11, 31)
+  const start = addDays(startOfYear, -startOfYear.getDay())
+  const end = addDays(endOfYear, 6 - endOfYear.getDay())
+  const days = dayNumber(end) - dayNumber(start) + 1
+
+  return {
+    start,
+    weeks: Math.ceil(days / 7)
+  }
+})
+
+const weeks = computed(() => gridRange.value.weeks)
 
 const buckets = computed(() => {
   const map = new Map<string, number>()
-  for (const post of data.value?.posts ?? []) {
+  for (const post of yearPosts.value) {
     if (!post.published_at) continue
     const d = new Date(post.published_at)
     if (Number.isNaN(d.getTime())) continue
@@ -140,14 +182,12 @@ const buckets = computed(() => {
 
 const cells = computed<HeatmapCell[]>(() => {
   const totalDays = weeks.value * 7
-  const today = startOfDay(new Date())
-  const endOfCurrentWeek = new Date(today.getTime() + (6 - today.getDay()) * MS_PER_DAY)
-  const startDate = new Date(endOfCurrentWeek.getTime() - (totalDays - 1) * MS_PER_DAY)
+  const startDate = gridRange.value.start
 
   const result: HeatmapCell[] = []
   for (let i = 0; i < totalDays; i++) {
-    const date = new Date(startDate.getTime() + i * MS_PER_DAY)
-    const placeholder = date.getTime() > today.getTime()
+    const date = addDays(startDate, i)
+    const placeholder = date.getFullYear() !== activeYear.value
     const iso = isoDay(date)
     const count = buckets.value.get(iso) ?? 0
     result.push({
@@ -163,26 +203,17 @@ const cells = computed<HeatmapCell[]>(() => {
 })
 
 const monthLabels = computed<MonthLabel[]>(() => {
-  const labels: MonthLabel[] = []
-  let lastMonth = -1
-  for (let week = 0; week < weeks.value; week++) {
-    const cell = cells.value[week * 7]
-    if (!cell) continue
-    const month = cell.date.getMonth()
-    if (month !== lastMonth) {
-      labels.push({ label: monthShort[month] ?? '', column: week + 1 })
-      lastMonth = month
-    }
-  }
-  // Drop the very first label if it sits in column 1 with only 1-2 weeks of room
-  // (the next month's label would visually clash with it).
-  const first = labels[0]
-  const second = labels[1]
-  if (first && second && first.column === 1 && second.column <= 3) {
-    labels.shift()
-  }
-  return labels
+  return monthShort.map((label, month) => {
+    const firstDay = new Date(activeYear.value, month, 1)
+    const column = Math.floor((dayNumber(firstDay) - dayNumber(gridRange.value.start)) / 7) + 1
+    return { label, column }
+  })
 })
+
+function yearFor(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.getFullYear()
+}
 
 function isoDay(date: Date) {
   const y = date.getFullYear()
@@ -195,6 +226,16 @@ function startOfDay(date: Date) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+function addDays(date: Date, days: number) {
+  const d = startOfDay(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+function dayNumber(date: Date) {
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MS_PER_DAY
 }
 
 function levelFor(count: number) {
@@ -236,6 +277,15 @@ function cellColor(level: number) {
 .publish-heatmap-scroll {
   /* Allow horizontal scroll on narrow viewports without breaking page layout. */
   -webkit-overflow-scrolling: touch;
+  padding-top: 1.5rem;
+}
+
+.publish-heatmap-board {
+  display: inline-flex;
+  width: max-content;
+  min-width: max-content;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .publish-heatmap-frame {
@@ -243,7 +293,7 @@ function cellColor(level: number) {
   grid-template-areas:
     ".        months"
     "weekdays cells";
-  grid-template-columns: auto 1fr;
+  grid-template-columns: max-content max-content;
   column-gap: 8px;
   row-gap: 4px;
   width: max-content;
@@ -290,6 +340,38 @@ function cellColor(level: number) {
   height: var(--cell-size);
   border-radius: var(--cell-radius);
   display: inline-block;
+}
+
+.publish-heatmap-cell[data-tooltip] {
+  position: relative;
+  cursor: default;
+}
+
+.publish-heatmap-cell[data-tooltip]::after {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: 14rem;
+  transform: translateX(-50%) translateY(0.15rem);
+  border-radius: var(--pb-radius-sm);
+  background: var(--pb-text);
+  box-shadow: var(--pb-shadow-sm);
+  color: var(--pb-card-bg);
+  content: attr(data-tooltip);
+  font-size: 0.7rem;
+  line-height: 1.3;
+  opacity: 0;
+  padding: 0.35rem 0.5rem;
+  pointer-events: none;
+  transition: opacity 80ms ease, transform 80ms ease;
+  white-space: nowrap;
+}
+
+.publish-heatmap-cell[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%);
 }
 
 .publish-heatmap-legend {

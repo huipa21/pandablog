@@ -9,7 +9,7 @@
         v-for="category in categories"
         :key="category.id"
         :to="`/category/${category.slug}`"
-        class="flex items-center justify-between rounded-[var(--pb-radius-sm)] px-2 py-1 text-sm text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
+        class="flex items-center justify-between rounded-[var(--pb-radius-sm)] py-1 text-sm text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
       >
         <span>{{ categoryLabel(category.name) }}</span>
         <span class="text-xs text-[var(--pb-text-subtle)]">{{ category.post_count ?? 0 }}</span>
