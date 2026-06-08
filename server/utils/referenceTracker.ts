@@ -1,5 +1,5 @@
 import type { Surreal } from 'surrealdb'
-import { queryDb } from './db'
+import { queryDb, queryDbRecord } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { mediaNormalizeFileRecord } from './mediaLibrary'
 import type { PostVisibility } from '~/types/content'
@@ -157,11 +157,7 @@ async function readFileForReference(db: Surreal, hash: string) {
     return null
   }
 
-  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
-    table: 'files',
-    id: hash.toLowerCase()
-  })
-  const record = firstRow<Record<string, unknown>>(response)
+  const record = await queryDbRecord(db, 'files', hash.toLowerCase())
   return record ? mediaNormalizeFileRecord(record) : null
 }
 

@@ -1,8 +1,8 @@
 import { requireContentManager } from '../../utils/auth'
-import { queryDb, useDb } from '../../utils/db'
+import { queryDb, queryDbRecord, useDb } from '../../utils/db'
 import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFolderId, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
-import { firstRow, stringifyRecordId } from '../../utils/surrealResult'
+import { stringifyRecordId } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
   await requireContentManager(event)
@@ -29,8 +29,7 @@ export default defineEventHandler(async (event) => {
     for (const hash of hashes) {
       try {
         // Fetch file record to get storage paths before deletion
-        const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'files', id: hash })
-        const record = firstRow<Record<string, unknown>>(response)
+        const record = await queryDbRecord(db, 'files', hash)
         if (record) {
           const file = mediaNormalizeFileRecord(record)
           await mediaDeleteStoredObjects(file)

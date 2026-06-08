@@ -1,19 +1,15 @@
 import { requireContentManager } from '../../utils/auth'
-import { queryDb, useDb } from '../../utils/db'
+import { queryDb, queryDbRecord, useDb } from '../../utils/db'
 import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
-import { mediaNormalizeFileRecord, mediaNormalizeHash, mediaRecordManageableByUser } from '../../utils/mediaLibrary'
-import { firstRow } from '../../utils/surrealResult'
+import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../utils/mediaLibrary'
+import { mediaRecordManageableByUser } from '../../utils/mediaPermissions'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
   const force = getQuery(event).force === 'true'
   const db = await useDb()
-  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
-    table: 'files',
-    id
-  })
-  const record = firstRow<Record<string, unknown>>(response)
+  const record = await queryDbRecord(db, 'files', id)
 
   if (!record) {
     throw createError({ statusCode: 404, message: 'Media file not found' })

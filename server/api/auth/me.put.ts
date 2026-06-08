@@ -1,6 +1,7 @@
 import { requireAuthenticatedUser } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
-import { mediaReadFileByHash, mediaRecordVisibleToUser } from '../../utils/mediaLibrary'
+import { mediaReadFileByHash } from '../../utils/mediaLibrary'
+import { mediaRecordVisibleToUser } from '../../utils/mediaPermissions'
 import { recordIdPart } from '../../utils/surrealResult'
 import { findUserById, toSessionUser, updateUser } from '../../utils/users'
 

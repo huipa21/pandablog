@@ -1,6 +1,6 @@
 import type { Surreal } from 'surrealdb'
 import { slugify } from './content'
-import { queryDb } from './db'
+import { findBySlug, queryDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { CategoryRecord, TagRecord } from '~/types/content'
 
@@ -39,8 +39,7 @@ export async function uniqueTaxonomySlug(db: Surreal, table: 'category' | 'tag',
 
   for (let suffix = 0; suffix < 100; suffix += 1) {
     const candidate = suffix === 0 ? base : `${base}-${suffix + 1}`
-    const response = await queryDb(db, `SELECT id FROM ${table} WHERE slug = $slug LIMIT 1;`, { slug: candidate })
-    const existing = firstRow<{ id: unknown }>(response)
+    const existing = await findBySlug(db, table, candidate)
 
     if (!existing) {
       return candidate
@@ -299,8 +298,7 @@ async function ensureTaxonomyIds(
 
   for (const name of normalizeTaxonomyNames(namesInput)) {
     const baseSlug = slugify(name)
-    const existingBySlug = await queryDb(db, `SELECT id FROM ${table} WHERE slug = $slug LIMIT 1;`, { slug: baseSlug })
-    const existing = firstRow<{ id: unknown }>(existingBySlug)
+    const existing = await findBySlug(db, table, baseSlug)
 
     if (existing?.id) {
       resolvedIds.add(recordIdPart(stringifyRecordId(existing.id), table))

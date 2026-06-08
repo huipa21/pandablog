@@ -26,17 +26,6 @@
           <UBadge :color="currentStatus === 'published' ? 'success' : 'neutral'" variant="subtle">{{ currentStatus }}</UBadge>
         </div>
 
-        <label
-          class="flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition-colors"
-          :class="form.is_featured ? 'border-teal-300 bg-teal-50' : 'border-stone-200 bg-white hover:bg-stone-50'"
-        >
-          <input v-model="form.is_featured" type="checkbox" class="mt-1 rounded border-stone-300">
-          <span class="flex flex-1 items-start justify-between gap-2">
-            <span class="font-medium text-stone-900">Feature on homepage</span>
-            <UBadge v-if="form.is_featured" color="primary" variant="subtle">Featured</UBadge>
-          </span>
-        </label>
-
         <details open class="rounded-md border border-stone-200 p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Summary & Slug</summary>
         <div class="mt-3 space-y-3">
@@ -57,7 +46,7 @@
       </details>
 
       <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Featured Image</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Cover Image</summary>
         <div class="mt-3 space-y-3">
           <div v-if="form.cover_image" class="relative overflow-hidden rounded-md border border-stone-200">
             <img :src="form.cover_image" alt="" class="h-36 w-full object-cover">

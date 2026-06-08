@@ -1,7 +1,7 @@
 import { requireSuperadmin } from '../../../utils/auth'
-import { listAccessLogs } from '../../../utils/logging-admin'
+import { listLogs } from '../../../utils/logging-admin'
 
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)
-  return await listAccessLogs(event)
+  return await listLogs(event, 'access')
 })

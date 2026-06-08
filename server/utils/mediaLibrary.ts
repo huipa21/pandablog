@@ -3,10 +3,11 @@ import { mediaHashBuffer } from './fileHash'
 import { mediaDeleteStoredObjects, mediaOriginalRelativePath, mediaStoredFilename, mediaWriteOriginalBuffer } from './fileStorage'
 import { mediaProcessImageBuffer } from './imageProcessor'
 import { isSimilar } from './imageHash'
-import { queryDb } from './db'
+import { findBySlug, queryDb, queryDbRecord } from './db'
 import { slugify, serializeDate } from './content'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { getExpectedMimeType, getExtension, validateUpload } from './validateUpload'
+import { mediaRecordVisibleToUser } from './mediaPermissions'
 import type { MediaSettings } from './settings'
 import type { SessionUser } from './users'
 import type { MediaFolderRecord, MediaRecord, MediaVariantRecord, MediaVariantSize, UploadFileResult } from '~/types/content'
@@ -237,11 +238,7 @@ export async function mediaCreateOrReuseFileRecord(db: Surreal, input: MediaCrea
 }
 
 export async function mediaReadFileByHash(db: Surreal, hash: string) {
-  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
-    table: 'files',
-    id: recordIdPart(hash, 'files')
-  })
-  const record = firstRow<Record<string, unknown>>(response)
+  const record = await queryDbRecord(db, 'files', recordIdPart(hash, 'files'))
   return record ? mediaNormalizeFileRecord(record) : null
 }
 
@@ -310,40 +307,8 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   }
 }
 
-export function mediaRecordVisibleToUser(file: MediaRecord, user?: SessionUser | null) {
-  if (file.visibility !== 'private') {
-    return true
-  }
-
-  if (!user) {
-    return false
-  }
-
-  if (user.role === 'superadmin') {
-    return true
-  }
-
-  return file.created_by === user.id || file.uploaded_by === user.username
-}
-
-export function mediaRecordManageableByUser(file: MediaRecord, user: SessionUser) {
-  if (user.role === 'superadmin') {
-    return true
-  }
-
-  if (file.visibility !== 'private' && user.role === 'admin') {
-    return true
-  }
-
-  return file.created_by === user.id || file.uploaded_by === user.username
-}
-
 async function mediaReadFolderById(db: Surreal, folderId: string) {
-  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
-    table: 'folder',
-    id: mediaNormalizeFolderId(folderId)
-  })
-  const record = firstRow<Record<string, unknown>>(response)
+  const record = await queryDbRecord(db, 'folder', mediaNormalizeFolderId(folderId))
   return record ? mediaNormalizeFolderRecord(record) : null
 }
 
@@ -537,8 +502,7 @@ export async function mediaUniqueFolderSlug(db: Surreal, desired: string, curren
 
   for (let suffix = 0; suffix < 100; suffix += 1) {
     const candidate = suffix === 0 ? base : `${base}-${suffix + 1}`
-    const response = await queryDb(db, 'SELECT id FROM folder WHERE slug = $slug LIMIT 1;', { slug: candidate })
-    const existing = firstRow<{ id: unknown }>(response)
+    const existing = await findBySlug(db, 'folder', candidate)
 
     if (!existing) {
       return candidate

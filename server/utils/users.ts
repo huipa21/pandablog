@@ -1,5 +1,5 @@
 import { adminPasswordProblem, hashAdminPassword, verifyAdminPassword } from './admin-password'
-import { queryDb, useDb } from './db'
+import { queryDb, queryDbRecord, useDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 
 export const USERS_TABLE = 'users'
@@ -192,12 +192,7 @@ export async function findUserById(value: string): Promise<UserWithPassword | nu
   if (!id) return null
 
   const db = await useDb()
-  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
-    table: USERS_TABLE,
-    id
-  })
-
-  const row = firstRow<Record<string, unknown>>(response)
+  const row = await queryDbRecord(db, USERS_TABLE, id)
   return row ? normalizeUserWithPassword(row) : null
 }
 

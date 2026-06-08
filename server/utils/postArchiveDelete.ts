@@ -1,4 +1,4 @@
-import { queryDb, useDb } from './db'
+import { queryDb, queryDbRecord, useDb } from './db'
 import { normalizePost } from './content'
 import { firstRow, recordIdPart } from './surrealResult'
 import { deleteAllBlocksForPost } from './blocks'
@@ -12,12 +12,7 @@ export async function archiveOrDeletePostById(
   db: Awaited<ReturnType<typeof useDb>>,
   id: string
 ): Promise<ArchiveDeleteResult> {
-  const currentResponse = await queryDb(
-    db,
-    'SELECT * FROM type::record($table, $id) LIMIT 1;',
-    { table: 'post', id }
-  )
-  const currentPost = firstRow<Record<string, unknown>>(currentResponse)
+  const currentPost = await queryDbRecord(db, 'post', id)
 
   if (!currentPost) {
     throw createError({ statusCode: 404, message: 'Post not found' })
@@ -68,7 +63,7 @@ export async function archiveOrDeletePostById(
 function archivePost(db: Awaited<ReturnType<typeof useDb>>, id: string) {
   return queryDb(
     db,
-    'UPDATE type::record($table, $id) MERGE { status: "archived", is_featured: false, published_at: NONE, featured_at: NONE, updated_at: time::now() } RETURN AFTER;',
+    'UPDATE type::record($table, $id) MERGE { status: "archived", published_at: NONE, updated_at: time::now() } RETURN AFTER;',
     {
       table: 'post',
       id
@@ -84,13 +79,7 @@ function isLegacyPostFieldError(error: unknown) {
 
 async function readArchivedPost(db: Awaited<ReturnType<typeof useDb>>, id: string) {
   try {
-    const response = await queryDb(
-      db,
-      'SELECT * FROM type::record($table, $id) LIMIT 1;',
-      { table: 'post', id },
-      { retryOnReconnect: false }
-    )
-    const post = firstRow<Record<string, unknown>>(response)
+    const post = await queryDbRecord(db, 'post', id, { retryOnReconnect: false })
 
     if (post?.status === 'archived') {
       return post

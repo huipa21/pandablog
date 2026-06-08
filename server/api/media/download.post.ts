@@ -3,10 +3,9 @@ import { createWriteStream } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { requireContentManager } from '../../utils/auth'
-import { queryDb, useDb } from '../../utils/db'
+import { queryDbRecord, useDb } from '../../utils/db'
 import { mediaResolveOriginalPath } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
-import { queryRows } from '../../utils/surrealResult'
 
 const require = createRequire(import.meta.url)
 const archiver: typeof import('archiver') = require('archiver')
@@ -51,10 +50,9 @@ export default defineEventHandler(async (event) => {
     const appendFiles = async () => {
       for (const hash of hashes) {
         try {
-          const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'files', id: hash })
-          const rows = queryRows<Record<string, unknown>>(response)
-          if (!rows.length || !rows[0]) continue
-          const file = mediaNormalizeFileRecord(rows[0])
+          const record = await queryDbRecord(db, 'files', hash)
+          if (!record) continue
+          const file = mediaNormalizeFileRecord(record)
           if (!file.original_path) continue
           const absolutePath = mediaResolveOriginalPath(file.original_path)
           archive.file(absolutePath, { name: file.original_name })

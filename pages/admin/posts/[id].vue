@@ -195,8 +195,6 @@ const form = reactive<AdminPostEditorForm>({
   tag_ids: [],
   category_names: [],
   tag_names: [],
-  is_featured: false,
-  featured_at: null,
   visibility: 'public',
   password: '',
   password_hint: '',
@@ -245,8 +243,6 @@ watch(post, (value) => {
   form.tag_ids = [...(value.tag_ids ?? [])]
   form.category_names = []
   form.tag_names = []
-  form.is_featured = value.is_featured
-  form.featured_at = value.featured_at ?? null
   currentStatus.value = value.status === 'archived' ? 'draft' : value.status
   form.visibility = value.visibility ?? 'public'
   form.password_hint = value.password_hint ?? ''
@@ -280,8 +276,6 @@ function saveLocal() {
       tag_ids: form.tag_ids,
       category_names: form.category_names,
       tag_names: form.tag_names,
-      is_featured: form.is_featured,
-      featured_at: form.featured_at,
       visibility: form.visibility,
       password: form.password,
       password_hint: form.password_hint,
@@ -335,8 +329,6 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
         tag_ids: form.tag_ids,
         category_names: form.category_names,
         tag_names: form.tag_names,
-        is_featured: form.is_featured,
-        featured_at: form.featured_at,
         status: nextStatus,
         visibility: form.visibility,
         password: form.password,
@@ -351,8 +343,6 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     form.tag_ids = [...(saved.tag_ids ?? form.tag_ids)]
     form.category_names = []
     form.tag_names = []
-    form.is_featured = saved.is_featured
-    form.featured_at = saved.featured_at ?? null
     form.visibility = saved.visibility ?? form.visibility
     form.password_hint = saved.password_hint ?? ''
     form.password = ''
@@ -403,8 +393,6 @@ onMounted(() => {
       tag_ids: local.tag_ids ?? form.tag_ids,
       category_names: local.category_names ?? [],
       tag_names: local.tag_names ?? [],
-      is_featured: local.is_featured ?? form.is_featured,
-      featured_at: local.featured_at ?? form.featured_at,
       visibility: local.visibility ?? form.visibility,
       password: local.password ?? '',
       password_hint: local.password_hint ?? form.password_hint,
@@ -494,8 +482,6 @@ function serializeDbPayload() {
     tag_ids: form.tag_ids,
     category_names: form.category_names,
     tag_names: form.tag_names,
-    is_featured: form.is_featured,
-    featured_at: form.featured_at,
     visibility: form.visibility,
     password: form.password,
     password_hint: form.password_hint,

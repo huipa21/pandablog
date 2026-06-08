@@ -12,6 +12,54 @@ export interface ListLogsResult {
   sort: 'newest' | 'oldest'
 }
 
+interface LogListSpec {
+  table: string
+  label: string
+  searchColumns: string[]
+  setTypeWhere: (query: Record<string, unknown>, where: string[], params: Record<string, unknown>) => void
+}
+
+const logListSpecs: Record<LogType, LogListSpec> = {
+  access: {
+    table: 'access_logs',
+    label: 'access',
+    searchColumns: ['path', 'user_agent'],
+    setTypeWhere(query, where, params) {
+      setStringWhere(where, params, query.path, 'path = $path', 'path')
+
+      if (typeof query.method === 'string' && query.method.trim()) {
+        where.push('method = $method')
+        params.method = query.method.trim().toUpperCase()
+      }
+
+      setNumericWhere(where, params, query.status, 'status_code = $status', 'status')
+      setNumericWhere(where, params, query.min_status, 'status_code >= $min_status', 'min_status')
+      setNumericWhere(where, params, query.max_status, 'status_code <= $max_status', 'max_status')
+    }
+  },
+  activity: {
+    table: 'activity_logs',
+    label: 'activity',
+    searchColumns: ['action', 'description'],
+    setTypeWhere(query, where, params) {
+      setStringWhere(where, params, query.action, 'action = $action', 'action')
+      setStringWhere(where, params, query.resource_type, 'resource_type = $resource_type', 'resource_type')
+      setStringWhere(where, params, query.resource_id, 'resource_id = $resource_id', 'resource_id')
+    }
+  },
+  errors: {
+    table: 'error_logs',
+    label: 'error',
+    searchColumns: ['message', 'stack'],
+    setTypeWhere(query, where, params) {
+      if (typeof query.level === 'string' && query.level.trim()) {
+        where.push('level = $level')
+        params.level = query.level.trim().toLowerCase()
+      }
+    }
+  }
+}
+
 export function parseLogType(value: string): LogType {
   if (value === 'access' || value === 'activity' || value === 'errors') {
     return value
@@ -53,7 +101,8 @@ export function sanitizeSearchText(value: unknown) {
     .slice(0, 200)
 }
 
-export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
+export async function listLogs(event: H3Event, type: LogType): Promise<ListLogsResult> {
+  const spec = logListSpecs[type]
   const query = getQuery(event)
   const limit = parseLimit(query.limit)
   const offset = parseOffset(query.offset)
@@ -63,44 +112,11 @@ export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
   const where: string[] = []
 
   setDateWhere(where, params, query.from, query.to)
-
-  if (typeof query.path === 'string' && query.path.trim()) {
-    where.push('path = $path')
-    params.path = query.path.trim()
-  }
-
-  if (typeof query.method === 'string' && query.method.trim()) {
-    where.push('method = $method')
-    params.method = query.method.trim().toUpperCase()
-  }
-
-  if (query.status !== undefined) {
-    const status = Number(query.status)
-    if (Number.isInteger(status)) {
-      where.push('status_code = $status')
-      params.status = status
-    }
-  }
-
-  if (query.min_status !== undefined) {
-    const minStatus = Number(query.min_status)
-    if (Number.isInteger(minStatus)) {
-      where.push('status_code >= $min_status')
-      params.min_status = minStatus
-    }
-  }
-
-  if (query.max_status !== undefined) {
-    const maxStatus = Number(query.max_status)
-    if (Number.isInteger(maxStatus)) {
-      where.push('status_code <= $max_status')
-      params.max_status = maxStatus
-    }
-  }
+  spec.setTypeWhere(query, where, params)
 
   const search = sanitizeSearchText(query.search)
   if (search) {
-    where.push('(string::lowercase(path) CONTAINS string::lowercase($search) OR string::lowercase(user_agent) CONTAINS string::lowercase($search))')
+    where.push(buildSearchWhere(spec.searchColumns))
     params.search = search
   }
 
@@ -108,10 +124,10 @@ export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
   const db = await useDb()
   const response = await queryDb(
     db,
-    `SELECT * FROM access_logs ${whereSql} ORDER BY timestamp ${orderBy} LIMIT $limit START $offset;
-     SELECT count() AS total FROM access_logs ${whereSql} GROUP ALL;`,
+    `SELECT * FROM ${spec.table} ${whereSql} ORDER BY timestamp ${orderBy} LIMIT $limit START $offset;
+     SELECT count() AS total FROM ${spec.table} ${whereSql} GROUP ALL;`,
     params,
-    { label: 'list access logs', timeoutMs: 15_000 }
+    { label: `list ${spec.label} logs`, timeoutMs: 15_000 }
   )
 
   return {
@@ -121,98 +137,18 @@ export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
     offset,
     sort
   }
+}
+
+export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
+  return await listLogs(event, 'access')
 }
 
 export async function listActivityLogs(event: H3Event): Promise<ListLogsResult> {
-  const query = getQuery(event)
-  const limit = parseLimit(query.limit)
-  const offset = parseOffset(query.offset)
-  const sort = parseSort(query.sort)
-  const orderBy = sort === 'oldest' ? 'ASC' : 'DESC'
-  const params: Record<string, unknown> = { limit, offset }
-  const where: string[] = []
-
-  setDateWhere(where, params, query.from, query.to)
-
-  if (typeof query.action === 'string' && query.action.trim()) {
-    where.push('action = $action')
-    params.action = query.action.trim()
-  }
-
-  if (typeof query.resource_type === 'string' && query.resource_type.trim()) {
-    where.push('resource_type = $resource_type')
-    params.resource_type = query.resource_type.trim()
-  }
-
-  if (typeof query.resource_id === 'string' && query.resource_id.trim()) {
-    where.push('resource_id = $resource_id')
-    params.resource_id = query.resource_id.trim()
-  }
-
-  const search = sanitizeSearchText(query.search)
-  if (search) {
-    where.push('(string::lowercase(action) CONTAINS string::lowercase($search) OR string::lowercase(description) CONTAINS string::lowercase($search))')
-    params.search = search
-  }
-
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
-  const db = await useDb()
-  const response = await queryDb(
-    db,
-    `SELECT * FROM activity_logs ${whereSql} ORDER BY timestamp ${orderBy} LIMIT $limit START $offset;
-     SELECT count() AS total FROM activity_logs ${whereSql} GROUP ALL;`,
-    params,
-    { label: 'list activity logs', timeoutMs: 15_000 }
-  )
-
-  return {
-    rows: queryRows<Record<string, unknown>>(response, 0),
-    total: Number(firstRow<{ total?: number }>(response, 1)?.total ?? 0),
-    limit,
-    offset,
-    sort
-  }
+  return await listLogs(event, 'activity')
 }
 
 export async function listErrorLogs(event: H3Event): Promise<ListLogsResult> {
-  const query = getQuery(event)
-  const limit = parseLimit(query.limit)
-  const offset = parseOffset(query.offset)
-  const sort = parseSort(query.sort)
-  const orderBy = sort === 'oldest' ? 'ASC' : 'DESC'
-  const params: Record<string, unknown> = { limit, offset }
-  const where: string[] = []
-
-  setDateWhere(where, params, query.from, query.to)
-
-  if (typeof query.level === 'string' && query.level.trim()) {
-    where.push('level = $level')
-    params.level = query.level.trim().toLowerCase()
-  }
-
-  const search = sanitizeSearchText(query.search)
-  if (search) {
-    where.push('(string::lowercase(message) CONTAINS string::lowercase($search) OR string::lowercase(stack) CONTAINS string::lowercase($search))')
-    params.search = search
-  }
-
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
-  const db = await useDb()
-  const response = await queryDb(
-    db,
-    `SELECT * FROM error_logs ${whereSql} ORDER BY timestamp ${orderBy} LIMIT $limit START $offset;
-     SELECT count() AS total FROM error_logs ${whereSql} GROUP ALL;`,
-    params,
-    { label: 'list error logs', timeoutMs: 15_000 }
-  )
-
-  return {
-    rows: queryRows<Record<string, unknown>>(response, 0),
-    total: Number(firstRow<{ total?: number }>(response, 1)?.total ?? 0),
-    limit,
-    offset,
-    sort
-  }
+  return await listLogs(event, 'errors')
 }
 
 export function toCsv(rows: Array<Record<string, unknown>>) {
@@ -232,6 +168,29 @@ function escapeCsvCell(value: unknown) {
   const escaped = raw.replaceAll('"', '""')
 
   return `"${escaped}"`
+}
+
+function buildSearchWhere(columns: string[]) {
+  return `(${columns.map((column) => `string::lowercase(${column}) CONTAINS string::lowercase($search)`).join(' OR ')})`
+}
+
+function setStringWhere(where: string[], params: Record<string, unknown>, value: unknown, expression: string, paramName: string) {
+  if (typeof value === 'string' && value.trim()) {
+    where.push(expression)
+    params[paramName] = value.trim()
+  }
+}
+
+function setNumericWhere(where: string[], params: Record<string, unknown>, value: unknown, expression: string, paramName: string) {
+  if (value === undefined) {
+    return
+  }
+
+  const numberValue = Number(value)
+  if (Number.isInteger(numberValue)) {
+    where.push(expression)
+    params[paramName] = numberValue
+  }
 }
 
 function setDateWhere(where: string[], params: Record<string, unknown>, from: unknown, to: unknown) {

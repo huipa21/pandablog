@@ -1,5 +1,5 @@
-import { queryDb, useDb } from '../../../utils/db'
-import { firstRow, recordIdPart } from '../../../utils/surrealResult'
+import { queryDbRecord, useDb } from '../../../utils/db'
+import { recordIdPart } from '../../../utils/surrealResult'
 import { requireContentManager } from '../../../utils/auth'
 import { assertCanManagePostRecord } from '../../../utils/permissions'
 import { archiveOrDeletePostById } from '../../../utils/postArchiveDelete'
@@ -13,8 +13,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await useDb()
-  const existingResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'post', id })
-  const existing = firstRow<Record<string, unknown>>(existingResponse)
+  const existing = await queryDbRecord(db, 'post', id)
   if (!existing) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }

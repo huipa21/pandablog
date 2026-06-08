@@ -1,7 +1,6 @@
 import type { Surreal } from 'surrealdb'
-import { firstRow } from './surrealResult'
 import { slugify } from './content'
-import { queryDb } from './db'
+import { findBySlug } from './db'
 import { stringifyRecordId } from './surrealResult'
 
 export async function uniquePostSlug(db: Surreal, desired: string, currentRecordId?: string) {
@@ -9,8 +8,7 @@ export async function uniquePostSlug(db: Surreal, desired: string, currentRecord
 
   for (let suffix = 0; suffix < 100; suffix += 1) {
     const candidate = suffix === 0 ? base : `${base}-${suffix + 1}`
-    const response = await queryDb(db, 'SELECT id FROM post WHERE slug = $slug LIMIT 1;', { slug: candidate })
-    const existing = firstRow<{ id: unknown }>(response)
+    const existing = await findBySlug(db, 'post', candidate)
 
     if (!existing) {
       return candidate

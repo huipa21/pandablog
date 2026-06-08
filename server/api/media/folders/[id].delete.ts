@@ -1,5 +1,5 @@
 import { requireContentManager } from '../../../utils/auth'
-import { queryDb, useDb } from '../../../utils/db'
+import { queryDb, queryDbRecord, useDb } from '../../../utils/db'
 import { mediaNormalizeFileRecord, mediaNormalizeFolderId } from '../../../utils/mediaLibrary'
 import { firstRow, queryRows } from '../../../utils/surrealResult'
 
@@ -9,8 +9,7 @@ export default defineEventHandler(async (event) => {
   const db = await useDb()
 
   // Prevent deletion of the Default folder
-  const folderResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'folder', id })
-  const folder = firstRow<Record<string, unknown>>(folderResponse)
+  const folder = await queryDbRecord(db, 'folder', id)
   if (folder && String(folder.slug ?? '') === 'default') {
     throw createError({ statusCode: 400, message: 'The Default folder cannot be deleted' })
   }

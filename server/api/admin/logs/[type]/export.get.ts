@@ -1,5 +1,5 @@
 import { requireSuperadmin } from '../../../../utils/auth'
-import { listAccessLogs, listActivityLogs, listErrorLogs, parseLogType, toCsv } from '../../../../utils/logging-admin'
+import { listLogs, parseLogType, toCsv } from '../../../../utils/logging-admin'
 
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)
@@ -13,14 +13,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const format = query.format === 'csv' ? 'csv' : 'json'
 
-  let result
-  if (type === 'access') {
-    result = await listAccessLogs(event)
-  } else if (type === 'activity') {
-    result = await listActivityLogs(event)
-  } else {
-    result = await listErrorLogs(event)
-  }
+  const result = await listLogs(event, type)
 
   const rows = result.rows.slice(0, 10_000)
 

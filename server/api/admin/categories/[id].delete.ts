@@ -1,4 +1,4 @@
-import { queryDb, useDb } from '../../../utils/db'
+import { queryDb, queryDbRecord, useDb } from '../../../utils/db'
 import { requireContentManager } from '../../../utils/auth'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
 import { assertCanManageOwnedRecord, assertNoOtherAuthorTaxonomyUsage } from '../../../utils/permissions'
@@ -8,8 +8,7 @@ export default defineEventHandler(async (event) => {
 
   const id = recordIdPart(getRouterParam(event, 'id') ?? '', 'category')
   const db = await useDb()
-  const categoryResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'category', id })
-  const category = firstRow<Record<string, unknown>>(categoryResponse)
+  const category = await queryDbRecord(db, 'category', id)
 
   if (!category) {
     throw createError({ statusCode: 404, message: 'Category not found' })

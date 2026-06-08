@@ -1,4 +1,5 @@
 import { Surreal } from 'surrealdb'
+import { firstRow } from './surrealResult'
 
 interface QueryOptions {
   label?: string
@@ -208,4 +209,45 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
 
 function summarizeQuery(sql: string) {
   return sql.replace(/\s+/g, ' ').trim().slice(0, 120)
+}
+
+export async function queryDbRecord<T extends Record<string, unknown> = Record<string, unknown>>(
+  db: Surreal,
+  table: string,
+  id: string,
+  options: QueryOptions = {}
+) {
+  const response = await queryDb(
+    db,
+    'SELECT * FROM type::record($table, $id) LIMIT 1;',
+    { table, id },
+    options
+  )
+
+  return firstRow<T>(response)
+}
+
+export async function findBySlug<T extends { id: unknown } = { id: unknown }>(
+  db: Surreal,
+  table: string,
+  slug: string,
+  options: QueryOptions = {}
+) {
+  const tableName = safeTableName(table)
+  const response = await queryDb(
+    db,
+    `SELECT id FROM ${tableName} WHERE slug = $slug LIMIT 1;`,
+    { slug },
+    options
+  )
+
+  return firstRow<T>(response)
+}
+
+function safeTableName(table: string) {
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(table)) {
+    return table
+  }
+
+  throw createError({ statusCode: 500, message: 'Invalid database table name' })
 }

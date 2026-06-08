@@ -1,6 +1,6 @@
-import { queryDb, useDb } from '../../../utils/db'
+import { queryDb, queryDbRecord, useDb } from '../../../utils/db'
 import { requireContentManager } from '../../../utils/auth'
-import { firstRow, recordIdPart } from '../../../utils/surrealResult'
+import { recordIdPart } from '../../../utils/surrealResult'
 import { assertCanManageOwnedRecord, assertNoOtherAuthorTaxonomyUsage } from '../../../utils/permissions'
 
 export default defineEventHandler(async (event) => {
@@ -8,8 +8,7 @@ export default defineEventHandler(async (event) => {
 
   const id = recordIdPart(getRouterParam(event, 'id') ?? '', 'tag')
   const db = await useDb()
-  const existingResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table: 'tag', id })
-  const existing = firstRow<Record<string, unknown>>(existingResponse)
+  const existing = await queryDbRecord(db, 'tag', id)
   if (!existing) {
     throw createError({ statusCode: 404, message: 'Tag not found' })
   }

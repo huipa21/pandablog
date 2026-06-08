@@ -1,12 +1,11 @@
-import { queryDb, useDb } from '../../../utils/db'
-import { buildPostPayload, cleanFeatured, normalizePost, stringOrNull } from '../../../utils/content'
+import { queryDb, queryDbRecord, useDb } from '../../../utils/db'
+import { buildPostPayload, normalizePost, stringOrNull } from '../../../utils/content'
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
 import { requireContentManager } from '../../../utils/auth'
 import { assertCanManagePostRecord } from '../../../utils/permissions'
 import { uniquePostSlug } from '../../../utils/posts'
 import { hashPostPassword } from '../../../utils/post-password'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
-import { clearOtherFeaturedPosts } from '../../../utils/featuredPost'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import {
   buildDocFromBlocks,
@@ -24,11 +23,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<Record<string, unknown>>(event)
   const db = await useDb()
 
-  const existingResponse = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', {
-    table: 'post',
-    id
-  })
-  const existing = firstRow<Record<string, unknown>>(existingResponse)
+  const existing = await queryDbRecord(db, 'post', id)
   if (!existing) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }
@@ -74,10 +69,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const normalizedPost = normalizePost(post)
-  if (normalizedPost.is_featured && normalizedPost.status === 'published') {
-    await clearOtherFeaturedPosts(db, id)
-  }
-
   let blocks = previousBlocks
   let reassembledDoc = previousDoc
   let linkedSlugs: string[] = []
@@ -128,13 +119,11 @@ export default defineEventHandler(async (event) => {
 function cleanOptionalFieldClears(body: Record<string, unknown>) {
   const clearSummary = typeof body.summary === 'string' && body.summary.trim() === ''
   const clearCoverImage = typeof body.cover_image === 'string' && body.cover_image.trim() === ''
-  const clearFeaturedAt = Object.prototype.hasOwnProperty.call(body, 'is_featured') && !cleanFeatured(body.is_featured)
   const clearPublishedAt = Object.prototype.hasOwnProperty.call(body, 'status') && body.status !== 'published'
   const assignments: string[] = []
 
   if (clearSummary) assignments.push('summary = NONE')
   if (clearCoverImage) assignments.push('cover_image = NONE')
-  if (clearFeaturedAt) assignments.push('featured_at = NONE')
   if (clearPublishedAt) assignments.push('published_at = NONE')
   if (body.visibility === 'public' || body.visibility === 'private') {
     assignments.push('password_hash = NONE', 'password_hint = NONE')

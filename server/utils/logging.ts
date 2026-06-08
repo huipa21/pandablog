@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { queryDb, useDb } from './db'
+import { queryDb, queryDbRecord, useDb } from './db'
 import { applySettingsPatch, redactDeep, shouldAllowDebug, shouldRecordAccessLog, trimByMaxSize } from './logging-logic'
 import { firstRow, queryRows, stringifyRecordId } from './surrealResult'
 import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogLevel, LoggingSettings } from '~/types/logging'
@@ -377,14 +377,10 @@ export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
 export async function readLogById(type: 'access' | 'activity' | 'errors', id: string) {
   const table = typeToTable(type)
   const db = await useDb()
-  const response = await queryDb(
-    db,
-    'SELECT * FROM type::record($table, $id) LIMIT 1;',
-    { table, id: id.includes(':') ? stringifyRecordId(id) : id },
-    { label: `read ${type} log detail`, timeoutMs: 10_000 }
-  )
-
-  return firstRow<Record<string, unknown>>(response)
+  return await queryDbRecord(db, table, id.includes(':') ? stringifyRecordId(id) : id, {
+    label: `read ${type} log detail`,
+    timeoutMs: 10_000
+  })
 }
 
 function applySettings(next: LoggingSettings) {

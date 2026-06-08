@@ -2944,7 +2944,7 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnotes-block li[data-footnote-id]::before) {
-  color: rgb(15 118 110);
+  color: var(--pb-prose-link-color);
   content: counter(footnote-item) ".";
   grid-column: 1;
   font-variant-numeric: tabular-nums;
@@ -2965,9 +2965,9 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
 }
 
 :deep(.pandablog-block-editor .ProseMirror a) {
-  color: rgb(15 118 110);
+  color: var(--pb-prose-link-color);
   text-decoration: underline;
-  text-underline-offset: 0.18em;
+  text-underline-offset: var(--pb-prose-link-underline-offset);
 }
 
 :deep(.pandablog-block-editor .ProseMirror .footnote-jump-highlight) {

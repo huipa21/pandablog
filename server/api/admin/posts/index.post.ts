@@ -5,7 +5,6 @@ import { requireContentManager } from '../../../utils/auth'
 import { uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
-import { clearOtherFeaturedPosts } from '../../../utils/featuredPost'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import { buildDocFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks } from '../../../utils/blocks'
 import type { JsonContent, PostVisibility } from '~/types/content'
@@ -58,10 +57,6 @@ export default defineEventHandler(async (event) => {
   )
 
   const normalizedPost = normalizePost(post)
-  if (normalizedPost.is_featured && normalizedPost.status === 'published') {
-    await clearOtherFeaturedPosts(db, recordIdPart(normalizedPost.id, 'post'))
-  }
-
   const incomingDoc = parseDoc(body.content_json)
   const incomingBlocks = extractBlocksFromDoc(incomingDoc)
   const blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks)
