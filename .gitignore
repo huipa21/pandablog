@@ -34,6 +34,11 @@ themes/*
 !themes/clay/**
 
 tests
+!tests/
+tests/*
+!tests/unit/
+tests/unit/*
+!tests/unit/annotate.test.ts
 test-results
 .playwright-mcp/
 .vscode/

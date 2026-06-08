@@ -239,6 +239,7 @@ import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import { RubyUnit } from '~/extensions/rubyUnit'
 import { AnnotationBlockNode } from '~/extensions/annotationBlock'
+import { RubyEditExtension } from '~/extensions/rubyEditState'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.vue'
 import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
@@ -509,7 +510,8 @@ const editor = useEditor({
       addNodeView() {
         return VueNodeViewRenderer(AnnotationBlockNodeView)
       }
-    })
+    }),
+    RubyEditExtension
   ],
   editorProps: {
     attributes: {

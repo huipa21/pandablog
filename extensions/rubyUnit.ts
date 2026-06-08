@@ -27,9 +27,11 @@ declare module '@tiptap/core' {
 /**
  * Inline atom node that pairs a `base` string with a phonetic `reading`.
  * Renders identical markup in editor and public surfaces:
- *   <ruby data-lang="cmn"><rb>你</rb><rt>nǐ</rt></ruby>
+ *   <ruby data-lang="cmn">你<rt>nǐ</rt></ruby>
  *
- * The atom node guarantees the base + reading travel together (one undo
+ * Uses the modern ruby shorthand (no `<rb>`) so the browser applies native
+ * `display: ruby` + `ruby-align: center` and centres the reading above the
+ * base. The atom node guarantees the base + reading travel together (one undo
  * removes the whole annotation, edits do not split the pair).
  */
 export const RubyUnit = Node.create({
@@ -95,10 +97,14 @@ export const RubyUnit = Node.create({
   renderHTML({ node, HTMLAttributes }) {
     const base = String(node.attrs.base ?? '')
     const reading = String(node.attrs.reading ?? '')
+    // Modern ruby shorthand: the base text sits directly inside <ruby>, no
+    // legacy <rb> wrapper. `<rb>` is removed from the HTML spec (Vue logs
+    // [Vue warn]: Failed to resolve component: rb) and explicit <rb> breaks
+    // native ruby centring (browsers fall back to inline-block layout).
     return [
       'ruby',
       mergeAttributes(HTMLAttributes, { class: 'ruby-unit' }),
-      ['rb', {}, base],
+      base,
       ['rt', {}, reading]
     ]
   },
