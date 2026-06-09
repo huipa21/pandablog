@@ -19,8 +19,6 @@
           {{ uploading ? 'Uploading…' : 'Upload .zip' }}
         </UButton>
       </form>
-      <p v-if="uploadError" class="mt-2 text-sm text-red-600">{{ uploadError }}</p>
-      <p v-if="uploadSuccess" class="mt-2 text-sm text-green-600">{{ uploadSuccess }}</p>
     </section>
 
     <!-- Theme list -->
@@ -115,9 +113,8 @@ const { data, pending, refresh } = await useFetch('/api/admin/themes')
 
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
-const uploadError = ref('')
-const uploadSuccess = ref('')
 const deleting = ref(false)
+const adminToast = useAdminToast()
 
 const previewId = ref<string | null>(null)
 const deleteDialogOpen = ref(false)
@@ -132,11 +129,9 @@ function isBuiltInTheme(themeId: string) {
 }
 
 async function onUpload() {
-  uploadError.value = ''
-  uploadSuccess.value = ''
   const file = fileInput.value?.files?.[0]
   if (!file) {
-    uploadError.value = 'Pick a .zip file'
+    adminToast.error(new Error('Pick a .zip file'), 'Pick a .zip file')
     return
   }
 
@@ -148,20 +143,25 @@ async function onUpload() {
       method: 'POST',
       body: formData
     })
-    uploadSuccess.value = `Installed: ${res.themeId}`
+    adminToast.success(`Installed: ${res.themeId}`)
     if (fileInput.value) fileInput.value.value = ''
     await refresh()
   } catch (err: any) {
-    uploadError.value = err.statusMessage ?? err.message ?? 'Upload failed'
+    adminToast.error(err, 'Upload failed')
   } finally {
     uploading.value = false
   }
 }
 
 async function activate(themeId: string) {
-  await $fetch('/api/admin/themes/activate', { method: 'POST', body: { themeId } })
-  refreshThemeStylesheet()
-  await refresh()
+  try {
+    await $fetch('/api/admin/themes/activate', { method: 'POST', body: { themeId } })
+    refreshThemeStylesheet()
+    await refresh()
+    adminToast.success('Theme activated')
+  } catch (err: any) {
+    adminToast.error(err, 'Could not activate theme')
+  }
 }
 
 function refreshThemeStylesheet() {
@@ -198,8 +198,9 @@ async function confirmRemove() {
     await $fetch(`/api/admin/themes/${themeId}`, { method: 'DELETE' })
     await refresh()
     closeDeleteDialog()
+    adminToast.success('Theme deleted')
   } catch (err: any) {
-    uploadError.value = err?.statusMessage ?? err?.message ?? 'Delete failed'
+    adminToast.error(err, 'Delete failed')
   } finally {
     deleting.value = false
   }

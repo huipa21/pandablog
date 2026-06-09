@@ -138,7 +138,6 @@
           </div>
         </div>
 
-        <div v-if="notice" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">{{ notice }}</div>
         <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950">{{ error }}</div>
 
         <template v-if="mode !== 'tag' || selectedMediaTags.length">
@@ -351,8 +350,8 @@ const selectedFolder = ref('')
 const selectedMediaTags = ref<string[]>([])
 const selectedTagRelation = ref<'and' | 'or'>('and')
 const selectedSmartFolder = ref('')
-const notice = ref('')
 const error = ref('')
+const adminToast = useAdminToast()
 const viewMode = ref<'grid' | 'list'>((typeof localStorage !== 'undefined' && localStorage.getItem('media-view-mode') as 'grid' | 'list') || 'grid')
 const itemsPerPage = ref(25)
 const sortBy = ref('uploaded_at_desc')
@@ -769,13 +768,13 @@ async function confirmBulkDelete() {
       method: 'POST',
       body: { action: 'delete', hashes: [...selectedHashes.value] }
     })
-    notice.value = `Deleted ${selectedHashes.value.size} file(s)`
+    adminToast.success(`Deleted ${selectedHashes.value.size} file(s)`)
     selectedHashes.value = new Set()
     closeBulkDeleteDialog()
     await loadMedia()
     await loadMediaTags()
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Bulk delete failed'
+    adminToast.error(err, 'Bulk delete failed')
   } finally {
     bulkDeletePending.value = false
   }
@@ -814,12 +813,12 @@ async function handleBulkTags(tags: string[]) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { tags } }
     })
-    notice.value = `Updated tags on ${selectedHashes.value.size} file(s)`
+    adminToast.success(`Updated tags on ${selectedHashes.value.size} file(s)`)
     selectedHashes.value = new Set()
     await loadMedia()
     await loadMediaTags()
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Bulk tag update failed'
+    adminToast.error(err, 'Bulk tag update failed')
   }
 }
 
@@ -829,11 +828,11 @@ async function handleBulkComment(comment: string) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { comment } }
     })
-    notice.value = `Updated comment on ${selectedHashes.value.size} file(s)`
+    adminToast.success(`Updated comment on ${selectedHashes.value.size} file(s)`)
     selectedHashes.value = new Set()
     await loadMedia()
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Bulk comment update failed'
+    adminToast.error(err, 'Bulk comment update failed')
   }
 }
 
@@ -843,11 +842,11 @@ async function handleBulkMove(folderId: string) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { folders: [folderId] } }
     })
-    notice.value = `Assigned ${selectedHashes.value.size} file(s) to folder`
+    adminToast.success(`Assigned ${selectedHashes.value.size} file(s) to folder`)
     selectedHashes.value = new Set()
     await loadMedia()
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Bulk assign failed'
+    adminToast.error(err, 'Bulk assign failed')
   }
 }
 
@@ -857,7 +856,7 @@ function promptBulkAssignFolder() {
   }
 
   if (!folders.value.length) {
-    error.value = 'Create a folder before assigning files.'
+    adminToast.error(new Error('Create a folder before assigning files.'), 'Create a folder before assigning files.')
     return
   }
 
@@ -875,11 +874,11 @@ async function handleBulkAddToFolder(folderId: string) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { folders: [folderId], folderMode: 'add' } }
     })
-    notice.value = `Added ${selectedHashes.value.size} file(s) to folder`
+    adminToast.success(`Added ${selectedHashes.value.size} file(s) to folder`)
     selectedHashes.value = new Set()
     await loadMedia()
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Bulk folder update failed'
+    adminToast.error(err, 'Bulk folder update failed')
   }
 }
 
@@ -896,9 +895,9 @@ async function handleBulkDownload() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    notice.value = 'Download started'
+    adminToast.success('Download started')
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Download failed'
+    adminToast.error(err, 'Download failed')
   }
 }
 
@@ -910,23 +909,33 @@ async function handleCreateFolder(name: string) {
   try {
     await createFolder(name)
     folderModalOpen.value = false
-    notice.value = `Created folder "${name}"`
+    adminToast.success(`Created folder "${name}"`)
     await loadFolders()
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Failed to create folder'
+    adminToast.error(err, 'Failed to create folder')
   }
 }
 
 async function handleRenameFolder(id: string, name: string) {
-  await updateFolder(id, { name })
-  await loadFolders()
+  try {
+    await updateFolder(id, { name })
+    await loadFolders()
+    adminToast.success('Folder renamed')
+  } catch (err: any) {
+    adminToast.error(err, 'Failed to rename folder')
+  }
 }
 
 async function handleDeleteFolder(id: string) {
-  await deleteFolder(id)
-  if (selectedFolder.value === id) selectAll()
-  await loadFolders()
-  await loadMedia()
+  try {
+    await deleteFolder(id)
+    if (selectedFolder.value === id) selectAll()
+    await loadFolders()
+    await loadMedia()
+    adminToast.success('Folder deleted')
+  } catch (err: any) {
+    adminToast.error(err, 'Failed to delete folder')
+  }
 }
 
 async function assignFileToFolder(hash: string, folderId: string) {
@@ -934,7 +943,7 @@ async function assignFileToFolder(hash: string, folderId: string) {
   const foldersForFile = Array.from(new Set([...(file.folders || []), folderId]))
   const updated = await updateMedia(file.id, { folders: foldersForFile })
   handleFileUpdated(updated)
-  notice.value = 'File assigned to folder'
+  adminToast.success('File assigned to folder')
 }
 
 async function handleUploadComplete(results: Array<{ status: string }>) {
@@ -946,7 +955,7 @@ async function handleUploadComplete(results: Array<{ status: string }>) {
   page.value = 1
   const createdCount = results.filter((result) => result.status === 'created').length
   if (createdCount > 0) {
-    notice.value = `Uploaded ${createdCount} file${createdCount === 1 ? '' : 's'}.`
+    adminToast.success(`Uploaded ${createdCount} file${createdCount === 1 ? '' : 's'}.`)
   }
   await loadMedia()
   await loadMediaTags()
@@ -1009,8 +1018,9 @@ async function confirmDeleteSmartFolder() {
     if (selectedSmartFolder.value === id) selectAll()
     await loadSmartFolders()
     closeSmartFolderDeleteDialog()
+    adminToast.success('Smart folder deleted')
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Failed to delete smart folder'
+    adminToast.error(err, 'Failed to delete smart folder')
   } finally {
     smartFolderDeletePending.value = false
   }

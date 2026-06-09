@@ -7,8 +7,6 @@
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
-    <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
-    <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
 
     <form class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]" @submit.prevent="save">
       <div v-if="pending" class="grid gap-4">
@@ -250,8 +248,7 @@ const archiveExtensions = ['zip']
 const pending = ref(true)
 const saving = ref(false)
 const error = ref('')
-const saveError = ref('')
-const notice = ref('')
+const adminToast = useAdminToast()
 
 const form = reactive<MediaSettings>({
   allowed_extensions: [],
@@ -330,17 +327,15 @@ async function loadSettings() {
 
 async function save() {
   saving.value = true
-  saveError.value = ''
-  notice.value = ''
 
   try {
     await $fetch('/api/admin/settings/media', {
       method: 'PUT',
       body: form
     })
-    notice.value = 'Media settings saved successfully'
+    adminToast.success('Media settings saved successfully')
   } catch (err) {
-    saveError.value = err instanceof Error ? err.message : 'Failed to save settings'
+    adminToast.error(err, 'Failed to save settings')
   } finally {
     saving.value = false
   }

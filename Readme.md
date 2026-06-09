@@ -300,7 +300,7 @@ Logging Admin:
 - `GET /api/admin/logs/errors` queries error logs with filter + pagination.
 - `GET /api/admin/logs/:type/:id` returns a single log record by type + id.
 - `GET /api/admin/logs/:type/export?format=csv|json` exports filtered logs (capped at 10k rows).
-- `POST /api/admin/logs/cleanup` runs retention cleanup immediately.
+- `POST /api/admin/logs/cleanup` manually deletes logs with `{ type, mode, value }`, where mode is `older_than_days` or `keep_latest`.
 - `DELETE /api/admin/logs/:type` purges a full log table (requires confirmation token in body).
 - `GET /api/admin/logs/stats` returns counts + oldest/newest timestamps + size estimate.
 
@@ -308,14 +308,14 @@ Logging Admin:
 
 The app now includes a runtime-configurable logging system with SurrealDB-backed settings and log tables.
 
-### SurrealDB tables
+### SurrealDB storage
 
-- `logging_settings` (singleton record `logging_settings:current`)
+- Logging configuration is stored in `app_settings` with key `logging`.
 - `access_logs`
 - `activity_logs`
 - `error_logs`
 
-These tables are created in `server/utils/schema.surql` and applied automatically by `server/plugins/db-init.ts`.
+The log tables are created in `server/utils/schema.surql` and applied automatically by `server/plugins/db-init.ts`.
 
 ### Runtime behavior
 
@@ -325,7 +325,7 @@ These tables are created in `server/utils/schema.surql` and applied automaticall
 - Metadata/context fields are redacted recursively using configured `redact_fields`.
 - Oversized metadata is truncated with `{ _truncated: true }` payload marker.
 - A 60-second DB write circuit breaker prevents repeated write failures from cascading.
-- Scheduled cleanup is controlled by `cleanup_cron` using `node-cron`.
+- Log cleanup is manual: delete rows older than a day count or keep the latest N rows for one log type.
 
 ### Activity action naming
 

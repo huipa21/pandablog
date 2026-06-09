@@ -1,4 +1,6 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+export type LogCleanupType = 'access' | 'activity' | 'errors'
+export type LogCleanupMode = 'older_than_days' | 'keep_latest'
 
 export interface LoggingSettings {
   enabled: boolean
@@ -17,8 +19,6 @@ export interface LoggingSettings {
   max_metadata_size_kb: number
   sampling_rate: number
   console_output: boolean
-  cleanup_enabled: boolean
-  cleanup_cron: string
   updated_at?: string
 }
 
@@ -74,8 +74,8 @@ export interface LogStatsResponse {
 }
 
 export interface CleanupResult {
-  access_deleted: number
-  activity_deleted: number
-  error_deleted: number
-  total_deleted: number
+  type: LogCleanupType
+  mode: LogCleanupMode
+  value: number
+  deleted: number
 }

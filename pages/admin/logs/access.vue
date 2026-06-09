@@ -1,7 +1,7 @@
 <template>
   <section class="grid gap-4">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Logs</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tools</p>
       <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Access logs</h1>
     </header>
 

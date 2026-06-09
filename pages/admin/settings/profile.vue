@@ -7,10 +7,6 @@
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
-    <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
-    <UAlert v-if="securityError" color="error" icon="i-lucide-circle-alert" :title="securityError" />
-    <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
-    <UAlert v-if="securityNotice" color="success" icon="i-lucide-check" :title="securityNotice" />
 
     <form class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]" @submit.prevent="save">
       <div v-if="pending" class="grid gap-4">
@@ -111,10 +107,7 @@ const form = reactive({
 const mediaPickerOpen = ref(false)
 const saving = ref(false)
 const securitySaving = ref(false)
-const notice = ref('')
-const saveError = ref('')
-const securityNotice = ref('')
-const securityError = ref('')
+const adminToast = useAdminToast()
 
 const securityForm = reactive({
   current_password: '',
@@ -133,8 +126,6 @@ watch(data, (value) => {
 
 async function save() {
   saving.value = true
-  notice.value = ''
-  saveError.value = ''
 
   try {
     await $fetch('/api/admin/settings', {
@@ -147,9 +138,9 @@ async function save() {
         owner_bio: form.owner_bio
       }
     })
-    notice.value = 'Profile saved'
+    adminToast.success('Profile saved')
   } catch (err: any) {
-    saveError.value = err?.statusMessage ?? err?.message ?? 'Could not save profile'
+    adminToast.error(err, 'Could not save profile')
   } finally {
     saving.value = false
   }
@@ -165,11 +156,9 @@ function handleAvatarPicked(files: Array<{ url?: string }>) {
 
 async function changePassword() {
   securitySaving.value = true
-  securityNotice.value = ''
-  securityError.value = ''
 
   if (securityForm.new_password !== securityForm.confirm_password) {
-    securityError.value = 'Passwords do not match'
+    adminToast.error(new Error('Passwords do not match'), 'Passwords do not match')
     securitySaving.value = false
     return
   }
@@ -182,9 +171,9 @@ async function changePassword() {
     securityForm.current_password = ''
     securityForm.new_password = ''
     securityForm.confirm_password = ''
-    securityNotice.value = 'Password changed'
+    adminToast.success('Password changed.')
   } catch (err: any) {
-    securityError.value = err?.data?.message ?? err?.statusMessage ?? err?.message ?? 'Could not change password'
+    adminToast.error(err, 'Could not change password')
   } finally {
     securitySaving.value = false
   }

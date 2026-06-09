@@ -41,8 +41,6 @@
     </div>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load users" />
-    <UAlert v-if="message" color="success" icon="i-lucide-check" :title="message" />
-    <UAlert v-if="actionError" color="error" icon="i-lucide-circle-alert" :title="actionError" />
 
     <div class="pb-admin-surface overflow-hidden">
       <div v-if="pending" class="grid gap-3 p-5">
@@ -226,8 +224,7 @@ const page = ref(1)
 const selectedIds = ref<string[]>([])
 const detailDialogOpen = ref(false)
 const selectedUser = ref<ManagedUser | null>(null)
-const actionError = ref('')
-const message = ref('')
+const adminToast = useAdminToast()
 const creating = ref(false)
 const bulkProcessing = ref(false)
 const createDialogOpen = ref(false)
@@ -406,8 +403,6 @@ function toggleSelectAll(event: Event) {
 }
 
 function openCreateDialog() {
-  actionError.value = ''
-  message.value = ''
   resetCreateForm()
   createDialogOpen.value = true
 }
@@ -422,24 +417,20 @@ function resetCreateForm() {
 
 async function createUser() {
   creating.value = true
-  actionError.value = ''
-  message.value = ''
   try {
     await $fetch('/api/admin/users', { method: 'POST', body: createForm })
     resetCreateForm()
     createDialogOpen.value = false
-    message.value = 'User created.'
+    adminToast.success('User created.')
     await refresh()
   } catch (error: any) {
-    actionError.value = error?.data?.message ?? error?.message ?? 'Could not create user'
+    adminToast.error(error, 'Could not create user')
   } finally {
     creating.value = false
   }
 }
 
 function openUserDetail(user: ManagedUser) {
-  actionError.value = ''
-  message.value = ''
   selectedUser.value = user
   detailDialogOpen.value = true
 }
@@ -450,7 +441,7 @@ async function handleUserSaved(user: ManagedUser) {
 }
 
 function handlePasswordReset() {
-  // Message is shown inside the detail dialog
+  // Feedback is shown by the detail dialog toast.
 }
 
 function openBulkStatusDialog(action: BulkStatusAction) {
@@ -526,8 +517,6 @@ async function assignRoleToSelected(role: string) {
 
 async function runBulkAction(action: BulkStatusAction | 'role', ids: string[], role?: Role) {
   bulkProcessing.value = true
-  actionError.value = ''
-  message.value = ''
 
   try {
     const response = await $fetch<{
@@ -547,15 +536,15 @@ async function runBulkAction(action: BulkStatusAction | 'role', ids: string[], r
     const updatedIds = new Set(response.updated_ids ?? [])
     selectedIds.value = selectedIds.value.filter((userId) => !updatedIds.has(userId))
     if (response.updated > 0) {
-      message.value = `Updated ${response.updated} user${response.updated === 1 ? '' : 's'}.`
+      adminToast.success(`Updated ${response.updated} user${response.updated === 1 ? '' : 's'}.`)
     }
     if (response.failed > 0) {
       const firstFailure = response.failures?.[0]?.message ?? 'Some users could not be updated'
-      actionError.value = `${response.failed} user${response.failed === 1 ? '' : 's'} failed. ${firstFailure}`
+      adminToast.error(new Error(`${response.failed} user${response.failed === 1 ? '' : 's'} failed. ${firstFailure}`), 'Some users could not be updated')
     }
     await refresh()
   } catch (error: any) {
-    actionError.value = error?.data?.message ?? error?.message ?? 'Could not update selected users'
+    adminToast.error(error, 'Could not update selected users')
   } finally {
     bulkProcessing.value = false
   }

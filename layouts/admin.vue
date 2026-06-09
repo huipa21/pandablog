@@ -289,13 +289,9 @@ const navSections = computed(() => {
         ]
       },
       {
-        label: 'Logs',
+        label: 'Tools',
         items: [
-          { to: '/admin/logs', label: 'Dashboard', icon: 'i-lucide-chart-column' },
-          { to: '/admin/logs/access', label: 'Access logs', icon: 'i-lucide-globe' },
-          { to: '/admin/logs/activity', label: 'Activity logs', icon: 'i-lucide-notebook-pen' },
-          { to: '/admin/logs/errors', label: 'Error logs', icon: 'i-lucide-triangle-alert' },
-          { to: '/admin/logs/settings', label: 'Logging settings', icon: 'i-lucide-settings-2' }
+          { to: '/admin/logs', label: 'Logs', icon: 'i-lucide-clipboard-list' }
         ]
       }
     )

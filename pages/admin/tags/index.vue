@@ -6,7 +6,6 @@
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load tags" />
-    <UAlert v-if="formError" color="error" icon="i-lucide-circle-alert" :title="formError" />
 
     <UInput v-model="tagSearch" icon="i-lucide-search" placeholder="Search tags" />
 
@@ -122,7 +121,7 @@ const editingId = ref('')
 const creating = ref(false)
 const saving = ref(false)
 const deletingId = ref('')
-const formError = ref('')
+const adminToast = useAdminToast()
 const deleteDialogOpen = ref(false)
 const pendingDeleteTag = ref<TagRecord | null>(null)
 const deleteDialogDescription = computed(() => pendingDeleteTag.value
@@ -131,7 +130,6 @@ const deleteDialogDescription = computed(() => pendingDeleteTag.value
 
 async function createTag() {
   creating.value = true
-  formError.value = ''
   try {
     await $fetch('/api/admin/tags', {
       method: 'POST',
@@ -140,8 +138,9 @@ async function createTag() {
     newTag.name = ''
     newTag.slug = ''
     await refresh()
+    adminToast.success('Tag created')
   } catch (err: any) {
-    formError.value = err?.statusMessage ?? err?.message ?? 'Could not create tag'
+    adminToast.error(err, 'Could not create tag')
   } finally {
     creating.value = false
   }
@@ -159,7 +158,6 @@ function cancelEdit() {
 
 async function saveTag(id: string) {
   saving.value = true
-  formError.value = ''
   try {
     await $fetch(`/api/admin/tags/${encodeURIComponent(id)}`, {
       method: 'PUT',
@@ -167,8 +165,9 @@ async function saveTag(id: string) {
     })
     editingId.value = ''
     await refresh()
+    adminToast.success('Tag saved')
   } catch (err: any) {
-    formError.value = err?.statusMessage ?? err?.message ?? 'Could not save tag'
+    adminToast.error(err, 'Could not save tag')
   } finally {
     saving.value = false
   }
@@ -196,13 +195,13 @@ async function confirmDeleteTag() {
   }
 
   deletingId.value = tag.id
-  formError.value = ''
   try {
     await $fetch(`/api/admin/tags/${encodeURIComponent(tag.id)}`, { method: 'DELETE' })
     closeDeleteDialog()
     await refresh()
+    adminToast.success('Tag deleted')
   } catch (err: any) {
-    formError.value = err?.statusMessage ?? err?.message ?? 'Could not delete tag'
+    adminToast.error(err, 'Could not delete tag')
   } finally {
     deletingId.value = ''
   }

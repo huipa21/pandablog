@@ -3,10 +3,10 @@ import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
 import { applySettingsPatch, redactDeep, shouldAllowDebug, shouldRecordAccessLog, trimByMaxSize } from './logging-logic'
 import { firstRow, queryRows, stringifyRecordId } from './surrealResult'
-import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogLevel, LoggingSettings } from '~/types/logging'
+import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
 
-const LOGGING_SETTINGS_ID = 'current'
-const LOGGING_SETTINGS_RECORD = 'logging_settings:current'
+const APP_SETTINGS_TABLE = 'app_settings'
+const LOGGING_SETTINGS_KEY = 'logging'
 const CIRCUIT_BREAKER_MS = 60_000
 const levelPriority: Record<LogLevel, number> = {
   debug: 10,
@@ -15,7 +15,6 @@ const levelPriority: Record<LogLevel, number> = {
   error: 40
 }
 
-const settingsUpdateListeners = new Set<(settings: LoggingSettings) => void>()
 let dbWritesBlockedUntil = 0
 let cacheInitialized = false
 let settingsCache: LoggingSettings = defaultLoggingSettings()
@@ -36,9 +35,7 @@ const updateSchema = z.object({
   retention_error_days: z.number().int().min(1).max(3650).optional(),
   max_metadata_size_kb: z.number().int().min(1).max(1024).optional(),
   sampling_rate: z.number().min(0).max(1).optional(),
-  console_output: z.boolean().optional(),
-  cleanup_enabled: z.boolean().optional(),
-  cleanup_cron: z.string().min(5).max(100).optional()
+  console_output: z.boolean().optional()
 }).strict()
 
 export function defaultLoggingSettings(): LoggingSettings {
@@ -59,8 +56,6 @@ export function defaultLoggingSettings(): LoggingSettings {
     max_metadata_size_kb: 50,
     sampling_rate: 1,
     console_output: false,
-    cleanup_enabled: true,
-    cleanup_cron: '0 3 * * *',
     updated_at: new Date().toISOString()
   }
 }
@@ -69,10 +64,6 @@ export function validateLoggingSettingsUpdate(payload: unknown) {
   const parsed = updateSchema.safeParse(payload)
   if (!parsed.success) {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? 'Invalid settings payload' })
-  }
-
-  if (parsed.data.cleanup_cron && !isCronExpressionLikelyValid(parsed.data.cleanup_cron)) {
-    throw createError({ statusCode: 400, message: 'cleanup_cron must be a valid cron expression' })
   }
 
   return parsed.data
@@ -107,11 +98,6 @@ export function shouldRedact(fieldName: string) {
   return settingsCache.redact_fields.some((field) => field.toLowerCase() === lowered)
 }
 
-export function onLoggingSettingsUpdated(listener: (settings: LoggingSettings) => void) {
-  settingsUpdateListeners.add(listener)
-  return () => settingsUpdateListeners.delete(listener)
-}
-
 export async function initializeLoggingSettings() {
   if (cacheInitialized) {
     return settingsCache
@@ -119,21 +105,23 @@ export async function initializeLoggingSettings() {
 
   try {
     const db = await useDb()
-    await repairLegacyLoggingSettingsUpdatedAt(db)
     const response = await queryDb<[Array<Record<string, unknown>>]>(
       db,
-      'SELECT * FROM logging_settings WHERE id = type::record($table, $id) LIMIT 1;',
-      { table: 'logging_settings', id: LOGGING_SETTINGS_ID },
+      'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+      { key: LOGGING_SETTINGS_KEY },
       { label: 'logging settings init', timeoutMs: 10_000 }
     )
 
     const current = firstRow<Record<string, unknown>>(response)
-    if (!current) {
+    const value = current?.value
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
       const defaults = defaultLoggingSettings()
-      await persistLoggingSettings(defaults)
-      applySettings(defaults)
+      applySettings(await persistLoggingSettings(defaults))
     } else {
-      applySettings(normalizeSettingsRecord(current))
+      applySettings(normalizeSettingsRecord({
+        ...(value as Record<string, unknown>),
+        updated_at: current.updated_at
+      }))
     }
   } catch (error) {
     settingsCache = defaultLoggingSettings()
@@ -156,19 +144,13 @@ export async function updateLoggingSettings(partial: unknown) {
   const safePartial = validateLoggingSettingsUpdate(partial)
   const merged = applySettingsPatch(settingsCache, safePartial)
 
-  if (!isCronExpressionLikelyValid(merged.cleanup_cron)) {
-    throw createError({ statusCode: 400, message: 'cleanup_cron must be a valid cron expression' })
-  }
-
-  await persistLoggingSettings(merged)
-  applySettings(merged)
+  applySettings(await persistLoggingSettings(merged))
   return settingsCache
 }
 
 export async function resetLoggingSettings() {
   const defaults = defaultLoggingSettings()
-  await persistLoggingSettings(defaults)
-  applySettings(defaults)
+  applySettings(await persistLoggingSettings(defaults))
   return settingsCache
 }
 
@@ -289,36 +271,28 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
   })
 }
 
-export async function runLoggingCleanup(trigger: 'manual' | 'scheduled' = 'manual') {
-  const settings = settingsCache
-  const now = Date.now()
-  const cutoffs = {
-    access: new Date(now - settings.retention_access_days * 86_400_000).toISOString(),
-    activity: new Date(now - settings.retention_activity_days * 86_400_000).toISOString(),
-    error: new Date(now - settings.retention_error_days * 86_400_000).toISOString()
-  }
-
+export async function runManualLogCleanup(options: { type: LogCleanupType, mode: LogCleanupMode, value: number }) {
+  const table = typeToTable(options.type)
   const db = await useDb()
-  const accessDeleted = await deleteOlderThan(db, 'access_logs', cutoffs.access)
-  const activityDeleted = await deleteOlderThan(db, 'activity_logs', cutoffs.activity)
-  const errorDeleted = await deleteOlderThan(db, 'error_logs', cutoffs.error)
+  const deleted = options.mode === 'older_than_days'
+    ? await deleteOlderThan(db, table, new Date(Date.now() - options.value * 86_400_000))
+    : await deleteBeyondLatest(db, table, options.value)
 
   const result: CleanupResult = {
-    access_deleted: accessDeleted,
-    activity_deleted: activityDeleted,
-    error_deleted: errorDeleted,
-    total_deleted: accessDeleted + activityDeleted + errorDeleted
+    type: options.type,
+    mode: options.mode,
+    value: options.value,
+    deleted
   }
 
   logActivity({
     action: 'system.log_cleanup',
     resource_type: 'logging',
-    resource_id: null,
+    resource_id: options.type,
     metadata: {
-      trigger,
       ...result
     },
-    description: `Log cleanup completed (${result.total_deleted} rows deleted)`
+    description: `Manual log cleanup completed (${deleted} rows deleted)`
   })
 
   return result
@@ -386,31 +360,38 @@ export async function readLogById(type: 'access' | 'activity' | 'errors', id: st
 function applySettings(next: LoggingSettings) {
   settingsCache = { ...next }
   cacheInitialized = true
-
-  for (const listener of settingsUpdateListeners) {
-    try {
-      listener(settingsCache)
-    } catch {
-      // Never let listener issues break cache updates.
-    }
-  }
 }
 
-async function persistLoggingSettings(settings: LoggingSettings) {
+async function persistLoggingSettings(settings: LoggingSettings): Promise<LoggingSettings> {
   const db = await useDb()
+  const next = {
+    ...settings,
+    updated_at: new Date().toISOString()
+  }
+
+  await queryDb(db, `DELETE FROM app_settings WHERE key = $key AND id != type::record($table, $id);`, {
+    table: APP_SETTINGS_TABLE,
+    id: LOGGING_SETTINGS_KEY,
+    key: LOGGING_SETTINGS_KEY
+  }, { label: 'logging settings duplicate cleanup', timeoutMs: 10_000 })
+
   await queryDb(
     db,
-    `UPSERT type::record($table, $id) CONTENT $settings;`,
+    `UPSERT type::record($table, $id) CONTENT {
+      key: $key,
+      value: $value,
+      updated_at: time::now()
+    };`,
     {
-      table: 'logging_settings',
-      id: LOGGING_SETTINGS_ID,
-      settings: {
-        ...settings,
-        updated_at: new Date()
-      }
+      table: APP_SETTINGS_TABLE,
+      id: LOGGING_SETTINGS_KEY,
+      key: LOGGING_SETTINGS_KEY,
+      value: next
     },
     { label: 'logging settings persist', timeoutMs: 10_000 }
   )
+
+  return next
 }
 
 function normalizeSettingsRecord(record: Record<string, unknown>): LoggingSettings {
@@ -432,24 +413,13 @@ function normalizeSettingsRecord(record: Record<string, unknown>): LoggingSettin
     max_metadata_size_kb: asPositiveInt(record.max_metadata_size_kb, defaults.max_metadata_size_kb),
     sampling_rate: asSamplingRate(record.sampling_rate, defaults.sampling_rate),
     console_output: asBoolean(record.console_output, defaults.console_output),
-    cleanup_enabled: asBoolean(record.cleanup_enabled, defaults.cleanup_enabled),
-    cleanup_cron: asCron(record.cleanup_cron, defaults.cleanup_cron),
-    updated_at: loggingSettingsUpdatedAt(record.updated_at)
+    updated_at: asUpdatedAt(record.updated_at)
   }
 
   return normalized
 }
 
-async function repairLegacyLoggingSettingsUpdatedAt(db: Awaited<ReturnType<typeof useDb>>) {
-  await queryDb(
-    db,
-    `UPDATE type::record($table, $id) SET updated_at = time::now();`,
-    { table: 'logging_settings', id: LOGGING_SETTINGS_ID },
-    { label: 'logging settings datetime repair', timeoutMs: 5_000, retryOnReconnect: false }
-  )
-}
-
-function loggingSettingsUpdatedAt(value: unknown) {
+function asUpdatedAt(value: unknown) {
   if (typeof value === 'string') {
     return value
   }
@@ -562,65 +532,34 @@ function asSamplingRate(value: unknown, fallback: number) {
   return value
 }
 
-function asCron(value: unknown, fallback: string) {
-  if (typeof value !== 'string' || !isCronExpressionLikelyValid(value)) {
-    return fallback
-  }
-
-  return value
-}
-
-function isCronExpressionLikelyValid(expression: string) {
-  const parts = expression.trim().split(/\s+/)
-  if (parts.length !== 5) {
-    return false
-  }
-
-  return parts.every(isCronFieldLikelyValid)
-}
-
-function isCronFieldLikelyValid(field: string) {
-  if (!field) {
-    return false
-  }
-
-  // Supports common cron tokens: *, 1, 1-5, */5, 1,2,3
-  return field.split(',').every((segment) => {
-    if (segment === '*') {
-      return true
-    }
-
-    if (/^\*\/\d+$/.test(segment)) {
-      return Number(segment.slice(2)) > 0
-    }
-
-    if (/^\d+$/.test(segment)) {
-      return true
-    }
-
-    if (/^\d+-\d+$/.test(segment)) {
-      const [start, end] = segment.split('-').map(Number)
-      return (start ?? 0) <= (end ?? 0)
-    }
-
-    return false
-  })
-}
-
-async function deleteOlderThan(db: Awaited<ReturnType<typeof useDb>>, table: string, cutoff: string) {
+async function deleteOlderThan(db: Awaited<ReturnType<typeof useDb>>, table: string, cutoff: Date | string) {
   const response = await queryDb(
     db,
-    `SELECT count() AS total FROM ${table} WHERE timestamp < <datetime>$cutoff GROUP ALL;
-     DELETE ${table} WHERE timestamp < <datetime>$cutoff;`,
-    { cutoff },
+    `DELETE ${table} WHERE timestamp < <datetime>$cutoff RETURN BEFORE;`,
+    { cutoff: cutoff instanceof Date ? cutoff.toISOString() : cutoff },
     { label: `cleanup ${table}`, timeoutMs: 30_000 }
   )
 
-  const count = firstRow<{ total?: number }>(response, 0)
-  return Number(count?.total ?? 0)
+  return queryRows<Record<string, unknown>>(response).length
 }
 
-function typeToTable(type: 'access' | 'activity' | 'errors') {
+async function deleteBeyondLatest(db: Awaited<ReturnType<typeof useDb>>, table: string, keepLatest: number) {
+  const cutoffResponse = await queryDb(
+    db,
+    `SELECT timestamp FROM ${table} ORDER BY timestamp DESC LIMIT 1 START $keepLatest;`,
+    { keepLatest },
+    { label: `find ${table} cleanup cutoff`, timeoutMs: 15_000 }
+  )
+  const cutoff = firstRow<{ timestamp?: string | Date }>(cutoffResponse)?.timestamp
+
+  if (!cutoff) {
+    return 0
+  }
+
+  return await deleteOlderThan(db, table, cutoff)
+}
+
+function typeToTable(type: LogCleanupType) {
   if (type === 'access') {
     return 'access_logs'
   }

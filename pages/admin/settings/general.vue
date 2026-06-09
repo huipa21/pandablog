@@ -7,8 +7,6 @@
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
-    <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
-    <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
 
     <form class="grid gap-6" @submit.prevent="save">
       <div v-if="pending" class="grid gap-5">
@@ -306,8 +304,7 @@ const mediaPickerOpen = ref(false)
 const mediaPickerKey = ref<SiteAssetKey | null>(null)
 const initialMode = ref<SiteVisibility>('public')
 const saving = ref(false)
-const notice = ref('')
-const saveError = ref('')
+const adminToast = useAdminToast()
 
 const heroPhotoPreviewStyle = computed(() => heroPhotoStyle({ height: `${Math.max(144, Math.round(form.site_hero_height_vh * 4.5))}px` }))
 
@@ -357,8 +354,6 @@ function removeFiling(index: number) {
 
 async function save() {
   saving.value = true
-  notice.value = ''
-  saveError.value = ''
 
   try {
     const settingsBody = {
@@ -399,9 +394,9 @@ async function save() {
       mode: visibilityResponse.mode
     }
     await refreshNuxtData('public-bootstrap')
-    notice.value = 'Settings saved'
+    adminToast.success('Settings saved')
   } catch (err: any) {
-    saveError.value = err?.statusMessage ?? err?.message ?? 'Could not save settings'
+    adminToast.error(err, 'Could not save settings')
   } finally {
     saving.value = false
   }

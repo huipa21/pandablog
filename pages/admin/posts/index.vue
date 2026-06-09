@@ -46,8 +46,6 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load posts" />
     <UAlert v-if="taxonomyError" color="error" icon="i-lucide-circle-alert" title="Could not load tags or categories" />
-    <UAlert v-if="createError" color="error" icon="i-lucide-circle-alert" :title="createError" />
-    <UAlert v-if="listError" color="error" icon="i-lucide-circle-alert" :title="listError" />
 
     <div class="pb-admin-surface overflow-hidden">
       <div v-if="pending" class="grid gap-3 p-5">
@@ -360,8 +358,7 @@ const filtersActive = computed(() => statusFilter.value !== 'all'
   || selectedTagIds.value.length > 0
   || selectedCategoryIds.value.length > 0)
 
-const createError = ref('')
-const listError = ref('')
+const adminToast = useAdminToast()
 const bulkDeleting = ref(false)
 const selectedIds = ref<string[]>([])
 const quickEditEnabled = ref(false)
@@ -487,7 +484,6 @@ watch(totalPages, (next) => {
 
 async function createPost() {
   creating.value = true
-  createError.value = ''
   try {
     const post = await $fetch<PostRecord>('/api/admin/posts', {
       method: 'POST',
@@ -497,7 +493,7 @@ async function createPost() {
     })
     await navigateTo(`/admin/posts/${encodeURIComponent(post.id)}`)
   } catch (error: any) {
-    createError.value = error?.statusMessage ?? error?.message ?? 'Could not create post'
+    adminToast.error(error, 'Could not create post')
     creating.value = false
   }
 }
@@ -521,7 +517,6 @@ function startCellEdit(post: PostRecord, field: EditableField) {
   }
 
   clearRowClickTimer()
-  listError.value = ''
   editingCell.value = { postId: post.id, field }
   draft.title = post.title
   draft.status = post.status === 'archived' ? 'draft' : post.status
@@ -544,7 +539,6 @@ function startCellEdit(post: PostRecord, field: EditableField) {
 
 function cancelCellEdit() {
   editingCell.value = null
-  listError.value = ''
   savingCellKey.value = ''
 }
 
@@ -579,7 +573,6 @@ async function saveCurrentCell(options: { close?: boolean } = {}) {
 
   const body = updateBodyForCell(cell.field)
   savingCellKey.value = currentKey
-  listError.value = ''
 
   try {
     const endpoint: string = `/api/admin/posts/${encodeURIComponent(cell.postId)}`
@@ -598,7 +591,7 @@ async function saveCurrentCell(options: { close?: boolean } = {}) {
       editingCell.value = null
     }
   } catch (error: any) {
-    listError.value = error?.statusMessage ?? error?.message ?? 'Could not update post'
+    adminToast.error(error, 'Could not update post')
   } finally {
     savingCellKey.value = ''
   }
@@ -762,7 +755,6 @@ async function restoreSelected() {
   }
 
   const uniqueIds = Array.from(new Set(selectedIds.value))
-  listError.value = ''
   bulkDeleting.value = true
 
   try {
@@ -779,8 +771,9 @@ async function restoreSelected() {
       editingCell.value = null
     }
     await refresh()
+    adminToast.success('Posts restored', `Restored ${uniqueIds.length} ${uniqueIds.length === 1 ? 'post' : 'posts'}.`)
   } catch (error: any) {
-    listError.value = error?.statusMessage ?? error?.message ?? 'Could not restore selected posts'
+    adminToast.error(error, 'Could not restore selected posts')
   } finally {
     bulkDeleting.value = false
   }
@@ -836,8 +829,6 @@ async function deletePosts(ids: string[]) {
     return
   }
 
-  listError.value = ''
-
   try {
     const response = await $fetch<{
       archived: number
@@ -860,15 +851,31 @@ async function deletePosts(ids: string[]) {
       editingCell.value = null
     }
 
+    const processed = Number(response.archived ?? 0) + Number(response.deleted ?? 0)
+    if (processed > 0) {
+      adminToast.success('Posts updated', bulkPostResultDescription(response.archived, response.deleted))
+    }
+
     if (response.failed > 0) {
       const firstFailure = response.failures?.[0]?.message ?? 'Some posts could not be processed'
-      listError.value = `${response.failed} post(s) failed. ${firstFailure}`
+      adminToast.error(new Error(`${response.failed} post(s) failed. ${firstFailure}`), 'Some posts could not be processed')
     }
 
     await refresh()
   } catch (error: any) {
-    listError.value = error?.statusMessage ?? error?.message ?? 'Could not process selected posts'
+    adminToast.error(error, 'Could not process selected posts')
   }
+}
+
+function bulkPostResultDescription(archived: number, deleted: number) {
+  const parts = []
+  if (archived > 0) {
+    parts.push(`archived ${archived}`)
+  }
+  if (deleted > 0) {
+    parts.push(`deleted ${deleted}`)
+  }
+  return `${parts.join(', ')}.`
 }
 
 function splitNames(value: string) {

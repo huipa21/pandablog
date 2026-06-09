@@ -1,8 +1,8 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Logs</p>
-      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Logging dashboard</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tools</p>
+      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Logs</h1>
       <p class="mt-2 text-sm text-[var(--pb-text-muted)]">Operational overview for access, activity, and errors.</p>
     </header>
 

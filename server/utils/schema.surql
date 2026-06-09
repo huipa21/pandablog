@@ -9,6 +9,7 @@ REMOVE FIELD IF EXISTS content_text ON post;
 REMOVE FIELD IF EXISTS is_featured ON post;
 REMOVE FIELD IF EXISTS featured_at ON post;
 REMOVE INDEX IF EXISTS post_content_fts ON post;
+REMOVE TABLE IF EXISTS logging_settings;
 
 -- ============ ANALYZER ============
 DEFINE ANALYZER IF NOT EXISTS blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ascii;
@@ -163,28 +164,6 @@ DEFINE FIELD IF NOT EXISTS name ON media_smart_folder TYPE string;
 DEFINE FIELD IF NOT EXISTS filters ON media_smart_folder TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS created_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON media_smart_folder TYPE datetime DEFAULT time::now();
-
--- ============ LOGGING SETTINGS ============
-DEFINE TABLE IF NOT EXISTS logging_settings SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS enabled ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS debug_enabled ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS debug_override_prod ON logging_settings TYPE bool DEFAULT false;
-DEFINE FIELD IF NOT EXISTS access_log_enabled ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS activity_log_enabled ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS error_log_enabled ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS log_level ON logging_settings TYPE string DEFAULT 'info' ASSERT $value IN ['debug', 'info', 'warn', 'error'];
-DEFINE FIELD IF NOT EXISTS excluded_paths ON logging_settings TYPE array<string> DEFAULT ['/_nuxt', '/favicon', '/api/admin/logs'];
-DEFINE FIELD IF NOT EXISTS excluded_status_codes ON logging_settings TYPE array<int> DEFAULT [];
-DEFINE FIELD IF NOT EXISTS redact_fields ON logging_settings TYPE array<string> DEFAULT ['password', 'token', 'authorization', 'cookie'];
-DEFINE FIELD IF NOT EXISTS retention_access_days ON logging_settings TYPE int DEFAULT 30;
-DEFINE FIELD IF NOT EXISTS retention_activity_days ON logging_settings TYPE int DEFAULT 365;
-DEFINE FIELD IF NOT EXISTS retention_error_days ON logging_settings TYPE int DEFAULT 90;
-DEFINE FIELD IF NOT EXISTS max_metadata_size_kb ON logging_settings TYPE int DEFAULT 50;
-DEFINE FIELD IF NOT EXISTS sampling_rate ON logging_settings TYPE float DEFAULT 1.0;
-DEFINE FIELD IF NOT EXISTS console_output ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS cleanup_enabled ON logging_settings TYPE bool DEFAULT true;
-DEFINE FIELD IF NOT EXISTS cleanup_cron ON logging_settings TYPE string DEFAULT '0 3 * * *';
-DEFINE FIELD IF NOT EXISTS updated_at ON logging_settings TYPE datetime DEFAULT time::now();
 
 -- ============ ACCESS LOGS ============
 DEFINE TABLE OVERWRITE access_logs SCHEMAFULL;

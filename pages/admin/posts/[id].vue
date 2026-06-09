@@ -73,7 +73,6 @@
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load this post" />
-            <UAlert v-if="saveError" color="error" icon="i-lucide-circle-alert" :title="saveError" />
           </div>
 
           <form class="pb-editor-grid-shell rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-6 py-6 shadow-[var(--pb-shadow-sm)] md:px-10 md:py-8" @submit.prevent="saveLocal()">
@@ -163,7 +162,7 @@ const sessionFetch = useSessionFetch()
 const savingAction = ref<'save-local' | 'save-db' | 'publish' | 'unpublish' | null>(null)
 const saveStatus = ref('')
 const saveStatusType = ref<'success' | 'error'>('success')
-const saveError = ref('')
+const adminToast = useAdminToast()
 const currentStatus = ref<PostStatus>('draft')
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
@@ -264,7 +263,6 @@ const localStorageKey = computed(() => `pb-post-local-${id.value}`)
 
 function saveLocal() {
   savingAction.value = 'save-local'
-  saveError.value = ''
   try {
     const payload = {
       title: form.title,
@@ -286,7 +284,7 @@ function saveLocal() {
     saveStatus.value = `Saved locally at ${timeStr}`
     saveStatusType.value = 'success'
   } catch (err: any) {
-    saveError.value = 'Local save failed'
+    adminToast.error(err, 'Local save failed')
     saveStatus.value = 'Save failed'
     saveStatusType.value = 'error'
   } finally {
@@ -312,10 +310,10 @@ async function publishOrUpdate() {
 }
 
 async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unpublish') {
+  const wasPublished = currentStatus.value === 'published'
   savingAction.value = action
   saveStatus.value = 'Saving...'
   saveStatusType.value = 'success'
-  saveError.value = ''
 
   try {
     const saved = await fetchAdmin<PostRecord>(apiPath.value, {
@@ -362,9 +360,10 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
       saveStatus.value = `Unpublished at ${timeStr}`
     }
     saveStatusType.value = 'success'
+    adminToast.success(postSaveTitle(action, wasPublished))
     return true
   } catch (err: any) {
-    saveError.value = err?.statusMessage ?? err?.message ?? 'Save failed'
+    adminToast.error(err, 'Save failed')
     saveStatus.value = 'Save failed'
     saveStatusType.value = 'error'
     return false
@@ -374,8 +373,25 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
 }
 
 async function archivePost() {
-  await fetchAdmin(apiPath.value, { method: 'DELETE' })
-  await navigateTo('/admin/posts')
+  try {
+    await fetchAdmin(apiPath.value, { method: 'DELETE' })
+    adminToast.success('Post archived')
+    await navigateTo('/admin/posts')
+  } catch (err: any) {
+    adminToast.error(err, 'Could not archive post')
+  }
+}
+
+function postSaveTitle(action: 'save-db' | 'publish' | 'unpublish', wasPublished: boolean) {
+  if (action === 'save-db') {
+    return 'Post saved'
+  }
+
+  if (action === 'unpublish') {
+    return 'Post unpublished'
+  }
+
+  return wasPublished ? 'Post updated' : 'Post published'
 }
 
 // 5-minute auto-save: triggers only when the page is mounted, when no manual

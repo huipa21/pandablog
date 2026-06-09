@@ -15,10 +15,6 @@
         </template>
 
         <div class="grid gap-5">
-          <UAlert v-if="formError" color="error" icon="i-lucide-circle-alert" :title="formError" />
-          <UAlert v-if="passwordError" color="error" icon="i-lucide-circle-alert" :title="passwordError" />
-          <UAlert v-if="notice" color="success" icon="i-lucide-check" :title="notice" />
-
           <div v-if="changesSummary" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-surface-subtle)] p-3 text-sm">
             <p class="font-medium text-[var(--pb-text)]">Changes To Be Saved:</p>
             <ul class="mt-2 list-inside list-disc space-y-1 text-[var(--pb-text-muted)]">
@@ -126,9 +122,7 @@ const originalForm = reactive({
 const password = ref('')
 const passwordVisible = ref(false)
 const saving = ref(false)
-const formError = ref('')
-const passwordError = ref('')
-const notice = ref('')
+const adminToast = useAdminToast()
 
 const dialogOpen = computed({
   get: () => props.open,
@@ -218,9 +212,6 @@ async function saveUser() {
   }
 
   saving.value = true
-  formError.value = ''
-  passwordError.value = ''
-  notice.value = ''
   try {
     // Save user info if there are changes
     if (hasUserChanges) {
@@ -248,9 +239,9 @@ async function saveUser() {
     if (hasPasswordChange) {
       emit('passwordReset', response.user)
     }
-    notice.value = 'User updated.'
+    adminToast.success(hasPasswordChange && !hasUserChanges ? 'Password changed.' : 'User updated.')
   } catch (error: any) {
-    formError.value = error?.data?.message ?? error?.message ?? 'Could not update user'
+    adminToast.error(error, 'Could not update user')
   } finally {
     saving.value = false
   }
@@ -263,9 +254,6 @@ function resetFormToOriginal() {
   form.active = originalForm.active
   password.value = ''
   passwordVisible.value = false
-  formError.value = ''
-  passwordError.value = ''
-  notice.value = ''
 }
 
 function resetForm(user: ManagedUser | null) {
@@ -279,20 +267,13 @@ function resetForm(user: ManagedUser | null) {
   form.active = originalForm.active
   password.value = ''
   passwordVisible.value = false
-  formError.value = ''
-  passwordError.value = ''
-  notice.value = ''
 }
 
 async function copyPassword() {
   if (!password.value.trim()) return
   try {
     await navigator.clipboard.writeText(password.value)
-    const prevNotice = notice.value
-    notice.value = 'Password copied to clipboard.'
-    setTimeout(() => {
-      notice.value = prevNotice
-    }, 2000)
+    adminToast.success('Password copied to clipboard.')
   } catch {
     // Fallback for browsers without clipboard API
   }

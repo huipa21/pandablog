@@ -8,7 +8,6 @@
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load categories" />
-    <UAlert v-if="formError" color="error" icon="i-lucide-circle-alert" :title="formError" />
 
     <form class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] md:grid-cols-[1fr_1fr_1fr_1.5fr_auto]" @submit.prevent="createCategory">
       <UInput v-model="newCategory.name" placeholder="Name" icon="i-lucide-folder" />
@@ -113,7 +112,7 @@ const editingId = ref('')
 const creating = ref(false)
 const saving = ref(false)
 const deletingId = ref('')
-const formError = ref('')
+const adminToast = useAdminToast()
 const collapsedIds = ref<string[]>([])
 const deleteDialogOpen = ref(false)
 const pendingDeleteCategory = ref<CategoryRecord | null>(null)
@@ -147,7 +146,6 @@ const visibleCategoryRows = computed(() => {
 
 async function createCategory() {
   creating.value = true
-  formError.value = ''
   try {
     await $fetch('/api/admin/categories', {
       method: 'POST',
@@ -158,8 +156,9 @@ async function createCategory() {
     newCategory.parent_id = noParentValue
     newCategory.description = ''
     await refresh()
+    adminToast.success('Category created')
   } catch (err: any) {
-    formError.value = err?.statusMessage ?? err?.message ?? 'Could not create category'
+    adminToast.error(err, 'Could not create category')
   } finally {
     creating.value = false
   }
@@ -179,7 +178,6 @@ function cancelEdit() {
 
 async function saveCategory(id: string) {
   saving.value = true
-  formError.value = ''
   try {
     await $fetch(`/api/admin/categories/${encodeURIComponent(id)}`, {
       method: 'PUT',
@@ -187,8 +185,9 @@ async function saveCategory(id: string) {
     })
     editingId.value = ''
     await refresh()
+    adminToast.success('Category saved')
   } catch (err: any) {
-    formError.value = err?.statusMessage ?? err?.message ?? 'Could not save category'
+    adminToast.error(err, 'Could not save category')
   } finally {
     saving.value = false
   }
@@ -216,13 +215,13 @@ async function confirmDeleteCategory() {
   }
 
   deletingId.value = category.id
-  formError.value = ''
   try {
     await $fetch(`/api/admin/categories/${encodeURIComponent(category.id)}`, { method: 'DELETE' })
     closeDeleteDialog()
     await refresh()
+    adminToast.success('Category deleted')
   } catch (err: any) {
-    formError.value = err?.statusMessage ?? err?.message ?? 'Could not delete category'
+    adminToast.error(err, 'Could not delete category')
   } finally {
     deletingId.value = ''
   }
