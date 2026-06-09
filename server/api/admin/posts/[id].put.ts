@@ -40,7 +40,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Title is required' })
   }
 
-  payload.slug = await uniquePostSlug(db, String(payload.slug), `post:${id}`)
+  const desiredSlug = String(payload.slug)
+  payload.slug = desiredSlug === previousPost.slug
+    ? previousPost.slug
+    : await uniquePostSlug(db, desiredSlug, `post:${id}`)
   const { updates: visibilityUpdate, ownerAction } = await resolveVisibilityUpdate(body, existing, user.id)
   const clears = cleanOptionalFieldClears(body)
 
@@ -85,18 +88,20 @@ export default defineEventHandler(async (event) => {
   if (Object.prototype.hasOwnProperty.call(body, 'content_json')) {
     const incomingDoc = parseDoc(body.content_json)
     const incomingBlocks = extractBlocksFromDoc(incomingDoc)
-    blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks)
+    blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks, previousBlocks)
     linkedSlugs = await syncPostLinks(db, normalizedPost.id, blocks)
     reassembledDoc = buildDocFromBlocks(blocks)
   }
 
   const stats = computeStatsFromBlocks(blocks)
-  await queryDb(
-    db,
-    'UPDATE type::record($table, $id) MERGE { word_count: $word_count, cjk_char_count: $cjk_char_count };',
-    { table: 'post', id, ...stats },
-    { label: 'post stats update' }
-  )
+  if (stats.word_count !== previousPost.word_count || stats.cjk_char_count !== previousPost.cjk_char_count) {
+    await queryDb(
+      db,
+      'UPDATE type::record($table, $id) MERGE { word_count: $word_count, cjk_char_count: $cjk_char_count };',
+      { table: 'post', id, ...stats },
+      { label: 'post stats update' }
+    )
+  }
   normalizedPost.word_count = stats.word_count
   normalizedPost.cjk_char_count = stats.cjk_char_count
 
@@ -108,13 +113,15 @@ export default defineEventHandler(async (event) => {
     body.tag_names,
     body.category_names
   )
-  await mediaSyncRecordReferences(
+  const mediaReferences = await mediaSyncRecordReferences(
     db,
     normalizedPost.id,
     [previousPost.cover_image, previousDoc],
     [normalizedPost.cover_image, reassembledDoc]
   )
-  await mediaCascadeVisibilityForPost(db, normalizedPost.id, normalizedPost.visibility ?? 'public', [normalizedPost.cover_image, reassembledDoc])
+  if (mediaReferences.changed || normalizedPost.visibility !== previousPost.visibility) {
+    await mediaCascadeVisibilityForPost(db, normalizedPost.id, normalizedPost.visibility ?? 'public', [normalizedPost.cover_image, reassembledDoc])
+  }
 
   return {
     ...normalizedPost,

@@ -146,6 +146,23 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
+    name: 'filesBlock',
+    title: 'Files',
+    description: 'Attach downloadable media files.',
+    icon: 'i-lucide-files',
+    category: 'media',
+    keywords: ['files', 'attachments', 'documents', 'downloads', 'media'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'filesBlock',
+      attrs: {
+        files: [],
+        blockWidth: 'content'
+      }
+    })
+  },
+  {
     name: 'columnsBlock',
     title: 'Columns',
     description: 'Arrange blocks in up to six responsive columns.',

@@ -25,7 +25,7 @@
         loading="lazy"
       >
       <div v-else class="flex h-full w-full items-center justify-center">
-        <UIcon :name="getFileIcon(file.extension, file.mime_type)" class="size-5 text-[var(--pb-icon-muted)]" />
+        <FileIcon :filename="file.original_name || file.extension" size="20" />
       </div>
       <div v-if="selected" class="absolute inset-0 flex items-center justify-center bg-[var(--pb-selected-border)]/70">
         <UIcon name="i-lucide-check" class="size-4 text-white" />
@@ -60,7 +60,7 @@ const emit = defineEmits<{
   'range-select': [file: MediaRecord]
 }>()
 
-const { formatFileSize, getFileIcon } = useMedia()
+const { formatFileSize } = useMedia()
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))

@@ -14,6 +14,7 @@
   <NodeAnnotationBlock v-else-if="node.type === 'annotationBlock'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
+  <NodeFilesBlock v-else-if="node.type === 'filesBlock'" :node="node" />
   <NodeColumnsBlock v-else-if="node.type === 'columnsBlock'" :node="node" />
   <NodeTabsBlock v-else-if="node.type === 'tabsBlock'" :node="node" />
   <NodeAccordionBlock v-else-if="node.type === 'accordionBlock'" :node="node" />
@@ -33,6 +34,7 @@ import NodeDiffBlock from './NodeDiffBlock.vue'
 import NodeImage from './NodeImage.vue'
 import NodeFootnotesBlock from './NodeFootnotesBlock.vue'
 import NodeColumnsBlock from './NodeColumnsBlock.vue'
+import NodeFilesBlock from './NodeFilesBlock.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
 import NodeQuoteBlock from './NodeQuoteBlock.vue'

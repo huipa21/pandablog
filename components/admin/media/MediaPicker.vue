@@ -73,7 +73,10 @@
                 :page="page"
                 :pages="pages"
                 :selected-hashes="selected.map((file) => file.hash)"
-                @select="toggleSelection"
+                @select="selectFile"
+                @toggle-select="toggleSelection"
+                @range-select="rangeSelection"
+                @drag-select="dragSelect"
                 @change-page="changePage"
               />
             </div>
@@ -137,6 +140,7 @@ const selected = ref<MediaRecord[]>([])
 const loading = ref(false)
 const page = ref(1)
 const pages = ref(1)
+const lastSelectedHash = ref('')
 const urlInput = ref('')
 const urlImporting = ref(false)
 const urlError = ref('')
@@ -193,16 +197,52 @@ function changePage(nextPage: number) {
   void refresh()
 }
 
-function toggleSelection(file: MediaRecord) {
+function selectFile(file: MediaRecord) {
   if (!props.multiple) {
     selected.value = [file]
+    lastSelectedHash.value = file.hash
     return
   }
 
+  toggleSelection(file)
+}
+
+function toggleSelection(file: MediaRecord) {
   const exists = selected.value.some((item) => item.hash === file.hash)
   selected.value = exists
     ? selected.value.filter((item) => item.hash !== file.hash)
     : [...selected.value, file]
+  lastSelectedHash.value = file.hash
+}
+
+function rangeSelection(file: MediaRecord) {
+  if (!props.multiple) {
+    selectFile(file)
+    return
+  }
+
+  const currentIndex = files.value.findIndex((item) => item.hash === file.hash)
+  const lastIndex = files.value.findIndex((item) => item.hash === lastSelectedHash.value)
+  if (currentIndex < 0 || lastIndex < 0) {
+    toggleSelection(file)
+    return
+  }
+
+  const [start, end] = currentIndex < lastIndex ? [currentIndex, lastIndex] : [lastIndex, currentIndex]
+  const selectedByHash = new Map(selected.value.map((item) => [item.hash, item]))
+  for (const item of files.value.slice(start, end + 1)) {
+    selectedByHash.set(item.hash, item)
+  }
+  selected.value = Array.from(selectedByHash.values())
+  lastSelectedHash.value = file.hash
+}
+
+function dragSelect(hash: string) {
+  if (!props.multiple) return
+  const file = files.value.find((item) => item.hash === hash)
+  if (!file || selected.value.some((item) => item.hash === hash)) return
+  selected.value = [...selected.value, file]
+  lastSelectedHash.value = hash
 }
 
 function handleUploadComplete() {

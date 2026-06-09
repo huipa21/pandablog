@@ -183,12 +183,19 @@ export function useMedia() {
   }
 
   function getFileIcon(extension: string, mimeType = ''): string {
+    const ext = extension.toLowerCase()
+    const mime = mimeType.toLowerCase()
+    if (['doc', 'docx'].includes(ext) || mime.includes('wordprocessingml') || mime === 'application/msword') return 'i-lucide-file-text'
+    if (['xls', 'xlsx', 'csv'].includes(ext) || mime.includes('spreadsheetml') || mime === 'application/vnd.ms-excel') return 'i-lucide-file-spreadsheet'
+    if (['ppt', 'pptx'].includes(ext) || mime.includes('presentationml') || mime === 'application/vnd.ms-powerpoint') return 'i-lucide-presentation'
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'i-lucide-file-archive'
+
     const type = getFileType(extension, mimeType)
     const iconMap: Record<MediaFileType, string> = {
       image: 'i-lucide-image',
       video: 'i-lucide-film',
       document: 'i-lucide-file-text',
-      archive: 'i-lucide-archive',
+      archive: 'i-lucide-file-archive',
       other: 'i-lucide-file'
     }
     return iconMap[type]

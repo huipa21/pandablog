@@ -20,7 +20,7 @@
         loading="lazy"
       >
       <div v-else class="flex h-full w-full items-center justify-center bg-[var(--pb-surface-subtle)]">
-        <UIcon :name="getFileIcon(file.extension, file.mime_type)" class="size-10 text-[var(--pb-icon-muted)]" />
+        <FileIcon :filename="file.original_name || file.extension" size="40" />
       </div>
       <div
         class="absolute left-2 top-2 flex size-5 items-center justify-center rounded border transition"
@@ -56,7 +56,7 @@ const emit = defineEmits<{
   'range-select': [file: MediaRecord]
 }>()
 
-const { formatFileSize, getFileIcon } = useMedia()
+const { formatFileSize } = useMedia()
 
 function handleDragStart(event: DragEvent) {
   event.dataTransfer?.setData('application/x-pandablog-media-hash', props.file.hash)

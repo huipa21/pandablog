@@ -51,10 +51,17 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const visiblePost = isAdmin ? post : await incrementPostViewCount(db, post)
+  const visiblePost = isAdmin ? post : withOptimisticViewCount(post)
   const sanitized = sanitizePost(visiblePost)
   const normalized = normalizePost(sanitized)
   const blocks = await loadBlocksForPost(db, normalized.id)
+
+  if (!isAdmin) {
+    incrementPostViewCount(db, post).catch((error) => {
+      const message = error instanceof Error ? error.message : 'unknown error'
+      console.warn(`[posts] failed to increment view count for ${normalized.id}: ${message}`)
+    })
+  }
 
   return {
     ...normalized,
@@ -77,4 +84,11 @@ async function incrementPostViewCount(db: Awaited<ReturnType<typeof useDb>>, pos
   )
 
   return firstRow<Record<string, unknown>>(response) ?? post
+}
+
+function withOptimisticViewCount(post: Record<string, unknown>) {
+  return {
+    ...post,
+    view_count: Number(post.view_count ?? 0) + 1
+  }
 }

@@ -8,6 +8,12 @@ import { isOwnedByUser } from './permissions'
 export type SiteVisibility = 'public' | 'private'
 export type PostVisibility = 'public' | 'private' | 'password'
 
+const SITE_VISIBILITY_CACHE_TTL_MS = 30_000
+
+let cachedSiteVisibility: SiteVisibility | null = null
+let cachedSiteVisibilityAt = 0
+let cachedSiteVisibilityPromise: Promise<SiteVisibility> | null = null
+
 export interface PostAccessInput {
   id: string
   visibility: PostVisibility
@@ -22,6 +28,29 @@ export type PostAccess =
   | { state: 'site-private' }
 
 export async function getSiteVisibility(): Promise<SiteVisibility> {
+  const now = Date.now()
+  if (cachedSiteVisibility && now - cachedSiteVisibilityAt < SITE_VISIBILITY_CACHE_TTL_MS) {
+    return cachedSiteVisibility
+  }
+
+  if (cachedSiteVisibilityPromise) {
+    return cachedSiteVisibilityPromise
+  }
+
+  cachedSiteVisibilityPromise = loadSiteVisibility()
+    .then((mode) => {
+      setCachedSiteVisibility(mode)
+      return mode
+    })
+    .catch(() => cachedSiteVisibility ?? 'public')
+    .finally(() => {
+      cachedSiteVisibilityPromise = null
+    })
+
+  return cachedSiteVisibilityPromise
+}
+
+async function loadSiteVisibility(): Promise<SiteVisibility> {
   try {
     const db = await useDb()
     const result = await queryDb(db, 'SELECT * FROM app_settings:site_visibility;')
@@ -32,6 +61,17 @@ export async function getSiteVisibility(): Promise<SiteVisibility> {
   } catch {
     return 'public'
   }
+}
+
+function setCachedSiteVisibility(mode: SiteVisibility) {
+  cachedSiteVisibility = mode
+  cachedSiteVisibilityAt = Date.now()
+}
+
+export function invalidateSiteVisibilityCache() {
+  cachedSiteVisibility = null
+  cachedSiteVisibilityAt = 0
+  cachedSiteVisibilityPromise = null
 }
 
 export async function setSiteVisibility(mode: SiteVisibility): Promise<void> {
@@ -49,6 +89,7 @@ export async function setSiteVisibility(mode: SiteVisibility): Promise<void> {
     };`,
     { mode }
   )
+  setCachedSiteVisibility(mode)
 }
 
 export async function evaluatePostAccess(event: H3Event, post: PostAccessInput): Promise<PostAccess> {

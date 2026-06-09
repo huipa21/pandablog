@@ -129,6 +129,7 @@
 
         <MediaPicker
           :open="mediaTextPickerOpen"
+          multiple
           return-value="url"
           type-filter="all"
           @update:open="setMediaTextPickerOpen"
@@ -235,6 +236,7 @@ import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
 import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
+import { FilesBlockNode } from '~/extensions/filesBlock'
 import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlock'
@@ -248,6 +250,7 @@ import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
 import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
+import FilesBlockNodeView from '~/components/admin/editor/FilesBlockNodeView.vue'
 import ColumnsBlockNodeView from '~/components/admin/editor/ColumnsBlockNodeView.vue'
 import ColumnItemNodeView from '~/components/admin/editor/ColumnItemNodeView.vue'
 import TabsBlockNodeView from '~/components/admin/editor/TabsBlockNodeView.vue'
@@ -267,6 +270,7 @@ import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 import { useMediaUrl } from '~/composables/useMediaUrl'
+import { mediaRecordToFileItem } from '~/utils/mediaFiles'
 
 interface ActiveBlockRange {
   from: number
@@ -320,6 +324,7 @@ const dropIndicators = ref<Array<{ index: number; top: number }>>([])
 // Auto-scroll during drag
 const autoScroll = useAutoScroll()
 const { toPublicMediaUrl, resolveMediaUrl } = useMediaUrl()
+const { uploadFiles } = useMedia()
 
 // Block actions menu state
 const actionsMenuVisible = ref(false)
@@ -386,6 +391,8 @@ const editor = useEditor({
     // The <BubbleMenu> Vue component in InlineToolbar.vue handles its own plugin internally.
     StarterKit.configure({
       codeBlock: false,
+      dropcursor: false,
+      gapcursor: false,
       listItem: false,
       blockquote: false,
       heading: { levels: [1, 2, 3, 4, 5, 6] },
@@ -424,6 +431,11 @@ const editor = useEditor({
     MediaTextNode.extend({
       addNodeView() {
         return VueNodeViewRenderer(MediaTextNodeView)
+      }
+    }),
+    FilesBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(FilesBlockNodeView)
       }
     }),
     ColumnsBlockNode.extend({
@@ -2553,33 +2565,50 @@ function onMediaTextPickEvent(event: Event) {
 function handleMediaTextPicked(files: MediaRecord[]) {
   const ed = editor.value
   const pos = mediaTextTargetPos.value
-  const file = files[0]
-  if (!ed || pos === null || !file) {
+  const pickedFiles = files.filter(Boolean)
+  const firstFile = pickedFiles[0]
+  if (!ed || pos === null || !firstFile) {
     setMediaTextPickerOpen(false)
     return
   }
+  const mediaItems = pickedFiles.map((file) => mediaRecordToFileItem(file, toPublicMediaUrl))
+  const firstItem = mediaItems[0]!
   ed.chain().focus().command(({ tr }) => {
     const node = tr.doc.nodeAt(pos)
-    if (!node || node.type.name !== 'mediaText') return false
-    tr.setNodeMarkup(pos, undefined, {
-      ...node.attrs,
-      mediaSrc: toPublicMediaUrl(file.hash || file.id || file.url),
-      mediaAlt: file.original_name ?? '',
-      mediaName: file.original_name ?? '',
-      mediaMime: file.mime_type ?? '',
-      mediaSize: typeof file.size === 'number' ? file.size : null,
-      mediaSourceSize: 'full',
-      mediaDisplaySize: 'fill-container',
-      mediaDisplayPercent: 100,
-      mediaDisplayPx: null,
-      blockWidth: node.attrs.blockWidth ?? 'content',
-      mediaWidth: null,
-      mediaHeight: null,
-      mediaNaturalWidth: typeof file.width === 'number' ? file.width : null,
-      mediaNaturalHeight: typeof file.height === 'number' ? file.height : null,
-      mediaWidthPercent: 100
-    })
-    return true
+    if (!node) return false
+
+    if (node.type.name === 'mediaText') {
+      tr.setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        mediaItems,
+        mediaSrc: firstItem.src,
+        mediaAlt: firstItem.alt ?? '',
+        mediaName: firstItem.name ?? '',
+        mediaMime: firstItem.mime ?? '',
+        mediaSize: typeof firstItem.size === 'number' ? firstItem.size : null,
+        mediaSourceSize: 'full',
+        mediaDisplaySize: 'fill-container',
+        mediaDisplayPercent: 100,
+        mediaDisplayPx: null,
+        blockWidth: node.attrs.blockWidth ?? 'content',
+        mediaWidth: null,
+        mediaHeight: null,
+        mediaNaturalWidth: typeof firstItem.width === 'number' ? firstItem.width : null,
+        mediaNaturalHeight: typeof firstItem.height === 'number' ? firstItem.height : null,
+        mediaWidthPercent: 100
+      })
+      return true
+    }
+
+    if (node.type.name === 'filesBlock') {
+      tr.setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        files: mediaItems
+      })
+      return true
+    }
+
+    return false
   }).run()
   setMediaTextPickerOpen(false)
 }
@@ -2588,16 +2617,17 @@ function triggerLocalFileUploadForMediaText() {
   if (mediaTextTargetPos.value === null) return
   const input = document.createElement('input')
   input.type = 'file'
+  input.multiple = true
   input.onchange = async () => {
-    const file = input.files?.[0]
-    if (!file) return
+    const selectedFiles = Array.from(input.files ?? [])
+    if (!selectedFiles.length) return
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const asset = await $fetch<MediaRecord>('/api/admin/upload', { method: 'POST', body: formData })
-      if (asset?.url) {
-        handleMediaTextPicked([{ ...asset, url: resolveMediaUrl(asset.url) }])
-      }
+      const response = await uploadFiles(selectedFiles)
+      const records = response.results
+        .map((result) => result.record)
+        .filter((record): record is MediaRecord => !!record)
+        .map((asset) => ({ ...asset, url: resolveMediaUrl(asset.url) }))
+      if (records.length) handleMediaTextPicked(records)
     } catch {
       debugEditor('Media+Text upload failed.')
     }

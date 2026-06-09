@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import svgLoader from 'vite-svg-loader'
 
 const localEnv = readLocalEnv()
 
@@ -36,6 +37,15 @@ export default defineNuxtConfig({
     'nuxt-auth-utils'
   ],
   css: ['~/assets/css/main.css'],
+  icon: {
+    provider: 'server',
+    serverBundle: {
+      collections: ['lucide']
+    },
+    clientBundle: {
+      scan: true
+    }
+  },
   runtimeConfig: {
     surrealUrl: env('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
     surrealNamespace: env('SURREAL_NAMESPACE', 'main'),
@@ -65,6 +75,14 @@ export default defineNuxtConfig({
   image: {
     provider: 'ipx',
     domains: []
+  },
+  vite: {
+    plugins: [
+      svgLoader({
+        defaultImport: 'component',
+        svgo: false
+      })
+    ]
   },
   app: {
     head: {

@@ -21,7 +21,7 @@
             <div class="rounded-lg bg-stone-100 p-3">
               <img v-if="file.is_image" :src="file.url" :alt="file.original_name" class="max-h-80 w-full object-contain">
               <div v-else class="flex h-44 items-center justify-center">
-                <UIcon :name="getFileIcon(file.extension, file.mime_type)" class="size-12 text-stone-500" />
+                <FileIcon :filename="file.original_name || file.extension" size="48" />
               </div>
             </div>
 

@@ -4,9 +4,9 @@
       <div class="mediatext-media" :style="mediaStyle" contenteditable="false" @mousedown="selectMediaTextNode">
         <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
         <div class="relative">
-          <template v-if="mediaSrc">
+          <template v-if="mediaItems.length">
             <img
-              v-if="kind === 'image'"
+              v-if="showImagePreview"
               ref="imgEl"
               :src="mediaSrc"
               :alt="mediaAlt"
@@ -16,41 +16,7 @@
               class="block max-w-full rounded-md"
               @load="onImageLoad"
             >
-            <video
-              v-else-if="kind === 'video'"
-              :src="mediaSrc"
-              controls
-              :style="mediaElementStyle"
-              class="block max-w-full rounded-md"
-            />
-            <audio
-              v-else-if="kind === 'audio'"
-              :src="mediaSrc"
-              controls
-              :style="mediaElementStyle"
-              class="block max-w-full"
-            />
-            <embed
-              v-else-if="kind === 'pdf'"
-              :src="mediaSrc"
-              type="application/pdf"
-              :style="mediaElementStyle"
-              class="block max-w-full rounded-md"
-            >
-            <a
-              v-else
-              :href="mediaSrc"
-              target="_blank"
-              rel="noopener"
-              class="flex items-center gap-3 rounded-md border border-stone-200 bg-white p-3 text-sm hover:border-teal-400 hover:bg-teal-50"
-            >
-              <UIcon :name="icon" class="size-8 text-stone-500" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate font-medium text-stone-800">{{ mediaName || mediaAlt || displayName }}</span>
-                <span class="block text-xs text-stone-500">{{ formatBytes(mediaSize) }} {{ mediaMime }}</span>
-              </span>
-              <UIcon name="i-lucide-download" class="size-4 shrink-0 text-stone-400" />
-            </a>
+            <MediaFileList v-else :files="mediaItems" density="compact" />
           </template>
           <div v-else class="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-stone-300 bg-stone-50 px-3 text-sm text-stone-500">
             <UIcon name="i-lucide-image-plus" class="size-6 text-stone-400" />
@@ -68,7 +34,7 @@
             </div>
           </div>
           <button
-            v-if="mediaSrc"
+            v-if="mediaItems.length"
             type="button"
             class="absolute right-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] text-stone-600 shadow-sm hover:bg-white"
             @click="emitPick('library')"
@@ -87,42 +53,44 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue'
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { classifyMedia, mediaIcon, formatBytes } from '~/composables/useMediaKind'
+import MediaFileList from '~/components/content/MediaFileList.vue'
+import { mediaFileKind, mediaFilesFromAttrs } from '~/utils/mediaFiles'
 import { extractMediaHash, useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
 const { resolveMediaUrl } = useMediaUrl()
 
 const mediaSourceSize = computed(() => String(props.node.attrs.mediaSourceSize ?? 'full'))
-const baseMediaSrc = computed(() => resolveMediaUrl(String(props.node.attrs.mediaSrc ?? '')))
-const kind = computed(() => classifyMedia(mediaMime.value, baseMediaSrc.value))
-const icon = computed(() => mediaIcon(mediaMime.value, baseMediaSrc.value))
+const mediaItems = computed(() => mediaFilesFromAttrs(props.node.attrs))
+const primaryMediaItem = computed(() => mediaItems.value[0] ?? null)
+const showImagePreview = computed(() => mediaItems.value.length === 1 && primaryMediaItem.value ? mediaFileKind(primaryMediaItem.value) === 'image' : false)
+const baseMediaSrc = computed(() => resolveMediaUrl(primaryMediaItem.value?.src ?? ''))
 const mediaSrc = computed(() => {
-  const raw = String(props.node.attrs.mediaSrc ?? '')
+  const raw = primaryMediaItem.value?.src ?? ''
   const resolved = baseMediaSrc.value
   const hash = extractMediaHash(raw)
   if (!hash) {
     return resolved
   }
 
-  if (kind.value === 'image' && mediaSourceSize.value === 'thumbnail') {
+  if (showImagePreview.value && mediaSourceSize.value === 'thumbnail') {
     const encoded = encodeURIComponent(hash)
     return `/api/media/variant/thumbnail/${encoded}`
   }
 
-  if (kind.value === 'image' && mediaSourceSize.value === 'medium') {
+  if (showImagePreview.value && mediaSourceSize.value === 'medium') {
     const encoded = encodeURIComponent(hash)
     return `/api/media/variant/medium/${encoded}`
   }
 
-  if (kind.value === 'image' && mediaSourceSize.value === 'large') {
+  if (showImagePreview.value && mediaSourceSize.value === 'large') {
     const encoded = encodeURIComponent(hash)
     return `/api/media/variant/large/${encoded}`
   }
 
   return resolved
 })
-const mediaAlt = computed(() => String(props.node.attrs.mediaAlt ?? ''))
+const mediaAlt = computed(() => primaryMediaItem.value?.alt || String(props.node.attrs.mediaAlt ?? ''))
 const mediaTitle = computed(() => String(props.node.attrs.mediaTitle ?? ''))
 const mediaTitlePosition = computed(() => String(props.node.attrs.mediaTitlePosition ?? 'bottom'))
 const mediaWidth = computed(() => (props.node.attrs.mediaWidth as number | null) ?? null)
@@ -152,19 +120,11 @@ const mediaNaturalWidth = computed(() => Number(props.node.attrs.mediaNaturalWid
 const mediaNaturalHeight = computed(() => Number(props.node.attrs.mediaNaturalHeight ?? 0) || null)
 const lockAspect = computed(() => props.node.attrs.lockAspect !== false)
 const mediaPosition = computed(() => String(props.node.attrs.mediaPosition ?? 'left'))
-const mediaMime = computed(() => String(props.node.attrs.mediaMime ?? ''))
-const mediaName = computed(() => String(props.node.attrs.mediaName ?? ''))
-const mediaSize = computed(() => (props.node.attrs.mediaSize as number | null) ?? null)
 const blockWidth = computed(() => String(props.node.attrs.blockWidth ?? 'content'))
 const ratio = computed(() => Number(props.node.attrs.ratio ?? 0.5))
 
 const rowEl = ref<HTMLElement | null>(null)
 const imgEl = ref<HTMLImageElement | null>(null)
-
-const displayName = computed(() => {
-  const last = (baseMediaSrc.value.split('/').pop() ?? '').split('?')[0] ?? ''
-  return last || 'Attachment'
-})
 
 const blockStyle = computed<CSSProperties>(() => {
   switch (blockWidth.value) {

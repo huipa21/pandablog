@@ -9,6 +9,12 @@ interface MediaVisibilityCascadeResult {
   madePublic: string[]
 }
 
+interface MediaReferenceSyncResult {
+  added: string[]
+  removed: string[]
+  changed: boolean
+}
+
 function mediaExtractReferencedHashes(...values: unknown[]) {
   const hashes = new Set<string>()
 
@@ -19,20 +25,24 @@ function mediaExtractReferencedHashes(...values: unknown[]) {
   return hashes
 }
 
-export async function mediaSyncRecordReferences(db: Surreal, sourceRecordId: string, previousValues: unknown[], nextValues: unknown[]) {
+export async function mediaSyncRecordReferences(db: Surreal, sourceRecordId: string, previousValues: unknown[], nextValues: unknown[]): Promise<MediaReferenceSyncResult> {
   const previous = mediaExtractReferencedHashes(...previousValues)
   const next = mediaExtractReferencedHashes(...nextValues)
+  const added = [...next].filter((hash) => !previous.has(hash))
+  const removed = [...previous].filter((hash) => !next.has(hash))
 
-  for (const hash of next) {
-    if (!previous.has(hash)) {
-      await mediaAddFileReference(db, hash, sourceRecordId)
-    }
+  for (const hash of added) {
+    await mediaAddFileReference(db, hash, sourceRecordId)
   }
 
-  for (const hash of previous) {
-    if (!next.has(hash)) {
-      await mediaRemoveFileReference(db, hash, sourceRecordId)
-    }
+  for (const hash of removed) {
+    await mediaRemoveFileReference(db, hash, sourceRecordId)
+  }
+
+  return {
+    added,
+    removed,
+    changed: Boolean(added.length || removed.length)
   }
 }
 

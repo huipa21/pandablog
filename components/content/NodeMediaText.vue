@@ -4,9 +4,9 @@
       <div class="mediatext-media" :style="{ flex: `0 0 ${(ratio * 100).toFixed(2)}%` }">
         <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-[var(--pb-text-subtle)]">{{ mediaTitle }}</div>
         <div class="relative">
-          <template v-if="mediaSrc">
+          <template v-if="mediaItems.length">
             <img
-              v-if="kind === 'image'"
+              v-if="showImagePreview"
               :src="resolvedMediaSrc"
               :alt="mediaAlt"
               :width="mediaDisplayWidthAttr || undefined"
@@ -15,35 +15,7 @@
               class="block max-w-full rounded-md"
               loading="lazy"
             >
-            <video
-              v-else-if="kind === 'video'"
-              :src="resolvedMediaSrc"
-              controls
-              :style="mediaElementStyle"
-              class="block max-w-full rounded-md"
-            />
-            <audio v-else-if="kind === 'audio'" :src="resolvedMediaSrc" controls :style="mediaElementStyle" class="block max-w-full" />
-            <embed
-              v-else-if="kind === 'pdf'"
-              :src="resolvedMediaSrc"
-              type="application/pdf"
-              :style="mediaElementStyle"
-              class="block max-w-full rounded-md"
-            >
-            <a
-              v-else
-              :href="resolvedMediaSrc"
-              target="_blank"
-              rel="noopener"
-              class="flex items-center gap-3 rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3 text-sm hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)]"
-            >
-              <UIcon :name="icon" class="size-8 text-[var(--pb-icon-muted)]" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate font-medium text-[var(--pb-text)]">{{ mediaName || mediaAlt || displayName }}</span>
-                <span class="block text-xs text-[var(--pb-text-subtle)]">{{ formatBytes(mediaSize) }} {{ mediaMime }}</span>
-              </span>
-              <UIcon name="i-lucide-download" class="size-4 shrink-0 text-[var(--pb-icon-muted)]" />
-            </a>
+            <MediaFileList v-else :files="mediaItems" density="compact" />
           </template>
         </div>
         <div v-if="mediaTitle && mediaTitlePosition === 'bottom'" class="px-2 py-1 text-center text-sm text-[var(--pb-text-subtle)]">{{ mediaTitle }}</div>
@@ -62,7 +34,8 @@
 import type { CSSProperties } from 'vue'
 import type { JsonContent } from '~/types/content'
 import ContentRenderer from './ContentRenderer.vue'
-import { classifyMedia, mediaIcon, formatBytes } from '~/composables/useMediaKind'
+import MediaFileList from './MediaFileList.vue'
+import { mediaFileKind, mediaFilesFromAttrs } from '~/utils/mediaFiles'
 import { extractMediaHash } from '~/composables/useMediaUrl'
 
 const props = defineProps<{
@@ -71,9 +44,12 @@ const props = defineProps<{
 
 const { resolveMediaUrl } = useMediaUrl()
 
-const mediaSrc = computed(() => String(props.node.attrs?.mediaSrc ?? ''))
+const mediaItems = computed(() => mediaFilesFromAttrs(props.node.attrs))
+const primaryMediaItem = computed(() => mediaItems.value[0] ?? null)
+const showImagePreview = computed(() => mediaItems.value.length === 1 && primaryMediaItem.value ? mediaFileKind(primaryMediaItem.value) === 'image' : false)
+const mediaSrc = computed(() => primaryMediaItem.value?.src ?? '')
 const mediaSourceSize = computed(() => String(props.node.attrs?.mediaSourceSize ?? 'full'))
-const mediaAlt = computed(() => String(props.node.attrs?.mediaAlt ?? ''))
+const mediaAlt = computed(() => primaryMediaItem.value?.alt || String(props.node.attrs?.mediaAlt ?? ''))
 const mediaTitle = computed(() => String(props.node.attrs?.mediaTitle ?? ''))
 const mediaTitlePosition = computed(() => String(props.node.attrs?.mediaTitlePosition ?? 'bottom'))
 const mediaWidth = computed(() => Number(props.node.attrs?.mediaWidth ?? 0) || null)
@@ -103,9 +79,6 @@ const mediaNaturalWidth = computed(() => Number(props.node.attrs?.mediaNaturalWi
 const mediaNaturalHeight = computed(() => Number(props.node.attrs?.mediaNaturalHeight ?? 0) || null)
 const lockAspect = computed(() => props.node.attrs?.lockAspect !== false)
 const mediaPosition = computed(() => String(props.node.attrs?.mediaPosition ?? 'left'))
-const mediaMime = computed(() => String(props.node.attrs?.mediaMime ?? ''))
-const mediaName = computed(() => String(props.node.attrs?.mediaName ?? ''))
-const mediaSize = computed(() => Number(props.node.attrs?.mediaSize ?? 0) || null)
 const blockWidth = computed(() => String(props.node.attrs?.blockWidth ?? 'content'))
 const ratio = computed(() => {
   const v = Number(props.node.attrs?.ratio ?? 0.5)
@@ -113,16 +86,9 @@ const ratio = computed(() => {
 })
 
 const baseResolvedMediaSrc = computed(() => resolveMediaUrl(mediaSrc.value))
-const kind = computed(() => classifyMedia(mediaMime.value, baseResolvedMediaSrc.value))
-const icon = computed(() => mediaIcon(mediaMime.value, baseResolvedMediaSrc.value))
-const displayName = computed(() => {
-  const last = (baseResolvedMediaSrc.value.split('/').pop() ?? '').split('?')[0] ?? ''
-  return last || 'Attachment'
-})
-
 const resolvedMediaSrc = computed(() => {
   const resolved = baseResolvedMediaSrc.value
-  if (kind.value !== 'image') {
+  if (!showImagePreview.value) {
     return resolved
   }
 

@@ -23,6 +23,11 @@ export function classifyMedia(mime: string | undefined | null, srcOrName?: strin
  * Returns a lucide icon name that visually represents the media kind/extension.
  */
 export function mediaIcon(mime: string | undefined | null, srcOrName?: string): string {
+  const m = (mime ?? '').toLowerCase()
+  if (m.includes('wordprocessingml') || m === 'application/msword') return 'i-lucide-file-text'
+  if (m.includes('spreadsheetml') || m === 'application/vnd.ms-excel' || m === 'text/csv') return 'i-lucide-file-spreadsheet'
+  if (m.includes('presentationml') || m === 'application/vnd.ms-powerpoint') return 'i-lucide-presentation'
+
   const kind = classifyMedia(mime, srcOrName)
   if (kind === 'image') return 'i-lucide-image'
   if (kind === 'video') return 'i-lucide-film'

@@ -203,9 +203,15 @@ const viewLink = computed(() => {
   return slug ? `/blog/${encodeURIComponent(slug)}` : ''
 })
 
-const { data: post, pending, error: loadError } = useLazyAsyncData(`admin-post-${id.value}`, () => fetchAdmin<PostRecord>(apiPath.value))
-const { data: categoriesData, refresh: refreshCategories } = useLazyAsyncData('admin-post-categories', () => fetchAdmin<{ categories: CategoryRecord[] }>('/api/admin/categories'), { default: () => ({ categories: [] }) })
-const { data: tagsData, refresh: refreshTags } = useLazyAsyncData('admin-post-tags', () => fetchAdmin<{ tags: TagRecord[] }>('/api/admin/tags'), { default: () => ({ tags: [] }) })
+const [
+  { data: post, pending, error: loadError },
+  { data: categoriesData, refresh: refreshCategories },
+  { data: tagsData, refresh: refreshTags }
+] = await Promise.all([
+  useAsyncData(`admin-post-${id.value}`, () => fetchAdmin<PostRecord>(apiPath.value)),
+  useAsyncData('admin-post-categories', () => fetchAdmin<{ categories: CategoryRecord[] }>('/api/admin/categories'), { default: () => ({ categories: [] }) }),
+  useAsyncData('admin-post-tags', () => fetchAdmin<{ tags: TagRecord[] }>('/api/admin/tags'), { default: () => ({ tags: [] }) })
+])
 const categories = computed(() => categoriesData.value?.categories ?? [])
 const tags = computed(() => tagsData.value?.tags ?? [])
 
@@ -280,7 +286,7 @@ function saveLocal() {
       content_json: form.content
     }
     localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
-    const timeStr = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date())
+    const timeStr = formatTime(new Date())
     saveStatus.value = `Saved locally at ${timeStr}`
     saveStatusType.value = 'success'
   } catch (err: any) {
@@ -351,7 +357,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     clearLocalSave()
     await Promise.all([refreshCategories(), refreshTags()])
 
-    const timeStr = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date())
+    const timeStr = formatTime(new Date())
     if (action === 'publish') {
       saveStatus.value = currentStatus.value === 'published' ? `Updated at ${timeStr}` : `Published at ${timeStr}`
     } else if (action === 'save-db') {
@@ -521,12 +527,19 @@ function emptyDoc(): JsonContent {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit'
   }).format(new Date(value))
+}
+
+function formatTime(value: Date) {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(value)
 }
 
 function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {

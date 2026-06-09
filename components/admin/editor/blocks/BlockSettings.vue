@@ -202,6 +202,19 @@
         </div>
       </details>
 
+      <details v-if="blockName === 'filesBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Files</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField label="Block width">
+            <USelect
+              :model-value="String(attrs.blockWidth ?? 'content')"
+              :items="blockWidthItems"
+              @update:model-value="updateAttrs({ blockWidth: String($event) })"
+            />
+          </UFormField>
+        </div>
+      </details>
+
       <details v-if="blockName === 'codeBlock'" open class="code-settings-panel rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Code</summary>
         <div class="mt-3 space-y-3" data-code-settings>

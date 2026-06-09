@@ -96,6 +96,7 @@ const currentIcon = computed(() => {
     case 'diffBlock': return 'i-lucide-git-compare-arrows'
     case 'image': return 'i-lucide-image'
     case 'mediaText': return 'i-lucide-panel-left'
+    case 'filesBlock': return 'i-lucide-files'
     case 'columnsBlock': return 'i-lucide-columns-3'
     case 'tabsBlock': return 'i-lucide-panel-top'
     case 'accordionBlock': return 'i-lucide-chevrons-up-down'

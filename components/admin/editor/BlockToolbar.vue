@@ -376,6 +376,7 @@ const currentIcon = computed(() => {
     case 'horizontalRule': return 'i-lucide-minus'
     case 'image': return 'i-lucide-image'
     case 'mediaText': return 'i-lucide-panel-left'
+    case 'filesBlock': return 'i-lucide-files'
     case 'columnsBlock': return 'i-lucide-columns-3'
     case 'tabsBlock': return 'i-lucide-panel-top'
     case 'accordionBlock': return 'i-lucide-chevrons-up-down'

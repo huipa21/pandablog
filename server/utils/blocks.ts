@@ -59,6 +59,21 @@ export function flattenNodeText(node: JsonContent | null | undefined): string {
     return [stringAttr(node.attrs?.alt), stringAttr(node.attrs?.title)].filter(Boolean).join(' ')
   }
 
+  if (node.type === 'mediaText') {
+    const childText = node.content?.map(flattenNodeText).filter(Boolean).join(' ') ?? ''
+    return [
+      flattenFileItems(node.attrs?.mediaItems),
+      stringAttr(node.attrs?.mediaName),
+      stringAttr(node.attrs?.mediaAlt),
+      stringAttr(node.attrs?.mediaTitle),
+      childText
+    ].filter(Boolean).join(' ')
+  }
+
+  if (node.type === 'filesBlock') {
+    return flattenFileItems(node.attrs?.files)
+  }
+
   if (node.type === 'customHtml') {
     return stringAttr(node.attrs?.html)
   }
@@ -156,6 +171,21 @@ function stringAttr(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function flattenFileItems(value: unknown) {
+  if (!Array.isArray(value)) return ''
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      const attrs = item as Record<string, unknown>
+      return [attrs.name, attrs.alt, attrs.title, attrs.src]
+        .map(stringAttr)
+        .filter(Boolean)
+        .join(' ')
+    })
+    .filter(Boolean)
+    .join(' ')
+}
+
 interface ExistingBlockRow {
   id: unknown
   type?: unknown
@@ -210,10 +240,11 @@ export async function loadBlocksForPost(db: Surreal, postRecordId: string): Prom
 export async function syncPostBlocks(
   db: Surreal,
   postRecordId: string,
-  incoming: BlockInput[]
+  incoming: BlockInput[],
+  existingBlocks?: BlockRecord[]
 ): Promise<BlockRecord[]> {
   const postId = recordIdPart(postRecordId, 'post')
-  const existing = await loadBlocksForPost(db, postRecordId)
+  const existing = existingBlocks ?? await loadBlocksForPost(db, postRecordId)
   const existingById = new Map(existing.map((block) => [block.id, block]))
   const incomingIds = new Set(incoming.map((b) => b.blockId).map((id) => `block:${id}`))
 

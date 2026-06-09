@@ -11,6 +11,14 @@ export const MediaTextNode = Node.create({
       mediaSrc: { default: '' },
       mediaAlt: { default: '' },
       mediaTitle: { default: '' },
+      mediaItems: {
+        default: [],
+        parseHTML: (el) => parseMediaItems(el.getAttribute('data-media-items')),
+        renderHTML: (attrs) => {
+          const items = Array.isArray(attrs.mediaItems) ? attrs.mediaItems : []
+          return items.length ? { 'data-media-items': JSON.stringify(items) } : {}
+        }
+      },
       mediaTitlePosition: {
         default: 'bottom',
         parseHTML: (el) => el.getAttribute('data-media-title-position') ?? 'bottom',
@@ -154,4 +162,14 @@ export const MediaTextNode = Node.create({
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'media-text' }), 0]
   }
 })
+
+function parseMediaItems(value: string | null) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
