@@ -16,6 +16,7 @@
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
   <NodeColumnsBlock v-else-if="node.type === 'columnsBlock'" :node="node" />
   <NodeTabsBlock v-else-if="node.type === 'tabsBlock'" :node="node" />
+  <NodeAccordionBlock v-else-if="node.type === 'accordionBlock'" :node="node" />
   <NodeQuoteBlock v-else-if="node.type === 'blockquote'" :node="node" />
   <NodeFootnotesBlock v-else-if="node.type === 'footnotesBlock'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
@@ -39,6 +40,7 @@ import NodeRelatedPost from './NodeRelatedPost.vue'
 import NodeRubyUnit from './NodeRubyUnit.vue'
 import NodeAnnotationBlock from './NodeAnnotationBlock.vue'
 import NodeTabsBlock from './NodeTabsBlock.vue'
+import NodeAccordionBlock from './NodeAccordionBlock.vue'
 
 const props = defineProps<{
   node: JsonContent

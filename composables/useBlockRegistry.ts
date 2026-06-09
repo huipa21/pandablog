@@ -191,6 +191,34 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
+    name: 'accordionBlock',
+    title: 'Accordion',
+    description: 'Toggle blocks of content with collapsible panes.',
+    icon: 'i-lucide-chevrons-up-down',
+    category: 'design',
+    keywords: ['accordion', 'collapse', 'expand', 'faq', 'panes', 'disclosure'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'accordionBlock',
+      attrs: {
+        singleOpen: true,
+        startCollapsed: false,
+        columns: 1,
+        paneStyle: 'minimal',
+        triggerIcon: 'chevron',
+        defaultOpenIndices: [0],
+        blockWidth: 'content',
+        marginTop: '1rem',
+        marginBottom: '1rem'
+      },
+      content: [
+        { type: 'accordionPane', attrs: { title: 'Accordion Pane 1', defaultOpen: true }, content: [{ type: 'paragraph' }] },
+        { type: 'accordionPane', attrs: { title: 'Accordion Pane 2', defaultOpen: false }, content: [{ type: 'paragraph' }] }
+      ]
+    })
+  },
+  {
     name: 'table',
     title: 'Table',
     description: 'Insert a table with editable rows and columns.',

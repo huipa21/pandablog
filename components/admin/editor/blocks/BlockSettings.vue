@@ -423,6 +423,120 @@
         </div>
       </details>
 
+      <details v-if="blockName === 'accordionBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">Accordion</summary>
+        <div class="mt-3 space-y-3">
+          <div class="space-y-2">
+            <UFormField>
+              <UCheckbox
+                :model-value="attrs.singleOpen !== false"
+                label="Only one pane open at a time"
+                @update:model-value="setAccordionSingleOpen"
+              />
+            </UFormField>
+            <UFormField>
+              <UCheckbox
+                :model-value="attrs.startCollapsed === true"
+                label="Start with all panes collapsed"
+                @update:model-value="setAccordionStartCollapsed"
+              />
+            </UFormField>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <UFormField label="Columns">
+              <USelect
+                :model-value="String(attrs.columns ?? 1)"
+                :items="accordionColumnItems"
+                @update:model-value="setAccordionColumns"
+              />
+            </UFormField>
+            <UFormField label="Block width">
+              <USelect
+                :model-value="String(attrs.blockWidth ?? 'content')"
+                :items="blockWidthItems"
+                @update:model-value="setAccordionBlockWidth"
+              />
+            </UFormField>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <UFormField label="Pane style">
+              <USelect
+                :model-value="String(attrs.paneStyle ?? 'minimal')"
+                :items="accordionStyleItems"
+                @update:model-value="setAccordionPaneStyle"
+              />
+            </UFormField>
+            <UFormField label="Trigger icon">
+              <USelect
+                :model-value="String(attrs.triggerIcon ?? 'chevron')"
+                :items="accordionIconItems"
+                @update:model-value="setAccordionTriggerIcon"
+              />
+            </UFormField>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <UFormField label="Margin above">
+              <UInput
+                :model-value="String(attrs.marginTop ?? '1rem')"
+                placeholder="1rem"
+                size="sm"
+                @update:model-value="setAccordionMarginTop"
+              />
+            </UFormField>
+            <UFormField label="Margin below">
+              <UInput
+                :model-value="String(attrs.marginBottom ?? '1rem')"
+                placeholder="1rem"
+                size="sm"
+                @update:model-value="setAccordionMarginBottom"
+              />
+            </UFormField>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">Panes</div>
+              <div class="flex gap-1.5">
+                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="accordionPanes.length >= 12" @click="addAccordionPane">Add</UButton>
+                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="accordionPanes.length <= 1" @click="removeAccordionPane(accordionPanes.length - 1)">Remove</UButton>
+              </div>
+            </div>
+
+            <div
+              v-for="pane in accordionPanes"
+              :key="pane.index"
+              class="space-y-2 rounded-md border border-stone-200 bg-stone-50 p-2"
+            >
+              <div class="flex items-center gap-2">
+                <div class="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{{ String(pane.attrs.title || `Accordion Pane ${pane.index + 1}`) }}</div>
+                <UCheckbox
+                  :model-value="accordionPaneDefaultOpen(pane.index)"
+                  :label="undefined"
+                  :aria-label="`Open pane ${pane.index + 1} by default`"
+                  :disabled="attrs.startCollapsed === true"
+                  title="Open by default"
+                  class="shrink-0"
+                  @update:model-value="setAccordionPaneDefaultOpen(pane.index, $event)"
+                />
+                <UButton
+                  v-if="accordionPanes.length > 1"
+                  type="button"
+                  icon="i-lucide-trash"
+                  size="xs"
+                  color="error"
+                  variant="ghost"
+                  :aria-label="`Remove pane ${pane.index + 1}`"
+                  @click="removeAccordionPane(pane.index)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
       <details v-if="blockName === 'blockquote'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Quote</summary>
         <div class="mt-3 space-y-3">
@@ -739,6 +853,23 @@ const tabStyleItems = [
   { label: 'Pills', value: 'pills' },
   { label: 'Enclosed', value: 'enclosed' }
 ]
+const accordionColumnItems = [
+  { label: '1 column', value: '1' },
+  { label: '2 columns', value: '2' },
+  { label: '3 columns', value: '3' }
+]
+const accordionStyleItems = [
+  { label: 'Minimal', value: 'minimal' },
+  { label: 'Dark', value: 'dark' },
+  { label: 'Colored', value: 'colored' },
+  { label: 'Underline', value: 'underline' },
+  { label: 'Highlighted', value: 'highlighted' }
+]
+const accordionIconItems = [
+  { label: 'Chevron', value: 'chevron' },
+  { label: 'Plus / minus', value: 'plus-minus' },
+  { label: 'Arrow', value: 'arrow' }
+]
 const ratioPresetItems = [
   { label: '30 / 70', value: '30' },
   { label: '40 / 60', value: '40' },
@@ -833,6 +964,14 @@ const tabDefaultItems = computed(() => tabPanels.value.map((tab) => ({
   label: String(tab.attrs.title ?? `Tab ${tab.index + 1}`).trim() || `Tab ${tab.index + 1}`,
   value: String(tab.index)
 })))
+const accordionPanes = computed(() => childSettings('accordionPane'))
+const accordionDefaultOpenIndices = computed(() => normalizeAccordionDefaultOpenIndices(
+  attrs.value.defaultOpenIndices,
+  accordionPanes.value.length,
+  attrs.value.singleOpen !== false,
+  attrs.value.startCollapsed === true,
+  accordionPanes.value.map((pane) => pane.attrs.defaultOpen === true)
+))
 
 const footnoteSection = computed(() => {
   const activeEditor = props.editor
@@ -1089,6 +1228,14 @@ function defaultTabPanel(_index: number): JsonContent {
   return {
     type: 'tabPanel',
     attrs: { title: '' },
+    content: [{ type: 'paragraph' }]
+  }
+}
+
+function defaultAccordionPane(index: number): JsonContent {
+  return {
+    type: 'accordionPane',
+    attrs: { title: `Accordion Pane ${index + 1}`, defaultOpen: index === 0 },
     content: [{ type: 'paragraph' }]
   }
 }
@@ -1379,6 +1526,188 @@ function setTabsActiveIndex(value: unknown) {
 
 function setTabTitle(index: number, value: unknown) {
   updateNestedChildAttrs('tabsBlock', 'tabPanel', index, { title: asInputValue(value, `Tab ${index + 1}`).trim() || `Tab ${index + 1}` })
+}
+
+function setAccordionSingleOpen(value: unknown) {
+  const singleOpen = asBooleanValue(value, true)
+  const defaultOpenIndices = singleOpen ? accordionDefaultOpenIndices.value.slice(0, 1) : accordionDefaultOpenIndices.value
+  updateAccordionJson({ singleOpen, defaultOpenIndices })
+}
+
+function setAccordionStartCollapsed(value: unknown) {
+  const startCollapsed = asBooleanValue(value, false)
+  const defaultOpenIndices = startCollapsed
+    ? []
+    : (accordionDefaultOpenIndices.value.length ? accordionDefaultOpenIndices.value : [0])
+  updateAccordionJson({ startCollapsed, defaultOpenIndices })
+}
+
+function setAccordionColumns(value: unknown) {
+  updateAccordionJson({ columns: normalizeAccordionColumns(Number(asSelectValue(value, '1'))) })
+}
+
+function setAccordionPaneStyle(value: unknown) {
+  updateAccordionJson({ paneStyle: normalizeAccordionPaneStyle(asSelectValue(value, 'minimal')) })
+}
+
+function setAccordionTriggerIcon(value: unknown) {
+  updateAccordionJson({ triggerIcon: normalizeAccordionTriggerIcon(asSelectValue(value, 'chevron')) })
+}
+
+function setAccordionBlockWidth(value: unknown) {
+  updateAccordionJson({ blockWidth: normalizeAccordionBlockWidth(asSelectValue(value, 'content')) })
+}
+
+function setAccordionMarginTop(value: unknown) {
+  updateAccordionJson({ marginTop: asInputValue(value, '1rem') || '1rem' })
+}
+
+function setAccordionMarginBottom(value: unknown) {
+  updateAccordionJson({ marginBottom: asInputValue(value, '1rem') || '1rem' })
+}
+
+function setAccordionPaneTitle(index: number, value: unknown) {
+  updateNestedChildAttrs('accordionBlock', 'accordionPane', index, { title: asInputValue(value, `Accordion Pane ${index + 1}`).trim() || `Accordion Pane ${index + 1}` })
+}
+
+function accordionPaneDefaultOpen(index: number) {
+  return accordionDefaultOpenIndices.value.includes(index)
+}
+
+function setAccordionPaneDefaultOpen(index: number, value: unknown) {
+  const checked = asBooleanValue(value, false)
+  const next = new Set(accordionDefaultOpenIndices.value)
+  if (checked) {
+    if (attrs.value.singleOpen !== false) next.clear()
+    next.add(index)
+  } else {
+    next.delete(index)
+  }
+  updateAccordionJson({ defaultOpenIndices: Array.from(next).sort((left, right) => left - right), startCollapsed: false })
+}
+
+function addAccordionPane() {
+  const nextJson = selectedBlockJson('accordionBlock')
+  if (!nextJson) return
+
+  const panes = normalizeAccordionPaneJson(nextJson.content)
+  if (panes.length >= 12) return
+
+  panes.push(defaultAccordionPane(panes.length))
+  nextJson.content = panes
+  writeAccordionJson(nextJson, { defaultOpenIndices: [panes.length - 1], startCollapsed: false })
+}
+
+function removeAccordionPane(index: number) {
+  const nextJson = selectedBlockJson('accordionBlock')
+  if (!nextJson) return
+
+  const panes = normalizeAccordionPaneJson(nextJson.content)
+  if (panes.length <= 1 || index < 0 || index >= panes.length) return
+
+  const [removed] = panes.splice(index, 1)
+  const receiver = panes[Math.max(0, index - 1)] ?? panes[0]
+  if (removed?.content?.length && receiver) {
+    receiver.content = [...(receiver.content ?? []), ...removed.content]
+  }
+
+  const currentDefaultOpen = normalizeAccordionDefaultOpenIndices(
+    nextJson.attrs?.defaultOpenIndices,
+    panes.length + 1,
+    nextJson.attrs?.singleOpen !== false,
+    nextJson.attrs?.startCollapsed === true,
+    []
+  )
+  const defaultOpenIndices = currentDefaultOpen
+    .filter((openIndex) => openIndex !== index)
+    .map((openIndex) => openIndex > index ? openIndex - 1 : openIndex)
+
+  nextJson.content = panes
+  writeAccordionJson(nextJson, { defaultOpenIndices })
+}
+
+function updateAccordionJson(nextAttrs: Record<string, unknown>) {
+  const nextJson = selectedBlockJson('accordionBlock')
+  if (!nextJson) {
+    updateAttrs(nextAttrs)
+    return
+  }
+
+  writeAccordionJson(nextJson, nextAttrs)
+}
+
+function writeAccordionJson(nextJson: JsonContent, nextAttrs: Record<string, unknown>) {
+  const panes = normalizeAccordionPaneJson(nextJson.content)
+  const mergedAttrs = { ...(nextJson.attrs ?? {}), ...nextAttrs }
+  const singleOpen = mergedAttrs.singleOpen !== false
+  const startCollapsed = mergedAttrs.startCollapsed === true
+  const defaultOpenIndices = normalizeAccordionDefaultOpenIndices(
+    mergedAttrs.defaultOpenIndices,
+    panes.length,
+    singleOpen,
+    startCollapsed,
+    panes.map((pane) => pane.attrs?.defaultOpen === true)
+  )
+
+  nextJson.attrs = {
+    ...mergedAttrs,
+    singleOpen,
+    startCollapsed,
+    columns: normalizeAccordionColumns(Number(mergedAttrs.columns ?? 1)),
+    paneStyle: normalizeAccordionPaneStyle(String(mergedAttrs.paneStyle ?? 'minimal')),
+    triggerIcon: normalizeAccordionTriggerIcon(String(mergedAttrs.triggerIcon ?? 'chevron')),
+    defaultOpenIndices
+  }
+  nextJson.content = panes.map((pane, paneIndex) => ({
+    ...pane,
+    attrs: {
+      ...(pane.attrs ?? {}),
+      title: String(pane.attrs?.title ?? `Accordion Pane ${paneIndex + 1}`).trim() || `Accordion Pane ${paneIndex + 1}`,
+      defaultOpen: defaultOpenIndices.includes(paneIndex)
+    }
+  }))
+
+  replaceSelectedBlockJson('accordionBlock', nextJson)
+}
+
+function normalizeAccordionPaneJson(content: JsonContent[] | undefined): JsonContent[] {
+  const panes: JsonContent[] = (content ?? []).filter((child) => child.type === 'accordionPane').slice(0, 12)
+  if (!panes.length) {
+    panes.push(defaultAccordionPane(0))
+  }
+  return panes.map((pane, index): JsonContent => ({
+    ...pane,
+    attrs: {
+      ...(pane.attrs ?? {}),
+      title: String(pane.attrs?.title ?? `Accordion Pane ${index + 1}`).trim() || `Accordion Pane ${index + 1}`
+    },
+    content: pane.content?.length ? pane.content : [{ type: 'paragraph' }]
+  }))
+}
+
+function normalizeAccordionDefaultOpenIndices(value: unknown, count: number, singleOpen: boolean, startCollapsed: boolean, childDefaults: boolean[]) {
+  if (startCollapsed) return []
+  const values = Array.isArray(value) ? value : String(value ?? '').split(',')
+  const parsed = values.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0 && item < count)
+  const fallback = childDefaults.map((open, index) => open ? index : -1).filter((index) => index >= 0)
+  const indices = Array.from(new Set(parsed.length ? parsed : fallback)).sort((left, right) => left - right)
+  return singleOpen ? indices.slice(0, 1) : indices
+}
+
+function normalizeAccordionColumns(value: number) {
+  return Math.max(1, Math.min(3, Number.isFinite(value) ? Math.round(value) : 1))
+}
+
+function normalizeAccordionPaneStyle(value: string) {
+  return ['dark', 'colored', 'underline', 'highlighted'].includes(value) ? value : 'minimal'
+}
+
+function normalizeAccordionTriggerIcon(value: string) {
+  return ['plus-minus', 'arrow'].includes(value) ? value : 'chevron'
+}
+
+function normalizeAccordionBlockWidth(value: string) {
+  return value === 'wide' || value === 'full-bleed' ? value : 'content'
 }
 
 function normalizeTabsActiveIndex(value: number, count: number) {

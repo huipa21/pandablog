@@ -98,6 +98,7 @@ const currentIcon = computed(() => {
     case 'mediaText': return 'i-lucide-panel-left'
     case 'columnsBlock': return 'i-lucide-columns-3'
     case 'tabsBlock': return 'i-lucide-panel-top'
+    case 'accordionBlock': return 'i-lucide-chevrons-up-down'
     case 'customHtml': return 'i-lucide-file-code-2'
     case 'mermaid': return 'i-lucide-git-fork'
     default: return 'i-lucide-box'

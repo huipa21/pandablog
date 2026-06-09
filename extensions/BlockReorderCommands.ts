@@ -91,7 +91,7 @@ export const BlockReorderCommands = Extension.create({
   }
 })
 
-const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel'])
+const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel', 'accordionPane'])
 
 interface SiblingBlockInfo {
   blockStart: number

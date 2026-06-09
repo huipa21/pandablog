@@ -237,6 +237,7 @@ import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
 import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
+import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlock'
 import { RubyUnit } from '~/extensions/rubyUnit'
 import { AnnotationBlockNode } from '~/extensions/annotationBlock'
 import { RubyEditExtension } from '~/extensions/rubyEditState'
@@ -251,6 +252,8 @@ import ColumnsBlockNodeView from '~/components/admin/editor/ColumnsBlockNodeView
 import ColumnItemNodeView from '~/components/admin/editor/ColumnItemNodeView.vue'
 import TabsBlockNodeView from '~/components/admin/editor/TabsBlockNodeView.vue'
 import TabPanelNodeView from '~/components/admin/editor/TabPanelNodeView.vue'
+import AccordionBlockNodeView from '~/components/admin/editor/AccordionBlockNodeView.vue'
+import AccordionPaneNodeView from '~/components/admin/editor/AccordionPaneNodeView.vue'
 import QuoteBlockNodeView from '~/components/admin/editor/QuoteBlockNodeView.vue'
 import RubyUnitNodeView from '~/components/admin/editor/RubyUnitNodeView.vue'
 import AnnotationBlockNodeView from '~/components/admin/editor/AnnotationBlockNodeView.vue'
@@ -357,8 +360,8 @@ const slashItems = computed(() => {
   const items = blockRegistry.searchBlocks(slashQuery.value)
   return items.filter((b) => b.implemented)
 })
-const ALLOWED_NESTED_BLOCK_CONTAINERS = new Set(['mediaText', 'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel'])
-const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel'])
+const ALLOWED_NESTED_BLOCK_CONTAINERS = new Set(['mediaText', 'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel', 'accordionBlock', 'accordionPane'])
+const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel', 'accordionPane'])
 
 // Inserter state (also mirrored to editorStore so parent layout can switch to 3-column mode)
 const inserterOpen = ref(false)
@@ -441,6 +444,16 @@ const editor = useEditor({
     TabPanelNode.extend({
       addNodeView() {
         return VueNodeViewRenderer(TabPanelNodeView)
+      }
+    }),
+    AccordionBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(AccordionBlockNodeView)
+      }
+    }),
+    AccordionPaneNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(AccordionPaneNodeView)
       }
     }),
     LinkEnhanced.configure({
