@@ -1,4 +1,4 @@
-import type { PostRecord, PostStatus, PostVisibility } from '~/types/content'
+import type { PostPasswordSource, PostRecord, PostStatus, PostVisibility } from '~/types/content'
 import { emptyDoc } from './blocks'
 import { stringifyRecordId } from './surrealResult'
 
@@ -40,7 +40,9 @@ export function normalizePost(record: Record<string, unknown>): PostRecord {
     word_count: Number(record.word_count ?? 0),
     cjk_char_count: Number(record.cjk_char_count ?? 0),
     visibility: cleanVisibility(record.visibility),
-    password_hint: record.password_hint === undefined ? null : record.password_hint as string | null
+    password_hint: record.password_hint === undefined ? null : record.password_hint as string | null,
+    password_source: cleanPasswordSource(record.password_source),
+    password_owner: record.password_owner ? stringifyRecordId(record.password_owner) : null
   }
 }
 
@@ -132,4 +134,8 @@ function cleanVisibility(value: unknown): PostVisibility {
   return ['public', 'private', 'password'].includes(String(value))
     ? value as PostVisibility
     : 'public'
+}
+
+function cleanPasswordSource(value: unknown): PostPasswordSource {
+  return value === 'user' ? 'user' : 'custom'
 }

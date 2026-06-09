@@ -283,10 +283,8 @@ const navSections = computed(() => {
       {
         label: 'Settings',
         items: [
-          { to: '/admin/settings/site', label: 'Site', icon: 'i-lucide-globe' },
+          { to: '/admin/settings/general', label: 'General', icon: 'i-lucide-sliders-horizontal' },
           { to: '/admin/settings/profile', label: 'Profile', icon: 'i-lucide-user' },
-          { to: '/admin/settings/footer', label: 'Footer', icon: 'i-lucide-panel-bottom' },
-          { to: '/admin/settings/visibility', label: 'Visibility', icon: 'i-lucide-eye' },
           { to: '/admin/settings/themes', label: 'Themes', icon: 'i-lucide-palette' }
         ]
       },
@@ -314,6 +312,7 @@ const breadcrumbLabels: Record<string, string> = {
   media: 'Media library',
   users: 'Users',
   settings: 'Settings',
+  general: 'General',
   site: 'Site',
   profile: 'Profile',
   footer: 'Footer',

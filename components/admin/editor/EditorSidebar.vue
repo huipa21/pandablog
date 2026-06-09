@@ -48,16 +48,25 @@
       <details open class="rounded-md border border-stone-200 p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">Cover Image</summary>
         <div class="mt-3 space-y-3">
-          <div v-if="form.cover_image" class="relative overflow-hidden rounded-md border border-stone-200">
-            <img :src="form.cover_image" alt="" class="h-36 w-full object-cover">
-            <UButton type="button" icon="i-lucide-x" size="xs" color="neutral" variant="solid" class="absolute right-2 top-2" @click="form.cover_image = ''" />
+          <div v-if="form.cover_image" class="space-y-2">
+            <div class="overflow-hidden rounded-md border border-stone-200">
+              <img :src="form.cover_image" alt="Cover image" class="h-36 w-full object-cover">
+            </div>
+            <div class="flex gap-2">
+              <UButton type="button" icon="i-lucide-image-plus" size="sm" variant="soft" class="flex-1" @click="coverPickerOpen = true">Replace</UButton>
+              <UButton type="button" icon="i-lucide-x" size="sm" color="neutral" variant="ghost" @click="form.cover_image = ''">Clear</UButton>
+            </div>
           </div>
-          <div class="flex gap-2">
-            <UButton type="button" icon="i-lucide-upload" size="sm" variant="soft" :loading="uploadingCover" @click="coverInput?.click()">Upload</UButton>
-            <UButton type="button" icon="i-lucide-link" size="sm" color="neutral" variant="soft" @click="setCoverFromUrl">URL</UButton>
-          </div>
-          <UInput v-model="coverUrl" size="sm" placeholder="https://..." @keydown.enter.prevent="setCoverFromUrl" />
-          <input ref="coverInput" type="file" accept="image/*" class="hidden" @change="handleCoverUpload">
+          <UButton
+            v-else
+            type="button"
+            icon="i-lucide-image-plus"
+            color="primary"
+            block
+            @click="coverPickerOpen = true"
+          >
+            Choose cover image
+          </UButton>
         </div>
       </details>
 
@@ -151,12 +160,24 @@
             <span class="flex-1">
               <span class="font-medium">Password protected</span>
               <span class="block text-xs text-stone-500">Hidden from public lists and search, content requires a password.</span>
-              <span v-if="form.visibility === 'password'" class="mt-2 grid gap-2">
-                <input v-model="form.password" type="password" placeholder="Leave blank to keep existing password" class="w-full rounded border border-stone-300 px-2 py-1 text-sm" autocomplete="new-password">
-                <input v-model="form.password_hint" type="text" placeholder="Hint shown on lock screen" class="w-full rounded border border-stone-300 px-2 py-1 text-sm">
-              </span>
             </span>
           </label>
+
+          <div v-if="form.visibility === 'password'" class="mt-3 space-y-3 rounded-md border border-stone-200 bg-stone-50 p-3">
+            <input
+              v-model="form.password"
+              type="password"
+              placeholder="Leave blank to use login password"
+              class="w-full rounded border border-stone-300 px-2 py-1 text-sm"
+              autocomplete="new-password"
+            >
+            <input
+              v-model="form.password_hint"
+              type="text"
+              placeholder="Hint shown on lock screen (optional)"
+              class="w-full rounded border border-stone-300 px-2 py-1 text-sm"
+            >
+          </div>
         </div>
         </details>
       </div>
@@ -165,17 +186,26 @@
         <BlockSettings :editor="editor" />
       </div>
     </div>
+
+    <MediaPicker
+      :open="coverPickerOpen"
+      return-value="url"
+      type-filter="image"
+      @update:open="coverPickerOpen = $event"
+      @select="onCoverPicked"
+    />
   </aside>
 </template>
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
-import type { CategoryRecord, PostStatus, TagRecord } from '~/types/content'
+import type { CategoryRecord, MediaRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 // Explicit import: Nuxt auto-registers nested components with a path prefix
 // (`AdminEditorBlockSettings`), so the short `<BlockSettings>` tag below
 // would otherwise fail to resolve.
 import BlockSettings from '~/components/admin/editor/blocks/BlockSettings.vue'
+import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 
 const props = defineProps<{
   form: AdminPostEditorForm
@@ -183,38 +213,19 @@ const props = defineProps<{
   tags: TagRecord[]
   currentStatus: PostStatus
   editor: Editor | null
-  uploadingCover?: boolean
-}>()
-
-const emit = defineEmits<{
-  'upload-cover': [file: File]
 }>()
 
 const editorStore = useEditorStore()
-const coverInput = ref<HTMLInputElement>()
-const coverUrl = ref('')
+const coverPickerOpen = ref(false)
 const newCategoryName = ref('')
 const newTagName = ref('')
 const selectedTemplate = ref('default')
 const templateItems = [{ label: 'Default post template', value: 'default' }]
 
-function setCoverFromUrl() {
-  const value = coverUrl.value.trim()
-  if (!value) {
-    return
-  }
-
-  props.form.cover_image = value
-  coverUrl.value = ''
-}
-
-function handleCoverUpload(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-
-  if (file) {
-    emit('upload-cover', file)
+function onCoverPicked(files: MediaRecord[]) {
+  const first = files[0]
+  if (first?.url) {
+    props.form.cover_image = first.url
   }
 }
 

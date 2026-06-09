@@ -15,19 +15,22 @@ export default defineEventHandler(async (event) => {
   const payload = buildPostPayload(body, user.username)
   const visibility = normalizeVisibility(body.visibility)
   const password = typeof body.password === 'string' ? body.password : ''
+  const passwordSource = visibility === 'password' && password.length > 0 ? 'custom' : 'user'
 
   if (!payload.title) {
     throw createError({ statusCode: 400, message: 'Title is required' })
   }
 
-  if (visibility === 'password' && password.length === 0) {
-    throw createError({ statusCode: 400, message: 'Password is required for password-protected posts' })
-  }
-
   const visibilityUpdates: Record<string, unknown> = { visibility }
   if (visibility === 'password') {
-    visibilityUpdates.password_hint = stringOrNull(body.password_hint)
-    visibilityUpdates.password_hash = await hashPostPassword(password)
+    visibilityUpdates.password_source = passwordSource
+    const passwordHint = stringOrNull(body.password_hint)
+    if (passwordHint) {
+      visibilityUpdates.password_hint = passwordHint
+    }
+    if (passwordSource === 'custom') {
+      visibilityUpdates.password_hash = await hashPostPassword(password)
+    }
   }
 
   const db = await useDb()
@@ -50,11 +53,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, message: 'Post was not created' })
   }
 
+  const postId = recordIdPart(stringifyRecordId(post.id), 'post')
   await queryDb(
     db,
     'UPDATE type::record($table, $id) SET author = type::record($userTable, $userId);',
-    { table: 'post', id: recordIdPart(stringifyRecordId(post.id), 'post'), userTable: 'users', userId: recordIdPart(user.id, 'users') }
+    { table: 'post', id: postId, userTable: 'users', userId: recordIdPart(user.id, 'users') }
   )
+
+  if (visibility === 'password' && passwordSource === 'user') {
+    await queryDb(
+      db,
+      'UPDATE type::record($table, $id) SET password_owner = type::record($userTable, $ownerId);',
+      { table: 'post', id: postId, userTable: 'users', ownerId: recordIdPart(user.id, 'users') }
+    )
+  }
 
   const normalizedPost = normalizePost(post)
   const incomingDoc = parseDoc(body.content_json)

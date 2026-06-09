@@ -111,8 +111,6 @@
           :tags="tags"
           :current-status="currentStatus"
           :editor="activeEditor"
-          :uploading-cover="uploadingCover"
-          @upload-cover="handleCoverUpload"
         />
       </div>
     </div>
@@ -167,7 +165,6 @@ const saveStatus = ref('')
 const saveStatusType = ref<'success' | 'error'>('success')
 const saveError = ref('')
 const currentStatus = ref<PostStatus>('draft')
-const uploadingCover = ref(false)
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
 const rightPaneCollapsed = ref(false)
@@ -198,6 +195,7 @@ const form = reactive<AdminPostEditorForm>({
   visibility: 'public',
   password: '',
   password_hint: '',
+  password_source: 'user',
   content: emptyDoc()
 })
 
@@ -247,6 +245,7 @@ watch(post, (value) => {
   form.visibility = value.visibility ?? 'public'
   form.password_hint = value.password_hint ?? ''
   form.password = ''
+  form.password_source = value.password_source ?? 'custom'
   form.content = value.content_json
   savedDbSnapshot.value = serializeDbPayload()
   hasLoadedDbSnapshot.value = true
@@ -279,6 +278,7 @@ function saveLocal() {
       visibility: form.visibility,
       password: form.password,
       password_hint: form.password_hint,
+      password_source: effectivePasswordSource(),
       content_json: form.content
     }
     localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
@@ -333,6 +333,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
         visibility: form.visibility,
         password: form.password,
         password_hint: form.password_hint,
+        password_source: effectivePasswordSource(),
         content_json: form.content
       }
     })
@@ -345,7 +346,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     form.tag_names = []
     form.visibility = saved.visibility ?? form.visibility
     form.password_hint = saved.password_hint ?? ''
-    form.password = ''
+    form.password_source = saved.password_source ?? form.password_source
     post.value = saved
     savedDbSnapshot.value = serializeDbPayload()
     hasLoadedDbSnapshot.value = true
@@ -396,6 +397,7 @@ onMounted(() => {
       visibility: local.visibility ?? form.visibility,
       password: local.password ?? '',
       password_hint: local.password_hint ?? form.password_hint,
+      password_source: local.password_source ?? form.password_source,
       content: local.content_json ?? form.content
     })
     saveStatus.value = 'Unsaved local changes'
@@ -485,34 +487,20 @@ function serializeDbPayload() {
     visibility: form.visibility,
     password: form.password,
     password_hint: form.password_hint,
+    password_source: effectivePasswordSource(),
     content_json: form.content,
     status: currentStatus.value
   })
+}
+
+function effectivePasswordSource() {
+  return form.visibility === 'password' && form.password.length > 0 ? 'custom' : 'user'
 }
 
 function emptyDoc(): JsonContent {
   return {
     type: 'doc',
     content: [{ type: 'paragraph', content: [] }]
-  }
-}
-
-async function handleCoverUpload(file: File) {
-  uploadingCover.value = true
-
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-    const asset = await fetchAdmin<{ url: string }>('/api/admin/upload', {
-      method: 'POST',
-      body: formData
-    })
-
-    if (asset.url) {
-      form.cover_image = asset.url
-    }
-  } finally {
-    uploadingCover.value = false
   }
 }
 

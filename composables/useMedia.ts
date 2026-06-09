@@ -150,6 +150,13 @@ export function useMedia() {
     })
   }
 
+  async function importFromUrl(url: string) {
+    return await $fetch<MediaRecord>('/api/admin/media/import-from-url', {
+      method: 'POST',
+      body: { url }
+    })
+  }
+
   function getFileUrl(id: string) {
     return `/api/media/file/${encodeURIComponent(mediaHashFromId(id))}`
   }
@@ -190,6 +197,7 @@ export function useMedia() {
   return {
     listMedia,
     uploadFiles,
+    importFromUrl,
     getMedia,
     updateMedia,
     deleteMedia,

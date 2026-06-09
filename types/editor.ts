@@ -1,4 +1,4 @@
-import type { JsonContent, PostVisibility } from './content'
+import type { JsonContent, PostPasswordSource, PostVisibility } from './content'
 
 export interface AdminPostEditorForm {
   title: string
@@ -12,5 +12,6 @@ export interface AdminPostEditorForm {
   visibility: PostVisibility
   password: string
   password_hint: string
+  password_source: PostPasswordSource
   content: JsonContent
 }

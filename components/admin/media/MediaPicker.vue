@@ -21,11 +21,42 @@
               <UIcon name="i-lucide-upload" class="size-4" />
               Upload
             </button>
+            <button type="button" class="picker-tab" :class="tab === 'url' ? activeTabClass : inactiveTabClass" @click="tab = 'url'">
+              <UIcon name="i-lucide-link" class="size-4" />
+              From URL
+            </button>
           </div>
 
           <div class="min-h-0 flex-1 overflow-y-auto p-4">
             <div v-if="tab === 'upload'" class="w-full">
               <MediaUploader @upload-complete="handleUploadComplete" />
+            </div>
+
+            <div v-else-if="tab === 'url'" class="mx-auto flex w-full max-w-xl flex-col gap-3">
+              <p class="text-sm text-stone-600">
+                Paste a direct link to an image. It will be downloaded into the media library so you can reuse it later.
+              </p>
+              <UFormField label="Image URL" required>
+                <UInput
+                  v-model="urlInput"
+                  placeholder="https://example.com/photo.jpg"
+                  icon="i-lucide-link"
+                  :disabled="urlImporting"
+                  @keydown.enter.prevent="importFromUrlTab"
+                />
+              </UFormField>
+              <UAlert v-if="urlError" color="error" icon="i-lucide-circle-alert" :title="urlError" />
+              <div class="flex justify-end">
+                <UButton
+                  type="button"
+                  icon="i-lucide-download"
+                  :loading="urlImporting"
+                  :disabled="!urlInput.trim() || urlImporting"
+                  @click="importFromUrlTab"
+                >
+                  Import
+                </UButton>
+              </div>
             </div>
 
             <div v-else class="space-y-4">
@@ -99,13 +130,16 @@ const emit = defineEmits<{
   'select': [files: MediaRecord[]]
 }>()
 
-const { listMedia } = useMedia()
-const tab = ref<'browse' | 'upload'>('browse')
+const { listMedia, importFromUrl } = useMedia()
+const tab = ref<'browse' | 'upload' | 'url'>('browse')
 const files = ref<MediaRecord[]>([])
 const selected = ref<MediaRecord[]>([])
 const loading = ref(false)
 const page = ref(1)
 const pages = ref(1)
+const urlInput = ref('')
+const urlImporting = ref(false)
+const urlError = ref('')
 const filters = ref<PickerFilters>({
   search: '',
   type: props.typeFilter,
@@ -125,6 +159,9 @@ watch(() => props.open, (value) => {
   if (value) {
     tab.value = 'browse'
     filters.value.type = props.typeFilter
+    urlInput.value = ''
+    urlError.value = ''
+    urlImporting.value = false
     void refresh()
   }
 })
@@ -182,6 +219,24 @@ function handleUploadComplete() {
     case_insensitive: true
   }
   void refresh()
+}
+
+async function importFromUrlTab() {
+  const value = urlInput.value.trim()
+  if (!value || urlImporting.value) return
+
+  urlImporting.value = true
+  urlError.value = ''
+  try {
+    const record = await importFromUrl(value)
+    selected.value = [record]
+    urlInput.value = ''
+    confirmSelection()
+  } catch (error: any) {
+    urlError.value = error?.data?.message || error?.statusMessage || error?.message || 'Could not import URL'
+  } finally {
+    urlImporting.value = false
+  }
 }
 
 function confirmSelection() {

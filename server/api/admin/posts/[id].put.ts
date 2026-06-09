@@ -41,27 +41,36 @@ export default defineEventHandler(async (event) => {
   }
 
   payload.slug = await uniquePostSlug(db, String(payload.slug), `post:${id}`)
-  const visibilityUpdate = await resolveVisibilityUpdate(body, existing)
+  const { updates: visibilityUpdate, ownerAction } = await resolveVisibilityUpdate(body, existing, user.id)
   const clears = cleanOptionalFieldClears(body)
 
-  const updateSql = clears
-    ? `UPDATE type::record($table, $id) MERGE $post;\nUPDATE type::record($table, $id) ${clears};`
-    : 'UPDATE type::record($table, $id) MERGE $post;'
+  const statements: string[] = ['UPDATE type::record($table, $id) MERGE $post;']
+  if (clears) {
+    statements.push(`UPDATE type::record($table, $id) ${clears};`)
+  }
+  if (ownerAction?.kind === 'set') {
+    statements.push('UPDATE type::record($table, $id) SET password_owner = type::record($userTable, $ownerId), password_hash = NONE;')
+  } else if (ownerAction?.kind === 'clear') {
+    statements.push('UPDATE type::record($table, $id) SET password_owner = NONE;')
+  }
+  const updateSql = statements.join('\n')
 
-  const response = await queryDb(
-    db,
-    updateSql,
-    {
-      table: 'post',
-      id,
-      post: {
-        ...payload,
-        ...visibilityUpdate
-      }
+  const params: Record<string, unknown> = {
+    table: 'post',
+    id,
+    post: {
+      ...payload,
+      ...visibilityUpdate
     }
-  )
-  const post = clears
-    ? firstRow<Record<string, unknown>>(response, 1) || firstRow<Record<string, unknown>>(response)
+  }
+  if (ownerAction?.kind === 'set') {
+    params.userTable = 'users'
+    params.ownerId = ownerAction.userId
+  }
+
+  const response = await queryDb(db, updateSql, params)
+  const post = statements.length > 1
+    ? firstRow<Record<string, unknown>>(response, statements.length - 1) || firstRow<Record<string, unknown>>(response)
     : firstRow<Record<string, unknown>>(response)
 
   if (!post) {
@@ -120,25 +129,46 @@ function cleanOptionalFieldClears(body: Record<string, unknown>) {
   const clearSummary = typeof body.summary === 'string' && body.summary.trim() === ''
   const clearCoverImage = typeof body.cover_image === 'string' && body.cover_image.trim() === ''
   const clearPublishedAt = Object.prototype.hasOwnProperty.call(body, 'status') && body.status !== 'published'
+  const clearPasswordHint = Object.prototype.hasOwnProperty.call(body, 'password_hint') && stringOrNull(body.password_hint) === null
   const assignments: string[] = []
 
   if (clearSummary) assignments.push('summary = NONE')
   if (clearCoverImage) assignments.push('cover_image = NONE')
   if (clearPublishedAt) assignments.push('published_at = NONE')
+  if (clearPasswordHint || body.visibility === 'public' || body.visibility === 'private') {
+    assignments.push('password_hint = NONE')
+  }
   if (body.visibility === 'public' || body.visibility === 'private') {
-    assignments.push('password_hash = NONE', 'password_hint = NONE')
+    assignments.push("password_source = 'custom'", 'password_hash = NONE', 'password_owner = NONE')
   }
 
   return assignments.length ? `SET ${assignments.join(', ')}` : ''
 }
 
-async function resolveVisibilityUpdate(body: Record<string, unknown>, existing: Record<string, unknown>) {
+async function resolveVisibilityUpdate(body: Record<string, unknown>, existing: Record<string, unknown>, currentUserId: string) {
   const visibility = normalizeVisibility(body.visibility ?? existing.visibility)
-  const currentHash = typeof existing.password_hash === 'string' ? existing.password_hash : null
   const updates: Record<string, unknown> = { visibility }
+  let ownerAction: { kind: 'set', userId: string } | { kind: 'clear' } | null = null
 
-  if (visibility === 'password') {
-    const password = typeof body.password === 'string' ? body.password : ''
+  if (visibility !== 'password') {
+    return { updates, ownerAction }
+  }
+
+  const currentHash = typeof existing.password_hash === 'string' ? existing.password_hash : null
+  const password = typeof body.password === 'string' ? body.password : ''
+  const hasPasswordInput = Object.prototype.hasOwnProperty.call(body, 'password')
+  const passwordSource = hasPasswordInput
+    ? password.length > 0 ? 'custom' : 'user'
+    : normalizePasswordSource(body.password_source ?? existing.password_source)
+  updates.password_source = passwordSource
+
+  if (passwordSource === 'user') {
+    const userId = recordIdPart(currentUserId, 'users')
+    if (!userId) {
+      throw createError({ statusCode: 400, message: 'Could not resolve session user' })
+    }
+    ownerAction = { kind: 'set', userId }
+  } else {
     if (password.length > 0) {
       updates.password_hash = await hashPostPassword(password)
     } else if (currentHash) {
@@ -146,20 +176,26 @@ async function resolveVisibilityUpdate(body: Record<string, unknown>, existing: 
     } else {
       throw createError({ statusCode: 400, message: 'Password is required for password-protected posts' })
     }
+    ownerAction = { kind: 'clear' }
+  }
 
-    if (Object.prototype.hasOwnProperty.call(body, 'password_hint')) {
-      updates.password_hint = stringOrNull(body.password_hint)
-    } else {
-      updates.password_hint = stringOrNull(existing.password_hint)
+  if (Object.prototype.hasOwnProperty.call(body, 'password_hint')) {
+    const passwordHint = stringOrNull(body.password_hint)
+    if (passwordHint) {
+      updates.password_hint = passwordHint
     }
   }
 
-  return updates
+  return { updates, ownerAction }
 }
 
 function normalizeVisibility(value: unknown): PostVisibility {
   if (value === 'private' || value === 'password') return value
   return 'public'
+}
+
+function normalizePasswordSource(value: unknown): 'custom' | 'user' {
+  return value === 'user' ? 'user' : 'custom'
 }
 
 function parseDoc(value: unknown): JsonContent | null {

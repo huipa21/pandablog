@@ -99,6 +99,8 @@ DEFINE INDEX IF NOT EXISTS links_out ON TABLE links FIELDS out;
 DEFINE FIELD IF NOT EXISTS visibility ON post TYPE string DEFAULT 'public' ASSERT $value IN ['public', 'private', 'password'];
 DEFINE FIELD IF NOT EXISTS password_hash ON post TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS password_hint ON post TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS password_source ON post TYPE string DEFAULT 'custom' ASSERT $value IN ['custom', 'user'];
+DEFINE FIELD IF NOT EXISTS password_owner ON post TYPE option<record<users>> DEFAULT NONE;
 DEFINE INDEX IF NOT EXISTS post_visibility ON TABLE post FIELDS visibility;
 
 -- ============ APP SETTING for site-wide mode ============

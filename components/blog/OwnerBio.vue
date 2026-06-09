@@ -1,5 +1,5 @@
 <template>
-  <div v-if="hasProfile" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+  <div v-if="ownerBioVisible && hasProfile" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
     <div class="flex items-center gap-3">
       <img
         v-if="ownerAvatar"
@@ -22,6 +22,6 @@
 </template>
 
 <script setup lang="ts">
-const { ownerName, ownerBio, ownerAvatar, ownerMotto } = useSiteSettings()
+const { ownerName, ownerBio, ownerAvatar, ownerMotto, ownerBioVisible } = useSiteSettings()
 const hasProfile = computed(() => Boolean(ownerName.value || ownerBio.value || ownerAvatar.value || ownerMotto.value))
 </script>

@@ -11,6 +11,7 @@ export interface JsonContent {
 
 export type PostStatus = 'draft' | 'published' | 'archived'
 export type PostVisibility = 'public' | 'private' | 'password'
+export type PostPasswordSource = 'custom' | 'user'
 
 /**
  * Editor-facing block: a top-level Tiptap node that has been persisted
@@ -46,6 +47,8 @@ export interface PostRecord {
   cjk_char_count: number
   visibility?: PostVisibility
   password_hint?: string | null
+  password_source?: PostPasswordSource
+  password_owner?: string | null
   tag_ids?: string[]
   category_ids?: string[]
   tags?: TagRecord[]

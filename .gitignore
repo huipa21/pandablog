@@ -39,6 +39,7 @@ tests/*
 !tests/unit/
 tests/unit/*
 !tests/unit/annotate.test.ts
+!tests/unit/db-reconnect.test.ts
 test-results
 .playwright-mcp/
 .vscode/

@@ -191,6 +191,23 @@
           />
         </div>
       </div>
+
+      <div v-if="hasFilingInfo" class="border-t border-[var(--pb-border)] px-5 py-3 text-xs text-[var(--pb-text-subtle)]">
+        <div class="mx-auto flex w-full max-w-[var(--pb-site-content-max)] flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center">
+          <a
+            v-for="filing in footerFilings"
+            :key="`${filing.label}:${filing.url}`"
+            :href="filing.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 hover:text-[var(--pb-link-hover)]"
+          >
+            <UIcon v-if="isIconName(filing.icon)" :name="filing.icon" class="size-4 shrink-0" />
+            <img v-else-if="isImageIcon(filing.icon)" :src="filing.icon" alt="" class="size-4 shrink-0 object-contain">
+            <span>{{ filing.label }}</span>
+          </a>
+        </div>
+      </div>
     </footer>
   </div>
 </template>
@@ -207,7 +224,9 @@ const {
   siteFavicon,
   footerCopyright,
   footerLinks,
-  footerSocial
+  footerSocial,
+  footerFilings,
+  hasFilingInfo
 } = useSiteSettings()
 
 const mobileNav = ref(false)
@@ -257,6 +276,14 @@ async function logout() {
   } finally {
     loggingOut.value = false
   }
+}
+
+function isIconName(value: string | undefined) {
+  return Boolean(value?.startsWith('i-'))
+}
+
+function isImageIcon(value: string | undefined) {
+  return Boolean(value?.startsWith('/') || value?.startsWith('http://') || value?.startsWith('https://'))
 }
 </script>
 

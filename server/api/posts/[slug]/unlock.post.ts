@@ -1,5 +1,5 @@
 import { queryDb, useDb } from '../../../utils/db'
-import { addUnlockedId, fakePostPasswordHash, verifyPostPassword } from '../../../utils/post-password'
+import { addUnlockedId, fakePostPasswordHash, resolveEffectivePostPasswordHash, verifyPostPassword } from '../../../utils/post-password'
 import { checkLoginRateLimit, recordLoginAttempt } from '../../../utils/rate-limit'
 import { getRuntimeFlags } from '../../../utils/settings'
 import { stringifyRecordId } from '../../../utils/surrealResult'
@@ -31,16 +31,17 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await useDb()
-  const response = await queryDb<[Array<{ id: string, visibility?: string, password_hash?: string | null }>]>(
+  const response = await queryDb<[Array<{ id: string, visibility?: string, password_hash?: string | null, password_source?: string | null, password_owner?: string | null }>]>(
     db,
-    'SELECT id, visibility, password_hash FROM post WHERE slug = $slug AND status = "published" LIMIT 1;',
+    'SELECT id, visibility, password_hash, password_source, password_owner FROM post WHERE slug = $slug AND status = "published" LIMIT 1;',
     { slug }
   )
   const post = response[0]?.[0]
 
-  const hashToCheck = post?.password_hash ?? fakePostPasswordHash()
+  const effectiveHash = post ? await resolveEffectivePostPasswordHash(post, db) : null
+  const hashToCheck = effectiveHash ?? fakePostPasswordHash()
   const passwordOk = await verifyPostPassword(hashToCheck, password)
-  const isValid = !!post && post.visibility === 'password' && !!post.password_hash && passwordOk
+  const isValid = !!post && post.visibility === 'password' && !!effectiveHash && passwordOk
 
   if (rateKey) {
     await recordLoginAttempt(rateKey, isValid)

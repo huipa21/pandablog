@@ -20,9 +20,11 @@ export interface SiteSettings {
   owner_avatar: string
   owner_motto: string
   owner_bio: JsonContent | null
+  owner_bio_visible: boolean
   footer_copyright: string
   footer_links: SiteSettingsLink[]
   footer_social: SiteSettingsLink[]
+  footer_filings: SiteSettingsLink[]
 }
 
 export function useSiteSettings() {
@@ -43,9 +45,11 @@ export function useSiteSettings() {
       owner_avatar: '',
       owner_motto: '',
       owner_bio: null,
+      owner_bio_visible: true,
       footer_copyright: `© ${new Date().getFullYear()} ${siteTitle}. All rights reserved.`,
       footer_links: [],
-      footer_social: []
+      footer_social: [],
+      footer_filings: []
     }
   })
 
@@ -70,9 +74,11 @@ export function useSiteSettings() {
       owner_avatar: textValue(remote.owner_avatar) || fallback.value.owner_avatar,
       owner_motto: textValue(remote.owner_motto),
       owner_bio: jsonContentValue(remote.owner_bio),
+      owner_bio_visible: booleanValue(remote.owner_bio_visible, fallback.value.owner_bio_visible),
       footer_copyright: textValue(remote.footer_copyright) || fallback.value.footer_copyright,
       footer_links: linksValue(remote.footer_links),
-      footer_social: linksValue(remote.footer_social)
+      footer_social: linksValue(remote.footer_social),
+      footer_filings: linksValue(remote.footer_filings)
     }
   })
 
@@ -94,9 +100,12 @@ export function useSiteSettings() {
     ownerAvatar: computed(() => settings.value.owner_avatar),
     ownerMotto: computed(() => settings.value.owner_motto),
     ownerBio: computed(() => settings.value.owner_bio),
+    ownerBioVisible: computed(() => settings.value.owner_bio_visible),
     footerCopyright: computed(() => settings.value.footer_copyright),
     footerLinks: computed(() => settings.value.footer_links),
-    footerSocial: computed(() => settings.value.footer_social)
+    footerSocial: computed(() => settings.value.footer_social),
+    footerFilings: computed(() => settings.value.footer_filings),
+    hasFilingInfo: computed(() => settings.value.footer_filings.length > 0)
   }
 }
 
@@ -111,6 +120,10 @@ function numberValue(value: unknown, fallback: number, min: number, max: number)
   }
 
   return Math.min(max, Math.max(min, number))
+}
+
+function booleanValue(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback
 }
 
 function jsonContentValue(value: unknown): JsonContent | null {

@@ -103,7 +103,14 @@ export async function queryDb<T extends unknown[] = unknown[]>(db: Surreal, sql:
     if (options.retryOnReconnect !== false && isConnectionError(error)) {
       await discardDbConnection(queryClient)
 
-      if (isReadOnlyQuery(sql)) {
+      // Auth-rejection means SurrealDB refused the request before executing
+      // it (silent re-auth loss -> anonymous). The query had no side effects,
+      // so it is always safe to retry, even for writes. For socket-level
+      // failures the operation may have partially executed, so keep the
+      // read-only guard.
+      const safeToRetry = isAuthRejectionError(error) || isReadOnlyQuery(sql)
+
+      if (safeToRetry) {
         try {
           queryClient = await useDb()
           const result = await runQuery<T>(queryClient, sql, params, timeoutMs, label)
@@ -153,6 +160,10 @@ async function discardDbConnection(staleClient?: Surreal | null) {
     return
   }
 
+  if (!client && connectionPromise) {
+    return
+  }
+
   const activeClient = staleClient ?? client
   connectionGeneration += 1
   client = null
@@ -179,15 +190,25 @@ function isReadOnlyQuery(sql: string) {
   return /^\s*(SELECT|INFO|RETURN)\b/i.test(sql)
 }
 
-function isConnectionError(error: unknown) {
+function errorMessage(error: unknown) {
   const value = error as { message?: string, cause?: { message?: string } }
-  const message = [value?.message, value?.cause?.message]
+  return [value?.message, value?.cause?.message]
     .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
     .join(' ')
+}
 
+function isTransientConnectionError(error: unknown) {
   // Also matches the SurrealDB SDK's own phrasing:
   // "You must be connected to a SurrealDB instance before performing this operation"
-  return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound|must be connected|not connected)/i.test(message)
+  return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound|must be connected|not connected)/i.test(errorMessage(error))
+}
+
+function isAuthRejectionError(error: unknown) {
+  return /(anonymous access not allowed|not enough permissions to perform this action)/i.test(errorMessage(error))
+}
+
+function isConnectionError(error: unknown) {
+  return isTransientConnectionError(error) || isAuthRejectionError(error)
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {

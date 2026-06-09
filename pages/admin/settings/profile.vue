@@ -31,11 +31,20 @@
         <MediaSettingField
           label="Avatar"
           :model-value="form.owner_avatar"
-          :loading="uploadingAvatar"
           @update:model-value="form.owner_avatar = $event"
-          @upload="avatarInput?.click()"
+          @browse="mediaPickerOpen = true"
         />
-        <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="uploadAvatar">
+
+        <fieldset class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+          <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">Sidebar visibility</legend>
+          <label class="flex cursor-pointer items-center justify-between gap-4 text-sm">
+            <span class="grid gap-1">
+              <span class="font-medium text-[var(--pb-text)]">Show this profile in the public site sidebar</span>
+              <span class="text-xs text-[var(--pb-text-muted)]">Hide the owner bio card without deleting the saved profile content.</span>
+            </span>
+            <USwitch v-model="form.owner_bio_visible" />
+          </label>
+        </fieldset>
 
         <UFormField label="Bio" name="owner_bio">
           <div class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3">
@@ -71,10 +80,19 @@
         <UButton type="submit" icon="i-lucide-key-round" :loading="securitySaving">Change password</UButton>
       </div>
     </form>
+
+    <MediaPicker
+      :open="mediaPickerOpen"
+      return-value="url"
+      type-filter="image"
+      @update:open="mediaPickerOpen = $event"
+      @select="handleAvatarPicked"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
+import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
 import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
 import type { JsonContent } from '~/types/content'
@@ -87,10 +105,10 @@ const form = reactive({
   owner_name: '',
   owner_motto: '',
   owner_avatar: '',
+  owner_bio_visible: true,
   owner_bio: emptyDoc()
 })
-const avatarInput = ref<HTMLInputElement | null>(null)
-const uploadingAvatar = ref(false)
+const mediaPickerOpen = ref(false)
 const saving = ref(false)
 const securitySaving = ref(false)
 const notice = ref('')
@@ -109,6 +127,7 @@ watch(data, (value) => {
   form.owner_name = textValue(settings.owner_name)
   form.owner_motto = textValue(settings.owner_motto)
   form.owner_avatar = textValue(settings.owner_avatar)
+  form.owner_bio_visible = settings.owner_bio_visible !== false
   form.owner_bio = jsonContentValue(settings.owner_bio) ?? emptyDoc()
 }, { immediate: true })
 
@@ -124,6 +143,7 @@ async function save() {
         owner_name: form.owner_name,
         owner_motto: form.owner_motto,
         owner_avatar: form.owner_avatar,
+        owner_bio_visible: form.owner_bio_visible,
         owner_bio: form.owner_bio
       }
     })
@@ -135,29 +155,12 @@ async function save() {
   }
 }
 
-async function uploadAvatar(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-
-  uploadingAvatar.value = true
-  saveError.value = ''
-  try {
-    const body = new FormData()
-    body.append('file', file)
-    const asset = await $fetch<{ url?: string }>('/api/admin/upload', {
-      method: 'POST',
-      body
-    })
-    if (asset.url) {
-      form.owner_avatar = asset.url
-    }
-  } catch (err: any) {
-    saveError.value = err?.statusMessage ?? err?.message ?? 'Upload failed'
-  } finally {
-    uploadingAvatar.value = false
+function handleAvatarPicked(files: Array<{ url?: string }>) {
+  const url = files[0]?.url
+  if (url) {
+    form.owner_avatar = url
   }
+  mediaPickerOpen.value = false
 }
 
 async function changePassword() {

@@ -18,9 +18,11 @@ export const PUBLIC_SETTING_KEYS = [
   'owner_avatar',
   'owner_motto',
   'owner_bio',
+  'owner_bio_visible',
   'footer_copyright',
   'footer_links',
-  'footer_social'
+  'footer_social',
+  'footer_filings'
 ] as const
 
 export const RUNTIME_SETTING_KEYS = [
@@ -85,9 +87,11 @@ export interface PublicSiteSettings {
   owner_avatar: string
   owner_motto: string
   owner_bio: JsonContent | null
+  owner_bio_visible: boolean
   footer_copyright: string
   footer_links: SettingsLink[]
   footer_social: SettingsLink[]
+  footer_filings: SettingsLink[]
 }
 
 const publicSettingKeySet = new Set<string>(PUBLIC_SETTING_KEYS)
@@ -289,9 +293,11 @@ export function normalizePublicSettings(values: Record<string, unknown>): Public
     owner_avatar: stringValue(values.owner_avatar),
     owner_motto: stringValue(values.owner_motto),
     owner_bio: jsonContentValue(values.owner_bio),
+    owner_bio_visible: booleanValue(values.owner_bio_visible, true),
     footer_copyright: stringValue(values.footer_copyright),
     footer_links: linksValue(values.footer_links),
-    footer_social: linksValue(values.footer_social)
+    footer_social: linksValue(values.footer_social),
+    footer_filings: linksValue(values.footer_filings)
   }
 }
 
