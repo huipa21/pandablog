@@ -2,11 +2,11 @@
   <div class="space-y-4">
     <div class="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 md:flex-row md:items-center md:justify-between">
       <div>
-        <div class="font-medium">{{ files.length }} orphan file<template v-if="files.length !== 1">s</template></div>
-        <div class="text-sm opacity-80">Files with no tracked references.</div>
+        <div class="font-medium">{{ t('admin.media.orphanCount', { count: files.length }) }}</div>
+        <div class="text-sm opacity-80">{{ t('admin.media.orphansDescription') }}</div>
       </div>
       <UButton type="button" icon="i-lucide-trash-2" color="error" variant="soft" :disabled="!files.length" :loading="cleaning" @click="cleanup">
-        Delete Orphans
+        {{ t('admin.media.deleteOrphans') }}
       </UButton>
     </div>
 
@@ -14,9 +14,9 @@
 
     <AdminConfirmActionDialog
       :open="cleanupDialogOpen"
-      title="Delete orphan files?"
+      :title="t('admin.media.deleteOrphansTitle')"
       :description="cleanupDialogDescription"
-      confirm-label="Delete orphans"
+      :confirm-label="t('admin.media.deleteOrphans')"
       confirm-color="error"
       :loading="cleaning"
       @update:open="(value) => { if (!value) closeCleanupDialog() }"
@@ -39,10 +39,11 @@ const emit = defineEmits<{
   'cleanup-complete': []
 }>()
 
+const { t } = useI18n()
 const { cleanupOrphans } = useMedia()
 const cleaning = ref(false)
 const cleanupDialogOpen = ref(false)
-const cleanupDialogDescription = computed(() => `Delete ${props.files.length} orphan file(s)? This removes database records and physical files.`)
+const cleanupDialogDescription = computed(() => t('admin.media.deleteOrphansDescription', { count: props.files.length }))
 
 async function cleanup() {
   if (!props.files.length) return

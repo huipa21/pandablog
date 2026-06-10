@@ -14,7 +14,7 @@
       >
         <div class="annotation-block-toolbar-left">
           <UIcon name="i-lucide-languages" class="size-3.5" />
-          <span class="annotation-block-toolbar-label">Annotation</span>
+          <span class="annotation-block-toolbar-label">{{ t('admin.editor.nodeViews.annotation') }}</span>
           <span class="annotation-block-toolbar-divider">·</span>
           <select
             class="annotation-block-lang-select"
@@ -22,9 +22,9 @@
             :disabled="busy"
             @change="onLangChange"
           >
-            <option value="cmn">Mandarin (pinyin)</option>
-            <option value="yue">Cantonese (jyutping)</option>
-            <option value="jpn">Japanese (furigana)</option>
+            <option value="cmn">{{ t('admin.editor.nodeViews.mandarinPinyin') }}</option>
+            <option value="yue">{{ t('admin.editor.nodeViews.cantoneseJyutping') }}</option>
+            <option value="jpn">{{ t('admin.editor.nodeViews.japaneseFurigana') }}</option>
           </select>
         </div>
 
@@ -39,7 +39,7 @@
             @click="onPrimaryClick"
           >
             <UIcon :name="primaryIcon" class="size-3.5" />
-            <span>{{ busy ? 'Annotating…' : primaryLabel }}</span>
+            <span>{{ busy ? t('admin.editor.nodeViews.annotating') : primaryLabel }}</span>
           </button>
         </div>
       </div>
@@ -63,6 +63,7 @@ import {
 
 const props = defineProps(nodeViewProps)
 
+const { t } = useI18n()
 const { annotate } = useReadings()
 
 const busy = ref(false)
@@ -173,8 +174,8 @@ const annotateActive = computed(() => {
 })
 
 const primaryLabel = computed(() => {
-  if (selectedInBlock.value.length > 0) return 'Strip selected'
-  return 'Annotate'
+  if (selectedInBlock.value.length > 0) return t('admin.editor.nodeViews.stripSelected')
+  return t('admin.editor.nodeViews.annotate')
 })
 
 const primaryIcon = computed(() => {
@@ -183,11 +184,11 @@ const primaryIcon = computed(() => {
 })
 
 const primaryTitle = computed(() => {
-  if (busy.value) return 'Annotating…'
-  if (pendingRangeInBlock.value) return `Annotate stripped text (${lang.value})`
-  if (selectedInBlock.value.length > 0) return 'Strip selected annotations back to text'
-  if (rubyCount.value > 0) return 'Strip all annotations back to text'
-  return `Annotate text (${lang.value})`
+  if (busy.value) return t('admin.editor.nodeViews.annotating')
+  if (pendingRangeInBlock.value) return t('admin.editor.nodeViews.annotateStrippedText', { lang: lang.value })
+  if (selectedInBlock.value.length > 0) return t('admin.editor.nodeViews.stripSelectedTitle')
+  if (rubyCount.value > 0) return t('admin.editor.nodeViews.stripAllTitle')
+  return t('admin.editor.nodeViews.annotateText', { lang: lang.value })
 })
 
 const primaryDisabled = computed(() => {

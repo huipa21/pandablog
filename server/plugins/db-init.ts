@@ -5,6 +5,7 @@ import { queryDb, useDb } from '../utils/db'
 import { initializeLoggingSettings } from '../utils/logging'
 import { initializeRuntimeSettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
+import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE } from '~/utils/adminLocale'
 import { computeContentStats } from '~/utils/contentStats'
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
@@ -46,6 +47,7 @@ export default defineNitroPlugin(async () => {
     await ensureMediaStorageVersion(db)
     await ensureDefaultMediaSettings(db)
     await ensureDefaultAdminColorMode(db)
+    await ensureDefaultAdminLocale(db)
     await initializeRuntimeSettings(true)
     await ensureDefaultFolder(db)
     await backfillPostStats(db)
@@ -169,6 +171,21 @@ async function ensureDefaultAdminColorMode(db: Awaited<ReturnType<typeof useDb>>
   }
 
   await setAppSetting(db, ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE, 'admin color mode init')
+}
+
+async function ensureDefaultAdminLocale(db: Awaited<ReturnType<typeof useDb>>) {
+  const locale = await queryDb<[Array<{ value?: unknown }> ]>(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: ADMIN_LOCALE_KEY },
+    { label: 'admin locale lookup', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(locale)) {
+    return
+  }
+
+  await setAppSetting(db, ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE, 'admin locale init')
 }
 
 async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {

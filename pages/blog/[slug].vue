@@ -43,10 +43,10 @@
               </div>
               <div class="flex items-center gap-2">
                 <UButton v-if="isLoggedIn" :to="editLink" variant="soft" color="neutral" icon="i-lucide-pencil" size="xs">
-                  Edit
+                  {{ t('public.post.edit') }}
                 </UButton>
                 <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="xs">
-                  Back
+                  {{ t('public.post.back') }}
                 </UButton>
               </div>
             </div>
@@ -63,15 +63,15 @@
 
       <template v-else>
         <UButton to="/" variant="ghost" color="neutral" icon="i-lucide-arrow-left" class="mb-4 -ml-2">
-          Back
+          {{ t('public.post.back') }}
         </UButton>
 
         <UAlert
           v-if="error"
           color="error"
           icon="i-lucide-circle-alert"
-          :title="isSitePrivateError ? 'Site is private' : 'Post not found'"
-          :description="isSitePrivateError ? 'This blog is currently private. Sign in as admin to continue.' : undefined"
+          :title="isSitePrivateError ? t('public.post.sitePrivateTitle') : t('public.post.notFound')"
+          :description="isSitePrivateError ? t('public.post.sitePrivateDescription') : undefined"
         />
 
         <PostPasswordGate
@@ -91,6 +91,7 @@ import type { PostLockedResponse, PostRecord } from '~/types/content'
 definePageMeta({ layout: false })
 
 const route = useRoute()
+const { t, locale } = useI18n()
 const slug = computed(() => String(route.params.slug))
 
 type PublicFetch = <T>(url: string) => Promise<T>
@@ -132,22 +133,22 @@ const isSitePrivateError = computed(() => {
 })
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 
 function formatViews(value: number) {
   const count = Math.max(0, Number(value) || 0)
-  return `${new Intl.NumberFormat('en').format(count)} ${count === 1 ? 'view' : 'views'}`
+  return `${new Intl.NumberFormat(locale.value).format(count)} ${t(count === 1 ? 'public.post.view' : 'public.post.views')}`
 }
 
 function contentLengthLabel(value: PostRecord) {
   const words = Number(value.word_count ?? 0)
   const cjk = Number(value.cjk_char_count ?? 0)
   if (!words && !cjk) return ''
-  const formatter = new Intl.NumberFormat('en')
+  const formatter = new Intl.NumberFormat(locale.value)
   const parts: string[] = []
-  if (cjk) parts.push(`${formatter.format(cjk)} chars`)
-  if (words) parts.push(`${formatter.format(words)} words`)
+  if (cjk) parts.push(`${formatter.format(cjk)} ${t('public.post.chars')}`)
+  if (words) parts.push(`${formatter.format(words)} ${t('public.post.words')}`)
   return parts.join(' · ')
 }
 

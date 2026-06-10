@@ -10,13 +10,13 @@
                 {{ user.username }}
               </h1>
             </div>
-            <UButton type="button" color="neutral" variant="ghost" icon="i-lucide-x" aria-label="Close" @click="dialogOpen = false" />
+            <UButton type="button" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('admin.users.detail.close')" @click="dialogOpen = false" />
           </div>
         </template>
 
         <div class="grid gap-5">
           <div v-if="changesSummary" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-surface-subtle)] p-3 text-sm">
-            <p class="font-medium text-[var(--pb-text)]">Changes To Be Saved:</p>
+            <p class="font-medium text-[var(--pb-text)]">{{ t('admin.users.detail.changesTitle') }}</p>
             <ul class="mt-2 list-inside list-disc space-y-1 text-[var(--pb-text-muted)]">
               <li v-for="change in changesSummary" :key="change">{{ change }}</li>
             </ul>
@@ -24,43 +24,43 @@
 
           <form class="grid gap-4" @submit.prevent="saveUser">
             <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="Displayed Name" name="display_name">
+              <UFormField :label="t('admin.users.displayedName')" name="display_name">
                 <UInput v-model="form.display_name" class="w-full" icon="i-lucide-badge" autocomplete="name" />
               </UFormField>
-              <UFormField label="Email" name="email">
+              <UFormField :label="t('admin.users.email')" name="email">
                 <UInput v-model="form.email" class="w-full" type="email" icon="i-lucide-mail" autocomplete="email" />
               </UFormField>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
-              <UFormField label="Role" name="role">
+              <UFormField :label="t('admin.users.role')" name="role">
                 <USelect v-model="form.role" class="w-full" :items="roleSelectOptions" :content="selectContent" :ui="selectUi" :disabled="roleDisabled" />
               </UFormField>
-              <UFormField label="Disabled" name="disabled">
+              <UFormField :label="t('admin.users.disabled')" name="disabled">
                 <USwitch v-model="disabledValue" :disabled="activeDisabled" />
               </UFormField>
             </div>
 
             <div v-if="canResetPassword" class="grid gap-4 md:grid-cols-2">
               <div class="min-w-0">
-                <UFormField label="New Password" name="password">
+                <UFormField :label="t('admin.users.detail.newPassword')" name="password">
                   <UInput v-model="password" class="w-full min-w-0" :type="passwordVisible ? 'text' : 'password'" autocomplete="new-password" icon="i-lucide-key-round" />
                 </UFormField>
               </div>
               <div class="flex items-end gap-2">
-                <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="passwordVisible ? 'i-lucide-eye-off' : 'i-lucide-eye'" aria-label="Toggle password visibility" @click="passwordVisible = !passwordVisible" />
-                <UButton type="button" size="sm" color="neutral" variant="ghost" icon="i-lucide-copy" aria-label="Copy password" :disabled="!password.trim()" @click="copyPassword" />
-                <UButton type="button" size="sm" color="neutral" variant="soft" icon="i-lucide-refresh-cw" aria-label="Generate password" @click="password = generatePassword()" />
+                <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="passwordVisible ? 'i-lucide-eye-off' : 'i-lucide-eye'" :aria-label="t('admin.users.detail.togglePassword')" @click="passwordVisible = !passwordVisible" />
+                <UButton type="button" size="sm" color="neutral" variant="ghost" icon="i-lucide-copy" :aria-label="t('admin.users.detail.copyPassword')" :disabled="!password.trim()" @click="copyPassword" />
+                <UButton type="button" size="sm" color="neutral" variant="soft" icon="i-lucide-refresh-cw" :aria-label="t('admin.users.generatePassword')" @click="password = generatePassword()" />
               </div>
             </div>
 
             <dl class="grid gap-4 px-1 py-2 text-sm md:grid-cols-2">
               <div>
-                <dt class="text-xs font-medium text-[var(--pb-text-subtle)]">Last Login</dt>
+                <dt class="text-xs font-medium text-[var(--pb-text-subtle)]">{{ t('admin.users.lastLogin') }}</dt>
                 <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(user.last_login_at) }}</dd>
               </div>
               <div>
-                <dt class="text-xs font-medium text-[var(--pb-text-subtle)]">Created</dt>
+                <dt class="text-xs font-medium text-[var(--pb-text-subtle)]">{{ t('admin.users.created') }}</dt>
                 <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(user.created_at) }}</dd>
               </div>
             </dl>
@@ -69,9 +69,9 @@
 
         <template #footer>
           <div class="flex flex-wrap justify-end gap-2">
-            <UButton type="button" color="neutral" variant="ghost" :disabled="saving" @click="dialogOpen = false">Cancel</UButton>
-            <UButton type="button" color="neutral" variant="ghost" :disabled="!hasChanges || saving" @click="resetFormToOriginal">Reset</UButton>
-            <UButton type="submit" icon="i-lucide-save" :loading="saving" :disabled="!hasChanges" @click="saveUser">Save changes</UButton>
+            <UButton type="button" color="neutral" variant="ghost" :disabled="saving" @click="dialogOpen = false">{{ t('admin.common.cancel') }}</UButton>
+            <UButton type="button" color="neutral" variant="ghost" :disabled="!hasChanges || saving" @click="resetFormToOriginal">{{ t('admin.users.detail.reset') }}</UButton>
+            <UButton type="submit" icon="i-lucide-save" :loading="saving" :disabled="!hasChanges" @click="saveUser">{{ t('admin.users.detail.saveChanges') }}</UButton>
           </div>
         </template>
       </UCard>
@@ -122,6 +122,7 @@ const originalForm = reactive({
 const password = ref('')
 const passwordVisible = ref(false)
 const saving = ref(false)
+const { t, locale } = useI18n()
 const adminToast = useAdminToast()
 
 const dialogOpen = computed({
@@ -161,19 +162,19 @@ const hasChanges = computed(() => {
 const changesSummary = computed(() => {
   const changes: string[] = []
   if (form.display_name !== originalForm.display_name) {
-    changes.push(`Display name: "${form.display_name || '(empty)'}"`)
+    changes.push(t('admin.users.detail.displayNameChange', { value: form.display_name || t('admin.users.detail.empty') }))
   }
   if (form.email !== originalForm.email) {
-    changes.push(`Email: "${form.email || '(empty)'}"`)
+    changes.push(t('admin.users.detail.emailChange', { value: form.email || t('admin.users.detail.empty') }))
   }
   if (form.role !== originalForm.role && !roleDisabled.value) {
-    changes.push(`Role: ${roleLabel(form.role)}`)
+    changes.push(t('admin.users.detail.roleChange', { role: roleLabel(form.role) }))
   }
   if (form.active !== originalForm.active && !activeDisabled.value) {
-    changes.push(`Account: ${form.active ? 'Enabled' : 'Disabled'}`)
+    changes.push(t('admin.users.detail.accountChange', { state: form.active ? t('admin.users.filters.enabled') : t('admin.users.filters.disabled') }))
   }
   if (password.value.trim() && canResetPassword.value) {
-    changes.push('Password: will be updated')
+    changes.push(t('admin.users.detail.passwordChange'))
   }
   return changes.length > 0 ? changes : null
 })
@@ -239,9 +240,9 @@ async function saveUser() {
     if (hasPasswordChange) {
       emit('passwordReset', response.user)
     }
-    adminToast.success(hasPasswordChange && !hasUserChanges ? 'Password changed.' : 'User updated.')
+    adminToast.success(hasPasswordChange && !hasUserChanges ? t('admin.users.detail.passwordChanged') : t('admin.users.detail.userUpdated'))
   } catch (error: any) {
-    adminToast.error(error, 'Could not update user')
+    adminToast.error(error, t('admin.users.detail.updateFailed'))
   } finally {
     saving.value = false
   }
@@ -273,22 +274,18 @@ async function copyPassword() {
   if (!password.value.trim()) return
   try {
     await navigator.clipboard.writeText(password.value)
-    adminToast.success('Password copied to clipboard.')
+    adminToast.success(t('admin.users.detail.passwordCopied'))
   } catch {
     // Fallback for browsers without clipboard API
   }
 }
 
 function roleLabel(role: Role) {
-  if (role === 'superadmin') {
-    return 'Admin'
-  }
-
-  return role.charAt(0).toUpperCase() + role.slice(1)
+  return t(`admin.users.roles.${role}`)
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleString() : 'Never'
+  return value ? new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : t('admin.users.never')
 }
 
 const passwordCharacters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?'

@@ -1,6 +1,6 @@
 <template>
   <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Categories</h3>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('public.category.listTitle') }}</h3>
     <div v-if="pending" class="grid gap-2">
       <USkeleton v-for="index in 4" :key="index" class="h-6" />
     </div>
@@ -15,16 +15,17 @@
         <span class="text-xs text-[var(--pb-text-subtle)]">{{ category.post_count ?? 0 }}</span>
       </NuxtLink>
     </nav>
-    <p v-else class="text-sm italic text-[var(--pb-text-subtle)]">No categories yet.</p>
+    <p v-else class="text-sm italic text-[var(--pb-text-subtle)]">{{ t('public.category.emptyList') }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 const { data, pending } = await usePublicBootstrap()
+const { t } = useI18n()
 const categories = computed(() => data.value?.categories ?? [])
 
 function categoryLabel(value: string) {
   const name = value.trim()
-  return name.toLowerCase() === 'default' ? 'Uncategorized' : name
+  return name.toLowerCase() === 'default' ? t('public.category.uncategorized') : name
 }
 </script>

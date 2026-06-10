@@ -6,7 +6,7 @@
     :style="{ top: `${position.top}px`, left: `${position.left}px` }"
   >
     <div class="border-b border-stone-100 px-3 py-2 text-xs text-stone-500">
-      {{ query ? `Blocks matching “${query}”` : 'Insert a block' }}
+      {{ query ? t('admin.editor.slashMenu.matching', { query }) : t('admin.editor.slashMenu.insertBlock') }}
     </div>
     <button
       v-for="(item, index) in items"
@@ -23,9 +23,9 @@
         <span class="block font-medium">{{ item.title }}</span>
         <span class="block truncate text-xs text-stone-500">{{ item.description }}</span>
       </span>
-      <span v-if="!item.implemented" class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-stone-500">Next</span>
+      <span v-if="!item.implemented" class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-stone-500">{{ t('admin.editor.slashMenu.next') }}</span>
     </button>
-    <p v-if="!items.length" class="px-3 py-4 text-sm text-stone-500">No matching blocks.</p>
+    <p v-if="!items.length" class="px-3 py-4 text-sm text-stone-500">{{ t('admin.editor.slashMenu.noMatches') }}</p>
   </div>
 </template>
 
@@ -39,6 +39,8 @@ defineProps<{
   selectedIndex: number
   position: { top: number, left: number }
 }>()
+
+const { t } = useI18n()
 
 defineEmits<{
   pick: [name: string]

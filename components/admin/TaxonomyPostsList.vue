@@ -2,8 +2,8 @@
   <section class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
     <header class="flex flex-col gap-3 border-b border-[var(--pb-divider)] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Posts</p>
-        <h2 class="text-lg font-semibold tracking-normal text-[var(--pb-text)]">{{ totalPosts }} post{{ totalPosts === 1 ? '' : 's' }}</h2>
+        <p class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.eyebrow') }}</p>
+        <h2 class="text-lg font-semibold tracking-normal text-[var(--pb-text)]">{{ postsCountLabel }}</h2>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <USelect v-model="statusFilter" :items="statusFilterOptions" size="sm" class="w-40" />
@@ -12,7 +12,7 @@
       </div>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load posts" class="m-4" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.posts.loadFailed')" class="m-4" />
 
     <div v-if="pending" class="grid gap-3 p-5">
       <USkeleton v-for="index in 4" :key="index" class="h-12" />
@@ -22,33 +22,33 @@
       <table class="w-full min-w-[980px] border-collapse text-left text-sm">
         <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
           <tr>
-            <th class="min-w-64 px-4 py-3 font-medium">Title</th>
-            <th class="min-w-48 px-4 py-3 font-medium">Tags</th>
-            <th class="min-w-48 px-4 py-3 font-medium">Categories</th>
-            <th class="min-w-40 px-4 py-3 font-medium">Privacy</th>
-            <th class="min-w-32 px-4 py-3 font-medium">Status</th>
-            <th class="min-w-36 px-4 py-3 font-medium">Published</th>
-            <th class="min-w-36 px-4 py-3 font-medium">Updated</th>
+            <th class="min-w-64 px-4 py-3 font-medium">{{ t('admin.posts.table.title') }}</th>
+            <th class="min-w-48 px-4 py-3 font-medium">{{ t('admin.posts.table.tags') }}</th>
+            <th class="min-w-48 px-4 py-3 font-medium">{{ t('admin.posts.table.categories') }}</th>
+            <th class="min-w-40 px-4 py-3 font-medium">{{ t('admin.posts.table.privacy') }}</th>
+            <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.status') }}</th>
+            <th class="min-w-36 px-4 py-3 font-medium">{{ t('admin.posts.table.published') }}</th>
+            <th class="min-w-36 px-4 py-3 font-medium">{{ t('admin.posts.table.updated') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--pb-divider)]">
           <tr v-for="post in posts" :key="post.id" class="hover:bg-[var(--pb-card-bg-hover)]">
             <td class="px-4 py-3 align-top">
               <NuxtLink :to="`/admin/posts/${encodeURIComponent(post.id)}`" class="font-medium text-[var(--pb-text)] hover:text-[var(--pb-link-hover)]">
-                {{ post.title || 'Untitled' }}
+                {{ post.title || t('admin.common.untitled') }}
               </NuxtLink>
             </td>
             <td class="px-4 py-3 align-top">
               <span v-if="post.tags?.length" class="flex flex-wrap gap-1">
                 <UBadge v-for="tag in post.tags" :key="tag.id" color="neutral" variant="subtle">{{ tag.name }}</UBadge>
               </span>
-              <span v-else class="text-[var(--pb-text-subtle)]">No tags</span>
+              <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noTags') }}</span>
             </td>
             <td class="px-4 py-3 align-top">
               <span v-if="post.categories?.length" class="flex flex-wrap gap-1">
                 <UBadge v-for="category in post.categories" :key="category.id" color="primary" variant="subtle">{{ category.name }}</UBadge>
               </span>
-              <span v-else class="text-[var(--pb-text-subtle)]">No categories</span>
+              <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noCategories') }}</span>
             </td>
             <td class="px-4 py-3 align-top">
               <span class="inline-flex items-center gap-1.5 text-[var(--pb-text-muted)]">
@@ -68,16 +68,16 @@
       </table>
     </div>
 
-    <UEmpty v-else icon="i-lucide-file-text" title="No posts" description="Posts assigned here will appear in this list." class="py-12" />
+    <UEmpty v-else icon="i-lucide-file-text" :title="t('admin.posts.assignedEmptyTitle')" :description="t('admin.posts.assignedEmptyDescription')" class="py-12" />
 
     <footer class="flex flex-col gap-3 border-t border-[var(--pb-divider)] px-4 py-3 text-sm text-[var(--pb-text-muted)] md:flex-row md:items-center md:justify-between">
       <span>{{ pageRangeLabel }}</span>
       <div class="flex items-center gap-2">
-        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" aria-label="First page" :disabled="page <= 1" @click="goToPage(1)" />
-        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" aria-label="Previous page" :disabled="page <= 1" @click="goToPage(page - 1)" />
-        <span class="min-w-24 text-center">Page {{ page }} of {{ totalPages }}</span>
-        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" aria-label="Next page" :disabled="page >= totalPages" @click="goToPage(page + 1)" />
-        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-right" aria-label="Last page" :disabled="page >= totalPages" @click="goToPage(totalPages)" />
+        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" :aria-label="t('admin.common.firstPage')" :disabled="page <= 1" @click="goToPage(1)" />
+        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" :aria-label="t('admin.common.previousPage')" :disabled="page <= 1" @click="goToPage(page - 1)" />
+        <span class="min-w-24 text-center">{{ t('admin.common.pageOf', { page, total: totalPages }) }}</span>
+        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" :aria-label="t('admin.common.nextPage')" :disabled="page >= totalPages" @click="goToPage(page + 1)" />
+        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-right" :aria-label="t('admin.common.lastPage')" :disabled="page >= totalPages" @click="goToPage(totalPages)" />
       </div>
     </footer>
   </section>
@@ -99,28 +99,29 @@ const props = withDefaults(defineProps<{
 })
 
 const statusFilter = ref<PostStatusFilter>('all')
+const { t, locale } = useI18n()
 const sortBy = ref<AdminPostSort>('updated_desc')
 const perPage = ref<PerPageOption>('10')
 const page = ref(1)
 
-const statusFilterOptions = [
-  { label: 'All active', value: 'all' },
-  { label: 'Draft', value: 'draft' },
-  { label: 'Published', value: 'published' },
-  { label: 'Archived', value: 'archived' }
-]
-const sortOptions = [
-  { label: 'Updated newest', value: 'updated_desc' },
-  { label: 'Updated oldest', value: 'updated_asc' },
-  { label: 'Published newest', value: 'published_desc' },
-  { label: 'Published oldest', value: 'published_asc' }
-]
-const perPageOptions = [
-  { label: '10 / page', value: '10' },
-  { label: '25 / page', value: '25' },
-  { label: '50 / page', value: '50' },
-  { label: '100 / page', value: '100' }
-]
+const statusFilterOptions = computed(() => [
+  { label: t('admin.posts.filters.allActive'), value: 'all' },
+  { label: t('admin.posts.filters.draft'), value: 'draft' },
+  { label: t('admin.posts.filters.published'), value: 'published' },
+  { label: t('admin.posts.filters.archived'), value: 'archived' }
+])
+const sortOptions = computed(() => [
+  { label: t('admin.posts.filters.updatedNewest'), value: 'updated_desc' },
+  { label: t('admin.posts.filters.updatedOldest'), value: 'updated_asc' },
+  { label: t('admin.posts.filters.publishedNewest'), value: 'published_desc' },
+  { label: t('admin.posts.filters.publishedOldest'), value: 'published_asc' }
+])
+const perPageOptions = computed(() => [
+  { label: t('admin.common.perPage', { count: 10 }), value: '10' },
+  { label: t('admin.common.perPage', { count: 25 }), value: '25' },
+  { label: t('admin.common.perPage', { count: 50 }), value: '50' },
+  { label: t('admin.common.perPage', { count: 100 }), value: '100' }
+])
 
 const perPageNumber = computed(() => Number(perPage.value))
 const start = computed(() => (page.value - 1) * perPageNumber.value)
@@ -152,15 +153,16 @@ const { data, pending, error } = await useAsyncData(
 
 const posts = computed(() => data.value?.posts ?? [])
 const totalPosts = computed(() => data.value?.total ?? 0)
+const postsCountLabel = computed(() => t(totalPosts.value === 1 ? 'admin.posts.countOne' : 'admin.posts.count', { count: totalPosts.value }))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / perPageNumber.value)))
 const pageRangeLabel = computed(() => {
   if (!totalPosts.value) {
-    return 'Showing 0 posts'
+    return t('admin.posts.showingZero')
   }
 
   const first = start.value + 1
   const last = Math.min(start.value + posts.value.length, totalPosts.value)
-  return `Showing ${first}-${last} of ${totalPosts.value}`
+  return t('admin.posts.showingRange', { first, last, total: totalPosts.value })
 })
 
 watch([statusFilter, sortBy, perPage, categoryIdsParam, tagIdsParam], () => {
@@ -179,14 +181,14 @@ function goToPage(nextPage: number) {
 
 function visibilityLabel(value: PostVisibility | undefined) {
   if (value === 'private') {
-    return 'Private'
+    return t('admin.posts.visibility.private')
   }
 
   if (value === 'password') {
-    return 'Password protected'
+    return t('admin.posts.visibility.password')
   }
 
-  return 'Public'
+  return t('admin.posts.visibility.public')
 }
 
 function visibilityIcon(value: PostVisibility | undefined) {
@@ -203,9 +205,9 @@ function visibilityIcon(value: PostVisibility | undefined) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) {
-    return 'Not published'
+    return t('admin.posts.notPublished')
   }
 
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 </script>

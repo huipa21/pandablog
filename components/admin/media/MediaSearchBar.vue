@@ -1,23 +1,23 @@
 <template>
   <div class="flex flex-wrap items-end gap-3 rounded-lg border border-stone-200 bg-white p-3">
-    <UFormField label="Search" class="min-w-[180px] flex-[2]">
-      <UInput v-model="local.search" icon="i-lucide-search" placeholder="Name or comment" @keydown.enter.prevent="submit" />
+    <UFormField :label="t('admin.media.search')" class="min-w-[180px] flex-[2]">
+      <UInput v-model="local.search" icon="i-lucide-search" :placeholder="t('admin.media.nameOrComment')" @keydown.enter.prevent="submit" />
     </UFormField>
-    <UFormField label="Type" class="min-w-[130px] flex-1">
+    <UFormField :label="t('admin.media.type')" class="min-w-[130px] flex-1">
       <USelect v-model="local.type" :items="typeItems" />
     </UFormField>
-    <UFormField label="From" class="min-w-[140px] flex-1">
+    <UFormField :label="t('admin.media.from')" class="min-w-[140px] flex-1">
       <UInput v-model="local.uploaded_from" type="date" />
     </UFormField>
-    <UFormField label="To" class="min-w-[140px] flex-1">
+    <UFormField :label="t('admin.media.to')" class="min-w-[140px] flex-1">
       <UInput v-model="local.uploaded_to" type="date" />
     </UFormField>
-    <UFormField label="Tag" class="min-w-[140px] flex-1">
+    <UFormField :label="t('admin.media.tag')" class="min-w-[140px] flex-1">
       <div class="relative">
         <UInput
           v-model="local.tag"
           icon="i-lucide-tag"
-          placeholder="Tag"
+          :placeholder="t('admin.media.tag')"
           @focus="handleTagFocus"
           @input="handleTagInput"
           @keydown.enter.prevent="submit"
@@ -40,18 +40,18 @@
     </UFormField>
     <label class="flex items-center gap-2 pb-1 text-sm text-stone-700">
       <input v-model="local.orphan" type="checkbox" class="rounded border-stone-300">
-      <span>Orphans only</span>
+      <span>{{ t('admin.media.orphanOnly') }}</span>
     </label>
     <label class="flex items-center gap-2 pb-1 text-sm text-stone-700">
       <input v-model="local.search_regex" type="checkbox" class="rounded border-stone-300">
-      <span>Regex</span>
+      <span>{{ t('admin.media.regex') }}</span>
     </label>
     <label class="flex items-center gap-2 pb-1 text-sm text-stone-700">
       <input v-model="local.case_insensitive" type="checkbox" class="rounded border-stone-300">
-      <span>Case insensitive</span>
+      <span>{{ t('admin.media.caseInsensitive') }}</span>
     </label>
     <div class="flex gap-2">
-      <UButton type="button" icon="i-lucide-search" @click="submit">Search</UButton>
+      <UButton type="button" icon="i-lucide-search" @click="submit">{{ t('admin.media.search') }}</UButton>
       <UButton type="button" icon="i-lucide-rotate-ccw" color="neutral" variant="soft" @click="reset" />
     </div>
   </div>
@@ -78,6 +78,7 @@ const emit = defineEmits<{
   'search': []
 }>()
 
+const { t } = useI18n()
 const local = reactive<MediaSearchFilters>({ ...props.modelValue })
 const allTags = ref<string[]>([])
 const tagDropdownOpen = ref(false)
@@ -94,14 +95,14 @@ const filteredTags = computed(() => {
     .slice(0, 10)
 })
 
-const typeItems = [
-  { label: 'All files', value: 'all' },
-  { label: 'Images', value: 'image' },
-  { label: 'Videos', value: 'video' },
-  { label: 'Documents', value: 'document' },
-  { label: 'Archives', value: 'archive' },
-  { label: 'Other', value: 'other' }
-]
+const typeItems = computed(() => [
+  { label: t('admin.media.typeAll'), value: 'all' },
+  { label: t('admin.media.typeImages'), value: 'image' },
+  { label: t('admin.media.typeVideos'), value: 'video' },
+  { label: t('admin.media.typeDocuments'), value: 'document' },
+  { label: t('admin.media.typeArchives'), value: 'archive' },
+  { label: t('admin.media.typeOther'), value: 'other' }
+])
 
 watch(() => props.modelValue, (value) => {
   Object.assign(local, value)

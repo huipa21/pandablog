@@ -13,7 +13,7 @@
       @dragend="emit('dragend')"
     >
       <UDropdownMenu :items="transformItems">
-        <button type="button" class="bpt-btn" title="Transform to...">
+        <button type="button" class="bpt-btn" :title="t('admin.editor.toolbar.transformTo')">
           <UIcon :name="currentIcon" class="size-4" />
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
         </button>
@@ -24,7 +24,7 @@
         class="bpt-btn cursor-grab"
         draggable="true"
         data-drag-handle="true"
-        title="Drag to move"
+        :title="t('admin.editor.toolbar.dragToolbar')"
         @mousedown.stop
         @dragstart="emit('dragstart', $event)"
         @dragend="emit('dragend')"
@@ -32,22 +32,22 @@
         <UIcon name="i-lucide-move" class="size-4" />
       </button>
 
-      <button type="button" class="bpt-btn" title="Move up" @click="emit('move-up')">
+      <button type="button" class="bpt-btn" :title="t('admin.editor.toolbar.moveUp')" @click="emit('move-up')">
         <UIcon name="i-lucide-arrow-up" class="size-4" />
       </button>
-      <button type="button" class="bpt-btn" title="Move down" @click="emit('move-down')">
+      <button type="button" class="bpt-btn" :title="t('admin.editor.toolbar.moveDown')" @click="emit('move-down')">
         <UIcon name="i-lucide-arrow-down" class="size-4" />
       </button>
 
       <UDropdownMenu :items="alignItems">
-        <button type="button" class="bpt-btn" title="Align">
+        <button type="button" class="bpt-btn" :title="t('admin.editor.toolbar.align')">
           <UIcon :name="alignIcon" class="size-4" />
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
         </button>
       </UDropdownMenu>
 
       <UDropdownMenu :items="moreItems">
-        <button type="button" class="bpt-btn" title="More">
+        <button type="button" class="bpt-btn" :title="t('admin.editor.toolbar.moreOptions')">
           <UIcon name="i-lucide-more-vertical" class="size-4" />
         </button>
       </UDropdownMenu>
@@ -76,6 +76,7 @@ const emit = defineEmits<{
   transform: [type: string]
 }>()
 
+const { t } = useI18n()
 const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 
@@ -107,14 +108,14 @@ const currentIcon = computed(() => {
 })
 
 const transformItems = computed(() => [[
-  { label: 'Paragraph', icon: 'i-lucide-pilcrow', onSelect: () => emit('transform', 'paragraph') },
-  { label: 'Heading 1', icon: 'i-lucide-heading-1', onSelect: () => emit('transform', 'heading-1') },
-  { label: 'Heading 2', icon: 'i-lucide-heading-2', onSelect: () => emit('transform', 'heading-2') },
-  { label: 'Heading 3', icon: 'i-lucide-heading-3', onSelect: () => emit('transform', 'heading-3') },
-  { label: 'Bullet list', icon: 'i-lucide-list', onSelect: () => emit('transform', 'bulletList') },
-  { label: 'Numbered list', icon: 'i-lucide-list-ordered', onSelect: () => emit('transform', 'orderedList') },
-  { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
-  { label: 'Code', icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') }
+  { label: t('admin.editor.toolbar.paragraph'), icon: 'i-lucide-pilcrow', onSelect: () => emit('transform', 'paragraph') },
+  { label: t('admin.editor.toolbar.heading1'), icon: 'i-lucide-heading-1', onSelect: () => emit('transform', 'heading-1') },
+  { label: t('admin.editor.toolbar.heading2'), icon: 'i-lucide-heading-2', onSelect: () => emit('transform', 'heading-2') },
+  { label: t('admin.editor.toolbar.heading3'), icon: 'i-lucide-heading-3', onSelect: () => emit('transform', 'heading-3') },
+  { label: t('admin.editor.toolbar.bulletList'), icon: 'i-lucide-list', onSelect: () => emit('transform', 'bulletList') },
+  { label: t('admin.editor.toolbar.numberedList'), icon: 'i-lucide-list-ordered', onSelect: () => emit('transform', 'orderedList') },
+  { label: t('admin.editor.toolbar.quote'), icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
+  { label: t('admin.editor.toolbar.code'), icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') }
 ]])
 
 const alignIcon = computed(() => {
@@ -127,18 +128,18 @@ const alignIcon = computed(() => {
 })
 
 const alignItems = computed(() => [[
-  { label: 'Align left', icon: 'i-lucide-align-left', onSelect: () => setAlign('left') },
-  { label: 'Align center', icon: 'i-lucide-align-center', onSelect: () => setAlign('center') },
-  { label: 'Align right', icon: 'i-lucide-align-right', onSelect: () => setAlign('right') },
-  { label: 'Justify', icon: 'i-lucide-align-justify', onSelect: () => setAlign('justify') }
+  { label: t('admin.editor.toolbar.alignLeft'), icon: 'i-lucide-align-left', onSelect: () => setAlign('left') },
+  { label: t('admin.editor.toolbar.alignCenter'), icon: 'i-lucide-align-center', onSelect: () => setAlign('center') },
+  { label: t('admin.editor.toolbar.alignRight'), icon: 'i-lucide-align-right', onSelect: () => setAlign('right') },
+  { label: t('admin.editor.toolbar.justify'), icon: 'i-lucide-align-justify', onSelect: () => setAlign('justify') }
 ]])
 
 const moreItems = computed(() => [[
-  { label: 'Duplicate', icon: 'i-lucide-copy', onSelect: () => emit('duplicate') },
-  { label: 'Move up', icon: 'i-lucide-arrow-up', onSelect: () => emit('move-up') },
-  { label: 'Move down', icon: 'i-lucide-arrow-down', onSelect: () => emit('move-down') }
+  { label: t('admin.editor.toolbar.duplicate'), icon: 'i-lucide-copy', onSelect: () => emit('duplicate') },
+  { label: t('admin.editor.toolbar.moveUp'), icon: 'i-lucide-arrow-up', onSelect: () => emit('move-up') },
+  { label: t('admin.editor.toolbar.moveDown'), icon: 'i-lucide-arrow-down', onSelect: () => emit('move-down') }
 ], [
-  { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => emit('delete') }
+  { label: t('admin.editor.toolbar.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => emit('delete') }
 ]])
 
 function setAlign(value: 'left' | 'center' | 'right' | 'justify') {

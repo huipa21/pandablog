@@ -34,8 +34,23 @@ export default defineNuxtConfig({
     '@nuxt/image',
     '@nuxt/icon',
     '@pinia/nuxt',
+    '@nuxtjs/i18n',
     'nuxt-auth-utils'
   ],
+  i18n: {
+    strategy: 'no_prefix',
+    defaultLocale: 'en',
+    langDir: 'locales',
+    locales: [
+      { code: 'en', name: 'English', language: 'en-US', file: 'en.json' },
+      { code: 'zh-CN', name: '简体中文', language: 'zh-CN', file: 'zh-CN.json' }
+    ],
+    detectBrowserLanguage: {
+      useCookie: false,
+      alwaysRedirect: false,
+      fallbackLocale: 'en'
+    }
+  },
   css: ['~/assets/css/main.css'],
   icon: {
     provider: 'server',

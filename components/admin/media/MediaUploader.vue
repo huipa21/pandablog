@@ -8,20 +8,20 @@
       @drop.prevent="handleDrop"
     >
       <UIcon name="i-lucide-cloud-upload" class="mx-auto mb-3 size-9 text-stone-400" />
-      <div class="text-sm font-medium text-stone-800">Drop files here</div>
-      <div class="mt-1 text-xs text-stone-500">{{ mediaConfig.getMaxFileSizeDisplay() }} per file, {{ mediaConfig.getMaxFilesPerUpload() }} at a time</div>
+      <div class="text-sm font-medium text-stone-800">{{ t('admin.media.dropFilesHere') }}</div>
+      <div class="mt-1 text-xs text-stone-500">{{ t('admin.media.uploadLimit', { size: mediaConfig.getMaxFileSizeDisplay(), count: mediaConfig.getMaxFilesPerUpload() }) }}</div>
       <UButton type="button" icon="i-lucide-folder-open" size="sm" class="mt-4" @click="openFileDialog">
-        Select files
+        {{ t('admin.media.selectFiles') }}
       </UButton>
       <input ref="fileInput" type="file" multiple class="sr-only" @change="handleFileSelect">
     </div>
 
     <div v-if="items.length" class="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
       <div class="grid gap-3 md:grid-cols-2">
-        <UFormField label="General comment">
+        <UFormField :label="t('admin.media.generalComment')">
           <UTextarea v-model="generalComment" :rows="2" />
         </UFormField>
-        <UFormField label="General tags">
+        <UFormField :label="t('admin.media.generalTags')">
           <div class="rounded-md border border-stone-300 px-2 py-1.5">
             <MediaTagInput v-model="generalTags" />
           </div>
@@ -31,8 +31,8 @@
       <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3" :class="privateUpload ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-stone-200 bg-white'">
         <USwitch v-model="privateUpload" />
         <span class="grid gap-0.5">
-          <span class="font-medium text-stone-900">Private upload</span>
-          <span class="text-xs text-stone-500">Only admins and the uploader can view this file directly.</span>
+          <span class="font-medium text-stone-900">{{ t('admin.media.privateUpload') }}</span>
+          <span class="text-xs text-stone-500">{{ t('admin.media.privateUploadHelp') }}</span>
         </span>
       </label>
 
@@ -49,13 +49,13 @@
           </colgroup>
           <thead class="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
             <tr>
-              <th class="px-3 py-2 text-left">Preview</th>
-              <th class="px-3 py-2 text-left">File</th>
-              <th class="px-3 py-2 text-left">Name</th>
-              <th class="px-3 py-2 text-left">Comment override</th>
-              <th class="px-3 py-2 text-left">Tag override</th>
-              <th class="px-3 py-2 text-left">Progress</th>
-              <th class="px-3 py-2 text-right">Action</th>
+              <th class="px-3 py-2 text-left">{{ t('admin.media.preview') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('admin.media.file') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('admin.media.name') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('admin.media.commentOverride') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('admin.media.tagOverride') }}</th>
+              <th class="px-3 py-2 text-left">{{ t('admin.media.progress') }}</th>
+              <th class="px-3 py-2 text-right">{{ t('admin.media.action') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-stone-200 bg-white">
@@ -85,7 +85,7 @@
               </td>
               <td class="px-3 py-2">
                 <div class="w-28 space-y-1">
-                  <div class="text-xs text-stone-500">{{ uploading ? `${item.progress}%` : 'Waiting' }}</div>
+                  <div class="text-xs text-stone-500">{{ uploading ? `${item.progress}%` : t('admin.media.waiting') }}</div>
                   <div class="h-1 w-full overflow-hidden rounded bg-stone-200">
                     <div class="h-full rounded bg-teal-500 transition-[width] duration-150" :style="{ width: `${uploading ? item.progress : 0}%` }" />
                   </div>
@@ -100,9 +100,9 @@
       </div>
 
       <div class="flex justify-end gap-2">
-        <UButton type="button" color="neutral" variant="ghost" :disabled="uploading" @click="clearQueue">Clear</UButton>
+        <UButton type="button" color="neutral" variant="ghost" :disabled="uploading" @click="clearQueue">{{ t('admin.media.clear') }}</UButton>
         <UButton type="button" icon="i-lucide-upload" :loading="uploading" :disabled="!items.length" @click="uploadQueuedFiles">
-          Upload {{ items.length }} file<template v-if="items.length !== 1">s</template>
+          {{ t('admin.media.uploadCount', { count: items.length }) }}
         </UButton>
       </div>
     </div>
@@ -122,7 +122,7 @@
         >
         <UIcon :name="resultIcon(result.status)" class="mt-0.5 size-5 shrink-0" />
         <div class="min-w-0 flex-1">
-          <div class="truncate font-medium">{{ result.original_name || result.record?.original_name || 'File' }}</div>
+          <div class="truncate font-medium">{{ result.original_name || result.record?.original_name || t('admin.media.fileFallback') }}</div>
           <div class="text-xs opacity-80">{{ resultText(result) }}</div>
           <button
             v-if="result.record || result.similar_to"
@@ -130,7 +130,7 @@
             class="mt-1 text-xs underline"
             @click="emit('view-media', (result.record || result.similar_to)!.id)"
           >
-            View file
+            {{ t('admin.media.viewFile') }}
           </button>
         </div>
       </div>
@@ -157,6 +157,7 @@ const emit = defineEmits<{
   'view-media': [id: string]
 }>()
 
+const { t } = useI18n()
 const fileInput = ref<HTMLInputElement>()
 const isDragging = ref(false)
 const items = ref<UploadQueueItem[]>([])
@@ -224,7 +225,7 @@ function addFiles(files: File[]) {
   if (files.length > incoming.length) {
     uploadResults.value.push({
       status: 'rejected',
-      reason: `Maximum ${mediaConfig.getMaxFilesPerUpload()} files per upload allowed`
+      reason: t('admin.media.maxFilesRejected', { count: mediaConfig.getMaxFilesPerUpload() })
     })
   }
 }
@@ -326,10 +327,10 @@ function resultIcon(status: UploadResultStatus) {
 }
 
 function resultText(result: UploadFileResult) {
-  if (result.status === 'created') return 'Uploaded successfully'
-  if (result.status === 'duplicate') return 'Existing file reused'
-  if (result.status === 'similar') return 'Similar image already exists'
-  return result.reason || 'Upload rejected'
+  if (result.status === 'created') return t('admin.media.uploadedSuccessfully')
+  if (result.status === 'duplicate') return t('admin.media.existingFileReused')
+  if (result.status === 'similar') return t('admin.media.similarImageExists')
+  return result.reason || t('admin.media.uploadRejected')
 }
 
 onBeforeUnmount(() => {

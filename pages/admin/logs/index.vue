@@ -1,35 +1,35 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tools</p>
-      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Logs</h1>
-      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">Operational overview for access, activity, and errors.</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
+      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.title') }}</h1>
+      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">{{ t('admin.logs.description') }}</p>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load log dashboard" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
 
     <div class="grid gap-4 md:grid-cols-4">
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">Access logs</p>
+        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.accessLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.access.count ?? 0 }}</p>
       </div>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">Activity logs</p>
+        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.activityLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? 0 }}</p>
       </div>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">Error logs</p>
+        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.errorLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.count ?? 0 }}</p>
       </div>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">DB estimate</p>
+        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.dbEstimate') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ formatBytes(stats?.estimate_bytes ?? 0) }}</p>
       </div>
     </div>
 
     <div class="grid gap-4 lg:grid-cols-3">
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] lg:col-span-2">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Requests per hour (last 24h)</h2>
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.requestsPerHour') }}</h2>
         <div class="mt-4 flex h-44 items-end gap-1 rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] px-2 py-3">
           <div
             v-for="(point, index) in hourlyPoints"
@@ -42,20 +42,20 @@
       </div>
 
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Quick links</h2>
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.quickLinks') }}</h2>
         <div class="mt-3 grid gap-2">
-          <UButton to="/admin/logs/access" color="neutral" variant="subtle" block icon="i-lucide-globe">Access logs</UButton>
-          <UButton to="/admin/logs/activity" color="neutral" variant="subtle" block icon="i-lucide-notebook-pen">Activity logs</UButton>
-          <UButton to="/admin/logs/errors" color="neutral" variant="subtle" block icon="i-lucide-triangle-alert">Error logs</UButton>
-          <UButton to="/admin/logs/settings" color="neutral" variant="subtle" block icon="i-lucide-settings-2">Logging settings</UButton>
+          <UButton to="/admin/logs/access" color="neutral" variant="subtle" block icon="i-lucide-globe">{{ t('admin.logs.accessLogs') }}</UButton>
+          <UButton to="/admin/logs/activity" color="neutral" variant="subtle" block icon="i-lucide-notebook-pen">{{ t('admin.logs.activityLogs') }}</UButton>
+          <UButton to="/admin/logs/errors" color="neutral" variant="subtle" block icon="i-lucide-triangle-alert">{{ t('admin.logs.errorLogs') }}</UButton>
+          <UButton to="/admin/logs/settings" color="neutral" variant="subtle" block icon="i-lucide-settings-2">{{ t('admin.logs.loggingSettings') }}</UButton>
         </div>
       </div>
     </div>
 
     <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Recent errors</h2>
-        <UButton size="xs" variant="ghost" color="neutral" @click="refreshAll">Refresh</UButton>
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.recentErrors') }}</h2>
+        <UButton size="xs" variant="ghost" color="neutral" @click="refreshAll">{{ t('admin.logs.refresh') }}</UButton>
       </div>
 
       <div v-if="pending" class="mt-3 grid gap-2">
@@ -64,7 +64,7 @@
       </div>
 
       <div v-else-if="!recentErrors.length" class="mt-3 rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">
-        No error logs in the selected period.
+        {{ t('admin.logs.noRecentErrors') }}
       </div>
 
       <div v-else class="mt-3 grid gap-2">
@@ -79,6 +79,8 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
+
+const { t } = useI18n()
 
 const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 

@@ -4,21 +4,21 @@
       <UCard>
         <template #header>
           <div>
-            <h3 class="text-base font-semibold text-stone-900">Link a related post</h3>
-            <p class="text-xs text-stone-500">Search by title or slug. The two posts will be linked bidirectionally.</p>
+            <h3 class="text-base font-semibold text-stone-900">{{ t('admin.editor.relatedPost.title') }}</h3>
+            <p class="text-xs text-stone-500">{{ t('admin.editor.relatedPost.description') }}</p>
           </div>
         </template>
 
         <div class="grid gap-3">
           <UInput
             v-model="query"
-            placeholder="Type to search posts..."
+            :placeholder="t('admin.editor.relatedPost.placeholder')"
             icon="i-lucide-search"
             autofocus
             @input="onQueryInput"
           />
 
-          <div v-if="loading" class="py-8 text-center text-sm text-stone-500">Searching…</div>
+          <div v-if="loading" class="py-8 text-center text-sm text-stone-500">{{ t('admin.editor.relatedPost.searching') }}</div>
           <ul v-else-if="results.length" class="max-h-64 divide-y divide-stone-100 overflow-y-auto rounded border border-stone-200">
             <li v-for="item in results" :key="item.slug">
               <button
@@ -35,16 +35,16 @@
             </li>
           </ul>
           <div v-else-if="query.trim()" class="rounded border border-dashed border-stone-200 p-4 text-center text-sm text-stone-500">
-            No posts found.
+            {{ t('admin.editor.relatedPost.noPosts') }}
           </div>
           <div v-else class="rounded border border-dashed border-stone-200 p-4 text-center text-sm text-stone-500">
-            Start typing to find a post to link.
+            {{ t('admin.editor.relatedPost.startTyping') }}
           </div>
         </div>
 
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton variant="ghost" color="neutral" @click="close">Cancel</UButton>
+            <UButton variant="ghost" color="neutral" @click="close">{{ t('admin.editor.relatedPost.cancel') }}</UButton>
           </div>
         </template>
       </UCard>
@@ -69,6 +69,7 @@ const emit = defineEmits<{
 }>()
 
 const open = ref(props.modelValue)
+const { t } = useI18n()
 const query = ref('')
 const loading = ref(false)
 const results = ref<PostSuggestion[]>([])

@@ -14,7 +14,7 @@
   <!-- Overlay variant (legacy / fallback) -->
   <Teleport v-else to="body">
     <div v-if="open" class="fixed inset-0 z-50" data-testid="block-inserter-panel" @keydown.esc="$emit('close')">
-      <button type="button" class="absolute inset-0 cursor-default bg-black/20" aria-label="Close block inserter" @click="$emit('close')" />
+      <button type="button" class="absolute inset-0 cursor-default bg-black/20" :aria-label="t('admin.editor.inserter.close')" @click="$emit('close')" />
       <aside class="absolute bottom-0 left-0 top-0 flex w-[320px] flex-col border-r border-stone-200 bg-white shadow-xl">
         <BlockInserterBody @close="$emit('close')" @insert="$emit('insert', $event)" />
       </aside>
@@ -34,4 +34,6 @@ defineEmits<{
   close: []
   insert: [name: string]
 }>()
+
+const { t } = useI18n()
 </script>

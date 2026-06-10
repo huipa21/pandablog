@@ -2,14 +2,14 @@
   <div class="flex h-full flex-col">
     <div class="flex h-14 items-center justify-between border-b border-stone-200 px-4">
       <div>
-        <h2 class="text-sm font-semibold text-stone-950">Add Block</h2>
-        <p class="text-xs text-stone-500">Choose what to insert next.</p>
+        <h2 class="text-sm font-semibold text-stone-950">{{ t('admin.editor.inserter.addBlock') }}</h2>
+        <p class="text-xs text-stone-500">{{ t('admin.editor.inserter.description') }}</p>
       </div>
       <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" @click="$emit('close')" />
     </div>
 
     <div class="border-b border-stone-200 p-3">
-      <UInput v-model="query" icon="i-lucide-search" placeholder="Search blocks" autofocus />
+      <UInput v-model="query" icon="i-lucide-search" :placeholder="t('admin.editor.inserter.searchBlocks')" autofocus />
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto p-3">
@@ -27,13 +27,13 @@
           >
             <UIcon :name="block.icon" class="size-5 text-teal-700" />
             <span class="font-medium leading-tight">{{ block.title }}</span>
-            <span v-if="!block.implemented" class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-stone-500">Next</span>
+            <span v-if="!block.implemented" class="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-stone-500">{{ t('admin.editor.inserter.next') }}</span>
           </button>
         </div>
       </div>
 
       <p v-if="!groupedBlocks.length" class="px-2 py-8 text-center text-sm text-stone-500">
-        No blocks match that search.
+        {{ t('admin.editor.inserter.noMatches') }}
       </p>
     </div>
   </div>
@@ -48,12 +48,13 @@ defineEmits<{
 }>()
 
 const query = ref('')
+const { t } = useI18n()
 const blockRegistry = useBlockRegistry()
 
 const groupedBlocks = computed(() => {
   if (query.value.trim()) {
     const blocks = blockRegistry.searchBlocks(query.value)
-    return blocks.length ? [{ label: 'Search Results', blocks }] : []
+    return blocks.length ? [{ label: t('admin.editor.inserter.searchResults'), blocks }] : []
   }
 
   return blockRegistry.categories

@@ -11,7 +11,7 @@
         class="columns-block-header-input"
         type="text"
         :value="header"
-        placeholder="Column header"
+        :placeholder="t('admin.editor.nodeViews.columnHeader')"
         @mousedown.stop
         @keydown.stop
         @input="onHeaderInput"
@@ -27,6 +27,7 @@ import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 
 const props = defineProps(nodeViewProps)
 
+const { t } = useI18n()
 const header = computed(() => String(props.node.attrs.header ?? '').trim())
 const showHeaders = computed(() => {
   const getPos = props.getPos as (() => number) | number | undefined

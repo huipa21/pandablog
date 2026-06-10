@@ -7,7 +7,7 @@
         :class="editorStore.sidebarTab === 'post' ? 'border-teal-600 text-teal-700' : 'border-transparent text-stone-500 hover:text-stone-900'"
         @click="editorStore.setSidebarTab('post')"
       >
-        Post
+        {{ t('admin.editor.sidebar.post') }}
       </button>
       <button
         type="button"
@@ -15,46 +15,46 @@
         :class="editorStore.sidebarTab === 'block' ? 'border-teal-600 text-teal-700' : 'border-transparent text-stone-500 hover:text-stone-900'"
         @click="editorStore.setSidebarTab('block')"
       >
-        Block
+        {{ t('admin.editor.sidebar.block') }}
       </button>
     </div>
 
     <div class="h-[calc(100%-3rem)] overflow-y-auto">
       <div v-if="editorStore.sidebarTab === 'post'" class="space-y-4 p-4">
         <div class="flex items-center justify-between rounded-md bg-stone-50 px-3 py-2 text-sm">
-          <span class="text-stone-500">Status</span>
-          <UBadge :color="currentStatus === 'published' ? 'success' : 'neutral'" variant="subtle">{{ currentStatus }}</UBadge>
+          <span class="text-stone-500">{{ t('admin.editor.sidebar.status') }}</span>
+          <UBadge :color="currentStatus === 'published' ? 'success' : 'neutral'" variant="subtle">{{ statusLabel(currentStatus) }}</UBadge>
         </div>
 
         <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Summary & Slug</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.summarySlug') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Slug">
+          <UFormField :label="t('admin.editor.sidebar.slug')">
             <UInput v-model="form.slug" icon="i-lucide-link" />
           </UFormField>
-          <UFormField label="Excerpt">
+          <UFormField :label="t('admin.editor.sidebar.excerpt')">
             <UTextarea v-model="form.summary" :rows="4" />
           </UFormField>
         </div>
       </details>
 
       <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Template</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.template') }}</summary>
         <div class="mt-3">
           <USelect v-model="selectedTemplate" :items="templateItems" />
         </div>
       </details>
 
       <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Cover Image</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.coverImage') }}</summary>
         <div class="mt-3 space-y-3">
           <div v-if="form.cover_image" class="space-y-2">
             <div class="overflow-hidden rounded-md border border-stone-200">
-              <img :src="form.cover_image" alt="Cover image" class="h-36 w-full object-cover">
+              <img :src="form.cover_image" :alt="t('admin.editor.sidebar.coverImageAlt')" class="h-36 w-full object-cover">
             </div>
             <div class="flex gap-2">
-              <UButton type="button" icon="i-lucide-image-plus" size="sm" variant="soft" class="flex-1" @click="coverPickerOpen = true">Replace</UButton>
-              <UButton type="button" icon="i-lucide-x" size="sm" color="neutral" variant="ghost" @click="form.cover_image = ''">Clear</UButton>
+              <UButton type="button" icon="i-lucide-image-plus" size="sm" variant="soft" class="flex-1" @click="coverPickerOpen = true">{{ t('admin.editor.sidebar.replace') }}</UButton>
+              <UButton type="button" icon="i-lucide-x" size="sm" color="neutral" variant="ghost" @click="form.cover_image = ''">{{ t('admin.common.clear') }}</UButton>
             </div>
           </div>
           <UButton
@@ -65,23 +65,23 @@
             block
             @click="coverPickerOpen = true"
           >
-            Choose cover image
+            {{ t('admin.editor.sidebar.chooseCoverImage') }}
           </UButton>
         </div>
       </details>
 
       <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Categories</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.categories') }}</summary>
         <div class="mt-3 space-y-2">
           <div class="flex gap-2">
             <UInput
               v-model="newCategoryName"
               size="sm"
               icon="i-lucide-plus"
-              placeholder="Add category and press Enter"
+              :placeholder="t('admin.editor.sidebar.addCategoryEnter')"
               @keydown.enter.prevent="addCategoryName"
             />
-            <UButton type="button" size="sm" variant="soft" color="neutral" @click="addCategoryName">Add</UButton>
+            <UButton type="button" size="sm" variant="soft" color="neutral" @click="addCategoryName">{{ t('admin.common.add') }}</UButton>
           </div>
 
           <div v-if="form.category_names.length" class="flex flex-wrap gap-2">
@@ -103,22 +103,22 @@
             <input v-model="form.category_ids" type="checkbox" :value="category.id" class="rounded border-stone-300">
             <span>{{ category.name }}</span>
           </label>
-          <p v-if="!categories.length" class="text-sm text-stone-500">No categories yet.</p>
+          <p v-if="!categories.length" class="text-sm text-stone-500">{{ t('admin.posts.noCategoriesYet') }}</p>
         </div>
       </details>
 
       <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Tags</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.tags') }}</summary>
         <div class="mt-3 space-y-2">
           <div class="flex gap-2">
             <UInput
               v-model="newTagName"
               size="sm"
               icon="i-lucide-plus"
-              placeholder="Add tag and press Enter"
+              :placeholder="t('admin.editor.sidebar.addTagEnter')"
               @keydown.enter.prevent="addTagName"
             />
-            <UButton type="button" size="sm" variant="soft" color="neutral" @click="addTagName">Add</UButton>
+            <UButton type="button" size="sm" variant="soft" color="neutral" @click="addTagName">{{ t('admin.common.add') }}</UButton>
           </div>
 
           <div v-if="form.tag_names.length" class="flex flex-wrap gap-2">
@@ -140,26 +140,26 @@
             <input v-model="form.tag_ids" type="checkbox" :value="tag.id" class="rounded border-stone-300">
             <span>{{ tag.name }}</span>
           </label>
-          <p v-if="!tags.length" class="text-sm text-stone-500">No tags yet.</p>
+          <p v-if="!tags.length" class="text-sm text-stone-500">{{ t('admin.posts.noTagsYet') }}</p>
         </div>
       </details>
 
       <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Visibility</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.visibility') }}</summary>
         <div class="mt-3 space-y-3">
           <label class="flex cursor-pointer items-start gap-2 text-sm">
             <input v-model="form.visibility" type="radio" value="public" class="mt-1">
-            <span><span class="font-medium">Public</span><span class="block text-xs text-stone-500">Anyone can read this post.</span></span>
+            <span><span class="font-medium">{{ t('admin.posts.visibility.public') }}</span><span class="block text-xs text-stone-500">{{ t('admin.editor.sidebar.publicDescription') }}</span></span>
           </label>
           <label class="flex cursor-pointer items-start gap-2 text-sm">
             <input v-model="form.visibility" type="radio" value="private" class="mt-1">
-            <span><span class="font-medium">Private</span><span class="block text-xs text-stone-500">Hidden from public lists and search.</span></span>
+            <span><span class="font-medium">{{ t('admin.posts.visibility.private') }}</span><span class="block text-xs text-stone-500">{{ t('admin.editor.sidebar.privateDescription') }}</span></span>
           </label>
           <label class="flex cursor-pointer items-start gap-2 text-sm">
             <input v-model="form.visibility" type="radio" value="password" class="mt-1">
             <span class="flex-1">
-              <span class="font-medium">Password protected</span>
-              <span class="block text-xs text-stone-500">Hidden from public lists and search, content requires a password.</span>
+              <span class="font-medium">{{ t('admin.posts.visibility.password') }}</span>
+              <span class="block text-xs text-stone-500">{{ t('admin.editor.sidebar.passwordDescription') }}</span>
             </span>
           </label>
 
@@ -167,14 +167,14 @@
             <input
               v-model="form.password"
               type="password"
-              placeholder="Leave blank to use login password"
+              :placeholder="t('admin.editor.sidebar.passwordPlaceholder')"
               class="w-full rounded border border-stone-300 px-2 py-1 text-sm"
               autocomplete="new-password"
             >
             <input
               v-model="form.password_hint"
               type="text"
-              placeholder="Hint shown on lock screen (optional)"
+              :placeholder="t('admin.editor.sidebar.passwordHintPlaceholder')"
               class="w-full rounded border border-stone-300 px-2 py-1 text-sm"
             >
           </div>
@@ -216,11 +216,16 @@ const props = defineProps<{
 }>()
 
 const editorStore = useEditorStore()
+const { t } = useI18n()
 const coverPickerOpen = ref(false)
 const newCategoryName = ref('')
 const newTagName = ref('')
 const selectedTemplate = ref('default')
-const templateItems = [{ label: 'Default post template', value: 'default' }]
+const templateItems = computed(() => [{ label: t('admin.editor.sidebar.defaultTemplate'), value: 'default' }])
+
+function statusLabel(status: PostStatus) {
+  return t(`admin.posts.status.${status}`)
+}
 
 function onCoverPicked(files: MediaRecord[]) {
   const first = files[0]

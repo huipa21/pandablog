@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close" @click="emit('close')" />
+      <button type="button" class="absolute inset-0 bg-black/40" :aria-label="t('admin.common.close')" @click="emit('close')" />
       <section class="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
         <header class="flex items-center justify-between border-b border-stone-200 p-4">
-          <h2 class="text-lg font-semibold text-stone-950">Search Media</h2>
+          <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.searchMedia') }}</h2>
           <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="emit('close')" />
         </header>
 
@@ -26,27 +26,27 @@
         <div class="min-h-0 flex-1 overflow-y-auto p-4">
           <section v-if="activeTab === 'simple'" class="space-y-4">
             <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              <UFormField label="File Name">
+              <UFormField :label="t('admin.media.fileName')">
                 <UInput v-model="form.file_name" icon="i-lucide-file-search" placeholder="holiday|report" />
               </UFormField>
-              <UFormField label="File Extension">
+              <UFormField :label="t('admin.media.fileExtension')">
                 <UInput v-model="form.extension" icon="i-lucide-file-type" placeholder="pdf" />
               </UFormField>
-              <UFormField label="Comments">
+              <UFormField :label="t('admin.media.comments')">
                 <UInput v-model="form.comment" icon="i-lucide-message-square" placeholder="draft" />
               </UFormField>
-              <UFormField label="Tags">
+              <UFormField :label="t('admin.media.tags')">
                 <div class="rounded-md border border-stone-300 px-2 py-1.5">
                   <MediaTagInput v-model="form.tags" />
                 </div>
               </UFormField>
-              <UFormField label="From">
+              <UFormField :label="t('admin.media.from')">
                 <UInput v-model="form.uploaded_from" type="date" />
               </UFormField>
-              <UFormField label="To">
+              <UFormField :label="t('admin.media.to')">
                 <UInput v-model="form.uploaded_to" type="date" />
               </UFormField>
-              <UFormField label="Type">
+              <UFormField :label="t('admin.media.type')">
                 <USelect v-model="form.type" :items="typeItems" :content="selectContent" :ui="selectUi" />
               </UFormField>
             </div>
@@ -54,27 +54,27 @@
             <div class="flex flex-wrap gap-4 rounded-lg border border-stone-200 p-3">
               <label class="flex items-center gap-2 text-sm text-stone-700">
                 <input v-model="form.search_regex" type="checkbox" class="rounded border-stone-300">
-                <span>Regex</span>
+                <span>{{ t('admin.media.regex') }}</span>
               </label>
               <label class="flex items-center gap-2 text-sm text-stone-700">
                 <input v-model="form.case_insensitive" type="checkbox" class="rounded border-stone-300">
-                <span>Case insensitive</span>
+                <span>{{ t('admin.media.caseInsensitive') }}</span>
               </label>
               <label class="flex items-center gap-2 text-sm text-stone-700">
                 <input v-model="form.orphan" type="checkbox" class="rounded border-stone-300">
-                <span>Orphans only</span>
+                <span>{{ t('admin.media.orphanOnly') }}</span>
               </label>
             </div>
           </section>
 
           <section v-else-if="activeTab === 'advanced'" class="space-y-3 rounded-lg border border-stone-200 p-3">
             <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-sm font-medium text-stone-900">Advanced conditions</h3>
+              <h3 class="text-sm font-medium text-stone-900">{{ t('admin.media.advancedConditions') }}</h3>
               <div class="ml-auto w-32">
                 <USelect v-model="form.rootOp" :items="opItems" :content="selectContent" :ui="selectUi" />
               </div>
-              <UButton type="button" size="xs" icon="i-lucide-plus" color="neutral" variant="soft" @click="addCondition(form.conditions)">Condition</UButton>
-              <UButton type="button" size="xs" icon="i-lucide-folder-plus" color="neutral" variant="soft" @click="addGroup">Group</UButton>
+              <UButton type="button" size="xs" icon="i-lucide-plus" color="neutral" variant="soft" @click="addCondition(form.conditions)">{{ t('admin.media.condition') }}</UButton>
+              <UButton type="button" size="xs" icon="i-lucide-folder-plus" color="neutral" variant="soft" @click="addGroup">{{ t('admin.media.group') }}</UButton>
             </div>
 
             <div class="space-y-2">
@@ -85,11 +85,11 @@
               >
                 <USelect v-model="condition.field" :items="fieldItems" :content="selectContent" :ui="selectUi" />
                 <USelect v-model="condition.operator" :items="operatorItems" :content="selectContent" :ui="selectUi" />
-                <UInput v-model="condition.value" placeholder="Value" />
-                <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" placeholder="To" />
+                <UInput v-model="condition.value" :placeholder="t('admin.media.value')" />
+                <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" :placeholder="t('admin.media.to')" />
                 <label v-else class="flex items-center gap-2 text-xs text-stone-600">
                   <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-stone-300">
-                  <span>Case insensitive</span>
+                  <span>{{ t('admin.media.caseInsensitive') }}</span>
                 </label>
                 <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="removeCondition(form.conditions, condition.id)" />
               </div>
@@ -101,11 +101,11 @@
               class="space-y-2 rounded-lg border border-stone-200 bg-white p-3"
             >
               <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-stone-700">Group</span>
+                <span class="text-sm font-medium text-stone-700">{{ t('admin.media.group') }}</span>
                 <div class="w-28">
                   <USelect v-model="group.op" :items="opItems" :content="selectContent" :ui="selectUi" />
                 </div>
-                <UButton type="button" size="xs" icon="i-lucide-plus" color="neutral" variant="soft" @click="addCondition(group.conditions)">Condition</UButton>
+                <UButton type="button" size="xs" icon="i-lucide-plus" color="neutral" variant="soft" @click="addCondition(group.conditions)">{{ t('admin.media.condition') }}</UButton>
                 <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" class="ml-auto" @click="removeGroup(group.id)" />
               </div>
 
@@ -116,11 +116,11 @@
               >
                 <USelect v-model="condition.field" :items="fieldItems" :content="selectContent" :ui="selectUi" />
                 <USelect v-model="condition.operator" :items="operatorItems" :content="selectContent" :ui="selectUi" />
-                <UInput v-model="condition.value" placeholder="Value" />
-                <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" placeholder="To" />
+                <UInput v-model="condition.value" :placeholder="t('admin.media.value')" />
+                <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" :placeholder="t('admin.media.to')" />
                 <label v-else class="flex items-center gap-2 text-xs text-stone-600">
                   <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-stone-300">
-                  <span>Case insensitive</span>
+                  <span>{{ t('admin.media.caseInsensitive') }}</span>
                 </label>
                 <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="removeCondition(group.conditions, condition.id)" />
               </div>
@@ -138,12 +138,12 @@
                 <div class="mt-1 truncate text-xs text-stone-500">{{ savedSummary(entry.form) }}</div>
               </div>
               <div class="flex shrink-0 gap-2">
-                <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-pencil" @click="loadSavedSearch(entry)">Load</UButton>
-                <UButton type="button" size="xs" icon="i-lucide-search" @click="applySavedSearch(entry)">Search</UButton>
+                <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-pencil" @click="loadSavedSearch(entry)">{{ t('admin.media.load') }}</UButton>
+                <UButton type="button" size="xs" icon="i-lucide-search" @click="applySavedSearch(entry)">{{ t('admin.media.search') }}</UButton>
                 <UButton type="button" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" @click="deleteFavorite(entry.id)" />
               </div>
             </div>
-            <div v-if="!favoriteSearches.length" class="rounded-lg border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500">No favorite searches</div>
+            <div v-if="!favoriteSearches.length" class="rounded-lg border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500">{{ t('admin.media.noFavoriteSearches') }}</div>
           </section>
 
           <section v-else class="space-y-3">
@@ -157,32 +157,32 @@
                 <div class="mt-1 truncate text-xs text-stone-500">{{ savedSummary(entry.form) }}</div>
               </div>
               <div class="flex shrink-0 gap-2">
-                <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-pencil" @click="loadSavedSearch(entry)">Load</UButton>
-                <UButton type="button" size="xs" icon="i-lucide-search" @click="applySavedSearch(entry)">Search</UButton>
+                <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-pencil" @click="loadSavedSearch(entry)">{{ t('admin.media.load') }}</UButton>
+                <UButton type="button" size="xs" icon="i-lucide-search" @click="applySavedSearch(entry)">{{ t('admin.media.search') }}</UButton>
                 <UButton type="button" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" @click="deleteRecent(entry.id)" />
               </div>
             </div>
-            <div v-if="!recentSearches.length" class="rounded-lg border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500">No recent searches</div>
+            <div v-if="!recentSearches.length" class="rounded-lg border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500">{{ t('admin.media.noRecentSearches') }}</div>
           </section>
         </div>
 
         <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-stone-200 p-4">
-          <UButton type="button" icon="i-lucide-star" color="neutral" variant="soft" @click="openFavoriteDialog">Save favorite</UButton>
-          <UButton type="button" color="neutral" variant="ghost" @click="resetForm">Reset</UButton>
-          <UButton type="button" icon="i-lucide-search" @click="applySearch">Search</UButton>
+          <UButton type="button" icon="i-lucide-star" color="neutral" variant="soft" @click="openFavoriteDialog">{{ t('admin.media.saveFavorite') }}</UButton>
+          <UButton type="button" color="neutral" variant="ghost" @click="resetForm">{{ t('admin.media.reset') }}</UButton>
+          <UButton type="button" icon="i-lucide-search" @click="applySearch">{{ t('admin.media.search') }}</UButton>
         </footer>
       </section>
 
       <div v-if="favoriteDialogOpen" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
-        <button type="button" class="absolute inset-0 bg-black/30" aria-label="Close" @click="favoriteDialogOpen = false" />
+        <button type="button" class="absolute inset-0 bg-black/30" :aria-label="t('admin.common.close')" @click="favoriteDialogOpen = false" />
         <form class="relative w-full max-w-md rounded-lg bg-white p-4 shadow-xl" @submit.prevent="confirmSaveFavorite">
-          <h3 class="text-base font-semibold text-stone-950">Save favorite search</h3>
-          <UFormField label="Name" class="mt-4">
+          <h3 class="text-base font-semibold text-stone-950">{{ t('admin.media.saveFavoriteSearch') }}</h3>
+          <UFormField :label="t('admin.media.name')" class="mt-4">
             <UInput v-model="favoriteName" icon="i-lucide-star" autofocus />
           </UFormField>
           <div class="mt-4 flex justify-end gap-2">
-            <UButton type="button" color="neutral" variant="ghost" @click="favoriteDialogOpen = false">Cancel</UButton>
-            <UButton type="submit" icon="i-lucide-check">Save</UButton>
+            <UButton type="button" color="neutral" variant="ghost" @click="favoriteDialogOpen = false">{{ t('admin.media.cancel') }}</UButton>
+            <UButton type="submit" icon="i-lucide-check">{{ t('admin.media.save') }}</UButton>
           </div>
         </form>
       </div>
@@ -260,6 +260,8 @@ const emit = defineEmits<{
   apply: [value: MediaSearchPayload]
 }>()
 
+const { t } = useI18n()
+
 const recentKey = 'pandablog-media-recent-searches'
 const favoriteKey = 'pandablog-media-favorite-searches'
 const tabKey = 'pandablog-media-search-active-tab'
@@ -283,49 +285,49 @@ watch(activeTab, (value) => {
   }
 })
 
-const tabs: Array<{ label: string; value: SearchTab }> = [
-  { label: 'Simple search', value: 'simple' },
-  { label: 'Advanced search', value: 'advanced' },
-  { label: 'Favorite searches', value: 'favorites' },
-  { label: 'Recent searches', value: 'recent' }
-]
+const tabs = computed<Array<{ label: string; value: SearchTab }>>(() => [
+  { label: t('admin.media.simpleSearch'), value: 'simple' },
+  { label: t('admin.media.advancedSearch'), value: 'advanced' },
+  { label: t('admin.media.favoriteSearches'), value: 'favorites' },
+  { label: t('admin.media.recentSearches'), value: 'recent' }
+])
 
 const selectContent = { side: 'bottom' as const, sideOffset: 6, collisionPadding: 16 }
 const selectUi = { content: 'z-[80]' }
 
-const typeItems = [
-  { label: 'All files', value: 'all' },
-  { label: 'Images', value: 'image' },
-  { label: 'Videos', value: 'video' },
-  { label: 'Documents', value: 'document' },
-  { label: 'Archives', value: 'archive' },
-  { label: 'Other', value: 'other' }
-]
+const typeItems = computed(() => [
+  { label: t('admin.media.typeAll'), value: 'all' },
+  { label: t('admin.media.typeImages'), value: 'image' },
+  { label: t('admin.media.typeVideos'), value: 'video' },
+  { label: t('admin.media.typeDocuments'), value: 'document' },
+  { label: t('admin.media.typeArchives'), value: 'archive' },
+  { label: t('admin.media.typeOther'), value: 'other' }
+])
 
 const opItems = [
   { label: 'AND', value: 'AND' },
   { label: 'OR', value: 'OR' }
 ]
 
-const fieldItems = [
-  { label: 'File Name', value: 'original_name' },
-  { label: 'File Extension', value: 'extension' },
-  { label: 'Comments', value: 'comment' },
-  { label: 'Tags', value: 'tags' },
-  { label: 'File Type', value: 'type' },
-  { label: 'MIME Type', value: 'mime_type' },
-  { label: 'Uploaded Date', value: 'uploaded_at' },
-  { label: 'Orphan', value: 'orphan' }
-]
+const fieldItems = computed(() => [
+  { label: t('admin.media.fieldFileName'), value: 'original_name' },
+  { label: t('admin.media.fieldFileExtension'), value: 'extension' },
+  { label: t('admin.media.fieldComments'), value: 'comment' },
+  { label: t('admin.media.tags'), value: 'tags' },
+  { label: t('admin.media.fieldFileType'), value: 'type' },
+  { label: t('admin.media.mimeType'), value: 'mime_type' },
+  { label: t('admin.media.uploadedDate'), value: 'uploaded_at' },
+  { label: t('admin.media.orphan'), value: 'orphan' }
+])
 
-const operatorItems = [
-  { label: 'Contains', value: 'contains' },
-  { label: 'Equals', value: 'equals' },
-  { label: 'Regex', value: 'regex' },
-  { label: 'Before', value: 'before' },
-  { label: 'After', value: 'after' },
-  { label: 'Between', value: 'between' }
-]
+const operatorItems = computed(() => [
+  { label: t('admin.media.contains'), value: 'contains' },
+  { label: t('admin.media.equals'), value: 'equals' },
+  { label: t('admin.media.regex'), value: 'regex' },
+  { label: t('admin.media.before'), value: 'before' },
+  { label: t('admin.media.after'), value: 'after' },
+  { label: t('admin.media.between'), value: 'between' }
+])
 
 function payloadToForm(payload: Partial<MediaSearchPayload>): SearchForm {
   const parsedAdvanced = advancedToForm(payload.advanced)
@@ -528,23 +530,23 @@ function makeSavedSearch(name: string, payload: MediaSearchPayload): SavedSearch
 }
 
 function searchLabel(payload: MediaSearchPayload) {
-  return payload.file_name || payload.extension || payload.comment || payload.tags[0] || payload.type || 'Media search'
+  return payload.file_name || payload.extension || payload.comment || payload.tags[0] || payload.type || t('admin.media.mediaSearchDefault')
 }
 
 function savedSummary(savedForm: SearchForm) {
   const parts = [
-    savedForm.file_name ? `Name: ${savedForm.file_name}` : '',
-    savedForm.extension ? `Extension: ${savedForm.extension}` : '',
-    savedForm.comment ? `Comments: ${savedForm.comment}` : '',
-    savedForm.tags.length ? `Tags: ${savedForm.tags.join(', ')}` : '',
-    savedForm.uploaded_from ? `From: ${savedForm.uploaded_from}` : '',
-    savedForm.uploaded_to ? `To: ${savedForm.uploaded_to}` : '',
-    savedForm.type && savedForm.type !== 'all' ? `Type: ${savedForm.type}` : '',
-    savedForm.conditions.length || savedForm.groups.length ? `${savedForm.rootOp} advanced` : '',
-    savedForm.search_regex ? 'Regex' : ''
+    savedForm.file_name ? t('admin.media.summaryName', { value: savedForm.file_name }) : '',
+    savedForm.extension ? t('admin.media.summaryExtension', { value: savedForm.extension }) : '',
+    savedForm.comment ? t('admin.media.summaryComments', { value: savedForm.comment }) : '',
+    savedForm.tags.length ? t('admin.media.summaryTags', { value: savedForm.tags.join(', ') }) : '',
+    savedForm.uploaded_from ? t('admin.media.summaryFrom', { value: savedForm.uploaded_from }) : '',
+    savedForm.uploaded_to ? t('admin.media.summaryTo', { value: savedForm.uploaded_to }) : '',
+    savedForm.type && savedForm.type !== 'all' ? t('admin.media.summaryType', { value: savedForm.type }) : '',
+    savedForm.conditions.length || savedForm.groups.length ? t('admin.media.advancedSummary', { op: savedForm.rootOp }) : '',
+    savedForm.search_regex ? t('admin.media.regex') : ''
   ].filter(Boolean)
 
-  return parts.join(' | ') || 'All media'
+  return parts.join(' | ') || t('admin.media.allMedia')
 }
 
 function payloadKey(payload: MediaSearchPayload) {
@@ -580,7 +582,7 @@ function readSaved(key: string): SavedSearch[] {
         .filter((entry) => entry && typeof entry.name === 'string' && entry.form)
         .map((entry) => ({
           id: typeof entry.id === 'string' ? entry.id : uid(),
-          name: entry.name || 'Media search',
+          name: entry.name || t('admin.media.mediaSearchDefault'),
           form: normalizeForm(entry.form as Partial<SearchForm>)
         }))
       : []

@@ -1,18 +1,18 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Posts</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Tags</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.taxonomy.postsEyebrow') }}</p>
+      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.taxonomy.tagsTitle') }}</h1>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load tags" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.taxonomy.loadTagsFailed')" />
 
-    <UInput v-model="tagSearch" icon="i-lucide-search" placeholder="Search tags" />
+    <UInput v-model="tagSearch" icon="i-lucide-search" :placeholder="t('admin.taxonomy.searchTags')" />
 
     <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="mb-3 flex items-center justify-between gap-3">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-[var(--pb-text-muted)]">Tag Cloud</h2>
-        <span class="text-xs text-[var(--pb-text-subtle)]">Click a tag to filter, click "Open" for public posts view</span>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-[var(--pb-text-muted)]">{{ t('admin.taxonomy.tagCloud') }}</h2>
+        <span class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.taxonomy.tagCloudHelp') }}</span>
       </div>
       <div v-if="filteredTags.length" class="flex flex-wrap gap-2">
         <button
@@ -27,18 +27,18 @@
           <span class="ml-1 text-[var(--pb-text-subtle)]">{{ tag.post_count ?? 0 }}</span>
         </button>
       </div>
-      <p v-else class="text-sm text-[var(--pb-text-subtle)]">No tags match your search.</p>
+      <p v-else class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.taxonomy.noTagMatches') }}</p>
       <div v-if="activeCloudTag" class="mt-4 flex flex-wrap items-center gap-2 rounded-[var(--pb-radius-md)] border border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)] p-3">
-        <span class="text-sm font-medium text-[var(--pb-link)]">Selected: #{{ activeCloudTag.name }}</span>
-        <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-x" @click="clearCloudSelection">Clear</UButton>
-        <UButton size="xs" icon="i-lucide-external-link" :to="`/tag/${activeCloudTag.slug}`">Open</UButton>
+        <span class="text-sm font-medium text-[var(--pb-link)]">{{ t('admin.taxonomy.selectedTag', { name: activeCloudTag.name }) }}</span>
+        <UButton size="xs" variant="soft" color="neutral" icon="i-lucide-x" @click="clearCloudSelection">{{ t('admin.common.clear') }}</UButton>
+        <UButton size="xs" icon="i-lucide-external-link" :to="`/tag/${activeCloudTag.slug}`">{{ t('admin.taxonomy.open') }}</UButton>
       </div>
     </section>
 
     <form class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] md:grid-cols-[1fr_1fr_auto]" @submit.prevent="createTag">
-      <UInput v-model="newTag.name" placeholder="Name" icon="i-lucide-tag" />
-      <UInput v-model="newTag.slug" placeholder="Slug (optional)" icon="i-lucide-link" />
-      <UButton type="submit" icon="i-lucide-plus" :loading="creating">Add tag</UButton>
+      <UInput v-model="newTag.name" :placeholder="t('admin.taxonomy.name')" icon="i-lucide-tag" />
+      <UInput v-model="newTag.slug" :placeholder="t('admin.taxonomy.slugOptional')" icon="i-lucide-link" />
+      <UButton type="submit" icon="i-lucide-plus" :loading="creating">{{ t('admin.taxonomy.addTag') }}</UButton>
     </form>
 
     <div class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
@@ -49,10 +49,10 @@
       <table v-else-if="filteredTags.length" class="w-full border-collapse text-left text-sm">
         <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
           <tr>
-            <th class="px-4 py-3 font-medium">Name</th>
-            <th class="px-4 py-3 font-medium">Slug</th>
-            <th class="px-4 py-3 font-medium">Posts</th>
-            <th class="px-4 py-3 text-right font-medium">Actions</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.name') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.slug') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.posts') }}</th>
+            <th class="px-4 py-3 text-right font-medium">{{ t('admin.taxonomy.actions') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--pb-divider)]">
@@ -62,8 +62,8 @@
               <td class="px-4 py-3"><UInput v-model="draft.slug" size="sm" /></td>
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ tag.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
-                <UButton icon="i-lucide-check" variant="ghost" color="primary" :loading="saving" @click="saveTag(tag.id)">Save</UButton>
-                <UButton icon="i-lucide-x" variant="ghost" color="neutral" @click="cancelEdit">Cancel</UButton>
+                <UButton icon="i-lucide-check" variant="ghost" color="primary" :loading="saving" @click="saveTag(tag.id)">{{ t('admin.common.save') }}</UButton>
+                <UButton icon="i-lucide-x" variant="ghost" color="neutral" @click="cancelEdit">{{ t('admin.common.cancel') }}</UButton>
               </td>
             </template>
             <template v-else>
@@ -75,22 +75,22 @@
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">/{{ tag.slug }}</td>
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ tag.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
-                <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(tag)">Edit</UButton>
-                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === tag.id" @click="requestDeleteTag(tag)">Delete</UButton>
+                <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(tag)">{{ t('admin.common.edit') }}</UButton>
+                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === tag.id" @click="requestDeleteTag(tag)">{{ t('admin.common.delete') }}</UButton>
               </td>
             </template>
           </tr>
         </tbody>
       </table>
 
-      <UEmpty v-else icon="i-lucide-tags" title="No tags yet" description="Create tags to connect related posts." class="py-12" />
+      <UEmpty v-else icon="i-lucide-tags" :title="t('admin.taxonomy.noTagsTitle')" :description="t('admin.taxonomy.noTagsDescription')" class="py-12" />
     </div>
 
     <AdminConfirmActionDialog
       :open="deleteDialogOpen"
-      title="Delete tag?"
+      :title="t('admin.taxonomy.deleteTagTitle')"
       :description="deleteDialogDescription"
-      confirm-label="Delete"
+      :confirm-label="t('admin.common.delete')"
       confirm-color="error"
       :loading="Boolean(deletingId)"
       @update:open="(value) => { if (!value) closeDeleteDialog() }"
@@ -105,6 +105,7 @@ import type { TagRecord } from '~/types/content'
 
 definePageMeta({ layout: 'admin' })
 
+const { t } = useI18n()
 const { data, pending, error, refresh } = await useAsyncData('admin-tags', () => $fetch<{ tags: TagRecord[] }>('/api/admin/tags'))
 const tags = computed(() => data.value?.tags ?? [])
 const tagSearch = ref('')
@@ -125,8 +126,8 @@ const adminToast = useAdminToast()
 const deleteDialogOpen = ref(false)
 const pendingDeleteTag = ref<TagRecord | null>(null)
 const deleteDialogDescription = computed(() => pendingDeleteTag.value
-  ? `Delete tag "${pendingDeleteTag.value.name}"?`
-  : 'Delete this tag?')
+  ? t('admin.taxonomy.deleteTagDescription', { name: pendingDeleteTag.value.name })
+  : t('admin.taxonomy.deleteTagFallback'))
 
 async function createTag() {
   creating.value = true
@@ -138,9 +139,9 @@ async function createTag() {
     newTag.name = ''
     newTag.slug = ''
     await refresh()
-    adminToast.success('Tag created')
+    adminToast.success(t('admin.taxonomy.tagCreated'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not create tag')
+    adminToast.error(err, t('admin.taxonomy.tagCreateFailed'))
   } finally {
     creating.value = false
   }
@@ -165,9 +166,9 @@ async function saveTag(id: string) {
     })
     editingId.value = ''
     await refresh()
-    adminToast.success('Tag saved')
+    adminToast.success(t('admin.taxonomy.tagSaved'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not save tag')
+    adminToast.error(err, t('admin.taxonomy.tagSaveFailed'))
   } finally {
     saving.value = false
   }
@@ -199,9 +200,9 @@ async function confirmDeleteTag() {
     await $fetch(`/api/admin/tags/${encodeURIComponent(tag.id)}`, { method: 'DELETE' })
     closeDeleteDialog()
     await refresh()
-    adminToast.success('Tag deleted')
+    adminToast.success(t('admin.taxonomy.tagDeleted'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not delete tag')
+    adminToast.error(err, t('admin.taxonomy.tagDeleteFailed'))
   } finally {
     deletingId.value = ''
   }

@@ -20,16 +20,16 @@
           </template>
           <div v-else class="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-stone-300 bg-stone-50 px-3 text-sm text-stone-500">
             <UIcon name="i-lucide-image-plus" class="size-6 text-stone-400" />
-            <span class="text-xs">Add media of any type — image, video, audio, document, archive…</span>
+            <span class="text-xs">{{ t('admin.editor.nodeViews.addMediaDescription') }}</span>
             <div class="mt-1 flex flex-wrap gap-2">
               <button type="button" class="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100" @click="emitPick('library')">
-                <UIcon name="i-lucide-images" class="mr-1 inline size-3.5" /> Media library
+                <UIcon name="i-lucide-images" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.mediaLibrary') }}
               </button>
               <button type="button" class="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100" @click="emitPick('upload')">
-                <UIcon name="i-lucide-upload" class="mr-1 inline size-3.5" /> Upload file
+                <UIcon name="i-lucide-upload" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.uploadFile') }}
               </button>
               <button type="button" class="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100" @click="emitPick('url')">
-                <UIcon name="i-lucide-link" class="mr-1 inline size-3.5" /> Paste URL
+                <UIcon name="i-lucide-link" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.pasteUrl') }}
               </button>
             </div>
           </div>
@@ -38,7 +38,7 @@
             type="button"
             class="absolute right-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] text-stone-600 shadow-sm hover:bg-white"
             @click="emitPick('library')"
-          >Change</button>
+          >{{ t('admin.editor.nodeViews.change') }}</button>
         </div>
         <div v-if="mediaTitle && mediaTitlePosition === 'bottom'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
       </div>
@@ -58,6 +58,7 @@ import { mediaFileKind, mediaFilesFromAttrs } from '~/utils/mediaFiles'
 import { extractMediaHash, useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
+const { t } = useI18n()
 const { resolveMediaUrl } = useMediaUrl()
 
 const mediaSourceSize = computed(() => String(props.node.attrs.mediaSourceSize ?? 'full'))

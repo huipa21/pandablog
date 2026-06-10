@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="media-panel">
       <div v-if="file" class="fixed inset-0 z-50 flex">
-        <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close" @click="emit('close')" />
+        <button type="button" class="absolute inset-0 bg-black/40" :aria-label="t('admin.common.close')" @click="emit('close')" />
         <aside class="relative ml-auto flex h-full w-full max-w-xl flex-col bg-white shadow-xl">
           <header class="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
             <div class="min-w-0 flex-1">
@@ -11,7 +11,7 @@
                 class="text-lg font-semibold"
                 variant="none"
                 :ui="{ base: 'text-lg font-semibold text-stone-950 px-0' }"
-                placeholder="File name"
+                :placeholder="t('admin.media.fileName')"
               />
             </div>
             <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="emit('close')" />
@@ -34,7 +34,7 @@
                 size="sm"
                 @click="viewOriginal"
               >
-                View original
+                {{ t('admin.media.viewOriginal') }}
               </UButton>
               <UButton
                 type="button"
@@ -44,47 +44,47 @@
                 size="sm"
                 @click="downloadFile"
               >
-                Download
+                {{ t('admin.media.download') }}
               </UButton>
             </div>
 
             <div class="grid grid-cols-2 gap-3 rounded-lg border border-stone-200 p-3 text-sm">
               <div>
-                <div class="text-xs text-stone-500">Type</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.type') }}</div>
                 <div class="font-medium text-stone-900">{{ file.mime_type || file.extension }}</div>
               </div>
               <div>
-                <div class="text-xs text-stone-500">Size</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.size') }}</div>
                 <div class="font-medium text-stone-900">{{ formatFileSize(file.size) }}</div>
               </div>
               <div v-if="file.width && file.height">
-                <div class="text-xs text-stone-500">Dimensions</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.dimensions') }}</div>
                 <div class="font-medium text-stone-900">{{ file.width }} × {{ file.height }}</div>
               </div>
               <div>
-                <div class="text-xs text-stone-500">Uploaded</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.uploaded') }}</div>
                 <div class="font-medium text-stone-900">{{ formatDate(file.uploaded_at || file.created_at) }}</div>
               </div>
               <div>
-                <div class="text-xs text-stone-500">References</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.references') }}</div>
                 <div class="font-medium text-stone-900">{{ file.reference_count || 0 }}</div>
               </div>
               <div class="col-span-2">
-                <div class="text-xs text-stone-500">Hash ID</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.hashId') }}</div>
                 <div class="break-all font-mono text-xs text-stone-900">{{ file.hash }}</div>
               </div>
               <div v-if="file.image_meta?.format">
-                <div class="text-xs text-stone-500">Image format</div>
+                <div class="text-xs text-stone-500">{{ t('admin.media.imageFormat') }}</div>
                 <div class="font-medium text-stone-900">{{ file.image_meta.format }}</div>
               </div>
             </div>
 
             <div class="space-y-3">
-              <UFormField label="Comment">
+              <UFormField :label="t('admin.media.comment')">
                 <UTextarea v-model="comment" :rows="3" />
               </UFormField>
 
-              <UFormField label="Tags">
+              <UFormField :label="t('admin.media.tags')">
                 <div class="rounded-md border border-stone-300 px-2 py-1.5">
                   <MediaTagInput v-model="tags" />
                 </div>
@@ -94,20 +94,20 @@
 
           <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 p-4">
             <UButton type="button" icon="i-lucide-trash-2" color="error" variant="soft" :loading="deleting" @click="deleteFile">
-              Delete
+              {{ t('admin.media.delete') }}
             </UButton>
             <div class="flex gap-2">
-              <UButton type="button" color="neutral" variant="ghost" @click="emit('close')">Cancel</UButton>
-              <UButton type="button" icon="i-lucide-save" :loading="saving" @click="save">Save</UButton>
+              <UButton type="button" color="neutral" variant="ghost" @click="emit('close')">{{ t('admin.media.cancel') }}</UButton>
+              <UButton type="button" icon="i-lucide-save" :loading="saving" @click="save">{{ t('admin.media.save') }}</UButton>
             </div>
           </footer>
         </aside>
 
         <AdminConfirmActionDialog
           :open="deleteDialogOpen"
-          title="Delete file?"
+          :title="t('admin.media.deleteFileTitle')"
           :description="deleteDialogDescription"
-          confirm-label="Delete"
+          :confirm-label="t('admin.media.delete')"
           confirm-color="error"
           :loading="deleting"
           @update:open="(value) => { if (!value) closeDeleteDialog() }"
@@ -134,6 +134,7 @@ const emit = defineEmits<{
   'deleted': [file: MediaRecord]
 }>()
 
+const { t, locale } = useI18n()
 const { formatFileSize, getFileIcon, updateMedia, deleteMedia } = useMedia()
 const displayName = ref('')
 const comment = ref('')
@@ -145,12 +146,12 @@ const adminToast = useAdminToast()
 const deleteDialogDescription = computed(() => {
   const file = props.file
   if (!file) {
-    return 'Delete this file?'
+    return t('admin.media.deleteFileFallback')
   }
 
   return (file.reference_count || 0) > 0
-    ? `Delete "${file.original_name}"? It is referenced ${file.reference_count} time(s) and may break content.`
-    : `Delete "${file.original_name}"?`
+    ? t('admin.media.deleteFileReferenced', { name: file.original_name, count: file.reference_count })
+    : t('admin.media.deleteFileDescription', { name: file.original_name })
 })
 
 watch(() => props.file, (file) => {
@@ -186,9 +187,9 @@ async function save() {
       tags: tags.value
     })
     emit('updated', updated)
-    adminToast.success('File saved')
+    adminToast.success(t('admin.media.fileSaved'))
   } catch (error: any) {
-    adminToast.error(error, 'Could not save file')
+    adminToast.error(error, t('admin.media.fileSaveFailed'))
   } finally {
     saving.value = false
   }
@@ -218,16 +219,16 @@ async function confirmDeleteFile() {
     await deleteMedia(props.file.id, false)
     closeDeleteDialog()
     emit('deleted', props.file)
-    adminToast.success('File deleted')
+    adminToast.success(t('admin.media.fileDeleted'))
   } catch (error: any) {
-    adminToast.error(error, 'Delete failed')
+    adminToast.error(error, t('admin.media.deleteFailed'))
   } finally {
     deleting.value = false
   }
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale.value, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

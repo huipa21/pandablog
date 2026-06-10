@@ -21,7 +21,7 @@
           type="button"
           class="columns-block-resize-handle"
           :style="{ left: `${handle}%` }"
-          :aria-label="`Resize columns ${index + 1} and ${index + 2}`"
+          :aria-label="t('admin.editor.nodeViews.resizeColumns', { left: index + 1, right: index + 2 })"
           @mousedown.prevent.stop
           @pointerdown="startResize($event, index)"
         />
@@ -37,6 +37,7 @@ import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 
 const props = defineProps(nodeViewProps)
 
+const { t } = useI18n()
 const columnCount = computed(() => Math.max(2, Math.min(6, props.node.childCount || Number(props.node.attrs.columns ?? 2) || 2)))
 const proportions = computed(() => normalizeProportions(String(props.node.attrs.proportions ?? ''), columnCount.value))
 const customPercentages = computed(() => parseCustomPercentages(String(props.node.attrs.customPercentages ?? ''), columnCount.value))

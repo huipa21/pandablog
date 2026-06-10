@@ -8,6 +8,7 @@ interface UseThemeModeOptions {
 }
 
 export function useThemeMode(options: UseThemeModeOptions = {}) {
+  const { t } = useI18n()
   const currentMode = ref<ThemeMode | null>(resolveInitialMode())
   const saving = ref(false)
   const error = ref('')
@@ -15,7 +16,7 @@ export function useThemeMode(options: UseThemeModeOptions = {}) {
   const colorMode = computed<ThemeMode>(() => currentMode.value ?? 'light')
   const isDark = computed(() => colorMode.value === 'dark')
   const toggleIcon = computed(() => isDark.value ? 'i-lucide-sun' : 'i-lucide-moon')
-  const toggleLabel = computed(() => isDark.value ? 'Switch to light mode' : 'Switch to dark mode')
+  const toggleLabel = computed(() => isDark.value ? t('public.theme.switchToLight') : t('public.theme.switchToDark'))
 
   useHead(() => ({
     htmlAttrs: currentMode.value ? { 'data-theme': currentMode.value } : {},

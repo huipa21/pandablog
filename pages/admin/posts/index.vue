@@ -3,19 +3,19 @@
     <div class="grid gap-4">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-primary)]">Content</p>
-          <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Posts</h1>
+          <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-primary)]">{{ t('admin.posts.contentEyebrow') }}</p>
+          <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.posts.eyebrow') }}</h1>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ selectedIds.length }} selected</UBadge>
+          <UBadge v-if="selectedIds.length" color="neutral" variant="subtle">{{ t('admin.posts.selected', { count: selectedIds.length }) }}</UBadge>
           <UDropdownMenu v-if="selectedIds.length" :items="actionsMenuItems">
             <UButton icon="i-lucide-list-checks" color="neutral" variant="soft" :loading="bulkDeleting" :disabled="bulkDeleting">
-              Actions
+              {{ t('admin.common.actions') }}
             </UButton>
           </UDropdownMenu>
-          <UBadge v-if="quickEditEnabled && !isArchivedView" color="primary" variant="subtle">Quick Edit ON</UBadge>
+          <UBadge v-if="quickEditEnabled && !isArchivedView" color="primary" variant="subtle">{{ t('admin.posts.quickEditOn') }}</UBadge>
           <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
-            New post
+            {{ t('admin.posts.newPost') }}
           </UButton>
         </div>
       </div>
@@ -26,26 +26,26 @@
         <AdminMultiSelectFilter
           v-model="selectedCategoryIds"
           :items="categoryFilterOptions"
-          label="Categories"
-          placeholder="Categories"
+          :label="t('admin.taxonomy.categoriesTitle')"
+          :placeholder="t('admin.taxonomy.categoriesTitle')"
           icon="i-lucide-folder"
         />
         <AdminMultiSelectFilter
           v-model="selectedTagIds"
           :items="tagFilterOptions"
-          label="Tags"
-          placeholder="Tags"
+          :label="t('admin.taxonomy.tagsTitle')"
+          :placeholder="t('admin.taxonomy.tagsTitle')"
           icon="i-lucide-tags"
         />
         <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28" />
         <UButton v-if="filtersActive" size="sm" variant="ghost" color="neutral" icon="i-lucide-x" @click="clearFilters">
-          Clear
+          {{ t('admin.common.clear') }}
         </UButton>
       </div>
     </div>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load posts" />
-    <UAlert v-if="taxonomyError" color="error" icon="i-lucide-circle-alert" title="Could not load tags or categories" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.posts.loadFailed')" />
+    <UAlert v-if="taxonomyError" color="error" icon="i-lucide-circle-alert" :title="t('admin.posts.taxonomyLoadFailed')" />
 
     <div class="pb-admin-surface overflow-hidden">
       <div v-if="pending" class="grid gap-3 p-5">
@@ -66,14 +66,14 @@
                   @change="toggleSelectAll($event)"
                 >
               </th>
-              <th class="min-w-64 px-4 py-3 font-medium">Title</th>
-              <th class="min-w-48 px-4 py-3 font-medium">Tags</th>
-              <th class="min-w-48 px-4 py-3 font-medium">Categories</th>
-              <th class="min-w-40 px-4 py-3 font-medium">Privacy</th>
-              <th class="min-w-32 px-4 py-3 font-medium">Status</th>
-              <th class="min-w-32 px-4 py-3 font-medium">Length</th>
-              <th class="min-w-36 px-4 py-3 font-medium">Published</th>
-              <th class="min-w-32 px-4 py-3 font-medium">Updated</th>
+              <th class="min-w-64 px-4 py-3 font-medium">{{ t('admin.posts.table.title') }}</th>
+              <th class="min-w-48 px-4 py-3 font-medium">{{ t('admin.posts.table.tags') }}</th>
+              <th class="min-w-48 px-4 py-3 font-medium">{{ t('admin.posts.table.categories') }}</th>
+              <th class="min-w-40 px-4 py-3 font-medium">{{ t('admin.posts.table.privacy') }}</th>
+              <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.status') }}</th>
+              <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.length') }}</th>
+              <th class="min-w-36 px-4 py-3 font-medium">{{ t('admin.posts.table.published') }}</th>
+              <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.updated') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--pb-border)]">
@@ -101,7 +101,7 @@
                   @blur="saveCurrentCell({ close: true })"
                 >
                 <button v-else type="button" class="block w-full text-left font-medium text-[var(--pb-text)] hover:text-[var(--pb-link-hover)]">
-                  {{ post.title || 'Untitled' }}
+                  {{ post.title || t('admin.common.untitled') }}
                 </button>
               </td>
 
@@ -120,12 +120,12 @@
                       <input v-model="draft.tagIds" type="checkbox" :value="tag.id" class="rounded border-[var(--pb-border-strong)]" @change="saveCurrentCell()">
                       <span>{{ tag.name }}</span>
                     </label>
-                    <p v-if="!tagOptions.length" class="text-xs text-[var(--pb-text-subtle)]">No tags yet.</p>
+                    <p v-if="!tagOptions.length" class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.posts.noTagsYet') }}</p>
                   </div>
                   <input
                     v-model="draft.tagNamesInput"
                     class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] px-2 py-1 text-xs text-[var(--pb-text)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
-                    placeholder="Add tags, comma separated"
+                    :placeholder="t('admin.posts.addTags')"
                     @keydown.enter.prevent="saveCurrentCell({ close: true })"
                   >
                 </div>
@@ -133,7 +133,7 @@
                   <span v-if="post.tags?.length" class="flex flex-wrap gap-1">
                     <UBadge v-for="tag in post.tags" :key="tag.id" color="neutral" variant="subtle">{{ tag.name }}</UBadge>
                   </span>
-                  <span v-else class="text-[var(--pb-text-subtle)]">No tags</span>
+                  <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noTags') }}</span>
                 </button>
               </td>
 
@@ -152,12 +152,12 @@
                       <input v-model="draft.categoryIds" type="checkbox" :value="category.id" class="rounded border-[var(--pb-border-strong)]" @change="saveCurrentCell()">
                       <span>{{ category.name }}</span>
                     </label>
-                    <p v-if="!categoryOptions.length" class="text-xs text-[var(--pb-text-subtle)]">No categories yet.</p>
+                    <p v-if="!categoryOptions.length" class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.posts.noCategoriesYet') }}</p>
                   </div>
                   <input
                     v-model="draft.categoryNamesInput"
                     class="w-full rounded-[var(--pb-radius-sm)] border border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] px-2 py-1 text-xs text-[var(--pb-text)] outline-none focus:border-[var(--pb-selected-border)] focus:ring-2 focus:ring-[var(--pb-selected-border)]"
-                    placeholder="Add categories, comma separated"
+                    :placeholder="t('admin.posts.addCategories')"
                     @keydown.enter.prevent="saveCurrentCell({ close: true })"
                   >
                 </div>
@@ -165,7 +165,7 @@
                   <span v-if="post.categories?.length" class="flex flex-wrap gap-1">
                     <UBadge v-for="category in post.categories" :key="category.id" color="primary" variant="subtle">{{ category.name }}</UBadge>
                   </span>
-                  <span v-else class="text-[var(--pb-text-subtle)]">No categories</span>
+                  <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noCategories') }}</span>
                 </button>
               </td>
 
@@ -180,9 +180,9 @@
                   @keydown.esc.prevent="cancelCellEdit"
                   @blur="handleVisibilityBlur"
                 >
-                  <option value="public">Public</option>
-                  <option value="password">Password protected</option>
-                  <option value="private">Private</option>
+                  <option value="public">{{ t('admin.posts.visibility.public') }}</option>
+                  <option value="password">{{ t('admin.posts.visibility.password') }}</option>
+                  <option value="private">{{ t('admin.posts.visibility.private') }}</option>
                 </select>
                 <button v-else type="button" class="inline-flex items-center gap-1.5 text-[var(--pb-text-muted)] hover:text-[var(--pb-link-hover)]">
                   <UIcon :name="visibilityIcon(post.visibility)" class="size-4" />
@@ -201,11 +201,11 @@
                   @keydown.esc.prevent="cancelCellEdit"
                   @blur="saveCurrentCell({ close: true })"
                 >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
+                  <option value="draft">{{ t('admin.posts.status.draft') }}</option>
+                  <option value="published">{{ t('admin.posts.status.published') }}</option>
                 </select>
                 <UBadge v-else :color="post.status === 'published' ? 'success' : 'neutral'" variant="subtle">
-                  {{ post.status }}
+                  {{ statusLabel(post.status) }}
                 </UBadge>
               </td>
 
@@ -214,28 +214,28 @@
               </td>
 
               <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">
-                {{ formatDate(post.published_at, 'Not published') }}
+                {{ formatDate(post.published_at, t('admin.posts.notPublished')) }}
               </td>
 
               <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">
-                <span>{{ formatDate(post.updated_at, 'Not set') }}</span>
-                <span v-if="isSavingPost(post.id)" class="mt-1 block text-xs text-[var(--pb-link)]">Saving...</span>
+                <span>{{ formatDate(post.updated_at, t('admin.posts.notSet')) }}</span>
+                <span v-if="isSavingPost(post.id)" class="mt-1 block text-xs text-[var(--pb-link)]">{{ t('admin.posts.saving') }}</span>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <UEmpty v-else icon="i-lucide-file-text" title="No posts yet" description="Create your first draft to start building the knowledge base." class="py-12" />
+      <UEmpty v-else icon="i-lucide-file-text" :title="t('admin.posts.emptyTitle')" :description="t('admin.posts.emptyDescription')" class="py-12" />
 
       <div v-if="!pending && totalPosts > 0" class="flex flex-col gap-3 border-t border-[var(--pb-border)] px-4 py-3 text-sm text-[var(--pb-text-muted)] md:flex-row md:items-center md:justify-between">
         <span>{{ pageRangeLabel }}</span>
         <div class="flex items-center gap-2">
-          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" aria-label="First page" :disabled="page <= 1" @click="goToPage(1)" />
-          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" aria-label="Previous page" :disabled="page <= 1" @click="goToPage(page - 1)" />
-          <span class="min-w-24 text-center">Page {{ page }} of {{ totalPages }}</span>
-          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" aria-label="Next page" :disabled="page >= totalPages" @click="goToPage(page + 1)" />
-          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-right" aria-label="Last page" :disabled="page >= totalPages" @click="goToPage(totalPages)" />
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" :aria-label="t('admin.common.firstPage')" :disabled="page <= 1" @click="goToPage(1)" />
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" :aria-label="t('admin.common.previousPage')" :disabled="page <= 1" @click="goToPage(page - 1)" />
+          <span class="min-w-24 text-center">{{ t('admin.common.pageOf', { page, total: totalPages }) }}</span>
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" :aria-label="t('admin.common.nextPage')" :disabled="page >= totalPages" @click="goToPage(page + 1)" />
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-right" :aria-label="t('admin.common.lastPage')" :disabled="page >= totalPages" @click="goToPage(totalPages)" />
         </div>
       </div>
     </div>
@@ -254,11 +254,11 @@
 
     <AdminPromptDialog
       :open="passwordDialogOpen"
-      title="Set Post Password"
-      description="Enter the password readers will need to open this post."
-      label="Password"
+      :title="t('admin.posts.passwordPrompt.title')"
+      :description="t('admin.posts.passwordPrompt.description')"
+      :label="t('admin.posts.passwordPrompt.label')"
       input-type="password"
-      confirm-label="Save password"
+      :confirm-label="t('admin.posts.passwordPrompt.confirm')"
       @update:open="(value) => { if (!value) cancelPasswordDialog() }"
       @cancel="cancelPasswordDialog"
       @confirm="confirmPasswordDialog"
@@ -278,28 +278,29 @@ type PerPageOption = '10' | '25' | '50' | '100'
 
 type EditableField = 'title' | 'tags' | 'categories' | 'visibility' | 'status'
 
+const { t, locale } = useI18n()
 const creating = ref(false)
 const statusFilter = ref<PostStatusFilter>('all')
-const statusFilterOptions = [
-  { label: 'All active', value: 'all' },
-  { label: 'Draft', value: 'draft' },
-  { label: 'Published', value: 'published' },
-  { label: 'Archived', value: 'archived' }
-]
+const statusFilterOptions = computed(() => [
+  { label: t('admin.posts.filters.allActive'), value: 'all' },
+  { label: t('admin.posts.filters.draft'), value: 'draft' },
+  { label: t('admin.posts.filters.published'), value: 'published' },
+  { label: t('admin.posts.filters.archived'), value: 'archived' }
+])
 const sortBy = ref<AdminPostSort>('updated_desc')
-const sortOptions = [
-  { label: 'Updated newest', value: 'updated_desc' },
-  { label: 'Updated oldest', value: 'updated_asc' },
-  { label: 'Published newest', value: 'published_desc' },
-  { label: 'Published oldest', value: 'published_asc' }
-]
+const sortOptions = computed(() => [
+  { label: t('admin.posts.filters.updatedNewest'), value: 'updated_desc' },
+  { label: t('admin.posts.filters.updatedOldest'), value: 'updated_asc' },
+  { label: t('admin.posts.filters.publishedNewest'), value: 'published_desc' },
+  { label: t('admin.posts.filters.publishedOldest'), value: 'published_asc' }
+])
 const perPage = ref<PerPageOption>('10')
-const perPageOptions = [
-  { label: '10 / page', value: '10' },
-  { label: '25 / page', value: '25' },
-  { label: '50 / page', value: '50' },
-  { label: '100 / page', value: '100' }
-]
+const perPageOptions = computed(() => [
+  { label: t('admin.common.perPage', { count: 10 }), value: '10' },
+  { label: t('admin.common.perPage', { count: 25 }), value: '25' },
+  { label: t('admin.common.perPage', { count: 50 }), value: '50' },
+  { label: t('admin.common.perPage', { count: 100 }), value: '100' }
+])
 const selectedTagIds = ref<string[]>([])
 const selectedCategoryIds = ref<string[]>([])
 const page = ref(1)
@@ -337,12 +338,12 @@ const totalPosts = computed(() => data.value?.total ?? 0)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / perPageNumber.value)))
 const pageRangeLabel = computed(() => {
   if (!totalPosts.value) {
-    return 'Showing 0 posts'
+    return t('admin.posts.showingZero')
   }
 
   const first = start.value + 1
   const last = Math.min(start.value + posts.value.length, totalPosts.value)
-  return `Showing ${first}-${last} of ${totalPosts.value}`
+  return t('admin.posts.showingRange', { first, last, total: totalPosts.value })
 })
 const tagOptions = computed(() => taxonomyData.value?.tags ?? [])
 const categoryOptions = computed(() => taxonomyData.value?.categories ?? [])
@@ -399,14 +400,14 @@ const selectedIntent = computed<BulkIntent>(() => {
 })
 const selectedActionLabel = computed(() => {
   if (selectedIntent.value === 'hard-delete') {
-    return 'Delete permanently'
+    return t('admin.posts.actions.deletePermanently')
   }
 
   if (selectedIntent.value === 'mixed') {
-    return 'Archive / Delete'
+    return t('admin.posts.actions.archiveDelete')
   }
 
-  return 'Archive'
+  return t('admin.posts.actions.archive')
 })
 
 const confirmDialog = reactive({
@@ -414,7 +415,7 @@ const confirmDialog = reactive({
   intent: 'archive' as BulkIntent,
   title: '',
   description: '',
-  confirmLabel: 'Archive',
+  confirmLabel: t('admin.posts.actions.archive'),
   confirmColor: 'primary' as 'primary' | 'error' | 'neutral',
   ids: [] as string[]
 })
@@ -423,13 +424,13 @@ const actionsMenuItems = computed(() => [[
   ...(isArchivedView.value
     ? [
         {
-          label: 'Restore',
+          label: t('admin.posts.actions.restore'),
           icon: 'i-lucide-rotate-ccw',
           color: 'primary' as const,
           onSelect: restoreSelected
         },
         {
-          label: 'Delete permanently',
+          label: t('admin.posts.actions.deletePermanently'),
           icon: 'i-lucide-trash-2',
           color: 'error' as const,
           onSelect: deletePermanentlySelected
@@ -443,12 +444,12 @@ const actionsMenuItems = computed(() => [[
           onSelect: openBulkActionDialog
         },
         {
-          label: 'Edit',
+          label: t('admin.posts.actions.edit'),
           icon: 'i-lucide-square-pen',
           onSelect: editSelected
         },
         {
-          label: quickEditEnabled.value ? 'Disable Quick Edit' : 'Quick Edit',
+          label: quickEditEnabled.value ? t('admin.posts.actions.disableQuickEdit') : t('admin.posts.actions.quickEdit'),
           icon: quickEditEnabled.value ? 'i-lucide-square-x' : 'i-lucide-file-pen-line',
           onSelect: toggleQuickEdit
         }
@@ -488,12 +489,12 @@ async function createPost() {
     const post = await $fetch<PostRecord>('/api/admin/posts', {
       method: 'POST',
       body: {
-        title: 'Untitled note'
+        title: t('admin.posts.untitledNote')
       }
     })
     await navigateTo(`/admin/posts/${encodeURIComponent(post.id)}`)
   } catch (error: any) {
-    adminToast.error(error, 'Could not create post')
+    adminToast.error(error, t('admin.posts.createFailed'))
     creating.value = false
   }
 }
@@ -591,7 +592,7 @@ async function saveCurrentCell(options: { close?: boolean } = {}) {
       editingCell.value = null
     }
   } catch (error: any) {
-    adminToast.error(error, 'Could not update post')
+    adminToast.error(error, t('admin.posts.updateFailed'))
   } finally {
     savingCellKey.value = ''
   }
@@ -692,7 +693,6 @@ function openBulkActionDialog() {
   const uniqueIds = Array.from(new Set(selectedIds.value))
   const count = uniqueIds.length
   const intent = selectedIntent.value
-  const noun = count === 1 ? 'post' : 'posts'
 
   let title = ''
   let description = ''
@@ -700,23 +700,19 @@ function openBulkActionDialog() {
   let confirmColor: 'primary' | 'error' | 'neutral' = 'primary'
 
   if (intent === 'hard-delete') {
-    title = count === 1 ? 'Delete archived post permanently?' : `Delete ${count} archived ${noun} permanently?`
-    description = count === 1
-      ? 'This permanently removes the archived post and its related data. This cannot be undone.'
-      : 'These archived posts and their related data will be permanently removed. This cannot be undone.'
-    confirmLabel = count === 1 ? 'Delete permanently' : `Delete ${count} permanently`
+    title = t(count === 1 ? 'admin.posts.bulk.deleteOneTitle' : 'admin.posts.bulk.deleteManyTitle', { count })
+    description = t(count === 1 ? 'admin.posts.bulk.deleteOneDescription' : 'admin.posts.bulk.deleteManyDescription')
+    confirmLabel = t(count === 1 ? 'admin.posts.bulk.deleteOneConfirm' : 'admin.posts.bulk.deleteManyConfirm', { count })
     confirmColor = 'error'
   } else if (intent === 'mixed') {
-    title = count === 1 ? 'Apply selected action?' : `Apply action to ${count} ${noun}?`
-    description = 'Active posts will be archived. Already archived posts will be permanently deleted.'
-    confirmLabel = 'Continue'
+    title = t(count === 1 ? 'admin.posts.bulk.mixedOneTitle' : 'admin.posts.bulk.mixedManyTitle', { count })
+    description = t('admin.posts.bulk.mixedDescription')
+    confirmLabel = t('admin.common.continue')
     confirmColor = 'error'
   } else {
-    title = count === 1 ? 'Archive this post?' : `Archive ${count} ${noun}?`
-    description = count === 1
-      ? 'The post will move to Archived and can be restored later.'
-      : 'These posts will move to Archived and can be restored later.'
-    confirmLabel = count === 1 ? 'Archive post' : `Archive ${count} posts`
+    title = t(count === 1 ? 'admin.posts.bulk.archiveOneTitle' : 'admin.posts.bulk.archiveManyTitle', { count })
+    description = t(count === 1 ? 'admin.posts.bulk.archiveOneDescription' : 'admin.posts.bulk.archiveManyDescription')
+    confirmLabel = t(count === 1 ? 'admin.posts.bulk.archiveOneConfirm' : 'admin.posts.bulk.archiveManyConfirm', { count })
     confirmColor = 'primary'
   }
 
@@ -736,15 +732,12 @@ function deletePermanentlySelected() {
 
   const uniqueIds = Array.from(new Set(selectedIds.value))
   const count = uniqueIds.length
-  const noun = count === 1 ? 'post' : 'posts'
 
   confirmDialog.open = true
   confirmDialog.intent = 'hard-delete'
-  confirmDialog.title = count === 1 ? 'Delete archived post permanently?' : `Delete ${count} archived ${noun} permanently?`
-  confirmDialog.description = count === 1
-    ? 'This permanently removes the archived post and its related data. This cannot be undone.'
-    : 'These archived posts and their related data will be permanently removed. This cannot be undone.'
-  confirmDialog.confirmLabel = count === 1 ? 'Delete permanently' : `Delete ${count} permanently`
+  confirmDialog.title = t(count === 1 ? 'admin.posts.bulk.deleteOneTitle' : 'admin.posts.bulk.deleteManyTitle', { count })
+  confirmDialog.description = t(count === 1 ? 'admin.posts.bulk.deleteOneDescription' : 'admin.posts.bulk.deleteManyDescription')
+  confirmDialog.confirmLabel = t(count === 1 ? 'admin.posts.bulk.deleteOneConfirm' : 'admin.posts.bulk.deleteManyConfirm', { count })
   confirmDialog.confirmColor = 'error'
   confirmDialog.ids = uniqueIds
 }
@@ -771,9 +764,9 @@ async function restoreSelected() {
       editingCell.value = null
     }
     await refresh()
-    adminToast.success('Posts restored', `Restored ${uniqueIds.length} ${uniqueIds.length === 1 ? 'post' : 'posts'}.`)
+    adminToast.success(t('admin.posts.bulk.restoredTitle'), t('admin.posts.bulk.restoredDescription', { count: uniqueIds.length }))
   } catch (error: any) {
-    adminToast.error(error, 'Could not restore selected posts')
+    adminToast.error(error, t('admin.posts.bulk.restoreFailed'))
   } finally {
     bulkDeleting.value = false
   }
@@ -853,27 +846,27 @@ async function deletePosts(ids: string[]) {
 
     const processed = Number(response.archived ?? 0) + Number(response.deleted ?? 0)
     if (processed > 0) {
-      adminToast.success('Posts updated', bulkPostResultDescription(response.archived, response.deleted))
+      adminToast.success(t('admin.posts.bulk.updatedTitle'), bulkPostResultDescription(response.archived, response.deleted))
     }
 
     if (response.failed > 0) {
-      const firstFailure = response.failures?.[0]?.message ?? 'Some posts could not be processed'
-      adminToast.error(new Error(`${response.failed} post(s) failed. ${firstFailure}`), 'Some posts could not be processed')
+      const firstFailure = response.failures?.[0]?.message ?? t('admin.posts.bulk.partialFailedFallback')
+      adminToast.error(new Error(t('admin.posts.bulk.partialFailedMessage', { count: response.failed, message: firstFailure })), t('admin.posts.bulk.partialFailedTitle'))
     }
 
     await refresh()
   } catch (error: any) {
-    adminToast.error(error, 'Could not process selected posts')
+    adminToast.error(error, t('admin.posts.bulk.processFailed'))
   }
 }
 
 function bulkPostResultDescription(archived: number, deleted: number) {
   const parts = []
   if (archived > 0) {
-    parts.push(`archived ${archived}`)
+    parts.push(t('admin.posts.bulk.resultArchived', { count: archived }))
   }
   if (deleted > 0) {
-    parts.push(`deleted ${deleted}`)
+    parts.push(t('admin.posts.bulk.resultDeleted', { count: deleted }))
   }
   return `${parts.join(', ')}.`
 }
@@ -933,14 +926,18 @@ function flattenCategoryOptions(categories: CategoryRecord[]) {
 
 function visibilityLabel(value: PostVisibility | undefined) {
   if (value === 'private') {
-    return 'Private'
+    return t('admin.posts.visibility.private')
   }
 
   if (value === 'password') {
-    return 'Password protected'
+    return t('admin.posts.visibility.password')
   }
 
-  return 'Public'
+  return t('admin.posts.visibility.public')
+}
+
+function statusLabel(value: PostStatus) {
+  return t(`admin.posts.status.${value}`)
 }
 
 function visibilityIcon(value: PostVisibility | undefined) {
@@ -960,17 +957,17 @@ function formatDate(value: string | null | undefined, fallback: string) {
     return fallback
   }
 
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 
 function formatContentLength(post: PostRecord) {
   const words = Number(post.word_count ?? 0)
   const cjk = Number(post.cjk_char_count ?? 0)
   if (!words && !cjk) return '—'
-  const formatter = new Intl.NumberFormat('en')
+  const formatter = new Intl.NumberFormat(locale.value)
   const parts: string[] = []
-  if (cjk) parts.push(`${formatter.format(cjk)} chars`)
-  if (words) parts.push(`${formatter.format(words)} words`)
+  if (cjk) parts.push(t('admin.posts.contentLength.chars', { count: formatter.format(cjk) }))
+  if (words) parts.push(t('admin.posts.contentLength.words', { count: formatter.format(words) }))
   return parts.join(' · ')
 }
 

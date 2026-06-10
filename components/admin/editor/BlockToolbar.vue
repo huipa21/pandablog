@@ -13,7 +13,7 @@
         type="button"
         class="bt-btn cursor-grab active:cursor-grabbing touch-none"
         :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
-        title="Drag toolbar"
+        :title="t('admin.editor.toolbar.dragToolbar')"
         @mousedown.prevent="onDragHandleMouseDown"
       >
         <svg width="10" height="16" viewBox="0 0 10 16" class="pointer-events-none opacity-40">
@@ -29,21 +29,21 @@
 
       <!-- Block-level actions (always visible when toolbar is shown) -->
       <UDropdownMenu :items="transformItems">
-        <button type="button" class="bt-btn" title="Transform to...">
+        <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.transformTo')">
           <UIcon :name="currentIcon" class="size-4" />
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
         </button>
       </UDropdownMenu>
 
-      <button type="button" class="bt-btn" title="Move up" @click="emit('move-up')">
+      <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.moveUp')" @click="emit('move-up')">
         <UIcon name="i-lucide-arrow-up" class="size-4" />
       </button>
-      <button type="button" class="bt-btn" title="Move down" @click="emit('move-down')">
+      <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.moveDown')" @click="emit('move-down')">
         <UIcon name="i-lucide-arrow-down" class="size-4" />
       </button>
 
       <UDropdownMenu :items="alignItems">
-        <button type="button" class="bt-btn" title="Align">
+        <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.align')">
           <UIcon :name="alignIcon" class="size-4" />
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
         </button>
@@ -57,7 +57,7 @@
         class="bt-btn"
         :class="{ 'bt-btn-active': inlineActive.bold }"
         :aria-pressed="inlineActive.bold"
-        title="Bold"
+        :title="t('admin.editor.toolbar.bold')"
         @mousedown.prevent="toggleInlineMark('bold')"
       >
         <UIcon name="i-lucide-bold" class="size-4" />
@@ -67,7 +67,7 @@
         class="bt-btn"
         :class="{ 'bt-btn-active': inlineActive.italic }"
         :aria-pressed="inlineActive.italic"
-        title="Italic"
+        :title="t('admin.editor.toolbar.italic')"
         @mousedown.prevent="toggleInlineMark('italic')"
       >
         <UIcon name="i-lucide-italic" class="size-4" />
@@ -77,7 +77,7 @@
         class="bt-btn"
         :class="{ 'bt-btn-active': inlineActive.strike }"
         :aria-pressed="inlineActive.strike"
-        title="Strikethrough"
+        :title="t('admin.editor.toolbar.strikethrough')"
         @mousedown.prevent="toggleInlineMark('strike')"
       >
         <UIcon name="i-lucide-strikethrough" class="size-4" />
@@ -87,7 +87,7 @@
         class="bt-btn"
         :class="{ 'bt-btn-active': inlineActive.link }"
         :aria-pressed="inlineActive.link"
-        title="Link"
+        :title="t('admin.editor.toolbar.link')"
         @mousedown.prevent="openLinkDialog"
       >
         <UIcon name="i-lucide-link" class="size-4" />
@@ -99,7 +99,7 @@
           class="bt-btn"
           :class="{ 'bt-btn-active': inlineActive.highlight }"
           :aria-pressed="inlineActive.highlight"
-          title="Highlight"
+          :title="t('admin.editor.toolbar.highlight')"
           @mousedown.prevent="toggleHighlightPalette"
         >
           <UIcon name="i-lucide-highlighter" class="size-4" />
@@ -109,7 +109,7 @@
           v-if="highlightPaletteOpen"
           class="bt-highlight-popover"
           role="dialog"
-          aria-label="Highlight colors"
+          :aria-label="t('admin.editor.toolbar.highlightColors')"
           @mousedown.prevent
         >
           <div class="bt-highlight-grid">
@@ -119,27 +119,27 @@
               type="button"
               class="bt-highlight-swatch"
               :style="{ backgroundColor: color.value }"
-              :title="`Highlight ${color.label}`"
-              :aria-label="`Highlight ${color.label}`"
+              :title="t('admin.editor.toolbar.highlightColor', { label: color.label })"
+              :aria-label="t('admin.editor.toolbar.highlightColor', { label: color.label })"
               @mousedown.prevent="setHighlightColor(color.value)"
             />
           </div>
 
           <div class="bt-highlight-actions">
-            <label class="bt-highlight-picker" title="Custom highlight color">
+            <label class="bt-highlight-picker" :title="t('admin.editor.toolbar.customHighlightColor')">
               <UIcon name="i-lucide-palette" class="size-3.5" />
-              <span>Custom</span>
+              <span>{{ t('admin.editor.toolbar.custom') }}</span>
               <input type="color" :value="customHighlightColor" @input="setCustomHighlightColor">
             </label>
 
             <button
               type="button"
               class="bt-highlight-clear"
-              title="Remove highlight"
+              :title="t('admin.editor.toolbar.removeHighlight')"
               @mousedown.prevent="unsetHighlightColor"
             >
               <UIcon name="i-lucide-eraser" class="size-3.5" />
-              <span>Transparent</span>
+              <span>{{ t('admin.editor.toolbar.transparent') }}</span>
             </button>
           </div>
         </div>
@@ -151,7 +151,7 @@
           class="bt-btn"
           :class="{ 'bt-btn-active': hasDropdownInlineActive }"
           :aria-pressed="hasDropdownInlineActive"
-          title="More formatting"
+          :title="t('admin.editor.toolbar.moreFormatting')"
         >
           <UIcon name="i-lucide-chevron-down" class="size-4" />
         </button>
@@ -163,7 +163,7 @@
           type="button"
           class="bt-btn"
           :class="{ 'bt-btn-active': annotateBusy }"
-          :title="`Annotate (${annotateLang.toUpperCase()})`"
+          :title="t('admin.editor.toolbar.annotate', { lang: annotateLang.toUpperCase() })"
           :disabled="annotateBusy"
           @mousedown.prevent="runAnnotate"
         >
@@ -172,7 +172,7 @@
         <button
           type="button"
           class="bt-btn bt-btn-suffix"
-          title="Choose annotation language"
+          :title="t('admin.editor.toolbar.chooseAnnotationLanguage')"
           :disabled="annotateBusy"
           @mousedown.prevent="annotateLangPickerOpen = !annotateLangPickerOpen"
         >
@@ -183,7 +183,7 @@
           v-if="annotateLangPickerOpen"
           class="bt-annotate-popover"
           role="dialog"
-          aria-label="Annotation language"
+          :aria-label="t('admin.editor.toolbar.annotationLanguage')"
           @mousedown.prevent
         >
           <button
@@ -202,7 +202,7 @@
 
       <!-- 3-dot More menu -->
       <UDropdownMenu :items="moreItems">
-        <button type="button" class="bt-btn" title="More options">
+        <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.moreOptions')">
           <UIcon name="i-lucide-more-vertical" class="size-4" />
         </button>
       </UDropdownMenu>
@@ -214,27 +214,27 @@
       <UCard>
         <template #header>
           <div>
-            <h3 class="text-base font-semibold text-stone-900">Edit link</h3>
-            <p class="text-xs text-stone-500">Set URL, display text, and how the link should open.</p>
+            <h3 class="text-base font-semibold text-stone-900">{{ t('admin.editor.toolbar.editLink') }}</h3>
+            <p class="text-xs text-stone-500">{{ t('admin.editor.toolbar.editLinkDescription') }}</p>
           </div>
         </template>
 
         <div class="grid gap-3">
-          <UFormField label="URL">
+          <UFormField :label="t('admin.editor.toolbar.url')">
             <UInput v-model="linkForm.href" placeholder="https://example.com" autofocus />
           </UFormField>
-          <UFormField label="Display text">
-            <UInput v-model="linkForm.text" placeholder="Link text" />
+          <UFormField :label="t('admin.editor.toolbar.displayText')">
+            <UInput v-model="linkForm.text" :placeholder="t('admin.editor.toolbar.linkText')" />
           </UFormField>
-          <UFormField label="Open behavior">
+          <UFormField :label="t('admin.editor.toolbar.openBehavior')">
             <USelect v-model="linkForm.openMode" :items="linkOpenModeItems" />
           </UFormField>
         </div>
 
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton type="button" variant="ghost" color="neutral" @click="linkDialogOpen = false">Cancel</UButton>
-            <UButton type="button" color="primary" @click="applyLinkDialog">Apply</UButton>
+            <UButton type="button" variant="ghost" color="neutral" @click="linkDialogOpen = false">{{ t('admin.editor.toolbar.cancel') }}</UButton>
+            <UButton type="button" color="primary" @click="applyLinkDialog">{{ t('admin.editor.toolbar.apply') }}</UButton>
           </div>
         </template>
       </UCard>
@@ -277,6 +277,7 @@ const emit = defineEmits<{
   transform: [type: string]
 }>()
 
+const { t } = useI18n()
 const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 const linkDialogOpen = ref(false)
@@ -340,22 +341,22 @@ const linkForm = reactive({
   openMode: 'same-tab' as 'same-tab' | 'new-tab' | 'new-window'
 })
 
-const linkOpenModeItems = [
-  { label: 'Open in same tab', value: 'same-tab' },
-  { label: 'Open in new tab', value: 'new-tab' },
-  { label: 'Open in new window', value: 'new-window' }
-]
+const linkOpenModeItems = computed(() => [
+  { label: t('admin.editor.toolbar.openSameTab'), value: 'same-tab' },
+  { label: t('admin.editor.toolbar.openNewTab'), value: 'new-tab' },
+  { label: t('admin.editor.toolbar.openNewWindow'), value: 'new-window' }
+])
 
 // Annotate (ruby) state
 const ANNOTATE_LANG_STORAGE_KEY = 'pandablog:annotate-lang'
 const annotateLang = ref<AnnotLang>(loadAnnotateLang())
 const annotateLangPickerOpen = ref(false)
 const annotateBusy = ref(false)
-const annotateLangOptions: Array<{ value: AnnotLang, label: string, hint: string }> = [
-  { value: 'cmn', label: 'Mandarin', hint: 'Pinyin (tone marks)' },
-  { value: 'yue', label: 'Cantonese', hint: 'Jyutping' },
-  { value: 'jpn', label: 'Japanese', hint: 'Furigana (hiragana)' }
-]
+const annotateLangOptions = computed<Array<{ value: AnnotLang, label: string, hint: string }>>(() => [
+  { value: 'cmn', label: t('admin.editor.toolbar.mandarin'), hint: t('admin.editor.toolbar.pinyinToneMarks') },
+  { value: 'yue', label: t('admin.editor.toolbar.cantonese'), hint: t('admin.editor.toolbar.jyutping') },
+  { value: 'jpn', label: t('admin.editor.toolbar.japanese'), hint: t('admin.editor.toolbar.furiganaHiragana') }
+])
 const { annotate } = useReadings()
 
 const { floatingStyles } = useFloating(refEl, toolbarEl, {
@@ -387,15 +388,15 @@ const currentIcon = computed(() => {
 })
 
 const transformItems = computed(() => [[
-  { label: 'Paragraph', icon: 'i-lucide-pilcrow', onSelect: () => emit('transform', 'paragraph') },
-  { label: 'Heading 1', icon: 'i-lucide-heading-1', onSelect: () => emit('transform', 'heading-1') },
-  { label: 'Heading 2', icon: 'i-lucide-heading-2', onSelect: () => emit('transform', 'heading-2') },
-  { label: 'Heading 3', icon: 'i-lucide-heading-3', onSelect: () => emit('transform', 'heading-3') },
-  { label: 'Bullet list', icon: 'i-lucide-list', onSelect: () => emit('transform', 'bulletList') },
-  { label: 'Numbered list', icon: 'i-lucide-list-ordered', onSelect: () => emit('transform', 'orderedList') },
-  { label: 'Quote', icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
-  { label: 'Code', icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') },
-  { label: 'Separator', icon: 'i-lucide-minus', onSelect: () => emit('transform', 'horizontalRule') }
+  { label: t('admin.editor.toolbar.paragraph'), icon: 'i-lucide-pilcrow', onSelect: () => emit('transform', 'paragraph') },
+  { label: t('admin.editor.toolbar.heading1'), icon: 'i-lucide-heading-1', onSelect: () => emit('transform', 'heading-1') },
+  { label: t('admin.editor.toolbar.heading2'), icon: 'i-lucide-heading-2', onSelect: () => emit('transform', 'heading-2') },
+  { label: t('admin.editor.toolbar.heading3'), icon: 'i-lucide-heading-3', onSelect: () => emit('transform', 'heading-3') },
+  { label: t('admin.editor.toolbar.bulletList'), icon: 'i-lucide-list', onSelect: () => emit('transform', 'bulletList') },
+  { label: t('admin.editor.toolbar.numberedList'), icon: 'i-lucide-list-ordered', onSelect: () => emit('transform', 'orderedList') },
+  { label: t('admin.editor.toolbar.quote'), icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
+  { label: t('admin.editor.toolbar.code'), icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') },
+  { label: t('admin.editor.toolbar.separator'), icon: 'i-lucide-minus', onSelect: () => emit('transform', 'horizontalRule') }
 ]])
 
 const alignIcon = computed(() => {
@@ -408,23 +409,23 @@ const alignIcon = computed(() => {
 })
 
 const alignItems = computed(() => [[
-  { label: 'Align left', icon: 'i-lucide-align-left', onSelect: () => setAlign('left') },
-  { label: 'Align center', icon: 'i-lucide-align-center', onSelect: () => setAlign('center') },
-  { label: 'Align right', icon: 'i-lucide-align-right', onSelect: () => setAlign('right') },
-  { label: 'Justify', icon: 'i-lucide-align-justify', onSelect: () => setAlign('justify') }
+  { label: t('admin.editor.toolbar.alignLeft'), icon: 'i-lucide-align-left', onSelect: () => setAlign('left') },
+  { label: t('admin.editor.toolbar.alignCenter'), icon: 'i-lucide-align-center', onSelect: () => setAlign('center') },
+  { label: t('admin.editor.toolbar.alignRight'), icon: 'i-lucide-align-right', onSelect: () => setAlign('right') },
+  { label: t('admin.editor.toolbar.justify'), icon: 'i-lucide-align-justify', onSelect: () => setAlign('justify') }
 ]])
 
 const moreItems = computed(() => [[
-  { label: 'Copy', icon: 'i-lucide-clipboard-copy', onSelect: () => emit('copy-block') },
-  { label: 'Cut', icon: 'i-lucide-scissors', onSelect: () => emit('cut-block') },
-  { label: 'Duplicate', icon: 'i-lucide-copy', onSelect: () => emit('duplicate') }
+  { label: t('admin.editor.toolbar.copy'), icon: 'i-lucide-clipboard-copy', onSelect: () => emit('copy-block') },
+  { label: t('admin.editor.toolbar.cut'), icon: 'i-lucide-scissors', onSelect: () => emit('cut-block') },
+  { label: t('admin.editor.toolbar.duplicate'), icon: 'i-lucide-copy', onSelect: () => emit('duplicate') }
 ], [
-  { label: 'Add before', icon: 'i-lucide-arrow-up-to-line', onSelect: () => emit('add-before') },
-  { label: 'Add after', icon: 'i-lucide-arrow-down-to-line', onSelect: () => emit('add-after') }
+  { label: t('admin.editor.toolbar.addBefore'), icon: 'i-lucide-arrow-up-to-line', onSelect: () => emit('add-before') },
+  { label: t('admin.editor.toolbar.addAfter'), icon: 'i-lucide-arrow-down-to-line', onSelect: () => emit('add-after') }
 ], [
-  { label: 'Edit as HTML', icon: 'i-lucide-file-code-2', onSelect: () => emit('edit-html') }
+  { label: t('admin.editor.toolbar.editAsHtml'), icon: 'i-lucide-file-code-2', onSelect: () => emit('edit-html') }
 ], [
-  { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => emit('delete') }
+  { label: t('admin.editor.toolbar.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => emit('delete') }
 ]])
 
 const inlineActive = computed(() => {
@@ -459,7 +460,7 @@ const inlineActive = computed(() => {
 const inlineMoreItems = computed(() => [
   [
     {
-      label: inlineMenuLabel('Inline code', inlineActive.value.code),
+      label: inlineMenuLabel(t('admin.editor.toolbar.inlineCode'), inlineActive.value.code),
       icon: 'i-lucide-code',
       class: inlineActive.value.code ? 'bg-teal-50 text-teal-700' : undefined,
       onSelect: () => toggleInlineMark('code')
@@ -467,18 +468,18 @@ const inlineMoreItems = computed(() => [
   ],
   [
     {
-      label: inlineMenuLabel('Subscript', inlineActive.value.subscript),
+      label: inlineMenuLabel(t('admin.editor.toolbar.subscript'), inlineActive.value.subscript),
       icon: 'i-lucide-subscript',
       class: inlineActive.value.subscript ? 'bg-teal-50 text-teal-700' : undefined,
       onSelect: () => toggleInlineMark('subscript')
     },
     {
-      label: inlineMenuLabel('Superscript', inlineActive.value.superscript),
+      label: inlineMenuLabel(t('admin.editor.toolbar.superscript'), inlineActive.value.superscript),
       icon: 'i-lucide-superscript',
       class: inlineActive.value.superscript ? 'bg-teal-50 text-teal-700' : undefined,
       onSelect: () => toggleInlineMark('superscript')
     },
-    { label: 'Footnote', icon: 'i-lucide-footprints', onSelect: () => emit('add-footnote') }
+    { label: t('admin.editor.toolbar.footnote'), icon: 'i-lucide-footprints', onSelect: () => emit('add-footnote') }
   ]
 ])
 

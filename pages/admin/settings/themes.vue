@@ -1,14 +1,14 @@
 <template>
   <div class="space-y-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Settings</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Themes</h1>
-      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">Choose the active visual theme, preview it, or upload a custom theme package.</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.settings.common.eyebrow') }}</p>
+      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.themes.title') }}</h1>
+      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.themes.description') }}</p>
     </header>
 
     <!-- Upload -->
     <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-      <h2 class="mb-2 font-medium text-[var(--pb-text)]">Upload theme</h2>
+      <h2 class="mb-2 font-medium text-[var(--pb-text)]">{{ t('admin.settings.themes.uploadTitle') }}</h2>
       <form class="flex items-center gap-3" @submit.prevent="onUpload">
         <input ref="fileInput" type="file" accept=".zip" class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-border)] px-2 py-1" />
         <UButton
@@ -16,15 +16,15 @@
           icon="i-lucide-upload"
           :disabled="uploading"
         >
-          {{ uploading ? 'Uploading…' : 'Upload .zip' }}
+          {{ uploading ? t('admin.settings.themes.uploading') : t('admin.settings.themes.uploadZip') }}
         </UButton>
       </form>
     </section>
 
     <!-- Theme list -->
     <section>
-      <h2 class="mb-3 font-medium text-[var(--pb-text)]">Installed themes</h2>
-      <div v-if="pending">Loading…</div>
+      <h2 class="mb-3 font-medium text-[var(--pb-text)]">{{ t('admin.settings.themes.installed') }}</h2>
+      <div v-if="pending">{{ t('admin.settings.themes.loading') }}</div>
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <article
           v-for="theme in data?.themes ?? []"
@@ -35,7 +35,7 @@
           <div class="aspect-[16/9] bg-[var(--pb-surface-subtle)]">
             <img
               :src="`/themes/${theme.id}/${theme.preview}`"
-              :alt="`${theme.name} preview`"
+              :alt="t('admin.settings.themes.previewAlt', { name: theme.name })"
               class="w-full h-full object-cover"
               @error="(e: any) => (e.target.style.display = 'none')"
             />
@@ -50,19 +50,19 @@
               <button
                 class="text-sm px-2 py-1 border rounded"
                 @click="openPreview(theme.id)"
-              >Preview</button>
+              >{{ t('admin.settings.themes.preview') }}</button>
               <button
                 class="text-sm px-2 py-1 bg-[var(--pb-primary)] text-[var(--pb-primary-contrast)] rounded disabled:opacity-50"
                 :disabled="theme.id === data?.activeId"
                 @click="activate(theme.id)"
               >
-                {{ theme.id === data?.activeId ? 'Active' : 'Activate' }}
+                {{ theme.id === data?.activeId ? t('admin.settings.themes.active') : t('admin.settings.themes.activate') }}
               </button>
               <button
                 v-if="!isBuiltInTheme(theme.id) && theme.id !== data?.activeId"
                 class="text-sm px-2 py-1 border border-red-300 text-red-600 rounded"
                 @click="requestRemove(theme.id)"
-              >Delete</button>
+              >{{ t('admin.settings.themes.delete') }}</button>
             </div>
           </div>
         </article>
@@ -71,9 +71,9 @@
 
     <AdminConfirmActionDialog
       :open="deleteDialogOpen"
-      title="Delete theme?"
+      :title="t('admin.settings.themes.deleteTitle')"
       :description="deleteDialogDescription"
-      confirm-label="Delete"
+      :confirm-label="t('admin.settings.themes.delete')"
       confirm-color="error"
       :loading="deleting"
       @update:open="(value) => { if (!value) closeDeleteDialog() }"
@@ -88,13 +88,13 @@
       @click.self="previewId = null"
     >
       <div class="bg-white p-2 flex items-center justify-between">
-        <span class="font-medium px-2">Preview: {{ previewId }}</span>
+        <span class="font-medium px-2">{{ t('admin.settings.themes.previewTitle', { id: previewId }) }}</span>
         <div class="flex gap-2">
           <button
             class="px-3 py-1 bg-blue-600 text-white rounded"
             @click="activate(previewId); previewId = null"
-          >Publish this theme</button>
-          <button class="px-3 py-1 border rounded" @click="previewId = null">Close</button>
+          >{{ t('admin.settings.themes.publishTheme') }}</button>
+          <button class="px-3 py-1 border rounded" @click="previewId = null">{{ t('admin.settings.themes.close') }}</button>
         </div>
       </div>
       <iframe
@@ -109,6 +109,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
 
+const { t } = useI18n()
+
 const { data, pending, refresh } = await useFetch('/api/admin/themes')
 
 const fileInput = ref<HTMLInputElement>()
@@ -121,8 +123,8 @@ const deleteDialogOpen = ref(false)
 const pendingDeleteThemeId = ref<string | null>(null)
 const builtInThemeIds = new Set(['default', 'tesla', 'notion', 'clay'])
 const deleteDialogDescription = computed(() => pendingDeleteThemeId.value
-  ? `Delete theme "${pendingDeleteThemeId.value}"?`
-  : 'Delete this theme?')
+  ? t('admin.settings.themes.deleteDescription', { id: pendingDeleteThemeId.value })
+  : t('admin.settings.themes.deleteFallback'))
 
 function isBuiltInTheme(themeId: string) {
   return builtInThemeIds.has(themeId)
@@ -131,7 +133,7 @@ function isBuiltInTheme(themeId: string) {
 async function onUpload() {
   const file = fileInput.value?.files?.[0]
   if (!file) {
-    adminToast.error(new Error('Pick a .zip file'), 'Pick a .zip file')
+    adminToast.error(new Error(t('admin.settings.themes.pickZip')), t('admin.settings.themes.pickZip'))
     return
   }
 
@@ -143,11 +145,11 @@ async function onUpload() {
       method: 'POST',
       body: formData
     })
-    adminToast.success(`Installed: ${res.themeId}`)
+    adminToast.success(t('admin.settings.themes.installedToast', { id: res.themeId }))
     if (fileInput.value) fileInput.value.value = ''
     await refresh()
   } catch (err: any) {
-    adminToast.error(err, 'Upload failed')
+    adminToast.error(err, t('admin.settings.themes.uploadFailed'))
   } finally {
     uploading.value = false
   }
@@ -158,9 +160,9 @@ async function activate(themeId: string) {
     await $fetch('/api/admin/themes/activate', { method: 'POST', body: { themeId } })
     refreshThemeStylesheet()
     await refresh()
-    adminToast.success('Theme activated')
+    adminToast.success(t('admin.settings.themes.activated'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not activate theme')
+    adminToast.error(err, t('admin.settings.themes.activateFailed'))
   }
 }
 
@@ -198,9 +200,9 @@ async function confirmRemove() {
     await $fetch(`/api/admin/themes/${themeId}`, { method: 'DELETE' })
     await refresh()
     closeDeleteDialog()
-    adminToast.success('Theme deleted')
+    adminToast.success(t('admin.settings.themes.deleted'))
   } catch (err: any) {
-    adminToast.error(err, 'Delete failed')
+    adminToast.error(err, t('admin.settings.themes.deleteFailed'))
   } finally {
     deleting.value = false
   }

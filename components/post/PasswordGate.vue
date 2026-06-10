@@ -1,14 +1,14 @@
 <template>
   <section class="mx-auto max-w-md px-4 py-12 text-center">
-    <h1 class="mb-2 text-xl font-medium">{{ title || 'This post is protected' }}</h1>
-    <p v-if="hint" class="mb-4 text-sm text-gray-500">Hint: {{ hint }}</p>
+    <h1 class="mb-2 text-xl font-medium">{{ title || t('public.passwordGate.title') }}</h1>
+    <p v-if="hint" class="mb-4 text-sm text-gray-500">{{ t('public.passwordGate.hint', { hint }) }}</p>
 
     <form class="space-y-3" @submit.prevent="submit">
       <input
         ref="input"
         v-model="password"
         type="password"
-        placeholder="Password"
+        :placeholder="t('public.passwordGate.password')"
         class="w-full rounded border px-3 py-2"
         autocomplete="off"
       >
@@ -17,7 +17,7 @@
         class="w-full rounded bg-blue-600 px-3 py-2 text-white disabled:opacity-50"
         :disabled="busy || !password"
       >
-        {{ busy ? 'Checking...' : 'Unlock' }}
+        {{ busy ? t('public.passwordGate.checking') : t('public.passwordGate.unlock') }}
       </button>
     </form>
 
@@ -33,6 +33,7 @@ const props = defineProps<{
 }>()
 
 const password = ref('')
+const { t } = useI18n()
 const busy = ref(false)
 const error = ref('')
 const input = ref<HTMLInputElement>()
@@ -53,9 +54,9 @@ async function submit() {
     reloadNuxtApp({ force: true })
   } catch (err: any) {
     if (err?.statusCode === 429) {
-      error.value = err?.statusMessage ?? 'Too many attempts. Try again later.'
+      error.value = err?.statusMessage ?? t('public.passwordGate.tooManyAttempts')
     } else {
-      error.value = 'Incorrect password.'
+      error.value = t('public.passwordGate.incorrect')
     }
   } finally {
     busy.value = false

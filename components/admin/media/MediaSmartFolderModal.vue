@@ -3,49 +3,49 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/40" @click="emit('close')" />
       <div class="relative w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <h2 class="mb-4 text-lg font-semibold text-stone-950">{{ folder ? 'Edit Smart Folder' : 'Create Smart Folder' }}</h2>
+        <h2 class="mb-4 text-lg font-semibold text-stone-950">{{ folder ? t('admin.media.editSmartFolder') : t('admin.media.createSmartFolder') }}</h2>
 
         <form class="space-y-4" @submit.prevent="save">
-          <UFormField label="Name">
-            <UInput v-model="form.name" placeholder="e.g. All Images, Orphaned PDFs" required />
+          <UFormField :label="t('admin.media.name')">
+            <UInput v-model="form.name" :placeholder="t('admin.media.smartFolderNamePlaceholder')" required />
           </UFormField>
 
-          <UFormField label="File type">
+          <UFormField :label="t('admin.media.fileType')">
             <USelect v-model="form.file_type" :items="typeItems" />
           </UFormField>
 
-          <UFormField label="Tags">
+          <UFormField :label="t('admin.media.tags')">
             <div class="rounded-md border border-stone-300 px-2 py-1.5">
               <MediaTagInput v-model="form.tags" />
             </div>
           </UFormField>
 
-          <UFormField label="Filename contains (regex)">
-            <UInput v-model="form.filename_regex" placeholder="e.g. screenshot|photo" />
+          <UFormField :label="t('admin.media.filenameRegex')">
+            <UInput v-model="form.filename_regex" :placeholder="t('admin.media.filenameRegexPlaceholder')" />
           </UFormField>
 
           <label class="flex items-center gap-2 text-sm text-stone-700">
             <input v-model="form.filename_regex_case_insensitive" type="checkbox" class="rounded border-stone-300">
-            <span>Case insensitive regex</span>
+            <span>{{ t('admin.media.caseInsensitiveRegex') }}</span>
           </label>
 
           <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Date from">
+            <UFormField :label="t('admin.media.dateFrom')">
               <UInput v-model="form.date_from" type="date" />
             </UFormField>
-            <UFormField label="Date to">
+            <UFormField :label="t('admin.media.dateTo')">
               <UInput v-model="form.date_to" type="date" />
             </UFormField>
           </div>
 
           <label class="flex items-center gap-2 text-sm text-stone-700">
             <input v-model="form.orphan_only" type="checkbox" class="rounded border-stone-300">
-            <span>Orphans only (no references)</span>
+            <span>{{ t('admin.media.orphansNoReferences') }}</span>
           </label>
 
           <div class="flex justify-end gap-2 pt-2">
-            <UButton type="button" color="neutral" variant="ghost" @click="emit('close')">Cancel</UButton>
-            <UButton type="submit" :loading="saving">{{ folder ? 'Save' : 'Create' }}</UButton>
+            <UButton type="button" color="neutral" variant="ghost" @click="emit('close')">{{ t('admin.media.cancel') }}</UButton>
+            <UButton type="submit" :loading="saving">{{ folder ? t('admin.media.save') : t('admin.media.create') }}</UButton>
           </div>
         </form>
       </div>
@@ -79,6 +79,7 @@ const emit = defineEmits<{
   'saved': []
 }>()
 
+const { t } = useI18n()
 const saving = ref(false)
 
 const form = reactive({
@@ -92,14 +93,14 @@ const form = reactive({
   orphan_only: props.folder?.filters.orphan_only || false
 })
 
-const typeItems = [
-  { label: 'All files', value: 'all' },
-  { label: 'Images', value: 'image' },
-  { label: 'Videos', value: 'video' },
-  { label: 'Documents', value: 'document' },
-  { label: 'Archives', value: 'archive' },
-  { label: 'Other', value: 'other' }
-]
+const typeItems = computed(() => [
+  { label: t('admin.media.typeAll'), value: 'all' },
+  { label: t('admin.media.typeImages'), value: 'image' },
+  { label: t('admin.media.typeVideos'), value: 'video' },
+  { label: t('admin.media.typeDocuments'), value: 'document' },
+  { label: t('admin.media.typeArchives'), value: 'archive' },
+  { label: t('admin.media.typeOther'), value: 'other' }
+])
 
 async function save() {
   saving.value = true

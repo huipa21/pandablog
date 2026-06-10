@@ -32,7 +32,7 @@
       </div>
       <div v-if="viewMode !== 'code'" class="mermaid-preview-pane">
         <div v-if="error" class="mermaid-error">{{ error }}</div>
-        <div v-else-if="!code.trim()" class="mermaid-empty">Diagram preview appears here.</div>
+        <div v-else-if="!code.trim()" class="mermaid-empty">{{ t('admin.editor.nodeViews.diagramPreview') }}</div>
         <div v-else ref="previewEl" class="mermaid-preview" />
       </div>
     </div>
@@ -48,6 +48,7 @@ let mermaidPromise: Promise<MermaidModule> | null = null
 let mermaidInitialized = false
 
 const props = defineProps(nodeViewProps)
+const { t } = useI18n()
 
 const code = computed(() => typeof props.node.attrs.code === 'string' ? props.node.attrs.code : '')
 const modes = ['split', 'code', 'preview'] as const
@@ -121,7 +122,7 @@ async function renderPreview() {
     error.value = ''
   } catch (err) {
     if (token !== renderToken) return
-    error.value = err instanceof Error ? err.message : 'Failed to render diagram.'
+    error.value = err instanceof Error ? err.message : t('admin.editor.nodeViews.renderDiagramFailed')
   }
 }
 

@@ -1,6 +1,6 @@
 <template>
   <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Tags</h3>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('public.tag.listTitle') }}</h3>
     <div v-if="pending" class="flex flex-wrap gap-2">
       <USkeleton v-for="index in 5" :key="index" class="h-7 w-16 rounded-full" />
     </div>
@@ -16,12 +16,13 @@
         <span v-if="tag.post_count" class="ml-1 text-[var(--pb-text-subtle)]">{{ tag.post_count }}</span>
       </NuxtLink>
     </div>
-    <p v-else class="text-sm italic text-[var(--pb-text-subtle)]">No tags yet.</p>
+    <p v-else class="text-sm italic text-[var(--pb-text-subtle)]">{{ t('public.tag.emptyList') }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 const { data, pending } = await usePublicBootstrap()
+const { t } = useI18n()
 const tags = computed(() => (data.value?.tags ?? []).filter((tag) => {
   const name = String(tag.name ?? '').trim().toLowerCase()
   const slug = String(tag.slug ?? '').trim().toLowerCase()

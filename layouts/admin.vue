@@ -10,7 +10,7 @@
           <button
             v-if="!hideSidebar"
             class="grid size-10 place-items-center rounded-[var(--pb-radius-md)] text-[var(--pb-text-muted)] md:hidden"
-            aria-label="Open navigation"
+            :aria-label="t('admin.layout.openNavigation')"
             @click="sidebarOpen = !sidebarOpen"
           >
             <UIcon name="i-lucide-menu" class="size-5" />
@@ -33,7 +33,7 @@
         </div>
         <div class="flex items-center gap-2">
           <div class="hidden md:block">
-            <BlogSearchBar variant="header" placeholder="Search posts…" />
+            <BlogSearchBar :key="`admin-search-${locale}`" variant="header" />
           </div>
           <UButton
             variant="ghost"
@@ -121,12 +121,12 @@
         type="button"
         class="mt-3 hidden h-10 items-center gap-2 rounded-[var(--pb-radius-lg)] px-3 text-sm font-medium text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-surface-subtle)] hover:text-[var(--pb-text)] md:flex"
         :class="collapsed ? 'md:justify-center md:px-0' : ''"
-        :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-        :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        :aria-label="collapsed ? t('admin.layout.expandSidebar') : t('admin.layout.collapseSidebar')"
+        :title="collapsed ? t('admin.layout.expandSidebar') : t('admin.layout.collapseSidebar')"
         @click="toggleCollapsed"
       >
         <UIcon :name="collapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-5 shrink-0" />
-        <span v-if="!collapsed">Collapse</span>
+        <span v-if="!collapsed">{{ t('admin.layout.collapse') }}</span>
       </button>
     </aside>
 
@@ -140,6 +140,7 @@
 </template>
 
 <script setup lang="ts">
+import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE, normalizeAdminLocale } from '~/utils/adminLocale'
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
 type AdminRole = 'superadmin' | 'admin' | 'author' | 'viewer'
@@ -152,6 +153,7 @@ interface AdminSessionUser {
   avatar_url?: string | null
 }
 
+const { t, locale, setLocale } = useI18n()
 const { siteName, siteLogo } = useSiteSettings()
 const sessionFetch = useSessionFetch()
 const { data: authSession } = await useAsyncData('admin-layout-session', () => sessionFetch<{ loggedIn: boolean, user: AdminSessionUser | null }>('/api/auth/session'), {
@@ -159,7 +161,7 @@ const { data: authSession } = await useAsyncData('admin-layout-session', () => s
 })
 const adminRole = computed(() => authSession.value?.user?.role ?? null)
 const isSuperadmin = computed(() => adminRole.value === 'superadmin')
-const defaultAdminSettings = () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE } })
+const defaultAdminSettings = () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE, [ADMIN_LOCALE_KEY]: DEFAULT_ADMIN_LOCALE } })
 const { data: adminSettings } = await useAsyncData('admin-layout-settings', () => {
   if (!isSuperadmin.value) {
     return Promise.resolve(defaultAdminSettings())
@@ -167,7 +169,12 @@ const { data: adminSettings } = await useAsyncData('admin-layout-settings', () =
 
   return sessionFetch<{ settings: Record<string, unknown> }>('/api/admin/settings')
 }, {
-  default: () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE } })
+  default: defaultAdminSettings
+})
+await setLocale(normalizeAdminLocale(adminSettings.value?.settings?.[ADMIN_LOCALE_KEY]) ?? DEFAULT_ADMIN_LOCALE)
+
+watch(() => adminSettings.value?.settings?.[ADMIN_LOCALE_KEY], async (value) => {
+  await setLocale(normalizeAdminLocale(value) ?? DEFAULT_ADMIN_LOCALE)
 })
 const {
   toggleIcon: themeModeIcon,
@@ -196,14 +203,14 @@ const sidebarOpen = ref(false)
 const loggingOut = ref(false)
 const mainClass = computed(() => route.meta.adminWide === true ? 'min-w-0' : 'min-w-0 px-4 py-8 md:px-8')
 const accountUser = computed(() => authSession.value?.user ?? null)
-const accountName = computed(() => accountUser.value?.display_name || accountUser.value?.username || 'Account')
+const accountName = computed(() => accountUser.value?.display_name || accountUser.value?.username || t('admin.layout.account'))
 const accountAvatarUrl = computed(() => accountUser.value?.avatar_url || '')
 const accountInitials = computed(() => initialsFor(accountName.value))
 const accountMenuItems = computed(() => [[
-  { label: 'My profile', icon: 'i-lucide-user', onSelect: () => navigateTo('/profile') },
-  { label: 'View site', icon: 'i-lucide-external-link', onSelect: () => navigateTo('/') }
+  { label: t('admin.layout.myProfile'), icon: 'i-lucide-user', onSelect: () => navigateTo('/profile') },
+  { label: t('admin.layout.viewSite'), icon: 'i-lucide-external-link', onSelect: () => navigateTo('/') }
 ], [
-  { label: 'Sign out', icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }
+  { label: t('admin.layout.signOut'), icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }
 ]])
 
 const STORAGE_KEY = 'pb-admin-sidebar-collapsed'
@@ -252,28 +259,28 @@ const navSections = computed(() => {
     {
       label: '',
       items: [
-        { to: '/admin', label: 'Dashboard', icon: 'i-lucide-layout-dashboard' }
+        { to: '/admin', label: t('admin.nav.dashboard'), icon: 'i-lucide-layout-dashboard' }
       ]
     }
   ]
 
   if (adminRole.value === 'superadmin' || adminRole.value === 'admin' || adminRole.value === 'author') {
     sections.push({
-      label: 'Posts',
+      label: t('admin.nav.posts'),
       items: [
-        { to: '/admin/posts', label: 'All posts', icon: 'i-lucide-file-text' },
-        { to: '/admin/categories', label: 'Categories', icon: 'i-lucide-folder' },
-        { to: '/admin/tags', label: 'Tags', icon: 'i-lucide-tags' },
-        { to: '/admin/media', label: 'Media library', icon: 'i-lucide-image' }
+        { to: '/admin/posts', label: t('admin.nav.allPosts'), icon: 'i-lucide-file-text' },
+        { to: '/admin/categories', label: t('admin.nav.categories'), icon: 'i-lucide-folder' },
+        { to: '/admin/tags', label: t('admin.nav.tags'), icon: 'i-lucide-tags' },
+        { to: '/admin/media', label: t('admin.nav.mediaLibrary'), icon: 'i-lucide-image' }
       ]
     })
   }
 
   if (adminRole.value === 'superadmin' || adminRole.value === 'admin') {
     sections.push({
-      label: 'People',
+      label: t('admin.nav.people'),
       items: [
-        { to: '/admin/users', label: 'Users', icon: 'i-lucide-users' }
+        { to: '/admin/users', label: t('admin.nav.users'), icon: 'i-lucide-users' }
       ]
     })
   }
@@ -281,17 +288,18 @@ const navSections = computed(() => {
   if (adminRole.value === 'superadmin') {
     sections.push(
       {
-        label: 'Settings',
+        label: t('admin.nav.settings'),
         items: [
-          { to: '/admin/settings/general', label: 'General', icon: 'i-lucide-sliders-horizontal' },
-          { to: '/admin/settings/profile', label: 'Profile', icon: 'i-lucide-user' },
-          { to: '/admin/settings/themes', label: 'Themes', icon: 'i-lucide-palette' }
+          { to: '/admin/settings/general', label: t('admin.nav.general'), icon: 'i-lucide-sliders-horizontal' },
+          { to: '/admin/settings/profile', label: t('admin.nav.profile'), icon: 'i-lucide-user' },
+          { to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' },
+          { to: '/admin/settings/system', label: t('admin.nav.system'), icon: 'i-lucide-monitor-cog' }
         ]
       },
       {
-        label: 'Tools',
+        label: t('admin.nav.tools'),
         items: [
-          { to: '/admin/logs', label: 'Logs', icon: 'i-lucide-clipboard-list' }
+          { to: '/admin/logs', label: t('admin.nav.logs'), icon: 'i-lucide-clipboard-list' }
         ]
       }
     )
@@ -300,27 +308,28 @@ const navSections = computed(() => {
   return sections
 })
 
-const breadcrumbLabels: Record<string, string> = {
-  admin: 'Dashboard',
-  posts: 'Posts',
-  categories: 'Categories',
-  tags: 'Tags',
-  media: 'Media library',
-  users: 'Users',
-  settings: 'Settings',
-  general: 'General',
-  site: 'Site',
-  profile: 'Profile',
-  footer: 'Footer',
-  visibility: 'Visibility',
-  themes: 'Themes',
-  logs: 'Logs',
-  access: 'Access',
-  activity: 'Activity',
-  errors: 'Errors',
-  setup: 'Setup',
-  login: 'Login'
-}
+const breadcrumbLabels = computed<Record<string, string>>(() => ({
+  admin: t('admin.nav.dashboard'),
+  posts: t('admin.nav.posts'),
+  categories: t('admin.nav.categories'),
+  tags: t('admin.nav.tags'),
+  media: t('admin.nav.mediaLibrary'),
+  users: t('admin.nav.users'),
+  settings: t('admin.nav.settings'),
+  general: t('admin.nav.general'),
+  site: t('admin.nav.site'),
+  profile: t('admin.nav.profile'),
+  footer: t('admin.nav.footer'),
+  visibility: t('admin.nav.visibility'),
+  themes: t('admin.nav.themes'),
+  system: t('admin.nav.system'),
+  logs: t('admin.nav.logs'),
+  access: t('admin.nav.access'),
+  activity: t('admin.nav.activity'),
+  errors: t('admin.nav.errors'),
+  setup: t('admin.nav.setup'),
+  login: t('admin.nav.login')
+}))
 
 const breadcrumbs = computed(() => {
   const parts = route.path.split('/').filter(Boolean)
@@ -332,7 +341,7 @@ const breadcrumbs = computed(() => {
     const to = `/${parts.slice(0, index + 1).join('/')}`
     return {
       to,
-      label: breadcrumbLabels[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
+      label: breadcrumbLabels.value[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
     }
   })
 })

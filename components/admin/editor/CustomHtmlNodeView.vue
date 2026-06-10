@@ -18,11 +18,11 @@
         <UIcon name="i-lucide-file-code-2" class="size-3.5 shrink-0" />
         <span class="truncate">custom-widget.html</span>
         <span class="customhtml-divider">·</span>
-        <span class="customhtml-meta">JS ALLOWED (SANDBOXED)</span>
+        <span class="customhtml-meta">{{ t('admin.editor.nodeViews.jsAllowed') }}</span>
       </div>
       <div class="customhtml-header-right">
-        <span class="customhtml-lang-pill">JAVASCRIPT</span>
-        <div class="customhtml-tabs" role="tablist" aria-label="Custom HTML mode">
+        <span class="customhtml-lang-pill">{{ t('admin.editor.nodeViews.javascript') }}</span>
+        <div class="customhtml-tabs" role="tablist" :aria-label="t('admin.editor.nodeViews.customHtmlMode')">
           <button
             type="button"
             class="customhtml-tab"
@@ -30,7 +30,7 @@
             role="tab"
             :aria-selected="mode === 'raw' ? 'true' : 'false'"
             @click="mode = 'raw'"
-          >Source</button>
+          >{{ t('admin.editor.nodeViews.source') }}</button>
           <button
             type="button"
             class="customhtml-tab"
@@ -38,7 +38,7 @@
             role="tab"
             :aria-selected="mode === 'preview' ? 'true' : 'false'"
             @click="mode = 'preview'"
-          >Preview</button>
+          >{{ t('admin.editor.nodeViews.preview') }}</button>
         </div>
       </div>
     </div>
@@ -90,6 +90,7 @@ type HighlightNode = {
 }
 
 const props = defineProps(nodeViewProps)
+const { t } = useI18n()
 const lowlight = createLowlight(common)
 
 const editorStore = useEditorStore()

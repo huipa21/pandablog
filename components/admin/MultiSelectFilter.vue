@@ -40,7 +40,7 @@
           >
           <span class="truncate">{{ item.label ?? item.name }}</span>
         </label>
-        <p v-if="!items.length" class="px-2 py-3 text-sm text-[var(--pb-text-subtle)]">No options</p>
+        <p v-if="!items.length" class="px-2 py-3 text-sm text-[var(--pb-text-subtle)]">{{ t('admin.common.noOptions') }}</p>
       </div>
     </div>
   </div>
@@ -72,6 +72,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string[]]
 }>()
 
+const { t } = useI18n()
 const root = ref<HTMLElement | null>(null)
 const open = ref(false)
 const selectedSet = computed(() => new Set(props.modelValue))

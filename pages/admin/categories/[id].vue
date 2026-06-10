@@ -2,15 +2,15 @@
   <section class="grid gap-6">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Category</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ category?.name || 'Category' }}</h1>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.taxonomy.categoryTitle') }}</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ category?.name || t('admin.taxonomy.categoryTitle') }}</h1>
       </div>
       <UButton to="/admin/categories" variant="ghost" color="neutral" icon="i-lucide-arrow-left">
-        Back to Categories
+        {{ t('admin.taxonomy.backToCategories') }}
       </UButton>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load category" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.taxonomy.loadCategoryFailed')" />
 
     <div v-if="pending" class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
       <USkeleton class="h-8 w-48" />
@@ -23,26 +23,26 @@
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ category.name }}</h2>
-              <UBadge v-if="isDefaultCategory(category)" color="neutral" variant="subtle">Default</UBadge>
-              <UBadge v-else color="primary" variant="subtle">Level {{ categoryLevel(category.id) + 1 }}</UBadge>
+              <UBadge v-if="isDefaultCategory(category)" color="neutral" variant="subtle">{{ t('admin.taxonomy.default') }}</UBadge>
+              <UBadge v-else color="primary" variant="subtle">{{ t('admin.taxonomy.level', { level: categoryLevel(category.id) + 1 }) }}</UBadge>
             </div>
-            <p class="mt-2 max-w-3xl text-sm text-[var(--pb-text-muted)]">{{ category.description || 'No description' }}</p>
+            <p class="mt-2 max-w-3xl text-sm text-[var(--pb-text-muted)]">{{ category.description || t('admin.taxonomy.noDescription') }}</p>
           </div>
           <UButton :to="`/category/${category.slug}`" size="sm" variant="soft" icon="i-lucide-external-link">
-            Public view
+            {{ t('admin.taxonomy.publicView') }}
           </UButton>
         </div>
         <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Slug</dt>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.taxonomy.slug') }}</dt>
             <dd class="mt-1 text-[var(--pb-text-muted)]">/{{ category.slug }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Parent</dt>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.taxonomy.parent') }}</dt>
             <dd class="mt-1 text-[var(--pb-text-muted)]">{{ parentName(category) }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">Posts</dt>
+            <dt class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.taxonomy.posts') }}</dt>
             <dd class="mt-1 text-[var(--pb-text-muted)]">{{ category.post_count ?? 0 }}</dd>
           </div>
         </dl>
@@ -51,7 +51,7 @@
       <AdminTaxonomyPostsList :category-ids="[category.id]" />
     </template>
 
-    <UEmpty v-else icon="i-lucide-folder-x" title="Category not found" description="Return to categories to choose another item." class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] py-12 shadow-[var(--pb-shadow-sm)]" />
+    <UEmpty v-else icon="i-lucide-folder-x" :title="t('admin.taxonomy.categoryNotFound')" :description="t('admin.taxonomy.categoryNotFoundDescription')" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] py-12 shadow-[var(--pb-shadow-sm)]" />
   </section>
 </template>
 
@@ -60,6 +60,7 @@ import type { CategoryRecord } from '~/types/content'
 
 definePageMeta({ layout: 'admin' })
 
+const { t } = useI18n()
 const route = useRoute()
 const categoryId = computed(() => routeParam(route.params.id))
 const { data, pending, error } = await useAsyncData(
@@ -83,11 +84,11 @@ function routeParam(value: unknown) {
 
 function parentName(item: CategoryRecord) {
   if (isDefaultCategory(item)) {
-    return 'On its own'
+    return t('admin.taxonomy.onItsOwn')
   }
 
   const parent = item.parent_id ? categories.value.find((categoryItem) => categoryItem.id === item.parent_id) : null
-  return parent?.name ?? 'None'
+  return parent?.name ?? t('admin.taxonomy.none')
 }
 
 function categoryLevel(categoryRecordId: string, seen = new Set<string>()): number {
@@ -110,5 +111,5 @@ function isDefaultCategory(item: CategoryRecord) {
   return item.slug === 'default'
 }
 
-useHead({ title: () => category.value ? `Category: ${category.value.name}` : 'Category' })
+useHead({ title: () => category.value ? t('admin.taxonomy.categoryHead', { name: category.value.name }) : t('admin.taxonomy.categoryTitle') })
 </script>

@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <div v-if="!blockName" class="rounded-md border border-dashed border-stone-200 p-4 text-sm text-stone-500">
-      Select a block to edit its settings.
+      {{ t('admin.editor.settingsPanel.selectBlock') }}
     </div>
 
     <template v-else>
@@ -10,47 +10,47 @@
           <UIcon :name="blockDefinition?.icon ?? 'i-lucide-box'" class="size-4 text-teal-700" />
           <div>
             <div class="text-sm font-semibold text-stone-900">{{ blockDefinition?.title ?? blockName }}</div>
-            <div class="text-xs text-stone-500">{{ blockDefinition?.description ?? 'Block settings' }}</div>
+            <div class="text-xs text-stone-500">{{ blockDefinition?.description ?? t('admin.editor.settingsPanel.blockSettings') }}</div>
           </div>
         </div>
       </div>
 
       <details v-if="blockName === 'heading'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Heading</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.heading') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Heading level">
+          <UFormField :label="t('admin.editor.settingsPanel.headingLevel')">
             <USelect :model-value="String(attrs.level ?? 2)" :items="headingLevelItems" @update:model-value="setHeadingLevel" />
           </UFormField>
         </div>
       </details>
 
       <details v-if="blockName === 'image'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Image</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.image') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Source URL">
+          <UFormField :label="t('admin.editor.settingsPanel.sourceUrl')">
             <UInput :model-value="String(attrs.src ?? '')" @update:model-value="updateAttrs({ src: String($event) })" />
           </UFormField>
-          <UFormField label="Alt text">
+          <UFormField :label="t('admin.editor.settingsPanel.altText')">
             <UInput :model-value="String(attrs.alt ?? '')" @update:model-value="updateAttrs({ alt: String($event) })" />
           </UFormField>
-          <UFormField label="Title">
+          <UFormField :label="t('admin.editor.settingsPanel.title')">
             <UInput :model-value="String(attrs.title ?? '')" @update:model-value="updateAttrs({ title: String($event) })" />
           </UFormField>
-          <UFormField label="Title position">
+          <UFormField :label="t('admin.editor.settingsPanel.titlePosition')">
             <USelect
               :model-value="String(attrs.titlePosition ?? 'bottom')"
-              :items="[{label: 'None', value: 'none'}, {label: 'Top', value: 'top'}, {label: 'Bottom', value: 'bottom'}]"
+              :items="titlePositionItems"
               @update:model-value="updateAttrs({ titlePosition: String($event) })"
             />
           </UFormField>
-          <UFormField label="Source size">
+          <UFormField :label="t('admin.editor.settingsPanel.sourceSize')">
             <USelect
               :model-value="imageSourceSize"
               :items="sourceSizeItems"
               @update:model-value="setImageSourceSize"
             />
           </UFormField>
-          <UFormField label="Display size">
+          <UFormField :label="t('admin.editor.settingsPanel.displaySize')">
             <USelect
               :model-value="imageDisplaySize"
               :items="displaySizeItems"
@@ -58,14 +58,14 @@
             />
           </UFormField>
           <div v-if="imageDisplaySize === 'custom-px'" class="grid grid-cols-2 gap-2">
-            <UFormField label="Display width (px)">
+            <UFormField :label="t('admin.editor.settingsPanel.displayWidthPx')">
               <UInput type="number" :model-value="(attrs.displayPx as number | null) ?? (attrs.width as number | null) ?? undefined" @update:model-value="setImageWidth" />
             </UFormField>
-            <UFormField label="Display height (px)">
+            <UFormField :label="t('admin.editor.settingsPanel.displayHeightPx')">
               <UInput type="number" :model-value="(attrs.height as number | null) ?? undefined" @update:model-value="setImageHeight" />
             </UFormField>
           </div>
-          <UFormField v-if="imageDisplaySize === 'custom-percent'" label="Display size (%)">
+          <UFormField v-if="imageDisplaySize === 'custom-percent'" :label="t('admin.editor.settingsPanel.displaySizePercent')">
             <div class="space-y-2">
               <input
                 type="range"
@@ -87,14 +87,14 @@
           <UFormField>
             <UCheckbox
               :model-value="attrs.lockAspect !== false"
-              label="Maintain aspect ratio"
+              :label="t('admin.editor.settingsPanel.maintainAspectRatio')"
               @update:model-value="setImageLockAspect"
             />
           </UFormField>
-          <UFormField label="Alignment">
+          <UFormField :label="t('admin.editor.settingsPanel.alignment')">
             <USelect
               :model-value="String(attrs.align ?? 'center')"
-              :items="[{label: 'Left', value: 'left'}, {label: 'Center', value: 'center'}, {label: 'Right', value: 'right'}]"
+              :items="alignmentItems"
               @update:model-value="updateAttrs({ align: String($event) })"
             />
           </UFormField>
@@ -102,46 +102,46 @@
       </details>
 
       <details v-if="blockName === 'mediaText'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Media &amp; Text</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.mediaText') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Media position">
+          <UFormField :label="t('admin.editor.settingsPanel.mediaPosition')">
             <USelect
               :model-value="String(attrs.mediaPosition ?? 'left')"
-              :items="[{label: 'Left', value: 'left'}, {label: 'Right', value: 'right'}]"
+              :items="mediaPositionItems"
               @update:model-value="updateAttrs({ mediaPosition: String($event) })"
             />
           </UFormField>
-          <UFormField label="Media URL">
+          <UFormField :label="t('admin.editor.settingsPanel.mediaUrl')">
             <UInput :model-value="String(attrs.mediaSrc ?? '')" @update:model-value="updateAttrs({ mediaSrc: String($event) })" />
           </UFormField>
-          <UFormField label="Alt">
+          <UFormField :label="t('admin.editor.settingsPanel.alt')">
             <UInput :model-value="String(attrs.mediaAlt ?? '')" @update:model-value="updateAttrs({ mediaAlt: String($event) })" />
           </UFormField>
-          <UFormField label="Caption">
+          <UFormField :label="t('admin.editor.settingsPanel.caption')">
             <UInput :model-value="String(attrs.mediaTitle ?? '')" @update:model-value="updateAttrs({ mediaTitle: String($event) })" />
           </UFormField>
-          <UFormField label="Caption position">
+          <UFormField :label="t('admin.editor.settingsPanel.captionPosition')">
             <USelect
               :model-value="String(attrs.mediaTitlePosition ?? 'bottom')"
-              :items="[{label: 'None', value: 'none'}, {label: 'Top', value: 'top'}, {label: 'Bottom', value: 'bottom'}]"
+              :items="titlePositionItems"
               @update:model-value="updateAttrs({ mediaTitlePosition: String($event) })"
             />
           </UFormField>
-          <UFormField label="Whole block width">
+          <UFormField :label="t('admin.editor.settingsPanel.wholeBlockWidth')">
             <USelect
               :model-value="String(attrs.blockWidth ?? 'content')"
               :items="blockWidthItems"
               @update:model-value="updateAttrs({ blockWidth: String($event) })"
             />
           </UFormField>
-          <UFormField label="Media source size">
+          <UFormField :label="t('admin.editor.settingsPanel.mediaSourceSize')">
             <USelect
               :model-value="mediaSourceSize"
               :items="sourceSizeItems"
               @update:model-value="setMediaSourceSize"
             />
           </UFormField>
-          <UFormField label="Media display size">
+          <UFormField :label="t('admin.editor.settingsPanel.mediaDisplaySize')">
             <USelect
               :model-value="mediaDisplaySize"
               :items="displaySizeItems"
@@ -149,14 +149,14 @@
             />
           </UFormField>
           <div v-if="mediaDisplaySize === 'custom-px'" class="grid grid-cols-2 gap-2">
-            <UFormField label="Media width (px)">
+            <UFormField :label="t('admin.editor.settingsPanel.mediaWidthPx')">
               <UInput type="number" :model-value="(attrs.mediaDisplayPx as number | null) ?? (attrs.mediaWidth as number | null) ?? undefined" @update:model-value="setMediaWidth" />
             </UFormField>
-            <UFormField label="Media height (px)">
+            <UFormField :label="t('admin.editor.settingsPanel.mediaHeightPx')">
               <UInput type="number" :model-value="(attrs.mediaHeight as number | null) ?? undefined" @update:model-value="setMediaHeight" />
             </UFormField>
           </div>
-          <UFormField v-if="mediaDisplaySize === 'custom-percent'" label="Media size (%)">
+          <UFormField v-if="mediaDisplaySize === 'custom-percent'" :label="t('admin.editor.settingsPanel.mediaSizePercent')">
             <div class="space-y-2">
               <input
                 type="range"
@@ -178,18 +178,18 @@
           <UFormField>
             <UCheckbox
               :model-value="attrs.lockAspect !== false"
-              label="Maintain aspect ratio"
+              :label="t('admin.editor.settingsPanel.maintainAspectRatio')"
               @update:model-value="setMediaLockAspect"
             />
           </UFormField>
-          <UFormField label="Media / Text ratio">
+          <UFormField :label="t('admin.editor.settingsPanel.mediaTextRatio')">
             <USelect
               :model-value="String(Math.round(Number(attrs.ratio ?? 0.5) * 100))"
               :items="ratioPresetItems"
               @update:model-value="setMediaRatioPreset"
             />
           </UFormField>
-          <UFormField :label="`Column split (${Math.round(Number(attrs.ratio ?? 0.5) * 100)}% / ${100 - Math.round(Number(attrs.ratio ?? 0.5) * 100)}%)`">
+          <UFormField :label="t('admin.editor.settingsPanel.columnSplit', { left: Math.round(Number(attrs.ratio ?? 0.5) * 100), right: 100 - Math.round(Number(attrs.ratio ?? 0.5) * 100) })">
             <input
               type="range"
               min="15"
@@ -203,9 +203,9 @@
       </details>
 
       <details v-if="blockName === 'filesBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Files</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.files') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Block width">
+          <UFormField :label="t('admin.editor.settingsPanel.blockWidth')">
             <USelect
               :model-value="String(attrs.blockWidth ?? 'content')"
               :items="blockWidthItems"
@@ -216,25 +216,25 @@
       </details>
 
       <details v-if="blockName === 'codeBlock'" open class="code-settings-panel rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Code</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.code') }}</summary>
         <div class="mt-3 space-y-3" data-code-settings>
-          <UFormField label="File name (optional)" class="code-settings-field">
+          <UFormField :label="t('admin.editor.settingsPanel.fileNameOptional')" class="code-settings-field">
             <UInput class="w-full" :model-value="String(attrs.fileName ?? '')" placeholder="app.ts" @update:model-value="setCodeFileName" />
           </UFormField>
-          <UFormField label="Language" class="code-settings-field">
+          <UFormField :label="t('admin.editor.settingsPanel.language')" class="code-settings-field">
             <USelect class="w-full" :model-value="String(attrs.language ?? 'text')" :items="languageItems" @update:model-value="setCodeLanguage" />
           </UFormField>
-          <UFormField label="Theme" class="code-settings-field">
+          <UFormField :label="t('admin.editor.settingsPanel.theme')" class="code-settings-field">
             <USelect class="w-full" :model-value="String(attrs.theme ?? 'github-dark')" :items="themeItems" @update:model-value="setCodeTheme" />
           </UFormField>
           <UFormField>
             <UCheckbox
               :model-value="attrs.lineNumbers !== false"
-              label="Show line numbers"
+              :label="t('admin.editor.settingsPanel.showLineNumbers')"
               @update:model-value="setCodeLineNumbers"
             />
           </UFormField>
-          <UFormField label="Highlighted lines" class="code-settings-field">
+          <UFormField :label="t('admin.editor.settingsPanel.highlightedLines')" class="code-settings-field">
             <UInput
               class="w-full"
               :model-value="String(attrs.lineHighlights ?? '')"
@@ -245,18 +245,18 @@
           <UFormField>
             <UCheckbox
               :model-value="attrs.showTotalLines === true"
-              label="Show total lines in code header"
+              :label="t('admin.editor.settingsPanel.showTotalLines')"
               @update:model-value="setCodeShowTotalLines"
             />
           </UFormField>
           <UFormField>
             <UCheckbox
               :model-value="attrs.wrap !== false"
-              label="Wrap long lines"
+              :label="t('admin.editor.settingsPanel.wrapLongLines')"
               @update:model-value="setCodeWrap"
             />
           </UFormField>
-          <UFormField :label="`Zoom (${Math.round(Number(attrs.zoom ?? 1) * 100)}%)`">
+          <UFormField :label="t('admin.editor.settingsPanel.zoom', { value: Math.round(Number(attrs.zoom ?? 1) * 100) })">
             <input
               type="range"
               min="70"
@@ -271,10 +271,10 @@
       </details>
 
       <details v-if="blockName === 'columnsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Columns</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.columns') }}</summary>
         <div class="mt-3 space-y-4">
           <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Column count" class="min-w-0">
+            <UFormField :label="t('admin.editor.settingsPanel.columnCount')" class="min-w-0">
               <USelect
                 :model-value="String(columnsCount)"
                 :items="columnCountItems"
@@ -282,7 +282,7 @@
                 @update:model-value="setColumnsCount"
               />
             </UFormField>
-            <UFormField label="Layout" class="min-w-0">
+            <UFormField :label="t('admin.editor.settingsPanel.layout')" class="min-w-0">
               <USelect
                 :model-value="columnsProportions"
                 :items="columnProportionItems"
@@ -295,7 +295,7 @@
           <UFormField>
             <UCheckbox
               :model-value="attrs.showHeaders !== false"
-              label="Show headers"
+              :label="t('admin.editor.settingsPanel.showHeaders')"
               @update:model-value="setColumnsShowHeaders"
             />
           </UFormField>
@@ -318,7 +318,7 @@
               <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 text-xs font-medium text-stone-600">
                   <UIcon name="i-lucide-grip-vertical" class="size-4 text-stone-400" />
-                  <span>Column {{ column.index + 1 }} · {{ columnPercentageLabel(column.index) }}</span>
+                  <span>{{ t('admin.editor.settingsPanel.columnLabel', { index: column.index + 1, percent: columnPercentageLabel(column.index) }) }}</span>
                 </div>
                 <UButton
                   v-if="columnsCount > 2"
@@ -329,7 +329,7 @@
                   variant="ghost"
                   @click="removeColumn(column.index)"
                 >
-                  Remove
+                  {{ t('admin.editor.settingsPanel.remove') }}
                 </UButton>
               </div>
             </div>
@@ -345,12 +345,12 @@
               color="neutral"
               @click="addColumn"
             >
-              Add Column
+              {{ t('admin.editor.settingsPanel.addColumn') }}
             </UButton>
           </div>
 
           <div class="space-y-2">
-            <UFormField label="Gap between columns">
+            <UFormField :label="t('admin.editor.settingsPanel.gapBetweenColumns')">
               <UInput
                 :model-value="String(attrs.columnGap ?? '1rem')"
                 placeholder="1rem"
@@ -358,7 +358,7 @@
                 @update:model-value="updateAttrs({ columnGap: String($event) })"
               />
             </UFormField>
-            <UFormField label="Margin above block">
+            <UFormField :label="t('admin.editor.settingsPanel.marginAboveBlock')">
               <UInput
                 :model-value="String(attrs.marginTop ?? '1rem')"
                 placeholder="1rem"
@@ -366,7 +366,7 @@
                 @update:model-value="updateAttrs({ marginTop: String($event) })"
               />
             </UFormField>
-            <UFormField label="Margin below block">
+            <UFormField :label="t('admin.editor.settingsPanel.marginBelowBlock')">
               <UInput
                 :model-value="String(attrs.marginBottom ?? '1rem')"
                 placeholder="1rem"
@@ -376,7 +376,7 @@
             </UFormField>
           </div>
 
-          <UFormField label="Whole block width">
+          <UFormField :label="t('admin.editor.settingsPanel.wholeBlockWidth')">
             <USelect
               :model-value="String(attrs.blockWidth ?? 'content')"
               :items="blockWidthItems"
@@ -387,30 +387,30 @@
       </details>
 
       <details v-if="blockName === 'tabsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Tabs</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.tabs') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Orientation">
+          <UFormField :label="t('admin.editor.settingsPanel.orientation')">
             <USelect
               :model-value="String(attrs.orientation ?? 'horizontal')"
               :items="tabOrientationItems"
               @update:model-value="setTabsOrientation"
             />
           </UFormField>
-          <UFormField label="Tab style">
+          <UFormField :label="t('admin.editor.settingsPanel.tabStyle')">
             <USelect
               :model-value="String(attrs.tabStyle ?? 'underline')"
               :items="tabStyleItems"
               @update:model-value="setTabsStyle"
             />
           </UFormField>
-          <UFormField label="Block width">
+          <UFormField :label="t('admin.editor.settingsPanel.blockWidth')">
             <USelect
               :model-value="String(attrs.blockWidth ?? 'content')"
               :items="blockWidthItems"
               @update:model-value="updateAttrs({ blockWidth: String($event) })"
             />
           </UFormField>
-          <UFormField label="Default tab">
+          <UFormField :label="t('admin.editor.settingsPanel.defaultTab')">
             <USelect
               :model-value="String(tabsActiveIndex)"
               :items="tabDefaultItems"
@@ -419,16 +419,16 @@
           </UFormField>
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">Tab labels</div>
+              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">{{ t('admin.editor.settingsPanel.tabLabels') }}</div>
               <div class="flex gap-1.5">
-                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="tabPanels.length >= 6" @click="addTabPanel">Add</UButton>
-                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="tabPanels.length <= 2" @click="removeTabPanel">Remove</UButton>
+                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="tabPanels.length >= 6" @click="addTabPanel">{{ t('admin.editor.settingsPanel.add') }}</UButton>
+                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="tabPanels.length <= 2" @click="removeTabPanel">{{ t('admin.editor.settingsPanel.remove') }}</UButton>
               </div>
             </div>
-            <UFormField v-for="tab in tabPanels" :key="tab.index" :label="`Tab ${tab.index + 1}`">
+            <UFormField v-for="tab in tabPanels" :key="tab.index" :label="t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 })">
               <UInput
-                :model-value="String(tab.attrs.title ?? `Tab ${tab.index + 1}`)"
-                placeholder="Tab title"
+                :model-value="String(tab.attrs.title ?? t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 }))"
+                :placeholder="t('admin.editor.settingsPanel.tabTitlePlaceholder')"
                 @update:model-value="setTabTitle(tab.index, $event)"
               />
             </UFormField>
@@ -437,34 +437,34 @@
       </details>
 
       <details v-if="blockName === 'accordionBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Accordion</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.accordion') }}</summary>
         <div class="mt-3 space-y-3">
           <div class="space-y-2">
             <UFormField>
               <UCheckbox
                 :model-value="attrs.singleOpen !== false"
-                label="Only one pane open at a time"
+                :label="t('admin.editor.settingsPanel.onlyOnePane')"
                 @update:model-value="setAccordionSingleOpen"
               />
             </UFormField>
             <UFormField>
               <UCheckbox
                 :model-value="attrs.startCollapsed === true"
-                label="Start with all panes collapsed"
+                :label="t('admin.editor.settingsPanel.startCollapsed')"
                 @update:model-value="setAccordionStartCollapsed"
               />
             </UFormField>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Columns">
+            <UFormField :label="t('admin.editor.settingsPanel.columns')">
               <USelect
                 :model-value="String(attrs.columns ?? 1)"
                 :items="accordionColumnItems"
                 @update:model-value="setAccordionColumns"
               />
             </UFormField>
-            <UFormField label="Block width">
+            <UFormField :label="t('admin.editor.settingsPanel.blockWidth')">
               <USelect
                 :model-value="String(attrs.blockWidth ?? 'content')"
                 :items="blockWidthItems"
@@ -474,14 +474,14 @@
           </div>
 
           <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Pane style">
+            <UFormField :label="t('admin.editor.settingsPanel.paneStyle')">
               <USelect
                 :model-value="String(attrs.paneStyle ?? 'minimal')"
                 :items="accordionStyleItems"
                 @update:model-value="setAccordionPaneStyle"
               />
             </UFormField>
-            <UFormField label="Trigger icon">
+            <UFormField :label="t('admin.editor.settingsPanel.triggerIcon')">
               <USelect
                 :model-value="String(attrs.triggerIcon ?? 'chevron')"
                 :items="accordionIconItems"
@@ -491,7 +491,7 @@
           </div>
 
           <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Margin above">
+            <UFormField :label="t('admin.editor.settingsPanel.marginAbove')">
               <UInput
                 :model-value="String(attrs.marginTop ?? '1rem')"
                 placeholder="1rem"
@@ -499,7 +499,7 @@
                 @update:model-value="setAccordionMarginTop"
               />
             </UFormField>
-            <UFormField label="Margin below">
+            <UFormField :label="t('admin.editor.settingsPanel.marginBelow')">
               <UInput
                 :model-value="String(attrs.marginBottom ?? '1rem')"
                 placeholder="1rem"
@@ -511,10 +511,10 @@
 
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">Panes</div>
+              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">{{ t('admin.editor.settingsPanel.panes') }}</div>
               <div class="flex gap-1.5">
-                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="accordionPanes.length >= 12" @click="addAccordionPane">Add</UButton>
-                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="accordionPanes.length <= 1" @click="removeAccordionPane(accordionPanes.length - 1)">Remove</UButton>
+                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="accordionPanes.length >= 12" @click="addAccordionPane">{{ t('admin.editor.settingsPanel.add') }}</UButton>
+                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="accordionPanes.length <= 1" @click="removeAccordionPane(accordionPanes.length - 1)">{{ t('admin.editor.settingsPanel.remove') }}</UButton>
               </div>
             </div>
 
@@ -524,13 +524,13 @@
               class="space-y-2 rounded-md border border-stone-200 bg-stone-50 p-2"
             >
               <div class="flex items-center gap-2">
-                <div class="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{{ String(pane.attrs.title || `Accordion Pane ${pane.index + 1}`) }}</div>
+                <div class="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{{ String(pane.attrs.title || t('admin.editor.settingsPanel.accordionPaneN', { index: pane.index + 1 })) }}</div>
                 <UCheckbox
                   :model-value="accordionPaneDefaultOpen(pane.index)"
                   :label="undefined"
-                  :aria-label="`Open pane ${pane.index + 1} by default`"
+                  :aria-label="t('admin.editor.settingsPanel.openPaneDefault', { index: pane.index + 1 })"
                   :disabled="attrs.startCollapsed === true"
-                  title="Open by default"
+                  :title="t('admin.editor.settingsPanel.openByDefault')"
                   class="shrink-0"
                   @update:model-value="setAccordionPaneDefaultOpen(pane.index, $event)"
                 />
@@ -541,7 +541,7 @@
                   size="xs"
                   color="error"
                   variant="ghost"
-                  :aria-label="`Remove pane ${pane.index + 1}`"
+                  :aria-label="t('admin.editor.settingsPanel.removePane', { index: pane.index + 1 })"
                   @click="removeAccordionPane(pane.index)"
                 />
               </div>
@@ -551,9 +551,9 @@
       </details>
 
       <details v-if="blockName === 'blockquote'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Quote</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.quote') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Style">
+          <UFormField :label="t('admin.editor.settingsPanel.style')">
             <USelect
               :model-value="String(attrs.style ?? 'bar')"
               :items="quoteStyleItems"
@@ -561,7 +561,7 @@
             />
           </UFormField>
 
-          <UFormField label="Theme color">
+          <UFormField :label="t('admin.editor.settingsPanel.themeColor')">
             <div class="flex items-center gap-2">
               <input
                 type="color"
@@ -579,9 +579,9 @@
           </UFormField>
 
           <div class="border-t border-stone-200 pt-3">
-            <div class="mb-2 text-xs font-semibold text-stone-700">Typography</div>
+            <div class="mb-2 text-xs font-semibold text-stone-700">{{ t('admin.editor.settingsPanel.typography') }}</div>
 
-            <UFormField label="Font family">
+            <UFormField :label="t('admin.editor.settingsPanel.fontFamily')">
               <USelect
                 :model-value="String(attrs.fontFamily ?? 'sans')"
                 :items="fontFamilyItems"
@@ -589,7 +589,7 @@
               />
             </UFormField>
 
-            <UFormField label="Font size">
+            <UFormField :label="t('admin.editor.settingsPanel.fontSize')">
               <div class="flex gap-2">
                 <UInput
                   type="number"
@@ -604,7 +604,7 @@
               </div>
             </UFormField>
 
-            <UFormField label="Text color">
+            <UFormField :label="t('admin.editor.settingsPanel.textColor')">
               <div class="flex items-center gap-2">
                 <input
                   type="color"
@@ -621,7 +621,7 @@
               </div>
             </UFormField>
 
-            <UFormField label="Background color (optional)">
+            <UFormField :label="t('admin.editor.settingsPanel.backgroundColorOptional')">
               <div class="flex items-center gap-2">
                 <input
                   type="color"
@@ -631,7 +631,7 @@
                 >
                 <UInput
                   :model-value="String(attrs.backgroundColor ?? '')"
-                  placeholder="Leave empty for transparent"
+                  :placeholder="t('admin.editor.settingsPanel.emptyTransparent')"
                   class="flex-1"
                   @update:model-value="updateAttrs({ backgroundColor: String($event) })"
                 />
@@ -640,20 +640,20 @@
           </div>
 
           <div class="border-t border-stone-200 pt-3">
-            <div class="mb-2 text-xs font-semibold text-stone-700">Source / Author</div>
+            <div class="mb-2 text-xs font-semibold text-stone-700">{{ t('admin.editor.settingsPanel.sourceAuthor') }}</div>
 
-            <UFormField label="Author name (optional)">
+            <UFormField :label="t('admin.editor.settingsPanel.authorNameOptional')">
               <UInput
                 :model-value="String(attrs.authorName ?? '')"
-                placeholder="Firstname Lastname"
+                :placeholder="t('admin.editor.settingsPanel.authorNamePlaceholder')"
                 @update:model-value="updateAttrs({ authorName: String($event) })"
               />
             </UFormField>
 
-            <UFormField label="Title / Role (optional)">
+            <UFormField :label="t('admin.editor.settingsPanel.titleRoleOptional')">
               <UInput
                 :model-value="String(attrs.authorTitle ?? '')"
-                placeholder="Position or Year"
+                :placeholder="t('admin.editor.settingsPanel.titleRolePlaceholder')"
                 @update:model-value="updateAttrs({ authorTitle: String($event) })"
               />
             </UFormField>
@@ -662,19 +662,19 @@
       </details>
 
       <details v-if="blockName === 'horizontalRule'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Separator</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.separator') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Line style">
+          <UFormField :label="t('admin.editor.settingsPanel.lineStyle')">
             <USelect
               :model-value="String(attrs.styleType ?? 'solid')"
-              :items="[{ label: 'Solid', value: 'solid' }, { label: 'Dashed', value: 'dashed' }, { label: 'Dotted', value: 'dotted' }]"
+              :items="separatorStyleItems"
               @update:model-value="setSeparatorStyle"
             />
           </UFormField>
-          <UFormField label="Thickness (px)">
+          <UFormField :label="t('admin.editor.settingsPanel.thicknessPx')">
             <UInput type="number" min="1" max="12" :model-value="Number(attrs.thickness ?? 1)" @update:model-value="setSeparatorThickness" />
           </UFormField>
-          <UFormField label="Color palette">
+          <UFormField :label="t('admin.editor.settingsPanel.colorPalette')">
             <div class="grid grid-cols-8 gap-1.5">
               <button
                 v-for="color in separatorPalette"
@@ -688,75 +688,75 @@
             </div>
           </UFormField>
           <details class="rounded-md border border-stone-200 p-2">
-            <summary class="cursor-pointer text-xs font-medium text-stone-700">Advanced color (picker + RGB/HEX)</summary>
+            <summary class="cursor-pointer text-xs font-medium text-stone-700">{{ t('admin.editor.settingsPanel.advancedColor') }}</summary>
             <div class="mt-2 grid grid-cols-[auto,1fr] items-center gap-2">
               <input type="color" :value="String(attrs.color ?? DEFAULT_SEPARATOR_COLOR)" class="h-9 w-12 rounded border border-stone-200" @input="setSeparatorColor(($event.target as HTMLInputElement).value)">
               <UInput :model-value="String(attrs.color ?? DEFAULT_SEPARATOR_COLOR)" :placeholder="DEFAULT_SEPARATOR_COLOR" @update:model-value="setSeparatorColorHex" />
             </div>
           </details>
-          <UFormField label="Vertical margin (px)">
+          <UFormField :label="t('admin.editor.settingsPanel.verticalMarginPx')">
             <UInput type="number" min="0" max="120" :model-value="Number(attrs.marginY ?? 16)" @update:model-value="setSeparatorMargin" />
           </UFormField>
         </div>
       </details>
 
       <details v-if="footnoteSection" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Footnotes</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.footnotes') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Title">
+          <UFormField :label="t('admin.editor.settingsPanel.title')">
             <UInput :model-value="footnoteTitle" @update:model-value="setFootnoteTitle" />
           </UFormField>
         </div>
       </details>
 
       <details v-if="blockName === 'customHtml'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Custom HTML</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.customHtml') }}</summary>
         <div class="mt-3 space-y-3">
           <UTextarea :model-value="String(attrs.html ?? '')" :rows="8" class="font-mono text-xs" @update:model-value="updateAttrs({ html: String($event) })" />
         </div>
       </details>
 
       <details v-if="blockName === 'diffBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Diff</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.diff') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Language">
+          <UFormField :label="t('admin.editor.settingsPanel.language')">
             <USelect :model-value="String(attrs.language ?? 'plaintext')" :items="diffLanguageItems" @update:model-value="setDiffLanguage" />
           </UFormField>
           <div class="grid grid-cols-2 gap-2">
-            <UFormField label="Old label">
-              <UInput :model-value="String(attrs.oldLabel ?? 'Before')" @update:model-value="setDiffOldLabel" />
+            <UFormField :label="t('admin.editor.settingsPanel.oldLabel')">
+              <UInput :model-value="String(attrs.oldLabel ?? t('admin.editor.nodeViews.before'))" @update:model-value="setDiffOldLabel" />
             </UFormField>
-            <UFormField label="New label">
-              <UInput :model-value="String(attrs.newLabel ?? 'After')" @update:model-value="setDiffNewLabel" />
+            <UFormField :label="t('admin.editor.settingsPanel.newLabel')">
+              <UInput :model-value="String(attrs.newLabel ?? t('admin.editor.nodeViews.after'))" @update:model-value="setDiffNewLabel" />
             </UFormField>
           </div>
           <p class="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-900">
-            Select the diff block in the editor to edit the before and after text in two columns.
+            {{ t('admin.editor.settingsPanel.diffHelp') }}
           </p>
         </div>
       </details>
 
       <details v-if="blockName === 'mermaid'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Mermaid</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.mermaid') }}</summary>
         <div class="mt-3">
           <UTextarea :model-value="String(attrs.code ?? '')" :rows="8" @update:model-value="updateAttrs({ code: String($event) })" />
         </div>
       </details>
 
       <details v-if="blockName === 'table'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Table</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.table') }}</summary>
         <div class="mt-3 grid grid-cols-2 gap-2">
-          <UButton type="button" icon="i-lucide-columns-3" size="sm" variant="soft" color="neutral" @click="runTableCommand('addColumnAfter')">Add column</UButton>
-          <UButton type="button" icon="i-lucide-rows-3" size="sm" variant="soft" color="neutral" @click="runTableCommand('addRowAfter')">Add row</UButton>
-          <UButton type="button" icon="i-lucide-trash-2" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteColumn')">Delete column</UButton>
-          <UButton type="button" icon="i-lucide-trash" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteRow')">Delete row</UButton>
+          <UButton type="button" icon="i-lucide-columns-3" size="sm" variant="soft" color="neutral" @click="runTableCommand('addColumnAfter')">{{ t('admin.editor.settingsPanel.addColumn') }}</UButton>
+          <UButton type="button" icon="i-lucide-rows-3" size="sm" variant="soft" color="neutral" @click="runTableCommand('addRowAfter')">{{ t('admin.editor.settingsPanel.addRow') }}</UButton>
+          <UButton type="button" icon="i-lucide-trash-2" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteColumn')">{{ t('admin.editor.settingsPanel.deleteColumn') }}</UButton>
+          <UButton type="button" icon="i-lucide-trash" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteRow')">{{ t('admin.editor.settingsPanel.deleteRow') }}</UButton>
         </div>
       </details>
 
       <details v-if="blockName === 'annotationBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">Annotation</summary>
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.annotation') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField label="Default language">
+          <UFormField :label="t('admin.editor.settingsPanel.defaultLanguage')">
             <USelect
               :model-value="String(attrs.lang ?? 'cmn')"
               :items="annotationLangItems"
@@ -764,7 +764,7 @@
             />
           </UFormField>
           <p class="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-900">
-            Use the Annotate button in the block toolbar to generate readings. The block's default language is used unless the toolbar overrides it.
+            {{ t('admin.editor.settingsPanel.annotationHelp') }}
           </p>
         </div>
       </details>
@@ -784,6 +784,7 @@ const props = defineProps<{
   editor: Editor | null
 }>()
 
+const { t } = useI18n()
 const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
 
@@ -791,98 +792,99 @@ const blockName = computed(() => editorStore.selectedBlockType)
 const attrs = computed(() => editorStore.selectedBlockAttrs)
 const blockDefinition = computed(() => blockName.value ? blockRegistry.getBlockDefinition(blockName.value) : null)
 
-const headingLevelItems = [
-  { label: 'Heading 1', value: '1' },
-  { label: 'Heading 2', value: '2' },
-  { label: 'Heading 3', value: '3' },
-  { label: 'Heading 4', value: '4' },
-  { label: 'Heading 5', value: '5' },
-  { label: 'Heading 6', value: '6' }
-]
+const headingLevelItems = computed(() => [1, 2, 3, 4, 5, 6].map((level) => ({ label: t('admin.editor.settingsPanel.headingN', { level }), value: String(level) })))
 
 const languageItems = CODE_BLOCK_LANGUAGES.map((l) => ({ label: l.label, value: l.value as string }))
 const themeItems = CODE_BLOCK_THEMES.map((t) => ({ label: t.label, value: t.value as string }))
 const diffLanguageItems = DIFF_BLOCK_LANGUAGES.map((language) => ({ label: language.label, value: language.value as string }))
-const sourceSizeItems = [
-  { label: 'Thumbnail', value: 'thumbnail' },
-  { label: 'Medium', value: 'medium' },
-  { label: 'Large', value: 'large' },
-  { label: 'Full / Original', value: 'full' }
-]
-const displaySizeItems = [
-  { label: 'Natural / Auto', value: 'natural' },
-  { label: 'Fill container', value: 'fill-container' },
-  { label: 'Custom percent', value: 'custom-percent' },
-  { label: 'Custom px', value: 'custom-px' }
-]
-const blockWidthItems = [
-  { label: 'Content', value: 'content' },
-  { label: 'Wide', value: 'wide' },
-  { label: 'Full bleed', value: 'full-bleed' }
-]
-const columnCountItems = [
-  { label: '2 columns', value: '2' },
-  { label: '3 columns', value: '3' },
-  { label: '4 columns', value: '4' },
-  { label: '5 columns', value: '5' },
-  { label: '6 columns', value: '6' }
-]
+const titlePositionItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.none'), value: 'none' },
+  { label: t('admin.editor.settingsPanel.top'), value: 'top' },
+  { label: t('admin.editor.settingsPanel.bottom'), value: 'bottom' }
+])
+const alignmentItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.left'), value: 'left' },
+  { label: t('admin.editor.settingsPanel.center'), value: 'center' },
+  { label: t('admin.editor.settingsPanel.right'), value: 'right' }
+])
+const mediaPositionItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.left'), value: 'left' },
+  { label: t('admin.editor.settingsPanel.right'), value: 'right' }
+])
+const sourceSizeItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.thumbnail'), value: 'thumbnail' },
+  { label: t('admin.editor.settingsPanel.medium'), value: 'medium' },
+  { label: t('admin.editor.settingsPanel.large'), value: 'large' },
+  { label: t('admin.editor.settingsPanel.fullOriginal'), value: 'full' }
+])
+const displaySizeItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.naturalAuto'), value: 'natural' },
+  { label: t('admin.editor.settingsPanel.fillContainer'), value: 'fill-container' },
+  { label: t('admin.editor.settingsPanel.customPercent'), value: 'custom-percent' },
+  { label: t('admin.editor.settingsPanel.customPx'), value: 'custom-px' }
+])
+const blockWidthItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.content'), value: 'content' },
+  { label: t('admin.editor.settingsPanel.wide'), value: 'wide' },
+  { label: t('admin.editor.settingsPanel.fullBleed'), value: 'full-bleed' }
+])
+const columnCountItems = computed(() => [2, 3, 4, 5, 6].map((count) => ({ label: t('admin.editor.settingsPanel.nColumns', { count }), value: String(count) })))
 const columnProportionItems = computed(() => {
   const count = columnsCount.value
   const items: Array<{ label: string, value: string }> = []
 
   if (count === 2) {
     items.push(
-      { label: 'Equal halves', value: '1-1' },
-      { label: 'One third / Two thirds', value: '1-2' },
-      { label: 'Two thirds / One third', value: '2-1' }
+      { label: t('admin.editor.settingsPanel.equalHalves'), value: '1-1' },
+      { label: t('admin.editor.settingsPanel.oneThirdTwoThirds'), value: '1-2' },
+      { label: t('admin.editor.settingsPanel.twoThirdsOneThird'), value: '2-1' }
     )
   } else if (count === 3) {
     items.push(
-      { label: 'Equal thirds', value: '1-1-1' },
-      { label: 'Narrow / Narrow / Wide', value: '1-1-2' },
-      { label: 'Narrow / Wide / Narrow', value: '1-2-1' },
-      { label: 'Wide / Narrow / Narrow', value: '2-1-1' }
+      { label: t('admin.editor.settingsPanel.equalThirds'), value: '1-1-1' },
+      { label: t('admin.editor.settingsPanel.narrowNarrowWide'), value: '1-1-2' },
+      { label: t('admin.editor.settingsPanel.narrowWideNarrow'), value: '1-2-1' },
+      { label: t('admin.editor.settingsPanel.wideNarrowNarrow'), value: '2-1-1' }
     )
   } else if (count === 4) {
-    items.push({ label: 'Equal quarters', value: '1-1-1-1' })
+    items.push({ label: t('admin.editor.settingsPanel.equalQuarters'), value: '1-1-1-1' })
   } else if (count === 5) {
-    items.push({ label: 'Equal fifths', value: '1-1-1-1-1' })
+    items.push({ label: t('admin.editor.settingsPanel.equalFifths'), value: '1-1-1-1-1' })
   } else if (count === 6) {
-    items.push({ label: 'Equal sixths', value: '1-1-1-1-1-1' })
+    items.push({ label: t('admin.editor.settingsPanel.equalSixths'), value: '1-1-1-1-1-1' })
   } else {
-    items.push({ label: 'Even distribution', value: '1-1' })
+    items.push({ label: t('admin.editor.settingsPanel.evenDistribution'), value: '1-1' })
   }
 
-  items.push({ label: 'Manual', value: 'manual' })
+  items.push({ label: t('admin.editor.settingsPanel.manual'), value: 'manual' })
   return items
 })
-const tabOrientationItems = [
-  { label: 'Horizontal', value: 'horizontal' },
-  { label: 'Vertical', value: 'vertical' }
-]
-const tabStyleItems = [
-  { label: 'Underline', value: 'underline' },
-  { label: 'Pills', value: 'pills' },
-  { label: 'Enclosed', value: 'enclosed' }
-]
-const accordionColumnItems = [
-  { label: '1 column', value: '1' },
-  { label: '2 columns', value: '2' },
-  { label: '3 columns', value: '3' }
-]
-const accordionStyleItems = [
-  { label: 'Minimal', value: 'minimal' },
-  { label: 'Dark', value: 'dark' },
-  { label: 'Colored', value: 'colored' },
-  { label: 'Underline', value: 'underline' },
-  { label: 'Highlighted', value: 'highlighted' }
-]
-const accordionIconItems = [
-  { label: 'Chevron', value: 'chevron' },
-  { label: 'Plus / minus', value: 'plus-minus' },
-  { label: 'Arrow', value: 'arrow' }
-]
+const tabOrientationItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.horizontal'), value: 'horizontal' },
+  { label: t('admin.editor.settingsPanel.vertical'), value: 'vertical' }
+])
+const tabStyleItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.underline'), value: 'underline' },
+  { label: t('admin.editor.settingsPanel.pills'), value: 'pills' },
+  { label: t('admin.editor.settingsPanel.enclosed'), value: 'enclosed' }
+])
+const accordionColumnItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.oneColumn'), value: '1' },
+  { label: t('admin.editor.settingsPanel.nColumns', { count: 2 }), value: '2' },
+  { label: t('admin.editor.settingsPanel.nColumns', { count: 3 }), value: '3' }
+])
+const accordionStyleItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.minimal'), value: 'minimal' },
+  { label: t('admin.editor.settingsPanel.dark'), value: 'dark' },
+  { label: t('admin.editor.settingsPanel.colored'), value: 'colored' },
+  { label: t('admin.editor.settingsPanel.underline'), value: 'underline' },
+  { label: t('admin.editor.settingsPanel.highlighted'), value: 'highlighted' }
+])
+const accordionIconItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.chevron'), value: 'chevron' },
+  { label: t('admin.editor.settingsPanel.plusMinus'), value: 'plus-minus' },
+  { label: t('admin.editor.settingsPanel.arrow'), value: 'arrow' }
+])
 const ratioPresetItems = [
   { label: '30 / 70', value: '30' },
   { label: '40 / 60', value: '40' },
@@ -896,11 +898,17 @@ const separatorPalette = [...SEPARATOR_PALETTE]
 const quoteStyleItems = QUOTE_STYLES.map((s) => ({ label: s.label, value: s.value as string }))
 const fontFamilyItems = QUOTE_FONT_FAMILIES.map((f) => ({ label: f.label, value: f.value as string }))
 
-const annotationLangItems = [
-  { label: 'Mandarin (pinyin)', value: 'cmn' },
-  { label: 'Cantonese (jyutping)', value: 'yue' },
-  { label: 'Japanese (furigana)', value: 'jpn' }
-]
+const separatorStyleItems = computed(() => [
+  { label: t('admin.editor.settingsPanel.solid'), value: 'solid' },
+  { label: t('admin.editor.settingsPanel.dashed'), value: 'dashed' },
+  { label: t('admin.editor.settingsPanel.dotted'), value: 'dotted' }
+])
+
+const annotationLangItems = computed(() => [
+  { label: t('admin.editor.nodeViews.mandarinPinyin'), value: 'cmn' },
+  { label: t('admin.editor.nodeViews.cantoneseJyutping'), value: 'yue' },
+  { label: t('admin.editor.nodeViews.japaneseFurigana'), value: 'jpn' }
+])
 
 const parseFontSize = (size: string) => {
   const match = size.match(/^([\d.]+)rem$/)
@@ -974,7 +982,7 @@ const dragOverColumnIndex = ref<number | null>(null)
 const tabPanels = computed(() => childSettings('tabPanel'))
 const tabsActiveIndex = computed(() => normalizeTabsActiveIndex(Number(attrs.value.activeIndex ?? 0), tabPanels.value.length))
 const tabDefaultItems = computed(() => tabPanels.value.map((tab) => ({
-  label: String(tab.attrs.title ?? `Tab ${tab.index + 1}`).trim() || `Tab ${tab.index + 1}`,
+  label: String(tab.attrs.title ?? t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 })).trim() || t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 }),
   value: String(tab.index)
 })))
 const accordionPanes = computed(() => childSettings('accordionPane'))
@@ -1009,7 +1017,7 @@ const footnoteSection = computed(() => {
 })
 
 const footnoteTitle = computed(() => {
-  return footnoteSection.value?.headingNode?.textContent?.trim() || 'Footnotes'
+  return footnoteSection.value?.headingNode?.textContent?.trim() || t('admin.editor.settingsPanel.footnotes')
 })
 
 function updateAttrs(nextAttrs: Record<string, unknown>) {

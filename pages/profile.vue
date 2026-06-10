@@ -1,11 +1,11 @@
 <template>
   <section class="mx-auto grid max-w-3xl gap-6">
     <header class="grid gap-2">
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-primary)]">Account</p>
-      <h1 class="text-3xl font-semibold tracking-normal text-[var(--pb-text)]">My profile</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-primary)]">{{ t('public.profile.eyebrow') }}</p>
+      <h1 class="text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('public.profile.title') }}</h1>
     </header>
 
-    <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load your profile" />
+    <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" :title="t('public.profile.loadFailed')" />
     <UAlert v-if="profileError" color="error" icon="i-lucide-circle-alert" :title="profileError" />
     <UAlert v-if="passwordError" color="error" icon="i-lucide-circle-alert" :title="passwordError" />
     <UAlert v-if="profileNotice" color="success" icon="i-lucide-check" :title="profileNotice" />
@@ -20,47 +20,47 @@
 
       <template v-else>
         <div class="grid gap-4 md:grid-cols-2">
-          <UFormField label="Display name" name="display_name">
+          <UFormField :label="t('public.profile.displayName')" name="display_name">
             <UInput v-model="profileForm.display_name" autocomplete="name" icon="i-lucide-badge" />
           </UFormField>
-          <UFormField label="Email" name="email">
+          <UFormField :label="t('public.profile.email')" name="email">
             <UInput v-model="profileForm.email" type="email" autocomplete="email" icon="i-lucide-mail" />
           </UFormField>
         </div>
 
         <MediaSettingField
-          label="Avatar"
+          :label="t('public.profile.avatar')"
           :model-value="profileForm.avatar"
           :preview-value="avatarPreviewUrl"
-          placeholder="files:<media-id>"
+          :placeholder="t('public.profile.avatarPlaceholder')"
           preview-class="h-48"
           @update:model-value="profileForm.avatar = normalizeAvatarValue($event)"
           @browse="avatarPickerOpen = true"
         />
 
         <div class="flex justify-end">
-          <UButton type="submit" icon="i-lucide-save" :loading="profileSaving">Save profile</UButton>
+          <UButton type="submit" icon="i-lucide-save" :loading="profileSaving">{{ t('public.profile.saveProfile') }}</UButton>
         </div>
       </template>
     </form>
 
     <form class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]" @submit.prevent="changePassword">
       <header>
-        <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">Password</h2>
+        <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('public.profile.passwordTitle') }}</h2>
       </header>
 
-      <UFormField label="Current password" name="current_password">
+      <UFormField :label="t('public.profile.currentPassword')" name="current_password">
         <UInput v-model="passwordForm.current_password" type="password" autocomplete="current-password" icon="i-lucide-key-round" />
       </UFormField>
-      <UFormField label="New password" name="new_password">
+      <UFormField :label="t('public.profile.newPassword')" name="new_password">
         <UInput v-model="passwordForm.new_password" type="password" autocomplete="new-password" icon="i-lucide-key-round" />
       </UFormField>
-      <UFormField label="Confirm new password" name="confirm_password">
+      <UFormField :label="t('public.profile.confirmNewPassword')" name="confirm_password">
         <UInput v-model="passwordForm.confirm_password" type="password" autocomplete="new-password" icon="i-lucide-key-round" />
       </UFormField>
 
       <div class="flex justify-end">
-        <UButton type="submit" icon="i-lucide-key-round" :loading="passwordSaving">Change password</UButton>
+        <UButton type="submit" icon="i-lucide-key-round" :loading="passwordSaving">{{ t('public.profile.changePassword') }}</UButton>
       </div>
     </form>
 
@@ -92,6 +92,7 @@ interface ProfileUser {
 }
 
 const route = useRoute()
+const { t } = useI18n()
 const redirectTo = computed(() => String(route.fullPath || '/profile'))
 const { data, pending, error: loadError } = await useAsyncData('profile-me', () => $fetch<{ user: ProfileUser }>('/api/auth/me'), {
   default: () => ({ user: null as unknown as ProfileUser })
@@ -147,9 +148,9 @@ async function saveProfile() {
       refreshNuxtData('public-auth-session'),
       refreshNuxtData('admin-layout-session')
     ])
-    profileNotice.value = 'Profile saved'
+    profileNotice.value = t('public.profile.profileSaved')
   } catch (error: any) {
-    profileError.value = error?.data?.message ?? error?.message ?? 'Could not save profile'
+    profileError.value = error?.data?.message ?? error?.message ?? t('public.profile.profileSaveFailed')
   } finally {
     profileSaving.value = false
   }
@@ -161,7 +162,7 @@ async function changePassword() {
   passwordError.value = ''
 
   if (passwordForm.new_password !== passwordForm.confirm_password) {
-    passwordError.value = 'Passwords do not match'
+    passwordError.value = t('public.profile.passwordMismatch')
     passwordSaving.value = false
     return
   }
@@ -174,9 +175,9 @@ async function changePassword() {
     passwordForm.current_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
-    passwordNotice.value = 'Password changed'
+    passwordNotice.value = t('public.profile.passwordChanged')
   } catch (error: any) {
-    passwordError.value = error?.data?.message ?? error?.message ?? 'Could not change password'
+    passwordError.value = error?.data?.message ?? error?.message ?? t('public.profile.passwordChangeFailed')
   } finally {
     passwordSaving.value = false
   }

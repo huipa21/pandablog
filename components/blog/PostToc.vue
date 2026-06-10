@@ -1,6 +1,6 @@
 <template>
   <nav class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Table of Contents</h3>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('public.sidebar.toc') }}</h3>
     <div v-if="items.length" class="grid gap-1">
       <a
         v-for="item in items"
@@ -23,6 +23,8 @@ import type { JsonContent } from '~/types/content'
 const props = defineProps<{
   contentJson: JsonContent
 }>()
+
+const { t } = useI18n()
 
 const content = computed(() => props.contentJson)
 const { items, activeId } = useTableOfContents(content)

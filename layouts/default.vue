@@ -17,7 +17,7 @@
           <h1 class="font-[var(--pb-font-display)] text-[clamp(2.5rem,6vw,5.25rem)] font-medium leading-none tracking-normal text-[var(--pb-text-muted)] opacity-70">{{ siteName }}</h1>
           <p v-if="siteSubtitle" class="mx-auto max-w-2xl text-base leading-relaxed text-[var(--pb-text-muted)] md:text-lg">{{ siteSubtitle }}</p>
         </div>
-        <BlogSearchBar variant="hero" placeholder="Search posts…" />
+        <BlogSearchBar :key="`hero-search-${publicLocale}`" variant="hero" />
       </div>
 
       <!-- Bottom navigation strip -->
@@ -31,12 +31,12 @@
               size="sm"
               icon="i-lucide-home"
             >
-              <span class="hidden sm:inline">Home</span>
+              <span class="hidden sm:inline">{{ t('public.nav.home') }}</span>
             </UButton>
           </div>
 
           <div class="flex items-center gap-2">
-            <button class="grid size-9 place-items-center rounded-[var(--pb-radius-md)] text-[var(--pb-text-muted)] md:hidden" aria-label="Toggle navigation" @click="mobileNav = !mobileNav">
+            <button class="grid size-9 place-items-center rounded-[var(--pb-radius-md)] text-[var(--pb-text-muted)] md:hidden" :aria-label="t('public.nav.toggleNavigation')" @click="mobileNav = !mobileNav">
               <UIcon name="i-lucide-menu" class="size-5" />
             </button>
             <UButton
@@ -48,14 +48,15 @@
               size="sm"
               @click="toggleThemeMode"
             />
+            <PublicLanguageSwitcher :key="`hero-language-${publicLocale}`" />
             <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
-              Admin
+              {{ t('public.nav.admin') }}
             </UButton>
             <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
-              Logout
+              {{ t('public.nav.logout') }}
             </UButton>
             <UButton v-else to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
-              Login
+              {{ t('public.nav.login') }}
             </UButton>
           </div>
         </div>
@@ -70,7 +71,7 @@
             block
             @click="mobileNav = false"
           >
-            Home
+            {{ t('public.nav.home') }}
           </UButton>
         </div>
       </nav>
@@ -99,20 +100,20 @@
             size="sm"
             icon="i-lucide-home"
           >
-            <span class="hidden sm:inline">Home</span>
+            <span class="hidden sm:inline">{{ t('public.nav.home') }}</span>
           </UButton>
         </div>
 
         <!-- Right cluster: search + utilities -->
         <div class="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <BlogSearchBar variant="compact" placeholder="Search posts…" class="hidden md:flex" />
+          <BlogSearchBar :key="`compact-search-${publicLocale}`" variant="compact" class="hidden md:flex" />
           <UButton
             class="md:hidden"
             to="/search"
             variant="ghost"
             color="neutral"
             icon="i-lucide-search"
-            aria-label="Search"
+            :aria-label="t('public.nav.search')"
             size="sm"
           />
           <UButton
@@ -124,14 +125,15 @@
             size="sm"
             @click="toggleThemeMode"
           />
+          <PublicLanguageSwitcher :key="`compact-language-${publicLocale}`" />
           <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
-            Admin
+            {{ t('public.nav.admin') }}
           </UButton>
           <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
-            <span class="hidden sm:inline">Logout</span>
+            <span class="hidden sm:inline">{{ t('public.nav.logout') }}</span>
           </UButton>
           <UButton v-else to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
-            <span class="hidden sm:inline">Login</span>
+            <span class="hidden sm:inline">{{ t('public.nav.login') }}</span>
           </UButton>
         </div>
       </div>
@@ -229,6 +231,8 @@ const {
   hasFilingInfo
 } = useSiteSettings()
 
+const { t } = useI18n()
+const { locale: publicLocale } = usePublicLocale()
 const mobileNav = ref(false)
 const route = useRoute()
 const slots = useSlots()

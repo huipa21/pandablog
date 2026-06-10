@@ -2,12 +2,12 @@
   <Teleport to="body">
     <Transition name="media-picker">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <button type="button" class="absolute inset-0 bg-black/50" aria-label="Close" @click="close" />
+        <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @click="close" />
         <section class="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
           <header class="flex items-center justify-between border-b border-stone-200 px-4 py-3">
             <div>
-              <h2 class="text-lg font-semibold text-stone-950">Media Library</h2>
-              <p class="text-xs text-stone-500">{{ selected.length }} selected</p>
+              <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.title') }}</h2>
+              <p class="text-xs text-stone-500">{{ t('admin.media.selectedCount', { count: selected.length }) }}</p>
             </div>
             <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="close" />
           </header>
@@ -15,15 +15,15 @@
           <div class="flex border-b border-stone-200">
             <button type="button" class="picker-tab" :class="tab === 'browse' ? activeTabClass : inactiveTabClass" @click="tab = 'browse'">
               <UIcon name="i-lucide-images" class="size-4" />
-              Browse
+              {{ t('admin.media.browse') }}
             </button>
             <button type="button" class="picker-tab" :class="tab === 'upload' ? activeTabClass : inactiveTabClass" @click="tab = 'upload'">
               <UIcon name="i-lucide-upload" class="size-4" />
-              Upload
+              {{ t('admin.media.upload') }}
             </button>
             <button type="button" class="picker-tab" :class="tab === 'url' ? activeTabClass : inactiveTabClass" @click="tab = 'url'">
               <UIcon name="i-lucide-link" class="size-4" />
-              From URL
+              {{ t('admin.media.fromUrl') }}
             </button>
           </div>
 
@@ -34,9 +34,9 @@
 
             <div v-else-if="tab === 'url'" class="mx-auto flex w-full max-w-xl flex-col gap-3">
               <p class="text-sm text-stone-600">
-                Paste a direct link to an image. It will be downloaded into the media library so you can reuse it later.
+                {{ t('admin.media.directUrlHelp') }}
               </p>
-              <UFormField label="Image URL" required>
+              <UFormField :label="t('admin.media.imageUrl')" required>
                 <UInput
                   v-model="urlInput"
                   placeholder="https://example.com/photo.jpg"
@@ -54,7 +54,7 @@
                   :disabled="!urlInput.trim() || urlImporting"
                   @click="importFromUrlTab"
                 >
-                  Import
+                  {{ t('admin.media.import') }}
                 </UButton>
               </div>
             </div>
@@ -65,7 +65,7 @@
                 <USkeleton v-for="index in 10" :key="index" class="aspect-square rounded-lg" />
               </div>
               <div v-else-if="!files.length" class="rounded-lg border border-dashed border-stone-300 py-12 text-center text-sm text-stone-500">
-                No files found
+                {{ t('admin.media.noFilesFound') }}
               </div>
               <MediaGrid
                 v-else
@@ -85,8 +85,8 @@
           <footer class="flex items-center justify-between gap-3 border-t border-stone-200 px-4 py-3">
             <div class="min-w-0 truncate text-sm text-stone-600">{{ selectedNames }}</div>
             <div class="flex gap-2">
-              <UButton type="button" color="neutral" variant="ghost" @click="close">Cancel</UButton>
-              <UButton type="button" icon="i-lucide-check" :disabled="!selected.length" @click="confirmSelection">Select</UButton>
+              <UButton type="button" color="neutral" variant="ghost" @click="close">{{ t('admin.media.cancel') }}</UButton>
+              <UButton type="button" icon="i-lucide-check" :disabled="!selected.length" @click="confirmSelection">{{ t('admin.media.select') }}</UButton>
             </div>
           </footer>
         </section>
@@ -133,6 +133,7 @@ const emit = defineEmits<{
   'select': [files: MediaRecord[]]
 }>()
 
+const { t } = useI18n()
 const { listMedia, importFromUrl } = useMedia()
 const tab = ref<'browse' | 'upload' | 'url'>('browse')
 const files = ref<MediaRecord[]>([])
@@ -157,7 +158,7 @@ const filters = ref<PickerFilters>({
 
 const activeTabClass = 'border-teal-600 text-teal-700'
 const inactiveTabClass = 'border-transparent text-stone-500 hover:text-stone-900'
-const selectedNames = computed(() => selected.value.map((file) => file.original_name).join(', ') || 'No files selected')
+const selectedNames = computed(() => selected.value.map((file) => file.original_name).join(', ') || t('admin.media.noFilesSelected'))
 
 watch(() => props.open, (value) => {
   if (value) {
@@ -273,7 +274,7 @@ async function importFromUrlTab() {
     urlInput.value = ''
     confirmSelection()
   } catch (error: any) {
-    urlError.value = error?.data?.message || error?.statusMessage || error?.message || 'Could not import URL'
+    urlError.value = error?.data?.message || error?.statusMessage || error?.message || t('admin.media.importUrlFailed')
   } finally {
     urlImporting.value = false
   }

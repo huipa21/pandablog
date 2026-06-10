@@ -32,16 +32,16 @@
         @keydown.esc.prevent="closePopover"
       >
       <span class="ruby-unit-popover-actions">
-        <button type="button" class="ruby-unit-popover-action" @click="clearReading">Clear</button>
+        <button type="button" class="ruby-unit-popover-action" @click="clearReading">{{ t('admin.editor.nodeViews.clear') }}</button>
         <button
           type="button"
           class="ruby-unit-popover-action"
           :disabled="restoreBusy || !base"
           @click="restoreReading"
         >
-          {{ restoreBusy ? 'Restoring…' : 'Restore' }}
+          {{ restoreBusy ? t('admin.editor.nodeViews.restoring') : t('admin.editor.nodeViews.restore') }}
         </button>
-        <button type="button" class="ruby-unit-popover-action is-primary" @click="closePopover">Done</button>
+        <button type="button" class="ruby-unit-popover-action is-primary" @click="closePopover">{{ t('admin.editor.nodeViews.done') }}</button>
       </span>
     </span>
   </NodeViewWrapper>
@@ -64,6 +64,7 @@ import {
 
 const props = defineProps<NodeViewProps>()
 
+const { t } = useI18n()
 const { annotate } = useReadings()
 
 const readingInputEl = ref<HTMLInputElement | null>(null)
@@ -93,8 +94,8 @@ const readingPlaceholder = computed(() => {
   switch (lang.value) {
     case 'cmn': return 'pinyin'
     case 'yue': return 'jyutping'
-    case 'jpn': return 'reading (hiragana)'
-    default: return 'reading'
+    case 'jpn': return t('admin.editor.nodeViews.readingHiragana')
+    default: return t('admin.editor.nodeViews.reading')
   }
 })
 

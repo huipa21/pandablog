@@ -5,7 +5,7 @@
         <input
           class="accordion-pane-title-input"
           :value="title"
-          placeholder="Pane title"
+          :placeholder="t('admin.editor.nodeViews.paneTitle')"
           @input="setTitle"
           @mousedown.stop
           @click.stop
@@ -31,12 +31,13 @@
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 
 const props = defineProps(nodeViewProps)
+const { t } = useI18n()
 const paneId = `accordion-pane-${Math.random().toString(36).slice(2)}`
-const title = computed(() => String(props.node.attrs.title ?? 'Accordion Pane').trim() || 'Accordion Pane')
+const title = computed(() => String(props.node.attrs.title ?? t('admin.editor.nodeViews.accordionPane')).trim() || t('admin.editor.nodeViews.accordionPane'))
 
 function setTitle(event: Event) {
   const value = (event.target as HTMLInputElement).value.trim()
-  props.updateAttributes({ title: value || 'Accordion Pane' })
+  props.updateAttributes({ title: value || t('admin.editor.nodeViews.accordionPane') })
 }
 
 function emitToggle(event: MouseEvent) {

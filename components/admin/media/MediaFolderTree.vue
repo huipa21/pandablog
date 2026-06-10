@@ -3,17 +3,17 @@
     <div class="space-y-1">
       <button type="button" class="folder-row" :class="activeClass(mode === 'all')" @click="emit('select-all')">
         <UIcon name="i-lucide-library" class="size-4" />
-        <span>All files</span>
+        <span>{{ t('admin.media.allFiles') }}</span>
       </button>
       <button type="button" class="folder-row" :class="activeClass(mode === 'tag')" @click="emit('select-tags-view')">
         <UIcon name="i-lucide-tags" class="size-4" />
-        <span>Tags</span>
+        <span>{{ t('admin.media.tags') }}</span>
       </button>
     </div>
 
     <div class="space-y-2">
       <div class="flex items-center justify-between px-1 text-xs font-medium uppercase tracking-wide text-stone-500">
-        <span>Folders</span>
+        <span>{{ t('admin.media.folders') }}</span>
         <UButton type="button" icon="i-lucide-plus" size="xs" variant="ghost" color="neutral" @click="createFolder" />
       </div>
       <div class="space-y-1">
@@ -32,13 +32,13 @@
             <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="opacity-0 group-hover:opacity-100" />
           </UDropdownMenu>
         </div>
-        <p v-if="!folders.length" class="px-2 text-xs text-stone-500">No folders</p>
+        <p v-if="!folders.length" class="px-2 text-xs text-stone-500">{{ t('admin.media.noFolders') }}</p>
       </div>
     </div>
 
     <div class="space-y-2">
       <div class="flex items-center justify-between px-1 text-xs font-medium uppercase tracking-wide text-stone-500">
-        <span>Smart folders</span>
+        <span>{{ t('admin.media.smartFolders') }}</span>
         <UButton type="button" icon="i-lucide-plus" size="xs" variant="ghost" color="neutral" @click="emit('create-smart-folder')" />
       </div>
       <div class="space-y-1">
@@ -55,18 +55,18 @@
             <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="opacity-0 group-hover:opacity-100" />
           </UDropdownMenu>
         </div>
-        <p v-if="!smartFolders.length" class="px-2 text-xs text-stone-500">No smart folders</p>
+        <p v-if="!smartFolders.length" class="px-2 text-xs text-stone-500">{{ t('admin.media.noSmartFolders') }}</p>
       </div>
     </div>
   </aside>
 
   <AdminPromptDialog
     :open="renameFolderDialogOpen"
-    title="Rename Folder"
-    description="Update the folder name shown in the media library."
-    label="Folder name"
+    :title="t('admin.media.renameFolder')"
+    :description="t('admin.media.renameFolderDescription')"
+    :label="t('admin.media.folderName')"
     :initial-value="pendingRenameFolder?.name ?? ''"
-    confirm-label="Rename"
+    :confirm-label="t('admin.media.rename')"
     @update:open="(value) => { if (!value) closeRenameFolderDialog() }"
     @cancel="closeRenameFolderDialog"
     @confirm="confirmRenameFolder"
@@ -74,9 +74,9 @@
 
   <AdminConfirmActionDialog
     :open="deleteFolderDialogOpen"
-    title="Delete folder?"
+    :title="t('admin.media.deleteFolderTitle')"
     :description="deleteFolderDialogDescription"
-    confirm-label="Delete"
+    :confirm-label="t('admin.media.delete')"
     confirm-color="error"
     @update:open="(value) => { if (!value) closeDeleteFolderDialog() }"
     @cancel="closeDeleteFolderDialog"
@@ -117,6 +117,8 @@ const emit = defineEmits<{
   'delete-smart-folder': [id: string]
 }>()
 
+const { t } = useI18n()
+
 const sortedFolders = computed(() => {
   const defaultFolder = props.folders.filter((f) => f.slug === 'default')
   const otherFolders = props.folders.filter((f) => f.slug !== 'default')
@@ -127,8 +129,8 @@ const pendingDeleteFolder = ref<MediaFolderRecord | null>(null)
 const renameFolderDialogOpen = ref(false)
 const pendingRenameFolder = ref<MediaFolderRecord | null>(null)
 const deleteFolderDialogDescription = computed(() => pendingDeleteFolder.value
-  ? `Delete folder "${pendingDeleteFolder.value.name}"? Files will stay in the library.`
-  : 'Delete this folder?')
+  ? t('admin.media.deleteFolderDescription', { name: pendingDeleteFolder.value.name })
+  : t('admin.media.deleteFolderFallback'))
 
 function activeClass(active: boolean) {
   return active ? 'bg-teal-50 text-teal-800' : 'text-stone-700 hover:bg-stone-50'
@@ -141,12 +143,12 @@ function createFolder() {
 function folderMenu(folder: MediaFolderRecord) {
   return [[
     {
-      label: 'Rename',
+      label: t('admin.media.rename'),
       icon: 'i-lucide-pencil',
       onSelect: () => openRenameFolderDialog(folder)
     },
     {
-      label: 'Delete',
+      label: t('admin.media.delete'),
       icon: 'i-lucide-trash-2',
       color: 'error' as const,
       onSelect: () => openDeleteFolderDialog(folder)
@@ -201,12 +203,12 @@ function confirmDeleteFolder() {
 function smartFolderMenu(sf: SmartFolder) {
   return [[
     {
-      label: 'Edit',
+      label: t('admin.media.edit'),
       icon: 'i-lucide-pencil',
       onSelect: () => emit('edit-smart-folder', sf)
     },
     {
-      label: 'Delete',
+      label: t('admin.media.delete'),
       icon: 'i-lucide-trash-2',
       color: 'error' as const,
       onSelect: () => emit('delete-smart-folder', sf.id)

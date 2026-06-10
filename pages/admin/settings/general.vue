@@ -1,12 +1,12 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Settings</p>
-      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">General</h1>
-      <p class="mt-2 max-w-2xl text-sm text-[var(--pb-text-muted)]">Configure your site identity, footer, and public access mode.</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.settings.common.eyebrow') }}</p>
+      <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.title') }}</h1>
+      <p class="mt-2 max-w-2xl text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.description') }}</p>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load settings" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.settings.common.loadFailed')" />
 
     <form class="grid gap-6" @submit.prevent="save">
       <div v-if="pending" class="grid gap-5">
@@ -20,16 +20,16 @@
       <template v-else>
         <section class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
           <div>
-            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">Header</h2>
-            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">Configure the public header, site identity, and browser icon.</p>
+            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.headerTitle') }}</h2>
+            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.headerDescription') }}</p>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
-            <UFormField label="Site title" name="site_title">
+            <UFormField :label="t('admin.settings.general.siteTitle')" name="site_title">
               <UInput v-model="form.site_title" icon="i-lucide-type" class="w-full" />
             </UFormField>
 
-            <UFormField label="Subtitle" name="site_subtitle">
+            <UFormField :label="t('admin.settings.general.subtitle')" name="site_subtitle">
               <UInput v-model="form.site_subtitle" icon="i-lucide-text" class="w-full" />
             </UFormField>
           </div>
@@ -37,7 +37,7 @@
           <div class="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
             <div class="grid gap-5">
               <MediaSettingField
-                label="Hero photo"
+                :label="t('admin.settings.general.heroPhoto')"
                 :model-value="form.site_banner"
                 preview-class="h-52"
                 :preview-style="heroPhotoPreviewStyle"
@@ -46,11 +46,11 @@
               />
 
               <fieldset class="grid gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
-                <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">Hero photo framing</legend>
+                <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.settings.general.heroPhotoFraming') }}</legend>
                 <div class="grid gap-4 md:grid-cols-2">
                   <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
                     <span class="flex items-center justify-between gap-3">
-                      <span>Height</span>
+                      <span>{{ t('admin.settings.general.height') }}</span>
                       <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_hero_height_vh }}vh</span>
                     </span>
                     <input v-model.number="form.site_hero_height_vh" type="range" min="18" max="58" step="1" class="accent-[var(--pb-primary)]">
@@ -58,7 +58,7 @@
 
                   <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
                     <span class="flex items-center justify-between gap-3">
-                      <span>Photo size</span>
+                      <span>{{ t('admin.settings.general.photoSize') }}</span>
                       <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_banner_zoom }}%</span>
                     </span>
                     <input v-model.number="form.site_banner_zoom" type="range" min="100" max="200" step="5" class="accent-[var(--pb-primary)]">
@@ -66,7 +66,7 @@
 
                   <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
                     <span class="flex items-center justify-between gap-3">
-                      <span>Horizontal focus</span>
+                      <span>{{ t('admin.settings.general.horizontalFocus') }}</span>
                       <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_banner_position_x }}%</span>
                     </span>
                     <input v-model.number="form.site_banner_position_x" type="range" min="0" max="100" step="1" class="accent-[var(--pb-primary)]">
@@ -74,7 +74,7 @@
 
                   <label class="grid gap-2 text-sm font-medium text-[var(--pb-text)]">
                     <span class="flex items-center justify-between gap-3">
-                      <span>Vertical focus</span>
+                      <span>{{ t('admin.settings.general.verticalFocus') }}</span>
                       <span class="text-xs text-[var(--pb-text-muted)]">{{ form.site_banner_position_y }}%</span>
                     </span>
                     <input v-model.number="form.site_banner_position_y" type="range" min="0" max="100" step="1" class="accent-[var(--pb-primary)]">
@@ -85,21 +85,21 @@
 
             <div class="grid content-start gap-5">
               <MediaSettingField
-                label="Logo"
+                :label="t('admin.settings.general.logo')"
                 :model-value="form.site_logo"
                 @update:model-value="form.site_logo = $event"
                 @browse="openMediaPicker('site_logo')"
               />
 
               <MediaSettingField
-                label="Favicon"
+                :label="t('admin.settings.general.favicon')"
                 :model-value="form.site_favicon"
                 @update:model-value="form.site_favicon = $event"
                 @browse="openMediaPicker('site_favicon')"
               />
 
               <fieldset class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
-                <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">Network</legend>
+                <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.settings.general.network') }}</legend>
                 <label class="flex cursor-pointer items-start gap-3 text-sm">
                   <input
                     v-model="form.trust_proxy_headers"
@@ -107,8 +107,8 @@
                     class="mt-1 rounded border-[var(--pb-border-strong)]"
                   >
                   <span class="grid gap-1">
-                    <span class="font-medium text-[var(--pb-text)]">Trust reverse proxy headers</span>
-                    <span class="text-xs text-[var(--pb-text-muted)]">Use forwarded IP headers and secure unlock cookies when deployed behind an HTTPS reverse proxy.</span>
+                    <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.trustProxyHeaders') }}</span>
+                    <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.general.trustProxyHelp') }}</span>
                   </span>
                 </label>
               </fieldset>
@@ -118,95 +118,95 @@
 
         <section class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
           <div>
-            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">Footer</h2>
-            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">Configure copyright text, footer links, social icon links, and optional filing information.</p>
+            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.footerTitle') }}</h2>
+            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.footerDescription') }}</p>
           </div>
 
-          <UFormField label="Copyright" name="footer_copyright">
-            <UInput v-model="form.footer_copyright" icon="i-lucide-copyright" placeholder="© 2026 Your Site. All rights reserved." class="w-full" />
+          <UFormField :label="t('admin.settings.general.copyright')" name="footer_copyright">
+            <UInput v-model="form.footer_copyright" icon="i-lucide-copyright" :placeholder="t('admin.settings.general.copyrightPlaceholder')" class="w-full" />
           </UFormField>
 
           <section class="grid gap-3">
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-base font-semibold text-[var(--pb-text)]">Footer links</h3>
-              <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addFooterLink">Add link</UButton>
+              <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.settings.general.footerLinks') }}</h3>
+              <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addFooterLink">{{ t('admin.settings.general.addLink') }}</UButton>
             </div>
             <div v-if="form.footer_links.length" class="grid gap-3">
               <div v-for="(link, index) in form.footer_links" :key="index" class="grid gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 md:grid-cols-[1fr_1.6fr_auto]">
-                <UInput v-model="link.label" placeholder="Label" icon="i-lucide-type" />
-                <UInput v-model="link.url" placeholder="/about or https://..." icon="i-lucide-link" />
+                <UInput v-model="link.label" :placeholder="t('admin.settings.general.labelPlaceholder')" icon="i-lucide-type" />
+                <UInput v-model="link.url" :placeholder="t('admin.settings.general.linkPlaceholder')" icon="i-lucide-link" />
                 <UButton type="button" icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeFooterLink(index)" />
               </div>
             </div>
-            <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">No footer links yet.</p>
+            <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">{{ t('admin.settings.general.noFooterLinks') }}</p>
           </section>
 
           <section class="grid gap-3">
             <div class="flex items-center justify-between gap-3">
-              <h3 class="text-base font-semibold text-[var(--pb-text)]">Social links</h3>
-              <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addSocialLink">Add social</UButton>
+              <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.settings.general.socialLinks') }}</h3>
+              <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addSocialLink">{{ t('admin.settings.general.addSocial') }}</UButton>
             </div>
             <div v-if="form.footer_social.length" class="grid gap-3">
               <div v-for="(link, index) in form.footer_social" :key="index" class="grid gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 md:grid-cols-[1fr_1fr_1.6fr_auto]">
-                <UInput v-model="link.label" placeholder="Label" icon="i-lucide-type" />
-                <UInput v-model="link.icon" placeholder="i-lucide-github" icon="i-lucide-smile" />
-                <UInput v-model="link.url" placeholder="https://..." icon="i-lucide-link" />
+                <UInput v-model="link.label" :placeholder="t('admin.settings.general.labelPlaceholder')" icon="i-lucide-type" />
+                <UInput v-model="link.icon" :placeholder="t('admin.settings.general.iconPlaceholder')" icon="i-lucide-smile" />
+                <UInput v-model="link.url" :placeholder="t('admin.settings.general.urlPlaceholder')" icon="i-lucide-link" />
                 <UButton type="button" icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeSocialLink(index)" />
               </div>
             </div>
-            <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">No social links yet.</p>
+            <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">{{ t('admin.settings.general.noSocialLinks') }}</p>
           </section>
 
           <section class="grid gap-3">
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h3 class="text-base font-semibold text-[var(--pb-text)]">Filings</h3>
-                <p class="mt-1 text-sm text-[var(--pb-text-muted)]">Add optional filing text and links shown in the public footer.</p>
+                <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.settings.general.filings') }}</h3>
+                <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.filingsDescription') }}</p>
               </div>
-              <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addFiling">Add filing</UButton>
+              <UButton type="button" icon="i-lucide-plus" variant="soft" size="sm" @click="addFiling">{{ t('admin.settings.general.addFiling') }}</UButton>
             </div>
             <div v-if="form.footer_filings.length" class="grid gap-3">
               <div v-for="(filing, index) in form.footer_filings" :key="index" class="grid gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 md:grid-cols-[1fr_1.6fr_1fr_auto] md:items-start">
-                <UInput v-model="filing.label" placeholder="Displayed filing text" icon="i-lucide-type" />
-                <UInput v-model="filing.url" placeholder="https://..." icon="i-lucide-link" />
+                <UInput v-model="filing.label" :placeholder="t('admin.settings.general.filingTextPlaceholder')" icon="i-lucide-type" />
+                <UInput v-model="filing.url" :placeholder="t('admin.settings.general.urlPlaceholder')" icon="i-lucide-link" />
                 <div class="grid gap-2">
                   <USelect v-model="filing.iconPreset" :items="filingIconOptions" icon="i-lucide-badge-check" class="w-full" />
-                  <UInput v-if="filing.iconPreset === 'custom'" v-model="filing.customIcon" placeholder="i-lucide-shield or https://..." icon="i-lucide-image" />
+                  <UInput v-if="filing.iconPreset === 'custom'" v-model="filing.customIcon" :placeholder="t('admin.settings.general.customIconPlaceholder')" icon="i-lucide-image" />
                 </div>
                 <UButton type="button" icon="i-lucide-trash-2" color="error" variant="ghost" @click="removeFiling(index)" />
               </div>
             </div>
-            <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">No filings yet.</p>
+            <p v-else class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-divider-strong)] p-4 text-sm text-[var(--pb-text-subtle)]">{{ t('admin.settings.general.noFilings') }}</p>
           </section>
         </section>
 
         <section class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
           <div>
-            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">Site visibility</h2>
-            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">Controls whether the public site is reachable to anonymous visitors.</p>
+            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.visibilityTitle') }}</h2>
+            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.visibilityDescription') }}</p>
           </div>
 
           <fieldset class="grid gap-3 md:grid-cols-2">
             <label class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3" :class="form.mode === 'public' ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-divider)]'">
               <input v-model="form.mode" type="radio" value="public" class="mt-1">
               <span class="grid gap-1">
-                <span class="font-medium text-[var(--pb-text)]">Public</span>
-                <span class="text-sm text-[var(--pb-text-muted)]">Anyone can browse the site. Per-post visibility still applies.</span>
+                <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.public') }}</span>
+                <span class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.publicDescription') }}</span>
               </span>
             </label>
 
             <label class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3" :class="form.mode === 'private' ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-divider)]'">
               <input v-model="form.mode" type="radio" value="private" class="mt-1">
               <span class="grid gap-1">
-                <span class="font-medium text-[var(--pb-text)]">Private</span>
-                <span class="text-sm text-[var(--pb-text-muted)]">Only logged-in admins can browse. Anonymous visitors are sent to login.</span>
+                <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.private') }}</span>
+                <span class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.privateDescription') }}</span>
               </span>
             </label>
           </fieldset>
         </section>
 
         <div class="flex justify-end">
-          <UButton type="submit" icon="i-lucide-save" :loading="saving">Save settings</UButton>
+          <UButton type="submit" icon="i-lucide-save" :loading="saving">{{ t('admin.settings.common.saveSettings') }}</UButton>
         </div>
       </template>
     </form>
@@ -226,6 +226,8 @@ import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
 
 definePageMeta({ layout: 'admin' })
+
+const { t } = useI18n()
 
 type SiteAssetKey = 'site_logo' | 'site_banner' | 'site_favicon'
 type SiteVisibility = 'public' | 'private'
@@ -264,12 +266,12 @@ interface GeneralSettingsForm {
 
 const FILING_EMBLEM_ICON = '/defaults/icp-emblem.svg'
 const FILING_SHIELD_ICON = 'i-lucide-shield-check'
-const filingIconOptions: Array<{ label: string, value: FilingIconPreset }> = [
-  { label: 'None', value: 'none' },
-  { label: 'National emblem', value: 'emblem' },
-  { label: 'Shield', value: 'shield' },
-  { label: 'Custom URL', value: 'custom' }
-]
+const filingIconOptions = computed<Array<{ label: string, value: FilingIconPreset }>>(() => [
+  { label: t('admin.settings.general.filingIconNone'), value: 'none' },
+  { label: t('admin.settings.general.filingIconEmblem'), value: 'emblem' },
+  { label: t('admin.settings.general.filingIconShield'), value: 'shield' },
+  { label: t('admin.settings.general.filingIconCustom'), value: 'custom' }
+])
 
 const { data, pending, error } = await useAsyncData('admin-settings-general', async () => {
   const [settingsResponse, visibilityResponse] = await Promise.all([
@@ -394,9 +396,9 @@ async function save() {
       mode: visibilityResponse.mode
     }
     await refreshNuxtData('public-bootstrap')
-    adminToast.success('Settings saved')
+    adminToast.success(t('admin.settings.general.saved'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not save settings')
+    adminToast.error(err, t('admin.settings.general.saveFailed'))
   } finally {
     saving.value = false
   }

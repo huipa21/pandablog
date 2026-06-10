@@ -2,6 +2,7 @@ import { queryDb, useDb } from './db'
 import { queryRows } from './surrealResult'
 import { createUserWithPasswordHash, findUserByUsername, setUserPasswordHash, updateUser } from './users'
 import type { JsonContent } from '~/types/content'
+import { ADMIN_LOCALE_KEY, normalizeAdminLocale, type SupportedLocale } from '~/utils/adminLocale'
 import { ADMIN_COLOR_MODE_KEY, normalizeThemeMode, type ThemeMode } from '~/utils/themeMode'
 
 export const PUBLIC_SETTING_KEYS = [
@@ -30,7 +31,8 @@ export const RUNTIME_SETTING_KEYS = [
 ] as const
 
 const ADMIN_ONLY_SETTING_KEYS = [
-  ADMIN_COLOR_MODE_KEY
+  ADMIN_COLOR_MODE_KEY,
+  ADMIN_LOCALE_KEY
 ] as const
 
 export const ADMIN_SETTING_KEYS = [
@@ -51,6 +53,7 @@ const SETUP_COMPLETED_KEY = 'setup_completed'
 export type PublicSettingKey = typeof PUBLIC_SETTING_KEYS[number]
 export type RuntimeSettingKey = typeof RUNTIME_SETTING_KEYS[number]
 export type ThemeModeSetting = ThemeMode
+export type AdminLocaleSetting = SupportedLocale
 
 export interface RuntimeFlags {
   trust_proxy_headers: boolean
@@ -185,6 +188,17 @@ export function filterAdminSettings(values: Record<string, unknown>) {
     } else {
       return Object.fromEntries(
         Object.entries(filtered).filter(([key]) => key !== ADMIN_COLOR_MODE_KEY)
+      )
+    }
+  }
+
+  if (ADMIN_LOCALE_KEY in filtered) {
+    const locale = normalizeAdminLocale(filtered[ADMIN_LOCALE_KEY])
+    if (locale) {
+      filtered[ADMIN_LOCALE_KEY] = locale
+    } else {
+      return Object.fromEntries(
+        Object.entries(filtered).filter(([key]) => key !== ADMIN_LOCALE_KEY)
       )
     }
   }

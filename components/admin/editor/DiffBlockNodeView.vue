@@ -18,12 +18,12 @@
 
     <div v-if="selected" class="diff-editor-source" contenteditable="false">
       <div class="diff-editor-source-head">
-        <span>Edit diff source</span>
-        <span>Changes update the preview above.</span>
+        <span>{{ t('admin.editor.nodeViews.editDiffSource') }}</span>
+        <span>{{ t('admin.editor.nodeViews.diffSourceDescription') }}</span>
       </div>
       <div class="diff-editor-source-grid">
         <label class="diff-editor-source-field">
-          <span>{{ oldLabel || 'Before' }}</span>
+          <span>{{ oldLabel || t('admin.editor.nodeViews.before') }}</span>
           <textarea
             :value="oldText"
             spellcheck="false"
@@ -32,7 +32,7 @@
           />
         </label>
         <label class="diff-editor-source-field">
-          <span>{{ newLabel || 'After' }}</span>
+          <span>{{ newLabel || t('admin.editor.nodeViews.after') }}</span>
           <textarea
             :value="newText"
             spellcheck="false"
@@ -57,6 +57,7 @@ import {
 } from '~/utils/diffBlock'
 
 const props = defineProps(nodeViewProps)
+const { t } = useI18n()
 
 const oldText = computed(() => typeof props.node.attrs.oldText === 'string' ? props.node.attrs.oldText : DEFAULT_DIFF_OLD_TEXT)
 const newText = computed(() => typeof props.node.attrs.newText === 'string' ? props.node.attrs.newText : DEFAULT_DIFF_NEW_TEXT)

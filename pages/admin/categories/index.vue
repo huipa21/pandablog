@@ -2,19 +2,19 @@
   <section class="grid gap-6">
     <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Posts</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Categories</h1>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.taxonomy.postsEyebrow') }}</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.taxonomy.categoriesTitle') }}</h1>
       </div>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" title="Could not load categories" />
+    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.taxonomy.loadCategoriesFailed')" />
 
     <form class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] md:grid-cols-[1fr_1fr_1fr_1.5fr_auto]" @submit.prevent="createCategory">
-      <UInput v-model="newCategory.name" placeholder="Name" icon="i-lucide-folder" />
-      <UInput v-model="newCategory.slug" placeholder="Slug (optional)" icon="i-lucide-link" />
+      <UInput v-model="newCategory.name" :placeholder="t('admin.taxonomy.name')" icon="i-lucide-folder" />
+      <UInput v-model="newCategory.slug" :placeholder="t('admin.taxonomy.slugOptional')" icon="i-lucide-link" />
       <USelect v-model="newCategory.parent_id" :items="parentOptionsFor()" icon="i-lucide-folder-tree" />
-      <UInput v-model="newCategory.description" placeholder="Description" icon="i-lucide-text" />
-      <UButton type="submit" icon="i-lucide-plus" :loading="creating">Add category</UButton>
+      <UInput v-model="newCategory.description" :placeholder="t('admin.taxonomy.description')" icon="i-lucide-text" />
+      <UButton type="submit" icon="i-lucide-plus" :loading="creating">{{ t('admin.taxonomy.addCategory') }}</UButton>
     </form>
 
     <div class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
@@ -25,12 +25,12 @@
       <table v-else-if="categories.length" class="w-full border-collapse text-left text-sm">
         <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
           <tr>
-            <th class="px-4 py-3 font-medium">Name</th>
-            <th class="px-4 py-3 font-medium">Parent</th>
-            <th class="px-4 py-3 font-medium">Slug</th>
-            <th class="px-4 py-3 font-medium">Description</th>
-            <th class="px-4 py-3 font-medium">Posts</th>
-            <th class="px-4 py-3 text-right font-medium">Actions</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.name') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.parent') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.slug') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.description') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin.taxonomy.posts') }}</th>
+            <th class="px-4 py-3 text-right font-medium">{{ t('admin.taxonomy.actions') }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--pb-divider)]">
@@ -44,8 +44,8 @@
               <td class="px-4 py-3"><UInput v-model="draft.description" size="sm" /></td>
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ row.category.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
-                <UButton icon="i-lucide-check" variant="ghost" color="primary" :loading="saving" @click="saveCategory(row.category.id)">Save</UButton>
-                <UButton icon="i-lucide-x" variant="ghost" color="neutral" @click="cancelEdit">Cancel</UButton>
+                <UButton icon="i-lucide-check" variant="ghost" color="primary" :loading="saving" @click="saveCategory(row.category.id)">{{ t('admin.common.save') }}</UButton>
+                <UButton icon="i-lucide-x" variant="ghost" color="neutral" @click="cancelEdit">{{ t('admin.common.cancel') }}</UButton>
               </td>
             </template>
             <template v-else>
@@ -57,15 +57,15 @@
                     variant="ghost"
                     color="neutral"
                     :icon="row.collapsed ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'"
-                    :aria-label="row.collapsed ? 'Expand category' : 'Collapse category'"
+                    :aria-label="row.collapsed ? t('admin.taxonomy.expandCategory') : t('admin.taxonomy.collapseCategory')"
                     @click.stop="toggleCollapse(row.category.id)"
                   />
                   <span v-else class="w-7" />
                   <NuxtLink :to="`/admin/categories/${encodeURIComponent(row.category.id)}`" class="hover:text-[var(--pb-link-hover)]">
                     {{ row.category.name }}
                   </NuxtLink>
-                  <UBadge v-if="isDefaultCategory(row.category)" color="neutral" variant="subtle">Default</UBadge>
-                  <UBadge v-else color="primary" variant="subtle">Level {{ row.level + 1 }}</UBadge>
+                  <UBadge v-if="isDefaultCategory(row.category)" color="neutral" variant="subtle">{{ t('admin.taxonomy.default') }}</UBadge>
+                  <UBadge v-else color="primary" variant="subtle">{{ t('admin.taxonomy.level', { level: row.level + 1 }) }}</UBadge>
                 </div>
               </td>
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ parentName(row.category) }}</td>
@@ -73,22 +73,22 @@
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ row.category.description || '-' }}</td>
               <td class="px-4 py-3 text-[var(--pb-text-muted)]">{{ row.category.post_count ?? 0 }}</td>
               <td class="px-4 py-3 text-right">
-                <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(row.category)">Edit</UButton>
-                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === row.category.id" :disabled="isDefaultCategory(row.category)" @click="requestDeleteCategory(row.category)">Delete</UButton>
+                <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" @click="startEdit(row.category)">{{ t('admin.common.edit') }}</UButton>
+                <UButton icon="i-lucide-trash-2" variant="ghost" color="error" :loading="deletingId === row.category.id" :disabled="isDefaultCategory(row.category)" @click="requestDeleteCategory(row.category)">{{ t('admin.common.delete') }}</UButton>
               </td>
             </template>
           </tr>
         </tbody>
       </table>
 
-      <UEmpty v-else icon="i-lucide-folder" title="No categories yet" description="Create categories to organize your posts." class="py-12" />
+      <UEmpty v-else icon="i-lucide-folder" :title="t('admin.taxonomy.noCategoriesTitle')" :description="t('admin.taxonomy.noCategoriesDescription')" class="py-12" />
     </div>
 
     <AdminConfirmActionDialog
       :open="deleteDialogOpen"
-      title="Delete category?"
+      :title="t('admin.taxonomy.deleteCategoryTitle')"
       :description="deleteDialogDescription"
-      confirm-label="Delete"
+      :confirm-label="t('admin.common.delete')"
       confirm-color="error"
       :loading="Boolean(deletingId)"
       @update:open="(value) => { if (!value) closeDeleteDialog() }"
@@ -103,6 +103,7 @@ import type { CategoryRecord } from '~/types/content'
 
 definePageMeta({ layout: 'admin' })
 
+const { t } = useI18n()
 const { data, pending, error, refresh } = await useAsyncData('admin-categories', () => $fetch<{ categories: CategoryRecord[] }>('/api/admin/categories'))
 const categories = computed(() => data.value?.categories ?? [])
 const noParentValue = '__none__'
@@ -117,8 +118,8 @@ const collapsedIds = ref<string[]>([])
 const deleteDialogOpen = ref(false)
 const pendingDeleteCategory = ref<CategoryRecord | null>(null)
 const deleteDialogDescription = computed(() => pendingDeleteCategory.value
-  ? `Delete category "${pendingDeleteCategory.value.name}"?`
-  : 'Delete this category?')
+  ? t('admin.taxonomy.deleteCategoryDescription', { name: pendingDeleteCategory.value.name })
+  : t('admin.taxonomy.deleteCategoryFallback'))
 
 const visibleCategoryRows = computed(() => {
   const rows: Array<{ category: CategoryRecord, level: number, hasChildren: boolean, collapsed: boolean }> = []
@@ -156,9 +157,9 @@ async function createCategory() {
     newCategory.parent_id = noParentValue
     newCategory.description = ''
     await refresh()
-    adminToast.success('Category created')
+    adminToast.success(t('admin.taxonomy.categoryCreated'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not create category')
+    adminToast.error(err, t('admin.taxonomy.categoryCreateFailed'))
   } finally {
     creating.value = false
   }
@@ -185,9 +186,9 @@ async function saveCategory(id: string) {
     })
     editingId.value = ''
     await refresh()
-    adminToast.success('Category saved')
+    adminToast.success(t('admin.taxonomy.categorySaved'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not save category')
+    adminToast.error(err, t('admin.taxonomy.categorySaveFailed'))
   } finally {
     saving.value = false
   }
@@ -219,9 +220,9 @@ async function confirmDeleteCategory() {
     await $fetch(`/api/admin/categories/${encodeURIComponent(category.id)}`, { method: 'DELETE' })
     closeDeleteDialog()
     await refresh()
-    adminToast.success('Category deleted')
+    adminToast.success(t('admin.taxonomy.categoryDeleted'))
   } catch (err: any) {
-    adminToast.error(err, 'Could not delete category')
+    adminToast.error(err, t('admin.taxonomy.categoryDeleteFailed'))
   } finally {
     deletingId.value = ''
   }
@@ -229,7 +230,7 @@ async function confirmDeleteCategory() {
 
 function parentOptionsFor(category?: CategoryRecord) {
   return [
-    { label: 'No parent', value: noParentValue },
+    { label: t('admin.taxonomy.noParent'), value: noParentValue },
     ...flattenCategoriesForSelect()
       .filter((entry) => canUseAsParent(entry.category, category))
       .map((entry) => ({
@@ -270,15 +271,15 @@ function normalizedParentId(category: CategoryRecord) {
 
 function parentName(category: CategoryRecord) {
   if (isDefaultCategory(category)) {
-    return 'On its own'
+    return t('admin.taxonomy.onItsOwn')
   }
 
   const parentId = normalizedParentId(category)
   if (!parentId) {
-    return 'None'
+    return t('admin.taxonomy.none')
   }
 
-  return categories.value.find((item) => item.id === parentId)?.name ?? 'None'
+  return categories.value.find((item) => item.id === parentId)?.name ?? t('admin.taxonomy.none')
 }
 
 function canUseAsParent(parent: CategoryRecord, category?: CategoryRecord) {

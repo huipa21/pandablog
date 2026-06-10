@@ -4,17 +4,17 @@
       <MediaFileList v-if="files.length" :files="files" />
       <div v-else class="files-block-empty">
         <UIcon name="i-lucide-files" class="size-7 text-stone-400" />
-        <span class="text-sm font-medium text-stone-700">Add files</span>
-        <span class="text-xs text-stone-500">Attach documents, images, archives, or other downloads.</span>
+        <span class="text-sm font-medium text-stone-700">{{ t('admin.editor.nodeViews.addFiles') }}</span>
+        <span class="text-xs text-stone-500">{{ t('admin.editor.nodeViews.addFilesDescription') }}</span>
         <div class="mt-1 flex flex-wrap justify-center gap-2">
           <button type="button" class="files-block-pick-button" @click="emitPick('library')">
-            <UIcon name="i-lucide-images" class="mr-1 inline size-3.5" /> Media library
+            <UIcon name="i-lucide-images" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.mediaLibrary') }}
           </button>
           <button type="button" class="files-block-pick-button" @click="emitPick('upload')">
-            <UIcon name="i-lucide-upload" class="mr-1 inline size-3.5" /> Upload files
+            <UIcon name="i-lucide-upload" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.uploadFiles') }}
           </button>
           <button type="button" class="files-block-pick-button" @click="emitPick('url')">
-            <UIcon name="i-lucide-link" class="mr-1 inline size-3.5" /> Paste URL
+            <UIcon name="i-lucide-link" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.pasteUrl') }}
           </button>
         </div>
       </div>
@@ -23,7 +23,7 @@
         type="button"
         class="files-block-change"
         @click="emitPick('library')"
-      >Change</button>
+      >{{ t('admin.editor.nodeViews.change') }}</button>
     </div>
   </NodeViewWrapper>
 </template>
@@ -35,6 +35,7 @@ import MediaFileList from '~/components/content/MediaFileList.vue'
 import { normalizeMediaFileItems } from '~/utils/mediaFiles'
 
 const props = defineProps(nodeViewProps)
+const { t } = useI18n()
 const rootEl = ref<HTMLElement | null>(null)
 
 const files = computed(() => normalizeMediaFileItems(props.node.attrs.files))

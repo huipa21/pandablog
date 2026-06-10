@@ -16,21 +16,21 @@
   >
     <div class="codeblock-header" contenteditable="false">
       <div class="codeblock-header-left">
-        <button type="button" class="codeblock-action" :title="collapsed ? 'Expand code' : 'Collapse code'" @click="toggleCollapsed">
+        <button type="button" class="codeblock-action" :title="collapsed ? t('admin.editor.nodeViews.expandCode') : t('admin.editor.nodeViews.collapseCode')" @click="toggleCollapsed">
           <UIcon :name="collapsed ? 'i-lucide-chevron-down' : 'i-lucide-chevron-up'" class="size-3" />
         </button>
         <UIcon :name="fileIcon" class="size-3.5 shrink-0" />
         <span v-if="fileName" class="truncate">{{ fileName }}</span>
-        <span v-else class="truncate opacity-60">untitled</span>
+        <span v-else class="truncate opacity-60">{{ t('admin.editor.nodeViews.untitled') }}</span>
         <span v-if="showTotalLines" class="opacity-50">·</span>
-        <span v-if="showTotalLines" class="opacity-70">{{ lineCount }} {{ lineCount === 1 ? 'line' : 'lines' }}</span>
+        <span v-if="showTotalLines" class="opacity-70">{{ t('admin.editor.nodeViews.lineCount', { count: lineCount }) }}</span>
       </div>
       <div class="codeblock-header-right">
-        <button type="button" class="codeblock-action" title="Zoom out" @click="adjustZoom(-0.1)">
+        <button type="button" class="codeblock-action" :title="t('admin.editor.nodeViews.zoomOut')" @click="adjustZoom(-0.1)">
           <UIcon name="i-lucide-minus" class="size-3" />
         </button>
         <span class="codeblock-zoom">{{ Math.round(zoom * 100) }}%</span>
-        <button type="button" class="codeblock-action" title="Zoom in" @click="adjustZoom(0.1)">
+        <button type="button" class="codeblock-action" :title="t('admin.editor.nodeViews.zoomIn')" @click="adjustZoom(0.1)">
           <UIcon name="i-lucide-plus" class="size-3" />
         </button>
         <button
@@ -38,11 +38,11 @@
           class="codeblock-action"
           :class="wrapLines ? 'is-active' : ''"
           :aria-pressed="wrapLines ? 'true' : 'false'"
-          :title="wrapLines ? 'Wrap: on' : 'Wrap: off'"
+          :title="wrapLines ? t('admin.editor.nodeViews.wrapOn') : t('admin.editor.nodeViews.wrapOff')"
           @click="toggleWrap"
         >
           <UIcon name="i-lucide-wrap-text" class="size-3" />
-          <span>{{ wrapLines ? 'Wrapped' : 'No wrap' }}</span>
+          <span>{{ wrapLines ? t('admin.editor.nodeViews.wrapped') : t('admin.editor.nodeViews.noWrap') }}</span>
         </button>
         <span class="codeblock-lang-pill">{{ languageLabel }}</span>
       </div>
@@ -78,7 +78,7 @@
     </div>
     <div v-if="hasOverflow" class="codeblock-tail" contenteditable="false">
       <button type="button" class="codeblock-tail-btn" @click="toggleCollapsed">
-        {{ collapsed ? 'Show more' : 'Show less' }}
+        {{ collapsed ? t('admin.editor.nodeViews.showMore') : t('admin.editor.nodeViews.showLess') }}
       </button>
     </div>
   </NodeViewWrapper>
@@ -90,6 +90,7 @@ import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeC
 
 const props = defineProps(nodeViewProps)
 
+const { t } = useI18n()
 const languageLabelMap = new Map<string, string>(CODE_BLOCK_LANGUAGES.map((item) => [item.value as string, item.label]))
 const supportedLanguages = new Set<string>(CODE_BLOCK_LANGUAGES.map((item) => item.value as string))
 const supportedThemes = new Set<string>(CODE_BLOCK_THEMES.map((item) => item.value as string))

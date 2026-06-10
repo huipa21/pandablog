@@ -16,7 +16,7 @@
         v-model="inputValue"
         type="text"
         class="w-full border-0 bg-transparent px-1 py-0.5 text-sm outline-none placeholder:text-stone-400"
-        placeholder="Add tag..."
+        :placeholder="t('admin.media.addTagPlaceholder')"
         @keydown.enter.prevent="confirmTag"
         @keydown.tab.prevent="confirmTag"
         @keydown.backspace="handleBackspace"
@@ -46,6 +46,7 @@ const props = defineProps<{
   modelValue: string[]
 }>()
 
+const { t } = useI18n()
 const emit = defineEmits<{
   'update:modelValue': [tags: string[]]
 }>()

@@ -89,6 +89,7 @@ const emit = defineEmits<{
 }>()
 
 const titleId = useId()
+const { t } = useI18n()
 const value = ref(props.initialValue)
 const errorMessage = ref('')
 
@@ -119,7 +120,7 @@ function handleCancel() {
 function handleSubmit() {
   const nextValue = props.trim ? value.value.trim() : value.value
   if (props.required && !value.value.trim()) {
-    errorMessage.value = `${props.label} is required.`
+    errorMessage.value = t('admin.common.required', { label: props.label })
     return
   }
 

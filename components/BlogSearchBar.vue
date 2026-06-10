@@ -1,5 +1,6 @@
 <template>
   <form
+    ref="formRef"
     class="flex items-center gap-2"
     :class="formClass"
     role="search"
@@ -8,13 +9,14 @@
     <div v-if="variant === 'hero'" class="blog-search-hero-control">
       <UIcon name="i-lucide-search" class="size-5 shrink-0 text-[var(--pb-text-subtle)]" />
       <input
+        :key="`hero-input-${renderedPlaceholder}`"
         v-model="query"
         class="blog-search-hero-input"
-        :placeholder="placeholder"
+        :placeholder="renderedPlaceholder"
         type="search"
         autocomplete="off"
       >
-      <button type="submit" class="blog-search-hero-submit" :aria-label="placeholder">
+      <button :key="`hero-submit-${renderedPlaceholder}`" type="submit" class="blog-search-hero-submit" :aria-label="renderedPlaceholder">
         <UIcon name="i-lucide-arrow-right" class="size-5" />
       </button>
     </div>
@@ -22,9 +24,10 @@
     <div v-else-if="variant === 'compact'" class="blog-search-compact-control">
       <UIcon name="i-lucide-search" class="size-4 shrink-0 text-[var(--pb-text-subtle)]" />
       <input
+        :key="`compact-input-${renderedPlaceholder}`"
         v-model="query"
         class="blog-search-compact-input"
-        :placeholder="placeholder"
+        :placeholder="renderedPlaceholder"
         type="search"
         autocomplete="off"
       >
@@ -32,8 +35,9 @@
 
     <template v-else>
       <UInput
+        :key="`search-input-${renderedPlaceholder}`"
         v-model="query"
-        :placeholder="placeholder"
+        :placeholder="renderedPlaceholder"
         icon="i-lucide-search"
         :ui="{ root: 'w-full' }"
         type="search"
@@ -41,10 +45,11 @@
       />
       <UButton
         v-if="variant === 'sidebar'"
+        :key="`search-submit-${renderedPlaceholder}`"
         type="submit"
         color="primary"
         icon="i-lucide-arrow-right"
-        :aria-label="placeholder"
+        :aria-label="renderedPlaceholder"
       />
     </template>
   </form>
@@ -56,10 +61,14 @@ const props = withDefaults(defineProps<{
   placeholder?: string
 }>(), {
   variant: 'sidebar',
-  placeholder: 'Search posts…'
+  placeholder: ''
 })
 
+const { t } = useI18n()
+const nuxtApp = useNuxtApp()
+const { locale: publicLocale } = usePublicLocale()
 const route = useRoute()
+const formRef = ref<HTMLFormElement | null>(null)
 const query = ref<string>(typeof route.query.q === 'string' ? route.query.q : '')
 
 watch(() => route.query.q, (q) => {
@@ -72,6 +81,50 @@ const formClass = computed(() => {
   if (props.variant === 'compact') return 'w-56 lg:w-64'
   return 'w-72'
 })
+const resolvedPlaceholder = computed(() => {
+  if (props.placeholder) {
+    return props.placeholder
+  }
+
+  if (!route.path.startsWith('/admin')) {
+    const i18n = nuxtApp.$i18n as { getLocaleMessage?: (locale: string) => any }
+    const message = i18n.getLocaleMessage?.(publicLocale.value)?.public?.search?.placeholder
+    if (typeof message === 'string') {
+      return message
+    }
+  }
+
+  return t('public.search.placeholder')
+})
+const hydratedPlaceholder = ref('')
+const renderedPlaceholder = computed(() => hydratedPlaceholder.value || props.placeholder || t('public.search.placeholder'))
+
+onMounted(() => {
+  hydratedPlaceholder.value = resolvedPlaceholder.value
+  syncSearchAttributes(resolvedPlaceholder.value)
+})
+
+watch(resolvedPlaceholder, (value) => {
+  if (hydratedPlaceholder.value) {
+    hydratedPlaceholder.value = value
+  }
+  syncSearchAttributes(value)
+})
+
+function syncSearchAttributes(value: string) {
+  nextTick(() => {
+    const form = formRef.value
+    if (!form) return
+
+    for (const input of form.querySelectorAll('input[type="search"]')) {
+      input.setAttribute('placeholder', value)
+    }
+
+    for (const button of form.querySelectorAll('button[type="submit"]')) {
+      button.setAttribute('aria-label', value)
+    }
+  })
+}
 
 function submit() {
   const q = query.value.trim()

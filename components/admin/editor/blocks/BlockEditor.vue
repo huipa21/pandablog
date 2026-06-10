@@ -45,8 +45,8 @@
             type="button"
             :draggable="activeBlockRange?.parentDepth === 0"
             class="block-grid-handle pointer-events-auto col-start-1 justify-self-center"
-            :title="activeBlockRange?.parentDepth === 0 ? 'Drag block' : 'Use toolbar actions to move nested block'"
-            :aria-label="activeBlockRange?.parentDepth === 0 ? 'Drag block' : 'Nested block actions'"
+            :title="activeBlockRange?.parentDepth === 0 ? t('admin.editor.blocks.dragBlock') : t('admin.editor.blocks.moveNestedBlock')"
+            :aria-label="activeBlockRange?.parentDepth === 0 ? t('admin.editor.blocks.dragBlock') : t('admin.editor.blocks.nestedBlockActions')"
             data-testid="block-drag-handle"
             @click.stop.prevent="onHandleClick"
             @dragstart="onBlockDragStart"
@@ -73,7 +73,7 @@
           <button
             type="button"
             class="block-grid-add pointer-events-auto col-start-3 justify-self-center"
-            title="Add block below"
+            :title="t('admin.editor.blocks.addBelow')"
             data-testid="block-add-button"
             @click.stop.prevent="addBlockAfterCurrent"
           >
@@ -143,11 +143,11 @@
 
         <AdminPromptDialog
           :open="editHtmlDialogOpen"
-          title="Edit HTML"
-          description="Update the HTML for the selected block."
-          label="HTML"
+          :title="t('admin.editor.blocks.editHtmlTitle')"
+          :description="t('admin.editor.blocks.editHtmlDescription')"
+          :label="t('admin.editor.blocks.html')"
           :initial-value="editHtmlInitialValue"
-          confirm-label="Apply HTML"
+          :confirm-label="t('admin.editor.blocks.applyHtml')"
           :required="false"
           :trim="false"
           multiline
@@ -159,12 +159,12 @@
 
         <AdminPromptDialog
           :open="embedUrlDialogOpen"
-          title="Insert Embed"
-          description="Paste a video, audio, or website URL to embed in the post."
-          label="Embed URL"
+          :title="t('admin.editor.blocks.embedTitle')"
+          :description="t('admin.editor.blocks.embedDescription')"
+          :label="t('admin.editor.blocks.embedUrl')"
           placeholder="https://example.com"
           :validate="validateEmbedUrlInput"
-          confirm-label="Insert embed"
+          :confirm-label="t('admin.editor.blocks.insertEmbed')"
           @update:open="(value) => { if (!value) closeEmbedUrlDialog() }"
           @cancel="closeEmbedUrlDialog"
           @confirm="confirmEmbedUrl"
@@ -172,19 +172,19 @@
 
         <AdminPromptDialog
           :open="mediaTextRemoteUrlDialogOpen"
-          title="Remote Media URL"
-          description="Use a remote image, video, audio, or document URL for this Media + Text block."
-          label="Remote media URL"
+          :title="t('admin.editor.blocks.remoteMediaTitle')"
+          :description="t('admin.editor.blocks.remoteMediaDescription')"
+          :label="t('admin.editor.blocks.remoteMediaUrl')"
           placeholder="https://example.com/media.jpg"
           input-type="url"
-          confirm-label="Use URL"
+          :confirm-label="t('admin.editor.blocks.useUrl')"
           @update:open="(value) => { if (!value) closeRemoteMediaTextDialog() }"
           @cancel="closeRemoteMediaTextDialog"
           @confirm="confirmRemoteMediaTextUrl"
         />
       </div>
       <template #fallback>
-        <div class="min-h-96 rounded-md border border-dashed border-stone-300 p-5 text-sm text-stone-500">Loading editor...</div>
+        <div class="min-h-96 rounded-md border border-dashed border-stone-300 p-5 text-sm text-stone-500">{{ t('admin.editor.blocks.loading') }}</div>
       </template>
     </ClientOnly>
   </div>
@@ -323,6 +323,7 @@ const dropIndicators = ref<Array<{ index: number; top: number }>>([])
 
 // Auto-scroll during drag
 const autoScroll = useAutoScroll()
+const { t } = useI18n()
 const { toPublicMediaUrl, resolveMediaUrl } = useMediaUrl()
 const { uploadFiles } = useMedia()
 
@@ -2123,7 +2124,7 @@ function buildEmbedHtmlFromUrl(url: string) {
     return `<div style="max-width:960px;margin:0 auto;">
   <iframe
     src="${escapeHtmlAttr(src)}"
-    title="YouTube video"
+    title="${escapeHtmlAttr(t('admin.editor.blocks.youtubeVideo'))}"
     style="width:100%;height:420px;border:0;border-radius:12px;"
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
     allowfullscreen
@@ -2154,7 +2155,7 @@ function buildEmbedHtmlFromUrl(url: string) {
     return `<div style="max-width:960px;margin:0 auto;">
   <iframe
     src="${escapeHtmlAttr(src)}"
-    title="Vimeo video"
+    title="${escapeHtmlAttr(t('admin.editor.blocks.vimeoVideo'))}"
     style="width:100%;height:420px;border:0;border-radius:12px;"
     allow="autoplay; fullscreen; picture-in-picture"
     allowfullscreen
@@ -2167,12 +2168,12 @@ function buildEmbedHtmlFromUrl(url: string) {
   return `<div style="max-width:1100px;margin:0 auto;">
   <iframe
     src="${escapeHtmlAttr(url)}"
-    title="Embedded webpage"
+    title="${escapeHtmlAttr(t('admin.editor.blocks.embeddedWebpage'))}"
     style="width:100%;height:720px;border:0;border-radius:12px;background:#fff;"
     loading="lazy"
     referrerpolicy="no-referrer"
   ></iframe>
-  <p style="margin:0.5rem 0 0;font:500 13px ui-sans-serif,system-ui,sans-serif;color:#64748b;">If this site blocks embedding, open it in a new tab: <a href="${escapeHtmlAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtmlText(url)}</a></p>
+  <p style="margin:0.5rem 0 0;font:500 13px ui-sans-serif,system-ui,sans-serif;color:#64748b;">${escapeHtmlText(t('admin.editor.blocks.embedBlockedHelp'))} <a href="${escapeHtmlAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtmlText(url)}</a></p>
 </div>`
 }
 

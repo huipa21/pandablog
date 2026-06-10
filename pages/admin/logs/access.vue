@@ -1,27 +1,27 @@
 <template>
   <section class="grid gap-4">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tools</p>
-      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">Access logs</h1>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
+      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.accessLogs') }}</h1>
     </header>
 
     <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <UInput v-model="filters.from" type="datetime-local" label="From" />
-        <UInput v-model="filters.to" type="datetime-local" label="To" />
-        <UInput v-model="filters.path" placeholder="Path" />
-        <UInput v-model="filters.search" placeholder="Search path or user agent" />
-        <UInput v-model="filters.method" placeholder="Method" />
-        <UInput v-model="filters.status" type="number" placeholder="Status" />
-        <UInput v-model="filters.min_status" type="number" placeholder="Min status" />
-        <UInput v-model="filters.max_status" type="number" placeholder="Max status" />
+        <UInput v-model="filters.from" type="datetime-local" :placeholder="t('admin.logs.from')" />
+        <UInput v-model="filters.to" type="datetime-local" :placeholder="t('admin.logs.to')" />
+        <UInput v-model="filters.path" :placeholder="t('admin.logs.path')" />
+        <UInput v-model="filters.search" :placeholder="t('admin.logs.searchPathAgent')" />
+        <UInput v-model="filters.method" :placeholder="t('admin.logs.method')" />
+        <UInput v-model="filters.status" type="number" :placeholder="t('admin.logs.status')" />
+        <UInput v-model="filters.min_status" type="number" :placeholder="t('admin.logs.minStatus')" />
+        <UInput v-model="filters.max_status" type="number" :placeholder="t('admin.logs.maxStatus')" />
         <USelect v-model="filters.sort" :items="sortItems" />
         <USelect v-model="filters.limit" :items="limitItems" />
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <UButton icon="i-lucide-filter" @click="() => applyFilters()">Apply</UButton>
-        <UButton color="neutral" variant="ghost" icon="i-lucide-eraser" @click="clearFilters">Clear</UButton>
-        <UButton color="neutral" variant="outline" icon="i-lucide-download" @click="exportCsv">Export CSV</UButton>
+        <UButton icon="i-lucide-filter" @click="() => applyFilters()">{{ t('admin.logs.apply') }}</UButton>
+        <UButton color="neutral" variant="ghost" icon="i-lucide-eraser" @click="clearFilters">{{ t('admin.common.clear') }}</UButton>
+        <UButton color="neutral" variant="outline" icon="i-lucide-download" @click="exportCsv">{{ t('admin.logs.exportCsv') }}</UButton>
       </div>
     </div>
 
@@ -29,12 +29,12 @@
       <table class="min-w-full text-sm">
         <thead class="sticky top-0 bg-[var(--pb-surface-subtle)] text-left text-[var(--pb-text-muted)]">
           <tr>
-            <th class="px-3 py-2">Time</th>
-            <th class="px-3 py-2">Method</th>
-            <th class="px-3 py-2">Path</th>
-            <th class="px-3 py-2">Status</th>
-            <th class="px-3 py-2">Duration</th>
-            <th class="px-3 py-2">IP</th>
+            <th class="px-3 py-2">{{ t('admin.logs.time') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.method') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.path') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.status') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.duration') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.ip') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -42,7 +42,7 @@
             <td colspan="6" class="px-3 py-6"><USkeleton class="h-6" /></td>
           </tr>
           <tr v-else-if="!rows.length">
-            <td colspan="6" class="px-3 py-6 text-center text-[var(--pb-text-subtle)]">No access logs for current filter.</td>
+            <td colspan="6" class="px-3 py-6 text-center text-[var(--pb-text-subtle)]">{{ t('admin.logs.emptyAccess') }}</td>
           </tr>
           <tr
             v-for="row in rows"
@@ -63,17 +63,17 @@
     </div>
 
     <div class="flex items-center justify-between rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-3 shadow-[var(--pb-shadow-sm)]">
-      <p class="text-sm text-[var(--pb-text-muted)]">Total: {{ total }}</p>
+      <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.logs.total', { total }) }}</p>
       <div class="flex gap-2">
-        <UButton size="sm" color="neutral" :disabled="offset <= 0" @click="prevPage">Previous</UButton>
-        <UButton size="sm" color="neutral" :disabled="offset + limit >= total" @click="nextPage">Next</UButton>
+        <UButton size="sm" color="neutral" :disabled="offset <= 0" @click="prevPage">{{ t('admin.logs.previous') }}</UButton>
+        <UButton size="sm" color="neutral" :disabled="offset + limit >= total" @click="nextPage">{{ t('admin.logs.next') }}</UButton>
       </div>
     </div>
 
     <div v-if="selectedRow" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="mb-2 flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">Log details</h2>
-        <UButton size="xs" color="neutral" variant="ghost" @click="copySelected">Copy JSON</UButton>
+        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.details') }}</h2>
+        <UButton size="xs" color="neutral" variant="ghost" @click="copySelected">{{ t('admin.logs.copyJson') }}</UButton>
       </div>
       <pre class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{{ JSON.stringify(selectedRow, null, 2) }}</pre>
     </div>
@@ -85,11 +85,12 @@ definePageMeta({ layout: 'admin', adminWide: true })
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const limitItems = [25, 50, 100, 200]
-const sortItems = [
-  { label: 'Newest', value: 'newest' },
-  { label: 'Oldest', value: 'oldest' }
-]
+const sortItems = computed(() => [
+  { label: t('admin.logs.newest'), value: 'newest' },
+  { label: t('admin.logs.oldest'), value: 'oldest' }
+])
 
 const filters = reactive({
   from: asDateTimeLocal(route.query.from),

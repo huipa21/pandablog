@@ -1,18 +1,18 @@
 <template>
   <div class="mx-auto max-w-4xl space-y-6">
     <header class="space-y-3">
-      <h1 class="font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">Search</h1>
+      <h1 class="font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('public.search.title') }}</h1>
       <div class="flex flex-wrap items-end gap-3">
         <form class="flex flex-1 items-center gap-2" role="search" @submit.prevent="onSubmit">
           <UInput
             v-model="query"
-            placeholder="Search posts…"
+            :placeholder="t('public.search.placeholder')"
             icon="i-lucide-search"
             type="search"
             class="flex-1"
             :ui="{ root: 'w-full' }"
           />
-          <UButton type="submit" color="primary" icon="i-lucide-arrow-right">Search</UButton>
+          <UButton type="submit" color="primary" icon="i-lucide-arrow-right">{{ t('public.search.button') }}</UButton>
         </form>
         <USelectMenu
           v-model="sort"
@@ -23,14 +23,13 @@
       </div>
       <p v-if="data" class="text-sm text-[var(--pb-text-subtle)]">
         <template v-if="data.query">
-          {{ data.total }} matching post<span v-if="data.total !== 1">s</span> for
-          <span class="font-medium text-[var(--pb-text-muted)]">"{{ data.query }}"</span>
+          {{ resultSummary }}
         </template>
-        <template v-else>Type a query above to search the blog.</template>
+        <template v-else>{{ t('public.search.prompt') }}</template>
       </p>
     </header>
 
-    <div v-if="pending" class="text-[var(--pb-text-subtle)]">Searching…</div>
+    <div v-if="pending" class="text-[var(--pb-text-subtle)]">{{ t('public.search.searching') }}</div>
 
     <ul v-else-if="data && data.results.length" class="space-y-6">
       <li
@@ -55,12 +54,12 @@
           </div>
         </div>
         <p v-if="result.totalMatches > result.matches.length" class="mt-2 text-xs text-[var(--pb-text-subtle)]">
-          +{{ result.totalMatches - result.matches.length }} more match<span v-if="result.totalMatches - result.matches.length !== 1">es</span>
+          {{ moreMatchesLabel(result.totalMatches - result.matches.length) }}
         </p>
       </li>
     </ul>
 
-    <p v-else-if="data && data.query" class="text-[var(--pb-text-subtle)]">No matches for "{{ data.query }}".</p>
+    <p v-else-if="data && data.query" class="text-[var(--pb-text-subtle)]">{{ t('public.search.noMatches', { query: data.query }) }}</p>
   </div>
 </template>
 
@@ -68,16 +67,17 @@
 import type { SearchResponse, SearchSort } from '~/types/content'
 
 const route = useRoute()
+const { t } = useI18n()
 
 const query = ref<string>(typeof route.query.q === 'string' ? route.query.q : '')
 const sort = ref<SearchSort>(normalizeSort(route.query.sort))
 
-const sortOptions = [
-  { label: 'Relevance', value: 'relevance' as const },
-  { label: 'Newest first', value: 'date_desc' as const },
-  { label: 'Oldest first', value: 'date_asc' as const },
-  { label: 'Title A→Z', value: 'title' as const }
-]
+const sortOptions = computed(() => [
+  { label: t('public.search.sort.relevance'), value: 'relevance' as const },
+  { label: t('public.search.sort.newest'), value: 'date_desc' as const },
+  { label: t('public.search.sort.oldest'), value: 'date_asc' as const },
+  { label: t('public.search.sort.title'), value: 'title' as const }
+])
 
 const params = computed(() => ({
   q: typeof route.query.q === 'string' ? route.query.q : '',
@@ -92,6 +92,11 @@ const { data, pending } = await useAsyncData<SearchResponse | null>(
   },
   { watch: [params] }
 )
+const resultSummary = computed(() => {
+  if (!data.value?.query) return ''
+  const key = data.value.total === 1 ? 'public.search.resultSummaryOne' : 'public.search.resultSummary'
+  return t(key, { total: data.value.total, query: data.value.query })
+})
 
 watch(sort, (next) => {
   if (next === params.value.sort) return
@@ -111,5 +116,9 @@ function normalizeSort(value: unknown): SearchSort {
   return 'relevance'
 }
 
-useHead({ title: () => params.value.q ? `Search: ${params.value.q}` : 'Search' })
+function moreMatchesLabel(count: number) {
+  return t(count === 1 ? 'public.search.moreMatchesOne' : 'public.search.moreMatches', { count })
+}
+
+useHead(() => ({ title: params.value.q ? t('public.search.headWithQuery', { query: params.value.q }) : t('public.search.title') }))
 </script>

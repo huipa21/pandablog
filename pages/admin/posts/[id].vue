@@ -3,14 +3,14 @@
     <div class="z-20 flex min-h-14 items-center justify-between gap-3 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-4">
       <div class="flex min-w-0 items-center gap-3">
         <UButton to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
-          Posts
+          {{ t('admin.editor.backToPosts') }}
         </UButton>
         <div class="min-w-0">
-          <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ form.title || 'No title' }}</div>
+          <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ form.title || t('admin.editor.noTitle') }}</div>
           <div class="flex items-center gap-2 text-xs text-[var(--pb-text-subtle)]">
-            <span>{{ currentStatus }}</span>
+            <span>{{ statusLabel(currentStatus) }}</span>
             <span v-if="saveStatus" :class="saveStatusClass">· {{ saveStatus }}</span>
-            <span v-else-if="post?.updated_at">· Saved {{ formatDate(post.updated_at) }}</span>
+            <span v-else-if="post?.updated_at">· {{ t('admin.editor.savedAt', { date: formatDate(post.updated_at) }) }}</span>
           </div>
         </div>
       </div>
@@ -24,7 +24,7 @@
           :disabled="savingAction !== null"
           @click="saveLocal()"
         >
-          Save
+          {{ t('admin.editor.save') }}
         </UButton>
         <UButton
           type="button"
@@ -34,7 +34,7 @@
           :disabled="savingAction !== null"
           @click="publishOrUpdate()"
         >
-          {{ currentStatus === 'published' ? 'Update' : 'Publish' }}
+          {{ currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish') }}
         </UButton>
         <UButton
           type="button"
@@ -45,7 +45,7 @@
           target="_blank"
           :disabled="!viewLink"
         >
-          View
+          {{ t('admin.editor.view') }}
         </UButton>
         <UDropdownMenu :items="moreMenuItems">
           <UButton type="button" icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" />
@@ -72,7 +72,7 @@
       >
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
-            <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" title="Could not load this post" />
+            <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" :title="t('admin.editor.loadPostFailed')" />
           </div>
 
           <form class="pb-editor-grid-shell rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-6 py-6 shadow-[var(--pb-shadow-sm)] md:px-10 md:py-8" @submit.prevent="saveLocal()">
@@ -81,7 +81,7 @@
               <input
                 v-model="form.title"
                 type="text"
-                placeholder="Add title"
+                :placeholder="t('admin.editor.addTitle')"
                 class="w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-[var(--pb-text)] outline-none placeholder:text-[var(--pb-text-placeholder)]"
               >
               <div class="pb-editor-gutter" aria-hidden="true" />
@@ -96,7 +96,7 @@
         <button
           type="button"
           class="absolute left-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)]"
-          :title="rightPaneCollapsed ? 'Expand right pane' : 'Collapse right pane'"
+          :title="rightPaneCollapsed ? t('admin.editor.expandRightPane') : t('admin.editor.collapseRightPane')"
           @click="rightPaneCollapsed = !rightPaneCollapsed"
         >
           <UIcon :name="rightPaneCollapsed ? 'i-lucide-chevrons-left' : 'i-lucide-chevrons-right'" class="size-4" />
@@ -119,20 +119,20 @@
         <UCard>
           <template #header>
             <div>
-              <h3 class="text-base font-semibold text-[var(--pb-text)]">Unsaved changes</h3>
-              <p class="text-xs text-[var(--pb-text-subtle)]">Leave this editor, save to database, or discard local edits.</p>
+              <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.editor.unsavedChanges') }}</h3>
+              <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.leaveDescription') }}</p>
             </div>
           </template>
 
           <div class="text-sm text-[var(--pb-text-muted)]">
-            Your edits are not saved to the database yet.
+            {{ t('admin.editor.unsavedBody') }}
           </div>
 
           <template #footer>
             <div class="flex flex-wrap justify-end gap-2">
-              <UButton type="button" color="neutral" variant="ghost" :disabled="savingAction === 'save-db'" @click="cancelLeave">Cancel</UButton>
-              <UButton type="button" color="warning" variant="soft" :disabled="savingAction === 'save-db'" @click="discardAndLeave">Discard</UButton>
-              <UButton type="button" color="primary" icon="i-lucide-save" :loading="savingAction === 'save-db'" @click="saveAndLeave">Save to DB</UButton>
+              <UButton type="button" color="neutral" variant="ghost" :disabled="savingAction === 'save-db'" @click="cancelLeave">{{ t('admin.common.cancel') }}</UButton>
+              <UButton type="button" color="warning" variant="soft" :disabled="savingAction === 'save-db'" @click="discardAndLeave">{{ t('admin.editor.discard') }}</UButton>
+              <UButton type="button" color="primary" icon="i-lucide-save" :loading="savingAction === 'save-db'" @click="saveAndLeave">{{ t('admin.editor.saveToDb') }}</UButton>
             </div>
           </template>
         </UCard>
@@ -156,6 +156,7 @@ const readFetchTimeoutMs = 10_000
 const writeFetchTimeoutMs = 30_000
 
 const route = useRoute()
+const { t, locale } = useI18n()
 const id = computed(() => String(route.params.id))
 const apiPath = computed(() => `/api/admin/posts/${encodeURIComponent(id.value)}`)
 const sessionFetch = useSessionFetch()
@@ -219,13 +220,13 @@ const moreMenuItems = computed(() => {
   const items: any[][] = []
   if (currentStatus.value === 'published') {
     items.push([{
-      label: 'Unpublish',
+      label: t('admin.editor.actions.unpublish'),
       icon: 'i-lucide-rotate-ccw',
       onSelect: () => save('draft', 'unpublish')
     }])
   }
   items.push([{
-    label: 'Archive',
+    label: t('admin.editor.actions.archive'),
     icon: 'i-lucide-archive',
     color: 'error' as const,
     onSelect: archivePost
@@ -287,11 +288,11 @@ function saveLocal() {
     }
     localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
     const timeStr = formatTime(new Date())
-    saveStatus.value = `Saved locally at ${timeStr}`
+    saveStatus.value = t('admin.editor.localSavedAt', { time: timeStr })
     saveStatusType.value = 'success'
   } catch (err: any) {
-    adminToast.error(err, 'Local save failed')
-    saveStatus.value = 'Save failed'
+    adminToast.error(err, t('admin.editor.localSaveFailed'))
+    saveStatus.value = t('admin.editor.saveFailed')
     saveStatusType.value = 'error'
   } finally {
     savingAction.value = null
@@ -318,7 +319,7 @@ async function publishOrUpdate() {
 async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unpublish') {
   const wasPublished = currentStatus.value === 'published'
   savingAction.value = action
-  saveStatus.value = 'Saving...'
+  saveStatus.value = t('admin.editor.saving')
   saveStatusType.value = 'success'
 
   try {
@@ -359,18 +360,18 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
 
     const timeStr = formatTime(new Date())
     if (action === 'publish') {
-      saveStatus.value = currentStatus.value === 'published' ? `Updated at ${timeStr}` : `Published at ${timeStr}`
+      saveStatus.value = currentStatus.value === 'published' ? t('admin.editor.updatedAt', { time: timeStr }) : t('admin.editor.publishedAt', { time: timeStr })
     } else if (action === 'save-db') {
-      saveStatus.value = `Saved to DB at ${timeStr}`
+      saveStatus.value = t('admin.editor.savedToDbAt', { time: timeStr })
     } else if (action === 'unpublish') {
-      saveStatus.value = `Unpublished at ${timeStr}`
+      saveStatus.value = t('admin.editor.unpublishedAt', { time: timeStr })
     }
     saveStatusType.value = 'success'
     adminToast.success(postSaveTitle(action, wasPublished))
     return true
   } catch (err: any) {
-    adminToast.error(err, 'Save failed')
-    saveStatus.value = 'Save failed'
+    adminToast.error(err, t('admin.editor.saveFailed'))
+    saveStatus.value = t('admin.editor.saveFailed')
     saveStatusType.value = 'error'
     return false
   } finally {
@@ -381,23 +382,23 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
 async function archivePost() {
   try {
     await fetchAdmin(apiPath.value, { method: 'DELETE' })
-    adminToast.success('Post archived')
+    adminToast.success(t('admin.editor.postArchived'))
     await navigateTo('/admin/posts')
   } catch (err: any) {
-    adminToast.error(err, 'Could not archive post')
+    adminToast.error(err, t('admin.editor.archiveFailed'))
   }
 }
 
 function postSaveTitle(action: 'save-db' | 'publish' | 'unpublish', wasPublished: boolean) {
   if (action === 'save-db') {
-    return 'Post saved'
+    return t('admin.editor.postSaved')
   }
 
   if (action === 'unpublish') {
-    return 'Post unpublished'
+    return t('admin.editor.postUnpublished')
   }
 
-  return wasPublished ? 'Post updated' : 'Post published'
+  return wasPublished ? t('admin.editor.postUpdated') : t('admin.editor.postPublished')
 }
 
 // 5-minute auto-save: triggers only when the page is mounted, when no manual
@@ -422,7 +423,7 @@ onMounted(() => {
       password_source: local.password_source ?? form.password_source,
       content: local.content_json ?? form.content
     })
-    saveStatus.value = 'Unsaved local changes'
+    saveStatus.value = t('admin.editor.unsavedLocalChanges')
     saveStatusType.value = 'success'
   }
 
@@ -527,7 +528,7 @@ function emptyDoc(): JsonContent {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(locale.value, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -536,7 +537,7 @@ function formatDate(value: string) {
 }
 
 function formatTime(value: Date) {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(locale.value, {
     hour: 'numeric',
     minute: '2-digit'
   }).format(value)
@@ -550,6 +551,10 @@ function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {
     timeout: timeoutMs,
     ...options
   })
+}
+
+function statusLabel(status: PostStatus) {
+  return t(`admin.posts.status.${status}`)
 }
 </script>
 

@@ -2,12 +2,12 @@
   <section class="space-y-5">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-3xl font-semibold tracking-normal text-stone-950">Media Library</h1>
-        <p class="text-sm text-stone-500">{{ total }} file<template v-if="total !== 1">s</template></p>
+        <h1 class="text-3xl font-semibold tracking-normal text-stone-950">{{ t('admin.media.title') }}</h1>
+        <p class="text-sm text-stone-500">{{ t('admin.media.fileCount', { count: total }) }}</p>
       </div>
       <div class="flex items-center gap-2">
-        <UButton type="button" icon="i-lucide-upload" @click="uploadModalOpen = true">Upload files</UButton>
-        <UButton type="button" icon="i-lucide-search" color="neutral" variant="soft" @click="searchModalOpen = true">Search</UButton>
+        <UButton type="button" icon="i-lucide-upload" @click="uploadModalOpen = true">{{ t('admin.media.uploadFiles') }}</UButton>
+        <UButton type="button" icon="i-lucide-search" color="neutral" variant="soft" @click="searchModalOpen = true">{{ t('admin.media.search') }}</UButton>
         <div class="flex rounded-md border border-stone-200">
           <button
             type="button"
@@ -26,7 +26,7 @@
             <UIcon name="i-lucide-list" class="size-4" />
           </button>
         </div>
-        <UButton icon="i-lucide-settings" to="/admin/settings/media" color="neutral" variant="soft">Settings</UButton>
+        <UButton icon="i-lucide-settings" to="/admin/settings/media" color="neutral" variant="soft">{{ t('admin.media.settings') }}</UButton>
       </div>
     </div>
 
@@ -55,27 +55,27 @@
         <!-- Active filters indicator -->
         <div v-if="hasActiveFilters && mode !== 'smart'" class="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <UIcon name="i-lucide-filter" class="size-4 text-amber-700" />
-          <span class="text-sm font-medium text-amber-800">Active filters:</span>
-          <span v-if="filters.file_name" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Name: {{ filters.file_name }}</span>
-          <span v-if="filters.extension" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Ext: {{ filters.extension }}</span>
-          <span v-if="filters.comment" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Comment: {{ filters.comment }}</span>
-          <span v-if="filters.tags.length" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Tags<span v-if="filters.tags.length > 1"> ({{ selectedTagRelationLabel }})</span>: {{ filters.tags.join(', ') }}</span>
-          <span v-if="filters.type && filters.type !== 'all'" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Type: {{ filters.type }}</span>
-          <span v-if="filters.uploaded_from || filters.uploaded_to" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Date range</span>
-          <span v-if="filters.orphan" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Orphans only</span>
-          <span v-if="filters.advanced" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">Advanced query</span>
-          <UButton type="button" icon="i-lucide-x" size="xs" color="warning" variant="soft" class="ml-auto" @click="clearFilters">Clear filters</UButton>
+          <span class="text-sm font-medium text-amber-800">{{ t('admin.media.activeFilters') }}</span>
+          <span v-if="filters.file_name" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterName', { value: filters.file_name }) }}</span>
+          <span v-if="filters.extension" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterExt', { value: filters.extension }) }}</span>
+          <span v-if="filters.comment" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterComment', { value: filters.comment }) }}</span>
+          <span v-if="filters.tags.length" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterTags', { relation: filters.tags.length > 1 ? ` (${selectedTagRelationLabel})` : '', value: filters.tags.join(', ') }) }}</span>
+          <span v-if="filters.type && filters.type !== 'all'" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterType', { value: filters.type }) }}</span>
+          <span v-if="filters.uploaded_from || filters.uploaded_to" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.dateRange') }}</span>
+          <span v-if="filters.orphan" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.orphanOnly') }}</span>
+          <span v-if="filters.advanced" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.advancedQuery') }}</span>
+          <UButton type="button" icon="i-lucide-x" size="xs" color="warning" variant="soft" class="ml-auto" @click="clearFilters">{{ t('admin.media.clearFilters') }}</UButton>
         </div>
 
         <!-- Tags view -->
         <div v-if="mode === 'tag'" class="space-y-4 rounded-lg border border-stone-200 bg-white p-5">
           <div class="flex items-center gap-3">
-            <h2 class="text-lg font-semibold text-stone-950">Tags</h2>
-            <UInput v-model="tagSearch" size="sm" icon="i-lucide-search" placeholder="Search tags..." class="max-w-xs" />
+            <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.tags') }}</h2>
+            <UInput v-model="tagSearch" size="sm" icon="i-lucide-search" :placeholder="t('admin.media.searchTags')" class="max-w-xs" />
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <div v-if="selectedMediaTags.length" class="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 p-1">
-              <span class="px-2 text-xs font-medium uppercase tracking-wide text-stone-500">Match</span>
+              <span class="px-2 text-xs font-medium uppercase tracking-wide text-stone-500">{{ t('admin.media.match') }}</span>
               <button
                 type="button"
                 class="rounded-md px-2.5 py-1 text-xs font-semibold transition"
@@ -93,10 +93,10 @@
                 OR
               </button>
             </div>
-            <UButton v-if="selectedMediaTags.length" type="button" icon="i-lucide-x" size="xs" color="neutral" variant="soft" @click="clearTagSelection">Clear selection</UButton>
+            <UButton v-if="selectedMediaTags.length" type="button" icon="i-lucide-x" size="xs" color="neutral" variant="soft" @click="clearTagSelection">{{ t('admin.media.clearSelection') }}</UButton>
             <p class="text-sm text-stone-500">
-              <template v-if="selectedMediaTags.length">{{ selectedMediaTags.length }} tag<template v-if="selectedMediaTags.length !== 1">s</template> selected</template>
-              <template v-else>Select one or more tags to filter files.</template>
+              <template v-if="selectedMediaTags.length">{{ t('admin.media.tagsSelected', { count: selectedMediaTags.length }) }}</template>
+              <template v-else>{{ t('admin.media.selectTagsHint') }}</template>
             </p>
           </div>
           <div v-if="visibleMediaTags.length" class="flex flex-wrap gap-2">
@@ -113,20 +113,20 @@
               <span class="ml-1 text-stone-400">{{ tag.count }}</span>
             </button>
           </div>
-          <p v-else class="text-sm text-stone-500">No tags found</p>
+          <p v-else class="text-sm text-stone-500">{{ t('admin.media.noTagsFound') }}</p>
         </div>
 
         <!-- File grid toolbar -->
         <div v-if="mode !== 'tag' || selectedMediaTags.length" class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-white p-3">
-          <UButton type="button" icon="i-lucide-check-check" color="neutral" variant="soft" @click="selectAllFiles">Select all</UButton>
-          <UButton type="button" icon="i-lucide-eraser" color="neutral" variant="ghost" :disabled="selectedHashes.size === 0" @click="clearSelection">Clear</UButton>
+          <UButton type="button" icon="i-lucide-check-check" color="neutral" variant="soft" @click="selectAllFiles">{{ t('admin.media.selectAll') }}</UButton>
+          <UButton type="button" icon="i-lucide-eraser" color="neutral" variant="ghost" :disabled="selectedHashes.size === 0" @click="clearSelection">{{ t('admin.media.clear') }}</UButton>
           <UDropdownMenu :items="bulkActionItems">
             <UButton type="button" icon="i-lucide-more-horizontal" color="neutral" variant="soft" :disabled="selectedHashes.size === 0">
-              Actions<template v-if="selectedHashes.size"> ({{ selectedHashes.size }})</template>
+              {{ t('admin.media.actions') }}<template v-if="selectedHashes.size"> ({{ selectedHashes.size }})</template>
             </UButton>
           </UDropdownMenu>
           <div class="ml-auto flex flex-wrap items-center gap-2">
-            <div class="text-sm text-stone-500">Page {{ page }} of {{ pages }}</div>
+            <div class="text-sm text-stone-500">{{ t('admin.media.pageOf', { page, pages }) }}</div>
             <UButton type="button" icon="i-lucide-chevron-left" color="neutral" variant="ghost" :disabled="page <= 1" @click="changePage(page - 1)" />
             <UButton type="button" icon="i-lucide-chevron-right" color="neutral" variant="ghost" :disabled="page >= pages" @click="changePage(page + 1)" />
             <div class="w-44">
@@ -147,7 +147,7 @@
 
           <div v-else-if="!files.length" class="rounded-lg border border-dashed border-stone-300 bg-white py-14 text-center">
             <UIcon name="i-lucide-inbox" class="mx-auto mb-2 size-10 text-stone-400" />
-            <p class="text-sm text-stone-600">No media files found</p>
+            <p class="text-sm text-stone-600">{{ t('admin.media.noMediaFiles') }}</p>
           </div>
 
           <MediaGrid
@@ -191,10 +191,10 @@
 
     <Teleport to="body">
       <div v-if="uploadModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <button type="button" class="absolute inset-0 bg-black/40" aria-label="Close" @click="uploadModalOpen = false" />
+        <button type="button" class="absolute inset-0 bg-black/40" :aria-label="t('admin.common.close')" @click="uploadModalOpen = false" />
         <section class="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
           <header class="flex items-center justify-between border-b border-stone-200 p-4">
-            <h2 class="text-lg font-semibold text-stone-950">Upload files</h2>
+            <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.uploadFiles') }}</h2>
             <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="uploadModalOpen = false" />
           </header>
           <div class="min-h-0 flex-1 overflow-y-auto p-4">
@@ -213,11 +213,11 @@
 
     <AdminPromptDialog
       :open="bulkTagsDialogOpen"
-      title="Edit Tags"
+      :title="t('admin.media.editTags')"
       :description="bulkTagsDialogDescription"
-      label="Tags"
-      placeholder="e.g. screenshots, logos, references"
-      confirm-label="Update tags"
+      :label="t('admin.media.tags')"
+      :placeholder="t('admin.media.bulkTagsPlaceholder')"
+      :confirm-label="t('admin.media.updateTags')"
       :required="false"
       @update:open="(value) => { if (!value) bulkTagsDialogOpen = false }"
       @cancel="bulkTagsDialogOpen = false"
@@ -226,11 +226,11 @@
 
     <AdminPromptDialog
       :open="bulkCommentDialogOpen"
-      title="Edit Comment"
+      :title="t('admin.media.editComment')"
       :description="bulkCommentDialogDescription"
-      label="Comment"
-      placeholder="Add an internal media note"
-      confirm-label="Update comment"
+      :label="t('admin.media.comment')"
+      :placeholder="t('admin.media.bulkCommentPlaceholder')"
+      :confirm-label="t('admin.media.updateComment')"
       :required="false"
       :trim="false"
       multiline
@@ -242,13 +242,13 @@
 
     <AdminSelectDialog
       :open="bulkAssignFolderDialogOpen"
-      title="Assign Folder"
+      :title="t('admin.media.assignFolder')"
       :description="bulkAssignFolderDialogDescription"
-      label="Folder"
-      placeholder="Choose a folder"
+      :label="t('admin.media.folders')"
+      :placeholder="t('admin.media.chooseFolder')"
       :items="folderSelectItems"
       :initial-value="bulkAssignFolderInitialValue"
-      confirm-label="Assign folder"
+      :confirm-label="t('admin.media.assignFolder')"
       @update:open="(value) => { if (!value) bulkAssignFolderDialogOpen = false }"
       @cancel="bulkAssignFolderDialogOpen = false"
       @confirm="confirmBulkAssignFolder"
@@ -256,9 +256,9 @@
 
     <AdminConfirmActionDialog
       :open="bulkDeleteDialogOpen"
-      title="Delete selected files?"
+      :title="t('admin.media.bulkDeleteTitle')"
       :description="bulkDeleteDialogDescription"
-      confirm-label="Delete files"
+      :confirm-label="t('admin.media.deleteFiles')"
       confirm-color="error"
       :loading="bulkDeletePending"
       @update:open="(value) => { if (!value) closeBulkDeleteDialog() }"
@@ -268,9 +268,9 @@
 
     <AdminConfirmActionDialog
       :open="smartFolderDeleteDialogOpen"
-      title="Delete smart folder?"
+      :title="t('admin.media.deleteSmartFolderTitle')"
       :description="smartFolderDeleteDialogDescription"
-      confirm-label="Delete"
+      :confirm-label="t('admin.media.delete')"
       confirm-color="error"
       :loading="smartFolderDeletePending"
       @update:open="(value) => { if (!value) closeSmartFolderDeleteDialog() }"
@@ -334,6 +334,8 @@ const {
   deleteFolder
 } = useMedia()
 
+const { t } = useI18n()
+
 const files = ref<MediaRecord[]>([])
 const folders = ref<MediaFolderRecord[]>([])
 const mediaTags = ref<MediaTagSummary[]>([])
@@ -368,14 +370,14 @@ const bulkDeletePending = ref(false)
 const smartFolderDeleteDialogOpen = ref(false)
 const smartFolderDeletePending = ref(false)
 const pendingDeleteSmartFolderId = ref('')
-const selectedFileCountLabel = computed(() => `${selectedHashes.value.size} selected file${selectedHashes.value.size === 1 ? '' : 's'}`)
-const bulkTagsDialogDescription = computed(() => `Set tags on ${selectedFileCountLabel.value}. Separate tags with commas. Leave empty to clear tags.`)
-const bulkCommentDialogDescription = computed(() => `Set the comment on ${selectedFileCountLabel.value}. Leave empty to clear the comment.`)
-const bulkAssignFolderDialogDescription = computed(() => `Move ${selectedFileCountLabel.value} into a media folder.`)
-const bulkDeleteDialogDescription = computed(() => `Delete ${selectedHashes.value.size} file(s)? This cannot be undone.`)
+const selectedFileCountLabel = computed(() => t('admin.media.selectedFiles', { count: selectedHashes.value.size }))
+const bulkTagsDialogDescription = computed(() => t('admin.media.bulkTagsDescription', { count: selectedFileCountLabel.value }))
+const bulkCommentDialogDescription = computed(() => t('admin.media.bulkCommentDescription', { count: selectedFileCountLabel.value }))
+const bulkAssignFolderDialogDescription = computed(() => t('admin.media.bulkAssignDescription', { count: selectedFileCountLabel.value }))
+const bulkDeleteDialogDescription = computed(() => t('admin.media.bulkDeleteDescription', { count: selectedHashes.value.size }))
 const smartFolderDeleteDialogDescription = computed(() => {
   const folder = smartFolders.value.find((item) => item.id === pendingDeleteSmartFolderId.value)
-  return folder ? `Delete smart folder "${folder.name}"?` : 'Delete this smart folder?'
+  return folder ? t('admin.media.deleteSmartFolderDescription', { name: folder.name }) : t('admin.media.deleteSmartFolderFallback')
 })
 const folderSelectItems = computed(() => folders.value.map((folder) => ({
   label: folder.name,
@@ -414,35 +416,35 @@ const bulkActionItems = computed(() => {
   const disabled = selectedHashes.value.size === 0
   return [
     [
-      { label: 'Edit tags', icon: 'i-lucide-tags', disabled, onSelect: promptBulkTags },
-      { label: 'Edit comment', icon: 'i-lucide-message-square', disabled, onSelect: promptBulkComment }
+      { label: t('admin.media.editTags'), icon: 'i-lucide-tags', disabled, onSelect: promptBulkTags },
+      { label: t('admin.media.editComment'), icon: 'i-lucide-message-square', disabled, onSelect: promptBulkComment }
     ],
     [
-      { label: 'Assign folder', icon: 'i-lucide-folder-symlink', disabled, onSelect: promptBulkAssignFolder }
+      { label: t('admin.media.assignFolder'), icon: 'i-lucide-folder-symlink', disabled, onSelect: promptBulkAssignFolder }
     ],
     [
-      { label: 'Download', icon: 'i-lucide-download', disabled, onSelect: handleBulkDownload }
+      { label: t('admin.media.download'), icon: 'i-lucide-download', disabled, onSelect: handleBulkDownload }
     ],
     [
-      { label: 'Delete selected', icon: 'i-lucide-trash-2', color: 'error' as const, disabled, onSelect: openBulkDeleteDialog }
+      { label: t('admin.media.deleteSelected'), icon: 'i-lucide-trash-2', color: 'error' as const, disabled, onSelect: openBulkDeleteDialog }
     ]
   ]
 })
 
-const sortItems = [
-  { label: 'Newest first', value: 'uploaded_at_desc' },
-  { label: 'Oldest first', value: 'uploaded_at_asc' },
-  { label: 'Name A-Z', value: 'name_asc' },
-  { label: 'Name Z-A', value: 'name_desc' },
-  { label: 'Size small-large', value: 'size_asc' },
-  { label: 'Size large-small', value: 'size_desc' }
-]
+const sortItems = computed(() => [
+  { label: t('admin.media.newestFirst'), value: 'uploaded_at_desc' },
+  { label: t('admin.media.oldestFirst'), value: 'uploaded_at_asc' },
+  { label: t('admin.media.nameAsc'), value: 'name_asc' },
+  { label: t('admin.media.nameDesc'), value: 'name_desc' },
+  { label: t('admin.media.sizeAsc'), value: 'size_asc' },
+  { label: t('admin.media.sizeDesc'), value: 'size_desc' }
+])
 
-const pageSizeItems = [
-  { label: '25 / page', value: '25' },
-  { label: '50 / page', value: '50' },
-  { label: '100 / page', value: '100' }
-]
+const pageSizeItems = computed(() => [
+  { label: t('admin.media.perPage', { count: 25 }), value: '25' },
+  { label: t('admin.media.perPage', { count: 50 }), value: '50' },
+  { label: t('admin.media.perPage', { count: 100 }), value: '100' }
+])
 
 function setViewMode(mode: 'grid' | 'list') {
   viewMode.value = mode
@@ -502,7 +504,7 @@ async function loadMedia() {
     total.value = response.total
     pages.value = response.pages || 1
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || 'Failed to load media'
+    error.value = err?.statusMessage || err?.message || t('admin.media.noMediaFiles')
   } finally {
     loading.value = false
   }
@@ -768,13 +770,13 @@ async function confirmBulkDelete() {
       method: 'POST',
       body: { action: 'delete', hashes: [...selectedHashes.value] }
     })
-    adminToast.success(`Deleted ${selectedHashes.value.size} file(s)`)
+    adminToast.success(t('admin.media.bulkDeleted', { count: selectedHashes.value.size }))
     selectedHashes.value = new Set()
     closeBulkDeleteDialog()
     await loadMedia()
     await loadMediaTags()
   } catch (err: any) {
-    adminToast.error(err, 'Bulk delete failed')
+    adminToast.error(err, t('admin.media.bulkDeleteFailed'))
   } finally {
     bulkDeletePending.value = false
   }
@@ -813,12 +815,12 @@ async function handleBulkTags(tags: string[]) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { tags } }
     })
-    adminToast.success(`Updated tags on ${selectedHashes.value.size} file(s)`)
+    adminToast.success(t('admin.media.bulkTagsUpdated', { count: selectedHashes.value.size }))
     selectedHashes.value = new Set()
     await loadMedia()
     await loadMediaTags()
   } catch (err: any) {
-    adminToast.error(err, 'Bulk tag update failed')
+    adminToast.error(err, t('admin.media.bulkTagUpdateFailed'))
   }
 }
 
@@ -828,11 +830,11 @@ async function handleBulkComment(comment: string) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { comment } }
     })
-    adminToast.success(`Updated comment on ${selectedHashes.value.size} file(s)`)
+    adminToast.success(t('admin.media.bulkCommentUpdated', { count: selectedHashes.value.size }))
     selectedHashes.value = new Set()
     await loadMedia()
   } catch (err: any) {
-    adminToast.error(err, 'Bulk comment update failed')
+    adminToast.error(err, t('admin.media.bulkCommentUpdateFailed'))
   }
 }
 
@@ -842,11 +844,11 @@ async function handleBulkMove(folderId: string) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { folders: [folderId] } }
     })
-    adminToast.success(`Assigned ${selectedHashes.value.size} file(s) to folder`)
+    adminToast.success(t('admin.media.bulkAssigned', { count: selectedHashes.value.size }))
     selectedHashes.value = new Set()
     await loadMedia()
   } catch (err: any) {
-    adminToast.error(err, 'Bulk assign failed')
+    adminToast.error(err, t('admin.media.bulkAssignFailed'))
   }
 }
 
@@ -856,7 +858,7 @@ function promptBulkAssignFolder() {
   }
 
   if (!folders.value.length) {
-    adminToast.error(new Error('Create a folder before assigning files.'), 'Create a folder before assigning files.')
+    adminToast.error(new Error(t('admin.media.createFolderFirst')), t('admin.media.createFolderFirst'))
     return
   }
 
@@ -874,11 +876,11 @@ async function handleBulkAddToFolder(folderId: string) {
       method: 'POST',
       body: { action: 'update', hashes: [...selectedHashes.value], data: { folders: [folderId], folderMode: 'add' } }
     })
-    adminToast.success(`Added ${selectedHashes.value.size} file(s) to folder`)
+    adminToast.success(t('admin.media.bulkAddedToFolder', { count: selectedHashes.value.size }))
     selectedHashes.value = new Set()
     await loadMedia()
   } catch (err: any) {
-    adminToast.error(err, 'Bulk folder update failed')
+    adminToast.error(err, t('admin.media.bulkFolderUpdateFailed'))
   }
 }
 
@@ -895,9 +897,9 @@ async function handleBulkDownload() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    adminToast.success('Download started')
+    adminToast.success(t('admin.media.downloadStarted'))
   } catch (err: any) {
-    adminToast.error(err, 'Download failed')
+    adminToast.error(err, t('admin.media.downloadFailed'))
   }
 }
 
@@ -909,10 +911,10 @@ async function handleCreateFolder(name: string) {
   try {
     await createFolder(name)
     folderModalOpen.value = false
-    adminToast.success(`Created folder "${name}"`)
+    adminToast.success(t('admin.media.createdFolder', { name }))
     await loadFolders()
   } catch (err: any) {
-    adminToast.error(err, 'Failed to create folder')
+    adminToast.error(err, t('admin.media.createFolderFailed'))
   }
 }
 
@@ -920,9 +922,9 @@ async function handleRenameFolder(id: string, name: string) {
   try {
     await updateFolder(id, { name })
     await loadFolders()
-    adminToast.success('Folder renamed')
+    adminToast.success(t('admin.media.folderRenamed'))
   } catch (err: any) {
-    adminToast.error(err, 'Failed to rename folder')
+    adminToast.error(err, t('admin.media.renameFolderFailed'))
   }
 }
 
@@ -932,9 +934,9 @@ async function handleDeleteFolder(id: string) {
     if (selectedFolder.value === id) selectAll()
     await loadFolders()
     await loadMedia()
-    adminToast.success('Folder deleted')
+    adminToast.success(t('admin.media.folderDeleted'))
   } catch (err: any) {
-    adminToast.error(err, 'Failed to delete folder')
+    adminToast.error(err, t('admin.media.deleteFolderFailed'))
   }
 }
 
@@ -943,7 +945,7 @@ async function assignFileToFolder(hash: string, folderId: string) {
   const foldersForFile = Array.from(new Set([...(file.folders || []), folderId]))
   const updated = await updateMedia(file.id, { folders: foldersForFile })
   handleFileUpdated(updated)
-  adminToast.success('File assigned to folder')
+  adminToast.success(t('admin.media.fileAssigned'))
 }
 
 async function handleUploadComplete(results: Array<{ status: string }>) {
@@ -955,7 +957,7 @@ async function handleUploadComplete(results: Array<{ status: string }>) {
   page.value = 1
   const createdCount = results.filter((result) => result.status === 'created').length
   if (createdCount > 0) {
-    adminToast.success(`Uploaded ${createdCount} file${createdCount === 1 ? '' : 's'}.`)
+    adminToast.success(t('admin.media.uploadedCount', { count: createdCount }))
   }
   await loadMedia()
   await loadMediaTags()
@@ -1018,9 +1020,9 @@ async function confirmDeleteSmartFolder() {
     if (selectedSmartFolder.value === id) selectAll()
     await loadSmartFolders()
     closeSmartFolderDeleteDialog()
-    adminToast.success('Smart folder deleted')
+    adminToast.success(t('admin.media.smartFolderDeleted'))
   } catch (err: any) {
-    adminToast.error(err, 'Failed to delete smart folder')
+    adminToast.error(err, t('admin.media.smartFolderDeleteFailed'))
   } finally {
     smartFolderDeletePending.value = false
   }

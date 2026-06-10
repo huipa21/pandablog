@@ -1,6 +1,6 @@
 <template>
   <div v-if="relatedPosts.length" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Related posts</h3>
+    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('public.sidebar.relatedPosts') }}</h3>
     <div class="grid gap-3">
       <NuxtLink
         v-for="post in relatedPosts"
@@ -24,6 +24,8 @@ const props = defineProps<{
   currentSlug: string
 }>()
 
+const { t, locale } = useI18n()
+
 const { data } = await useAsyncData(`related-posts-${props.currentSlug}`, () => $fetch<{ posts: PostListItem[] }>('/api/posts', {
   query: { limit: 6 }
 }))
@@ -34,6 +36,6 @@ const relatedPosts = computed(() => (data.value?.posts ?? [])
 )
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
 </script>

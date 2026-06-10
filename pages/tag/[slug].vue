@@ -1,7 +1,7 @@
 <template>
   <section class="grid gap-6">
     <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">Tag</p>
+      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('public.tag.eyebrow') }}</p>
       <h1 class="mt-1 font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">#{{ slug }}</h1>
     </header>
 
@@ -9,8 +9,8 @@
       :posts="posts"
       :pending="pending"
       :error="error"
-      empty-title="No posts with this tag"
-      empty-description="Published posts assigned to this tag will appear here."
+      :empty-title="t('public.tag.emptyTitle')"
+      :empty-description="t('public.tag.emptyDescription')"
     />
   </section>
 </template>
@@ -19,6 +19,7 @@
 import type { PostListItem } from '~/types/content'
 
 const route = useRoute()
+const { t } = useI18n()
 const slug = computed(() => String(route.params.slug))
 const { data, pending, error } = await useAsyncData(`tag-posts-${slug.value}`, () => $fetch<{ posts: PostListItem[] }>('/api/posts', {
   query: { tag: slug.value }
