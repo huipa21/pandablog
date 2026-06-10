@@ -3,6 +3,17 @@ import { queryRows } from './surrealResult'
 import { createUserWithPasswordHash, findUserByUsername, setUserPasswordHash, updateUser } from './users'
 import type { JsonContent } from '~/types/content'
 import { ADMIN_LOCALE_KEY, normalizeAdminLocale, type SupportedLocale } from '~/utils/adminLocale'
+import {
+  ADMIN_DATE_FORMAT_KEY,
+  ADMIN_FORMAT_LOCALE_KEY,
+  ADMIN_TIMEZONE_KEY,
+  normalizeAdminDateFormat,
+  normalizeAdminFormatLocale,
+  normalizeAdminTimezone,
+  type AdminDateFormat,
+  type AdminFormatLocale,
+  type AdminTimezone
+} from '~/utils/systemSettings'
 import { ADMIN_COLOR_MODE_KEY, normalizeThemeMode, type ThemeMode } from '~/utils/themeMode'
 
 export const PUBLIC_SETTING_KEYS = [
@@ -32,7 +43,10 @@ export const RUNTIME_SETTING_KEYS = [
 
 const ADMIN_ONLY_SETTING_KEYS = [
   ADMIN_COLOR_MODE_KEY,
-  ADMIN_LOCALE_KEY
+  ADMIN_LOCALE_KEY,
+  ADMIN_DATE_FORMAT_KEY,
+  ADMIN_TIMEZONE_KEY,
+  ADMIN_FORMAT_LOCALE_KEY
 ] as const
 
 export const ADMIN_SETTING_KEYS = [
@@ -54,6 +68,9 @@ export type PublicSettingKey = typeof PUBLIC_SETTING_KEYS[number]
 export type RuntimeSettingKey = typeof RUNTIME_SETTING_KEYS[number]
 export type ThemeModeSetting = ThemeMode
 export type AdminLocaleSetting = SupportedLocale
+export type AdminDateFormatSetting = AdminDateFormat
+export type AdminTimezoneSetting = AdminTimezone
+export type AdminFormatLocaleSetting = AdminFormatLocale
 
 export interface RuntimeFlags {
   trust_proxy_headers: boolean
@@ -177,7 +194,7 @@ export function filterPublicSettings(values: Record<string, unknown>) {
 
 export function filterAdminSettings(values: Record<string, unknown>) {
   const allowed = new Set<string>(ADMIN_SETTING_KEYS)
-  const filtered = Object.fromEntries(
+  let filtered = Object.fromEntries(
     Object.entries(values).filter(([key]) => allowed.has(key))
   )
 
@@ -203,7 +220,40 @@ export function filterAdminSettings(values: Record<string, unknown>) {
     }
   }
 
+  if (ADMIN_DATE_FORMAT_KEY in filtered) {
+    const dateFormat = normalizeAdminDateFormat(filtered[ADMIN_DATE_FORMAT_KEY])
+    if (dateFormat) {
+      filtered[ADMIN_DATE_FORMAT_KEY] = dateFormat
+    } else {
+      filtered = withoutSetting(filtered, ADMIN_DATE_FORMAT_KEY)
+    }
+  }
+
+  if (ADMIN_TIMEZONE_KEY in filtered) {
+    const timezone = normalizeAdminTimezone(filtered[ADMIN_TIMEZONE_KEY])
+    if (timezone) {
+      filtered[ADMIN_TIMEZONE_KEY] = timezone
+    } else {
+      filtered = withoutSetting(filtered, ADMIN_TIMEZONE_KEY)
+    }
+  }
+
+  if (ADMIN_FORMAT_LOCALE_KEY in filtered) {
+    const locale = normalizeAdminFormatLocale(filtered[ADMIN_FORMAT_LOCALE_KEY])
+    if (locale) {
+      filtered[ADMIN_FORMAT_LOCALE_KEY] = locale
+    } else {
+      filtered = withoutSetting(filtered, ADMIN_FORMAT_LOCALE_KEY)
+    }
+  }
+
   return filtered
+}
+
+function withoutSetting(values: Record<string, unknown>, settingKey: string) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([key]) => key !== settingKey)
+  )
 }
 
 export function getRuntimeFlags(): RuntimeFlags {

@@ -50,7 +50,7 @@
                 </UButton>
               </div>
             </div>
-            <h1 class="mt-5 font-[var(--pb-font-display)] text-[clamp(2.25rem,6vw,4.5rem)] font-semibold leading-[1.02] tracking-normal text-[var(--pb-text)]">{{ post.title }}</h1>
+            <h1 class="mt-5 font-[var(--pb-font-display)] text-4xl font-semibold leading-[1.14] tracking-normal text-[var(--pb-text)] md:text-5xl lg:text-[3.5rem]">{{ post.title }}</h1>
             <p v-if="post.summary" class="mt-4 text-lg leading-relaxed text-[var(--pb-text-muted)] md:text-xl">{{ post.summary }}</p>
           </header>
 

@@ -1,10 +1,13 @@
 <template>
   <section class="grid gap-6 pb-24">
-    <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
-      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.settings.title') }}</h1>
-      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">{{ t('admin.logs.settings.description') }}</p>
-      <p class="mt-1 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.logs.settings.lastUpdated', { time: form.updated_at || t('admin.logs.settings.unknown') }) }}</p>
+    <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
+        <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.settings.title') }}</h1>
+        <p class="mt-2 text-sm text-[var(--pb-text-muted)]">{{ t('admin.logs.settings.description') }}</p>
+        <p class="mt-1 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.logs.settings.lastUpdated', { time: form.updated_at || t('admin.logs.settings.unknown') }) }}</p>
+      </div>
+      <UButton to="/admin/logs" size="sm" color="neutral" variant="ghost" icon="i-lucide-arrow-left">{{ t('admin.common.back') }}</UButton>
     </header>
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.settings.loadFailed')" />

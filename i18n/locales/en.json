@@ -995,6 +995,7 @@
       "emptyErrors": "No error logs for current filter.",
       "emptyActivity": "No activity logs for current filter.",
       "total": "Total: {total}",
+      "showingRange": "Showing {first}-{last} of {total}",
       "previous": "Previous",
       "next": "Next",
       "details": "Log details",
@@ -1095,7 +1096,19 @@
         "description": "Choose operational defaults for the admin panel.",
         "languageTitle": "Display language",
         "languageDescription": "This changes the admin panel language for every administrator.",
-        "languageLabel": "Admin panel language",
+        "languageLabel": "Display language",
+        "dateFormatLabel": "Date format",
+        "timezoneLabel": "Time zone",
+        "formatLocaleLabel": "Locale",
+        "dateFormats": {
+          "iso8601": "ISO 8601 (recommended) - 2026-06-05",
+          "yearMonthDaySlash": "Year/month/day - 2026/06/05",
+          "monthDayYearSlash": "Month/day/year - 06/05/2026",
+          "dayMonthYearSlash": "Day/month/year - 05/06/2026",
+          "shortMonth": "Abbreviated month - Jun 5, 2026",
+          "longMonth": "Full month - June 5, 2026",
+          "longMonthOrdinal": "Full month with ordinal - June 5th, 2026"
+        },
         "loading": "Loading system settings...",
         "saved": "System settings saved",
         "saveFailed": "Could not save system settings"

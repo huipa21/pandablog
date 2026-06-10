@@ -7,6 +7,14 @@ import { initializeRuntimeSettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE } from '~/utils/adminLocale'
 import { computeContentStats } from '~/utils/contentStats'
+import {
+  ADMIN_DATE_FORMAT_KEY,
+  ADMIN_FORMAT_LOCALE_KEY,
+  ADMIN_TIMEZONE_KEY,
+  DEFAULT_ADMIN_DATE_FORMAT,
+  DEFAULT_ADMIN_FORMAT_LOCALE,
+  DEFAULT_ADMIN_TIMEZONE
+} from '~/utils/systemSettings'
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
 const SCHEMA_HASH_KEY = '__schema_hash'
@@ -48,6 +56,7 @@ export default defineNitroPlugin(async () => {
     await ensureDefaultMediaSettings(db)
     await ensureDefaultAdminColorMode(db)
     await ensureDefaultAdminLocale(db)
+    await ensureDefaultAdminRegionalSettings(db)
     await initializeRuntimeSettings(true)
     await ensureDefaultFolder(db)
     await backfillPostStats(db)
@@ -186,6 +195,27 @@ async function ensureDefaultAdminLocale(db: Awaited<ReturnType<typeof useDb>>) {
   }
 
   await setAppSetting(db, ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE, 'admin locale init')
+}
+
+async function ensureDefaultAdminRegionalSettings(db: Awaited<ReturnType<typeof useDb>>) {
+  const defaults = [
+    [ADMIN_DATE_FORMAT_KEY, DEFAULT_ADMIN_DATE_FORMAT, 'admin date format init'],
+    [ADMIN_TIMEZONE_KEY, DEFAULT_ADMIN_TIMEZONE, 'admin timezone init'],
+    [ADMIN_FORMAT_LOCALE_KEY, DEFAULT_ADMIN_FORMAT_LOCALE, 'admin format locale init']
+  ] as const
+
+  for (const [key, value, label] of defaults) {
+    const existing = await queryDb<[Array<{ value?: unknown }> ]>(
+      db,
+      'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+      { key },
+      { label: `${label} lookup`, timeoutMs: 5_000 }
+    )
+
+    if (!firstRow(existing)) {
+      await setAppSetting(db, key, value, label)
+    }
+  }
 }
 
 async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {

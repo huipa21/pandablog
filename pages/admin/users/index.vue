@@ -183,7 +183,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const { formatAdminDateTime } = useAdminRegionalSettings()
 
 type Role = 'superadmin' | 'admin' | 'author' | 'viewer'
 type RoleFilter = Role | 'all'
@@ -566,7 +567,7 @@ function isRole(value: string): value is Role {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : t('admin.users.never')
+  return formatAdminDateTime(value, t('admin.users.never'))
 }
 
 const passwordCharacters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?'

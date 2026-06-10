@@ -9,46 +9,34 @@
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
 
     <div class="grid gap-4 md:grid-cols-4">
-      <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+      <NuxtLink to="/admin/logs/access" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.accessLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.access.count ?? 0 }}</p>
-      </div>
-      <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+      </NuxtLink>
+      <NuxtLink to="/admin/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.activityLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? 0 }}</p>
-      </div>
-      <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+      </NuxtLink>
+      <NuxtLink to="/admin/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.errorLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.count ?? 0 }}</p>
-      </div>
+      </NuxtLink>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.dbEstimate') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ formatBytes(stats?.estimate_bytes ?? 0) }}</p>
       </div>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-3">
-      <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] lg:col-span-2">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.requestsPerHour') }}</h2>
-        <div class="mt-4 flex h-44 items-end gap-1 rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] px-2 py-3">
-          <div
-            v-for="(point, index) in hourlyPoints"
-            :key="index"
-            class="flex-1 rounded-t bg-[var(--pb-selected-border)]/70"
-            :title="`${point.label}: ${point.count}`"
-            :style="{ height: `${Math.max(6, point.height)}%` }"
-          />
-        </div>
-      </div>
-
-      <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.quickLinks') }}</h2>
-        <div class="mt-3 grid gap-2">
-          <UButton to="/admin/logs/access" color="neutral" variant="subtle" block icon="i-lucide-globe">{{ t('admin.logs.accessLogs') }}</UButton>
-          <UButton to="/admin/logs/activity" color="neutral" variant="subtle" block icon="i-lucide-notebook-pen">{{ t('admin.logs.activityLogs') }}</UButton>
-          <UButton to="/admin/logs/errors" color="neutral" variant="subtle" block icon="i-lucide-triangle-alert">{{ t('admin.logs.errorLogs') }}</UButton>
-          <UButton to="/admin/logs/settings" color="neutral" variant="subtle" block icon="i-lucide-settings-2">{{ t('admin.logs.loggingSettings') }}</UButton>
-        </div>
+    <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+      <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.requestsPerHour') }}</h2>
+      <div class="mt-4 flex h-44 items-end gap-1 rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] px-2 py-3">
+        <div
+          v-for="(point, index) in hourlyPoints"
+          :key="index"
+          class="flex-1 rounded-t bg-[var(--pb-selected-border)]/70"
+          :title="`${point.label}: ${point.count}`"
+          :style="{ height: `${Math.max(6, point.height)}%` }"
+        />
       </div>
     </div>
 
@@ -90,11 +78,11 @@ const { data: statsData, pending: statsPending, error, refresh: refreshStats } =
 )
 const { data: accessData, pending: accessPending, refresh: refreshAccess } = await useAsyncData(
   'admin-log-access-24h',
-  () => $fetch('/api/admin/logs/access', { query: { from, limit: 200, sort: 'newest' } })
+  () => $fetch('/api/admin/logs/access', { query: { from, limit: 200, sort: 'newest', total: 'false' } })
 )
 const { data: errorData, pending: errorPending, refresh: refreshErrors } = await useAsyncData(
   'admin-log-errors-recent',
-  () => $fetch('/api/admin/logs/errors', { query: { from, limit: 5, sort: 'newest' } })
+  () => $fetch('/api/admin/logs/errors', { query: { from, limit: 5, sort: 'newest', total: 'false' } })
 )
 
 const stats = computed(() => statsData.value as any)

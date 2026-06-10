@@ -995,6 +995,7 @@
       "emptyErrors": "当前筛选条件下没有错误日志。",
       "emptyActivity": "当前筛选条件下没有活动日志。",
       "total": "总计：{total}",
+      "showingRange": "显示 {first}-{last} / {total}",
       "previous": "上一页",
       "next": "下一页",
       "details": "日志详情",
@@ -1095,7 +1096,19 @@
         "description": "选择管理后台的系统默认选项。",
         "languageTitle": "显示语言",
         "languageDescription": "此选项会更改所有管理员看到的后台语言。",
-        "languageLabel": "管理后台语言",
+        "languageLabel": "显示语言",
+        "dateFormatLabel": "日期格式",
+        "timezoneLabel": "时区",
+        "formatLocaleLabel": "区域设置",
+        "dateFormats": {
+          "iso8601": "ISO 8601（推荐）- 2026-06-05",
+          "yearMonthDaySlash": "年/月/日 - 2026/06/05",
+          "monthDayYearSlash": "月/日/年 - 06/05/2026",
+          "dayMonthYearSlash": "日/月/年 - 05/06/2026",
+          "shortMonth": "缩写月份 - Jun 5, 2026",
+          "longMonth": "完整月份 - June 5, 2026",
+          "longMonthOrdinal": "英文序数日期 - June 5th, 2026"
+        },
         "loading": "正在加载系统设置...",
         "saved": "系统设置已保存",
         "saveFailed": "无法保存系统设置"

@@ -156,7 +156,8 @@ const readFetchTimeoutMs = 10_000
 const writeFetchTimeoutMs = 30_000
 
 const route = useRoute()
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const { formatAdminDateTime, formatAdminTime } = useAdminRegionalSettings()
 const id = computed(() => String(route.params.id))
 const apiPath = computed(() => `/api/admin/posts/${encodeURIComponent(id.value)}`)
 const sessionFetch = useSessionFetch()
@@ -528,19 +529,11 @@ function emptyDoc(): JsonContent {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(locale.value, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  }).format(new Date(value))
+  return formatAdminDateTime(value)
 }
 
 function formatTime(value: Date) {
-  return new Intl.DateTimeFormat(locale.value, {
-    hour: 'numeric',
-    minute: '2-digit'
-  }).format(value)
+  return formatAdminTime(value)
 }
 
 function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {

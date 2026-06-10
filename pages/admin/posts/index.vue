@@ -278,7 +278,8 @@ type PerPageOption = '10' | '25' | '50' | '100'
 
 type EditableField = 'title' | 'tags' | 'categories' | 'visibility' | 'status'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
+const { formatAdminDate, formatAdminNumber } = useAdminRegionalSettings()
 const creating = ref(false)
 const statusFilter = ref<PostStatusFilter>('all')
 const statusFilterOptions = computed(() => [
@@ -953,21 +954,16 @@ function visibilityIcon(value: PostVisibility | undefined) {
 }
 
 function formatDate(value: string | null | undefined, fallback: string) {
-  if (!value) {
-    return fallback
-  }
-
-  return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
+  return formatAdminDate(value, fallback)
 }
 
 function formatContentLength(post: PostRecord) {
   const words = Number(post.word_count ?? 0)
   const cjk = Number(post.cjk_char_count ?? 0)
   if (!words && !cjk) return '—'
-  const formatter = new Intl.NumberFormat(locale.value)
   const parts: string[] = []
-  if (cjk) parts.push(t('admin.posts.contentLength.chars', { count: formatter.format(cjk) }))
-  if (words) parts.push(t('admin.posts.contentLength.words', { count: formatter.format(words) }))
+  if (cjk) parts.push(t('admin.posts.contentLength.chars', { count: formatAdminNumber(cjk) }))
+  if (words) parts.push(t('admin.posts.contentLength.words', { count: formatAdminNumber(words) }))
   return parts.join(' · ')
 }
 

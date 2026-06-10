@@ -12,6 +12,10 @@ export interface ListLogsResult {
   sort: 'newest' | 'oldest'
 }
 
+interface ListLogsOptions {
+  includeTotal?: boolean
+}
+
 interface LogListSpec {
   table: string
   label: string
@@ -101,13 +105,14 @@ export function sanitizeSearchText(value: unknown) {
     .slice(0, 200)
 }
 
-export async function listLogs(event: H3Event, type: LogType): Promise<ListLogsResult> {
+export async function listLogs(event: H3Event, type: LogType, options: ListLogsOptions = {}): Promise<ListLogsResult> {
   const spec = logListSpecs[type]
   const query = getQuery(event)
   const limit = parseLimit(query.limit)
   const offset = parseOffset(query.offset)
   const sort = parseSort(query.sort)
   const orderBy = sort === 'oldest' ? 'ASC' : 'DESC'
+  const includeTotal = options.includeTotal ?? query.total !== 'false'
   const params: Record<string, unknown> = { limit, offset }
   const where: string[] = []
 
@@ -121,18 +126,23 @@ export async function listLogs(event: H3Event, type: LogType): Promise<ListLogsR
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  const sql = [
+    `SELECT * FROM ${spec.table} ${whereSql} ORDER BY timestamp ${orderBy} LIMIT $limit START $offset;`,
+    includeTotal ? `SELECT count() AS total FROM ${spec.table} ${whereSql} GROUP ALL;` : ''
+  ].filter(Boolean).join('\n')
   const db = await useDb()
   const response = await queryDb(
     db,
-    `SELECT * FROM ${spec.table} ${whereSql} ORDER BY timestamp ${orderBy} LIMIT $limit START $offset;
-     SELECT count() AS total FROM ${spec.table} ${whereSql} GROUP ALL;`,
+    sql,
     params,
     { label: `list ${spec.label} logs`, timeoutMs: 15_000 }
   )
 
+  const rows = queryRows<Record<string, unknown>>(response, 0)
+
   return {
-    rows: queryRows<Record<string, unknown>>(response, 0),
-    total: Number(firstRow<{ total?: number }>(response, 1)?.total ?? 0),
+    rows,
+    total: includeTotal ? Number(firstRow<{ total?: number }>(response, 1)?.total ?? 0) : rows.length,
     limit,
     offset,
     sort

@@ -1,8 +1,11 @@
 <template>
   <section class="grid gap-4">
-    <header>
-      <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
-      <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.activityLogs') }}</h1>
+    <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
+        <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.activityLogs') }}</h1>
+      </div>
+      <UButton to="/admin/logs" size="sm" color="neutral" variant="ghost" icon="i-lucide-arrow-left">{{ t('admin.common.back') }}</UButton>
     </header>
 
     <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
@@ -23,8 +26,9 @@
       </div>
     </div>
 
-    <div class="overflow-auto rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
-      <table class="min-w-full text-sm">
+    <div class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
+      <div class="overflow-auto">
+        <table class="min-w-full text-sm">
         <thead class="sticky top-0 bg-[var(--pb-surface-subtle)] text-left text-[var(--pb-text-muted)]">
           <tr>
             <th class="px-3 py-2">{{ t('admin.logs.time') }}</th>
@@ -52,29 +56,17 @@
             <td class="px-3 py-2">{{ text(row.description) }}</td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
+      <AdminLogPagination v-if="!pending && total > 0" :total="total" :limit="limit" :offset="offset" @page="goToOffset" />
     </div>
 
-    <div class="flex items-center justify-between rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-3 shadow-[var(--pb-shadow-sm)]">
-      <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.logs.total', { total }) }}</p>
-      <div class="flex gap-2">
-        <UButton size="sm" color="neutral" :disabled="offset <= 0" @click="prevPage">{{ t('admin.logs.previous') }}</UButton>
-        <UButton size="sm" color="neutral" :disabled="offset + limit >= total" @click="nextPage">{{ t('admin.logs.next') }}</UButton>
-      </div>
-    </div>
-
-    <div v-if="selectedRow" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-      <div class="mb-2 flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.details') }}</h2>
-        <UButton size="xs" color="neutral" variant="ghost" @click="copySelected">{{ t('admin.logs.copyJson') }}</UButton>
-      </div>
-      <pre class="overflow-auto rounded bg-stone-950 p-3 text-xs text-stone-100">{{ JSON.stringify(selectedRow, null, 2) }}</pre>
-    </div>
+    <AdminLogDetailDialog :open="Boolean(selectedRow)" :row="selectedRow" @update:open="(value) => { if (!value) selectedRow = null }" />
   </section>
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'admin', adminWide: true })
+definePageMeta({ layout: 'admin' })
 
 const route = useRoute()
 const router = useRouter()
@@ -151,12 +143,8 @@ function clearFilters() {
   applyFilters(0)
 }
 
-function nextPage() {
-  applyFilters(offset.value + limit.value)
-}
-
-function prevPage() {
-  applyFilters(Math.max(0, offset.value - limit.value))
+function goToOffset(nextOffset: number) {
+  applyFilters(nextOffset)
 }
 
 async function exportCsv() {
@@ -168,13 +156,6 @@ async function exportCsv() {
   }
   const csv = await untypedFetch('/api/admin/logs/activity/export', { query, responseType: 'text' })
   downloadBlob(String(csv), 'activity-logs.csv', 'text/csv;charset=utf-8')
-}
-
-async function copySelected() {
-  if (!selectedRow.value) {
-    return
-  }
-  await navigator.clipboard.writeText(JSON.stringify(selectedRow.value, null, 2))
 }
 
 function cleanQuery(value: Record<string, string>) {
