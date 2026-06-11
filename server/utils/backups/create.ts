@@ -65,18 +65,26 @@ export async function startBackupJob(options: CreateBackupOptions): Promise<stri
   const id = generateBackupId()
 
   // Acquire mutex before creating the record so the 409 fires correctly.
-  acquireJob({ id, kind: 'create', startedAt: new Date().toISOString() })
+  await acquireJob({ id, kind: 'create', startedAt: new Date().toISOString() })
 
   // Create DB record synchronously so the id is visible in the list immediately.
-  await createBackupRecord({
-    id,
-    type,
-    note,
-    parent,
-    chain_root: chainRoot,
-    included_hashes: [],
-    included_tables: includedTables,
-  })
+  // If this fails we must release the mutex here: runBackupWork (which owns the
+  // releaseJob in its finally) is never reached, so the lock would otherwise leak
+  // and every future job would return 409 until the process restarts.
+  try {
+    await createBackupRecord({
+      id,
+      type,
+      note,
+      parent,
+      chain_root: chainRoot,
+      included_hashes: [],
+      included_tables: includedTables,
+    })
+  } catch (err) {
+    await releaseJob()
+    throw err
+  }
 
   // Fire the rest of the work in the background.
   runBackupWork(id, type, parent, chainRoot, ancestorHashes, includedTables).catch((err) => {
@@ -201,7 +209,7 @@ async function runBackupWork(
     const backupDir = path.join(BACKUPS_ROOT, id)
     await rm(backupDir, { recursive: true, force: true }).catch(() => {})
   } finally {
-    releaseJob()
+    await releaseJob()
   }
 }
 

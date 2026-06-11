@@ -34,7 +34,7 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
 
   const id = generateImportId()
 
-  acquireJob({ id, kind: 'import', startedAt: new Date().toISOString() })
+  await acquireJob({ id, kind: 'import', startedAt: new Date().toISOString() })
 
   try {
     await createBackupRecord({
@@ -113,7 +113,7 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
 
     throw error
   } finally {
-    releaseJob()
+    await releaseJob()
   }
 }
 

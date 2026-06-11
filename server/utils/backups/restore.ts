@@ -1,4 +1,4 @@
-import { readFile, mkdir, writeFile, rm } from 'node:fs/promises'
+import { readFile, mkdir, writeFile, rm, rename } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import * as path from 'node:path'
 import { gunzipSync } from 'node:zlib'
@@ -30,8 +30,18 @@ export async function startRestoreJob(id: string): Promise<void> {
     throw createError({ statusCode: 409, message: `Cannot restore a backup with status "${record.status}".` })
   }
 
-  acquireJob({ id, kind: 'restore', startedAt: new Date().toISOString() })
-  await updateBackupRecord(id, { status: 'restoring' })
+  await acquireJob({ id, kind: 'restore', startedAt: new Date().toISOString() })
+
+  // Mark as restoring BEFORE firing the background worker. If this fails we must
+  // release the mutex here, because runRestoreWork (which owns the releaseJob in
+  // its finally) is never reached — otherwise the lock leaks and every future
+  // job returns 409 until the process restarts.
+  try {
+    await updateBackupRecord(id, { status: 'restoring' })
+  } catch (err) {
+    await releaseJob()
+    throw err
+  }
 
   runRestoreWork(id, record).catch((err) => {
     if (import.meta.dev) {
@@ -44,6 +54,14 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
   const safetyDir = path.join(BACKUPS_ROOT, '.safety')
   const safetyPath = path.join(safetyDir, `pre-restore-${backupIdPart(id)}-${Date.now()}.surql`)
   let safetyTaken = false
+
+  // Media safety state — hoisted so the catch block can roll media back alongside
+  // the database. Without this, a failed media extract (after the live uploads
+  // were cleared) leaves the DB restored but the media gone, with no recovery.
+  const uploadsRoot = path.resolve(process.cwd(), 'storage/uploads')
+  const variantsRoot = path.resolve(process.cwd(), 'storage/variants')
+  const mediaSafetyDir = path.join(safetyDir, `pre-restore-uploads-${backupIdPart(id)}-${Date.now()}`)
+  let mediaSafetyTaken = false
 
   try {
     const settings = await getBackupSettings().catch(() => null)
@@ -86,9 +104,14 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
     await verifyRestore()
 
     // --- 7. Restore the current backup history (overwrites snapshot-era rows) ---
+    // A failure here does NOT corrupt the restored data, but it leaves the
+    // backups table out of sync with the on-disk snapshots. Surface it in the
+    // final record instead of reporting a clean success.
+    let historyWarning: string | null = null
     await replaceBackupRecords(savedBackups).catch((err) => {
+      historyWarning = `Backup history could not be fully restored: ${err?.message ?? err}`
       if (import.meta.dev) {
-        console.warn('[backup] Failed to restore backup history:', err?.message)
+        console.warn('[backup]', historyWarning)
       }
     })
 
@@ -102,22 +125,26 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
       cursor = r?.parent ?? null
     }
 
-    // --- 9. Clear variant cache ---
-    const variantsRoot = path.resolve(process.cwd(), 'storage/variants')
+    // --- 9. Move the live media aside so it can roll back with the DB ---
+    // Rename (atomic on the same volume) instead of deleting: if media extraction
+    // fails below, the catch block restores this snapshot. Both paths live under
+    // storage/, so the rename never crosses a filesystem boundary.
+    if (existsSync(uploadsRoot)) {
+      await mkdir(safetyDir, { recursive: true })
+      await rename(uploadsRoot, mediaSafetyDir)
+      mediaSafetyTaken = true
+    }
+    await mkdir(uploadsRoot, { recursive: true })
+
+    // Clear variant cache (regenerated from the restored media below).
     await clearDirectory(variantsRoot).catch(() => {})
 
-    // --- 10. Extract media tars oldest-first ---
-    const uploadsRoot = path.resolve(process.cwd(), 'storage/uploads')
-    await clearDirectory(uploadsRoot).catch(() => {})
+    // --- 10. Extract media tars oldest-first (fatal: a failure must roll back) ---
     for (const chainId of chain) {
       const chainDir = path.join(BACKUPS_ROOT, backupIdPart(chainId))
       const mediaTarPath = path.join(chainDir, 'media.tar.gz')
       if (!existsSync(mediaTarPath)) continue
-      await extractMediaTar(mediaTarPath, uploadsRoot).catch((err) => {
-        if (import.meta.dev) {
-          console.warn(`[backup] Media extract failed for ${chainId}:`, err?.message)
-        }
-      })
+      await extractMediaTar(mediaTarPath, uploadsRoot)
     }
 
     // --- 11. Refresh in-process caches ---
@@ -125,11 +152,14 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
     await initializeRuntimeSettings(true).catch(() => {})
     await initializeLoggingSettings().catch(() => {})
 
-    await updateBackupRecord(id, { status: 'ready', error: null, completed_at: new Date().toISOString() })
+    await updateBackupRecord(id, { status: 'ready', error: historyWarning, completed_at: new Date().toISOString() })
 
-    // --- 12. Discard the safety snapshot (restore succeeded) ---
+    // --- 12. Discard the safety snapshots (restore succeeded) ---
     if (safetyTaken) {
       await rm(safetyPath, { force: true }).catch(() => {})
+    }
+    if (mediaSafetyTaken) {
+      await rm(mediaSafetyDir, { recursive: true, force: true }).catch(() => {})
     }
 
     // --- 13. Background variant regen (non-fatal) ---
@@ -144,6 +174,7 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
     // Attempt rollback to the pre-restore safety snapshot so the database is
     // never left empty or partially restored.
     let finalError = message
+    let rolledBack = false
     if (safetyTaken) {
       try {
         updateJobProgress({ phase: 'rollback', percent: 50 })
@@ -153,20 +184,42 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
         await replaceBackupRecords(await listBackups().catch(() => [])).catch(() => {})
         await initializeRuntimeSettings(true).catch(() => {})
         await initializeLoggingSettings().catch(() => {})
+        rolledBack = true
         finalError = `${message} — restore was rolled back to the pre-restore state.`
         await rm(safetyPath, { force: true }).catch(() => {})
       } catch (rollbackErr) {
         const rbMsg = rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr)
         finalError = `${message} — ROLLBACK ALSO FAILED: ${rbMsg}. A safety dump is preserved at ${safetyPath}.`
       }
+    } else {
+      finalError = `${message} — no safety snapshot was taken, so the database state could not be rolled back automatically.`
     }
 
-    await updateBackupRecord(id, { status: 'ready', error: finalError }).catch(() => {})
+    // Roll the media back to the pre-restore snapshot so it stays consistent with
+    // the (rolled-back) database. Only attempt this if we actually moved it aside.
+    if (mediaSafetyTaken) {
+      try {
+        await rm(uploadsRoot, { recursive: true, force: true })
+        await rename(mediaSafetyDir, uploadsRoot)
+        await clearDirectory(variantsRoot).catch(() => {})
+        regenerateVariantsBackground().catch(() => {})
+      } catch (mediaRollbackErr) {
+        const mrMsg = mediaRollbackErr instanceof Error ? mediaRollbackErr.message : String(mediaRollbackErr)
+        finalError = `${finalError} Media rollback ALSO FAILED: ${mrMsg}. Pre-restore media is preserved at ${mediaSafetyDir}.`
+        rolledBack = false
+      }
+    }
+
+    // Only report "ready" when we are certain the system was returned to a
+    // consistent pre-restore state. Otherwise mark "failed" so the operator does
+    // not treat a possibly-empty/half-restored database as restorable.
+    const finalStatus: BackupRecord['status'] = rolledBack ? 'ready' : 'failed'
+    await updateBackupRecord(id, { status: finalStatus, error: finalError }).catch(() => {})
     if (import.meta.dev) {
       console.error(`[backup] restore job ${id} failed:`, finalError)
     }
   } finally {
-    releaseJob()
+    await releaseJob()
   }
 }
 

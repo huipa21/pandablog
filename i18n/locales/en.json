@@ -436,6 +436,8 @@
       "deleteOrphans": "Delete Orphans",
       "deleteOrphansTitle": "Delete orphan files?",
       "deleteOrphansDescription": "Delete {count} orphan file(s)? This removes database records and physical files.",
+      "orphansDeleted": "Deleted {count} orphan file(s).",
+      "deleteOrphansFailed": "Failed to delete orphan files.",
       "searchMedia": "Search Media",
       "simpleSearch": "Simple search",
       "advancedSearch": "Advanced search",

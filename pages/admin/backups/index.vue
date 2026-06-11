@@ -256,6 +256,12 @@ onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
 })
 
+// Gate locale-dependent rendering (dates) until after hydration.
+const isMounted = ref(false)
+onMounted(() => {
+  isMounted.value = true
+})
+
 // ---- Dialog state ----
 const createDialogOpen = ref(false)
 const createInitialType = ref<'full' | 'incremental'>('full')
@@ -314,6 +320,13 @@ function formatBytes(bytes: number): string {
 }
 
 function formatDateTime(iso: string): string {
+  // Until the component has mounted on the client, return a deterministic,
+  // locale-independent string so the server-rendered markup matches the first
+  // client render. `toLocaleString()` depends on the runtime's timezone/locale,
+  // which differs between server and browser and causes a hydration mismatch.
+  if (!isMounted.value) {
+    return iso.replace('T', ' ').replace(/\.\d+/, '').replace('Z', ' UTC')
+  }
   try {
     return new Date(iso).toLocaleString()
   } catch {

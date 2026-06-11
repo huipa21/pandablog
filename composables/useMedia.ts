@@ -137,12 +137,6 @@ export function useMedia() {
     })
   }
 
-  async function listOrphans(olderThanDays?: number) {
-    const query = new URLSearchParams()
-    if (olderThanDays) query.set('older_than_days', String(olderThanDays))
-    return await $fetch<{ files: MediaRecord[], total: number }>(`/api/media/orphans?${query}`)
-  }
-
   async function cleanupOrphans(options: { older_than_days?: number, hashes?: string[] } = {}) {
     return await $fetch<{ deleted_count: number, failed_count: number }>('/api/media/orphans/cleanup', {
       method: 'POST',
@@ -213,7 +207,6 @@ export function useMedia() {
     createFolder,
     updateFolder,
     deleteFolder,
-    listOrphans,
     cleanupOrphans,
     getFileUrl,
     getThumbnailUrl,

@@ -125,6 +125,9 @@
               {{ t('admin.media.actions') }}<template v-if="selectedHashes.size"> ({{ selectedHashes.size }})</template>
             </UButton>
           </UDropdownMenu>
+          <UButton v-if="filters.orphan" type="button" icon="i-lucide-trash-2" color="error" variant="soft" :disabled="selectedHashes.size === 0" @click="openOrphanCleanupDialog">
+            {{ t('admin.media.deleteOrphans') }}<template v-if="selectedHashes.size"> ({{ selectedHashes.size }})</template>
+          </UButton>
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <div class="text-sm text-stone-500">{{ t('admin.media.pageOf', { page, pages }) }}</div>
             <UButton type="button" icon="i-lucide-chevron-left" color="neutral" variant="ghost" :disabled="page <= 1" @click="changePage(page - 1)" />
@@ -267,6 +270,18 @@
     />
 
     <AdminConfirmActionDialog
+      :open="orphanCleanupDialogOpen"
+      :title="t('admin.media.deleteOrphansTitle')"
+      :description="orphanCleanupDialogDescription"
+      :confirm-label="t('admin.media.deleteOrphans')"
+      confirm-color="error"
+      :loading="orphanCleanupPending"
+      @update:open="(value) => { if (!value) closeOrphanCleanupDialog() }"
+      @cancel="closeOrphanCleanupDialog"
+      @confirm="confirmOrphanCleanup"
+    />
+
+    <AdminConfirmActionDialog
       :open="smartFolderDeleteDialogOpen"
       :title="t('admin.media.deleteSmartFolderTitle')"
       :description="smartFolderDeleteDialogDescription"
@@ -331,7 +346,8 @@ const {
   listMediaTags,
   createFolder,
   updateFolder,
-  deleteFolder
+  deleteFolder,
+  cleanupOrphans
 } = useMedia()
 
 const { t } = useI18n()
@@ -367,6 +383,8 @@ const bulkCommentDialogOpen = ref(false)
 const bulkAssignFolderDialogOpen = ref(false)
 const bulkDeleteDialogOpen = ref(false)
 const bulkDeletePending = ref(false)
+const orphanCleanupDialogOpen = ref(false)
+const orphanCleanupPending = ref(false)
 const smartFolderDeleteDialogOpen = ref(false)
 const smartFolderDeletePending = ref(false)
 const pendingDeleteSmartFolderId = ref('')
@@ -375,6 +393,7 @@ const bulkTagsDialogDescription = computed(() => t('admin.media.bulkTagsDescript
 const bulkCommentDialogDescription = computed(() => t('admin.media.bulkCommentDescription', { count: selectedFileCountLabel.value }))
 const bulkAssignFolderDialogDescription = computed(() => t('admin.media.bulkAssignDescription', { count: selectedFileCountLabel.value }))
 const bulkDeleteDialogDescription = computed(() => t('admin.media.bulkDeleteDescription', { count: selectedHashes.value.size }))
+const orphanCleanupDialogDescription = computed(() => t('admin.media.deleteOrphansDescription', { count: selectedHashes.value.size }))
 const smartFolderDeleteDialogDescription = computed(() => {
   const folder = smartFolders.value.find((item) => item.id === pendingDeleteSmartFolderId.value)
   return folder ? t('admin.media.deleteSmartFolderDescription', { name: folder.name }) : t('admin.media.deleteSmartFolderFallback')
@@ -779,6 +798,43 @@ async function confirmBulkDelete() {
     adminToast.error(err, t('admin.media.bulkDeleteFailed'))
   } finally {
     bulkDeletePending.value = false
+  }
+}
+
+function openOrphanCleanupDialog() {
+  if (selectedHashes.value.size === 0) {
+    return
+  }
+
+  orphanCleanupDialogOpen.value = true
+}
+
+function closeOrphanCleanupDialog() {
+  if (orphanCleanupPending.value) {
+    return
+  }
+
+  orphanCleanupDialogOpen.value = false
+}
+
+async function confirmOrphanCleanup() {
+  if (selectedHashes.value.size === 0) {
+    closeOrphanCleanupDialog()
+    return
+  }
+
+  orphanCleanupPending.value = true
+  try {
+    const result = await cleanupOrphans({ hashes: [...selectedHashes.value] })
+    adminToast.success(t('admin.media.orphansDeleted', { count: result.deleted_count }))
+    selectedHashes.value = new Set()
+    closeOrphanCleanupDialog()
+    await loadMedia()
+    await loadMediaTags()
+  } catch (err: any) {
+    adminToast.error(err, t('admin.media.deleteOrphansFailed'))
+  } finally {
+    orphanCleanupPending.value = false
   }
 }
 
