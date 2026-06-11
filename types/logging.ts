@@ -22,15 +22,6 @@ export interface LoggingSettings {
   updated_at?: string
 }
 
-export interface LoggingSettingsResponse {
-  settings: LoggingSettings
-}
-
-export interface LoggingSettingsUpdateResponse {
-  ok: true
-  settings: LoggingSettings
-}
-
 export interface AccessLogEntry {
   timestamp?: string
   method: string
@@ -64,13 +55,6 @@ export interface ErrorLogEntry {
   request_id?: string | null
   path?: string | null
   method?: string | null
-}
-
-export interface LogStatsResponse {
-  access: { count: number, oldest: string | null, newest: string | null }
-  activity: { count: number, oldest: string | null, newest: string | null }
-  errors: { count: number, oldest: string | null, newest: string | null }
-  estimate_bytes: number
 }
 
 export interface CleanupResult {

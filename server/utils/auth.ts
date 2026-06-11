@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { isSetupCompleted } from './settings'
 import type { SessionUser, UserRole } from './users'
@@ -8,25 +7,6 @@ export interface AdminUser {
   username: string
   role: 'superadmin' | 'admin'
   display_name?: string | null
-}
-
-export function constantTimeEqual(input: string, expected: string) {
-  const inputBuffer = Buffer.from(input)
-  const expectedBuffer = Buffer.from(expected)
-
-  if (inputBuffer.length !== expectedBuffer.length) {
-    return false
-  }
-
-  return timingSafeEqual(inputBuffer, expectedBuffer)
-}
-
-export async function requireAdminUser(event: H3Event): Promise<AdminUser> {
-  return requireAdminTier(event)
-}
-
-export async function requireAdmin(event: H3Event): Promise<AdminUser> {
-  return requireAdminTier(event)
 }
 
 export async function getSessionUser(event: H3Event): Promise<SessionUser | null> {
@@ -76,7 +56,7 @@ export async function requireAuthenticatedUser(event: H3Event): Promise<SessionU
 }
 
 /**
- * Non-throwing variant of requireAdminUser.
+ * Non-throwing admin session check.
  * Returns true if the request has a valid admin session, false otherwise.
  */
 export async function isAdminAuthenticated(event: H3Event): Promise<boolean> {
@@ -98,10 +78,6 @@ export async function isAuthenticated(event: H3Event): Promise<boolean> {
 
 export function isAdminTier(user: SessionUser | null | undefined): user is SessionUser & { role: 'superadmin' | 'admin' } {
   return Boolean(user && (user.role === 'superadmin' || user.role === 'admin'))
-}
-
-export function isContentManager(user: SessionUser | null | undefined): user is SessionUser & { role: 'superadmin' | 'admin' | 'author' } {
-  return Boolean(user && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'author'))
 }
 
 function isRole(value: unknown): value is UserRole {
