@@ -15,14 +15,8 @@ const isProd = process.env.NODE_ENV === 'production'
 
 const sessionPassword = env('NUXT_SESSION_PASSWORD')
 if (!sessionPassword || sessionPassword.length < 32) {
-  if (isProd) {
-    throw new Error(
-      'NUXT_SESSION_PASSWORD must be set to a 32+ character random string in production (.env)'
-    )
-  }
-  console.warn(
-    '⚠️  NUXT_SESSION_PASSWORD missing or shorter than 32 chars. ' +
-    'Sessions will use a weak insecure value. Set it in .env before going to prod.'
+  throw new Error(
+    'NUXT_SESSION_PASSWORD must be set to a 32+ character random string in .env'
   )
 }
 
@@ -68,7 +62,7 @@ export default defineNuxtConfig({
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
     session: {
-      password: sessionPassword || 'dev-only-insecure-fallback-do-not-use-in-prod-xx',
+      password: sessionPassword,
       maxAge: 60 * 60 * 24 * 7, // 7 days
       cookie: {
         secure: isProd,

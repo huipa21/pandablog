@@ -1,26 +1,27 @@
-import { createWriteStream } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { open, mkdir, writeFile, rename, copyFile, rm, stat } from 'node:fs/promises'
 import * as path from 'node:path'
-import { pipeline } from 'node:stream/promises'
-import { createGunzip } from 'node:zlib'
 import { createBackupRecord, updateBackupRecord } from './registry'
 import { acquireJob, releaseJob } from './jobMutex'
 import { sha256File } from './surrealHttp'
 import { BACKUPS_ROOT } from './config'
 
 export interface ExternalBackupFiles {
-  dbGzBuffer: Buffer
-  mediaTarGzBuffer: Buffer
+  /** Path to the already-streamed gzipped DB dump on disk. */
+  dbGzPath: string
+  /** Path to the already-streamed gzipped media tar on disk. */
+  mediaTarGzPath: string
   manifestBuffer?: Buffer | null
 }
 
 /**
  * Registers an externally-uploaded backup as a new full snapshot.
- * Validates the archives (gzip magic header + optional SHA-256 from manifest).
+ * The archives are streamed to disk by the caller; this validates them
+ * (gzip magic header + optional SHA-256 from manifest) and moves them into
+ * the backup directory without buffering their contents in memory.
  */
 export async function importExternalBackup(files: ExternalBackupFiles): Promise<string> {
-  validateGzipMagic(files.dbGzBuffer, 'db.surql.gz')
-  validateGzipMagic(files.mediaTarGzBuffer, 'media.tar.gz')
+  await validateGzipMagicFile(files.dbGzPath, 'db.surql.gz')
+  await validateGzipMagicFile(files.mediaTarGzPath, 'media.tar.gz')
 
   let manifestData: Record<string, unknown> | null = null
   if (files.manifestBuffer?.length) {
@@ -53,8 +54,11 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
     const dbPath = path.join(backupDir, 'db.surql.gz')
     const mediaPath = path.join(backupDir, 'media.tar.gz')
 
-    await writeFile(dbPath, files.dbGzBuffer)
-    await writeFile(mediaPath, files.mediaTarGzBuffer)
+    await moveInto(files.dbGzPath, dbPath)
+    await moveInto(files.mediaTarGzPath, mediaPath)
+
+    const dbSize = (await stat(dbPath)).size
+    const mediaSize = (await stat(mediaPath)).size
 
     const dbSha256 = await sha256File(dbPath)
     const mediaSha256 = await sha256File(mediaPath)
@@ -85,8 +89,8 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
 
     await updateBackupRecord(id, {
       status: 'ready',
-      db_size_bytes: files.dbGzBuffer.length,
-      media_size_bytes: files.mediaTarGzBuffer.length,
+      db_size_bytes: dbSize,
+      media_size_bytes: mediaSize,
       media_file_count: Number(manifestData?.media_file_count ?? 0),
       manifest_sha256_db: dbSha256,
       manifest_sha256_media: mediaSha256,
@@ -105,7 +109,6 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
     }).catch(() => {})
 
     const backupDir = path.join(BACKUPS_ROOT, id)
-    const { rm } = await import('node:fs/promises')
     await rm(backupDir, { recursive: true, force: true }).catch(() => {})
 
     throw error
@@ -114,10 +117,34 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
   }
 }
 
-function validateGzipMagic(buf: Buffer, name: string): void {
+/**
+ * Moves a file into place, falling back to copy+delete when the source and
+ * destination live on different filesystems (rename throws EXDEV).
+ */
+async function moveInto(srcPath: string, destPath: string): Promise<void> {
+  try {
+    await rename(srcPath, destPath)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'EXDEV') {
+      await copyFile(srcPath, destPath)
+      await rm(srcPath, { force: true }).catch(() => {})
+      return
+    }
+    throw err
+  }
+}
+
+async function validateGzipMagicFile(filePath: string, name: string): Promise<void> {
   // gzip magic bytes: 0x1f 0x8b
-  if (buf.length < 2 || buf[0] !== 0x1f || buf[1] !== 0x8b) {
-    throw createError({ statusCode: 400, message: `${name} does not appear to be a valid gzip file` })
+  const fh = await open(filePath, 'r')
+  try {
+    const buf = Buffer.alloc(2)
+    const { bytesRead } = await fh.read(buf, 0, 2, 0)
+    if (bytesRead < 2 || buf[0] !== 0x1f || buf[1] !== 0x8b) {
+      throw createError({ statusCode: 400, message: `${name} does not appear to be a valid gzip file` })
+    }
+  } finally {
+    await fh.close()
   }
 }
 

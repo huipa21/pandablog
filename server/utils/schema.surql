@@ -15,7 +15,7 @@ REMOVE TABLE IF EXISTS logging_settings;
 DEFINE ANALYZER IF NOT EXISTS blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ascii;
 
 -- ============ USERS ============
-DEFINE TABLE IF NOT EXISTS users SCHEMAFULL;
+DEFINE TABLE OVERWRITE users SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS username ON users TYPE string;
 DEFINE FIELD IF NOT EXISTS password_hash ON users TYPE string;
 DEFINE FIELD IF NOT EXISTS role ON users TYPE string DEFAULT 'viewer' ASSERT $value IN ['superadmin', 'admin', 'author', 'viewer'];
@@ -30,7 +30,7 @@ DEFINE INDEX IF NOT EXISTS users_username_unique ON TABLE users COLUMNS username
 DEFINE INDEX IF NOT EXISTS users_role ON TABLE users FIELDS role;
 
 -- ============ POST (metadata only — block content lives in `block` table) ============
-DEFINE TABLE IF NOT EXISTS post SCHEMAFULL;
+DEFINE TABLE OVERWRITE post SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS title ON post TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON post TYPE string;
 DEFINE FIELD IF NOT EXISTS summary ON post TYPE option<string>;
@@ -53,14 +53,14 @@ DEFINE INDEX IF NOT EXISTS post_published_at ON TABLE post COLUMNS published_at;
 DEFINE INDEX IF NOT EXISTS post_title_fts ON TABLE post COLUMNS title FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 DEFINE INDEX IF NOT EXISTS post_summary_fts ON TABLE post COLUMNS summary FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 
-DEFINE TABLE IF NOT EXISTS tag SCHEMAFULL;
+DEFINE TABLE OVERWRITE tag SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS name ON tag TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON tag TYPE string;
 DEFINE FIELD IF NOT EXISTS created_by ON tag TYPE option<record<users>> DEFAULT NONE;
 DEFINE INDEX IF NOT EXISTS tag_slug_unique ON TABLE tag COLUMNS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS tag_created_by ON TABLE tag FIELDS created_by;
 
-DEFINE TABLE IF NOT EXISTS category SCHEMAFULL;
+DEFINE TABLE OVERWRITE category SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS name ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON category TYPE string;
 DEFINE FIELD IF NOT EXISTS description ON category TYPE option<string>;
@@ -70,11 +70,11 @@ DEFINE INDEX IF NOT EXISTS category_slug_unique ON TABLE category COLUMNS slug U
 DEFINE INDEX IF NOT EXISTS category_parent ON TABLE category FIELDS parent;
 DEFINE INDEX IF NOT EXISTS category_created_by ON TABLE category FIELDS created_by;
 
-DEFINE TABLE IF NOT EXISTS tagged TYPE RELATION FROM post TO tag;
-DEFINE TABLE IF NOT EXISTS categorized_as TYPE RELATION FROM post TO category;
+DEFINE TABLE OVERWRITE tagged TYPE RELATION FROM post TO tag PERMISSIONS NONE;
+DEFINE TABLE OVERWRITE categorized_as TYPE RELATION FROM post TO category PERMISSIONS NONE;
 
 -- ============ BLOCK (top-level Tiptap node, one row per block) ============
-DEFINE TABLE OVERWRITE block SCHEMAFULL;
+DEFINE TABLE OVERWRITE block SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS type ON block TYPE string;
 DEFINE FIELD IF NOT EXISTS node ON block TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS text ON block TYPE string DEFAULT '';
@@ -85,13 +85,13 @@ DEFINE INDEX IF NOT EXISTS block_type ON block FIELDS type;
 DEFINE INDEX IF NOT EXISTS block_text_fts ON TABLE block COLUMNS text FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 
 -- ============ HAS_BLOCKS (post -> block edge with sequence) ============
-DEFINE TABLE IF NOT EXISTS has_blocks TYPE RELATION FROM post TO block SCHEMAFULL;
+DEFINE TABLE OVERWRITE has_blocks TYPE RELATION FROM post TO block SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS seq ON has_blocks TYPE int;
 DEFINE INDEX IF NOT EXISTS has_blocks_in_seq ON TABLE has_blocks FIELDS in, seq;
 DEFINE INDEX IF NOT EXISTS has_blocks_out ON TABLE has_blocks FIELDS out;
 
 -- ============ LINKS (post -> post bidirectional relation) ============
-DEFINE TABLE IF NOT EXISTS links TYPE RELATION FROM post TO post SCHEMAFULL;
+DEFINE TABLE OVERWRITE links TYPE RELATION FROM post TO post SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS created_at ON links TYPE datetime DEFAULT time::now();
 DEFINE INDEX IF NOT EXISTS links_in ON TABLE links FIELDS in;
 DEFINE INDEX IF NOT EXISTS links_out ON TABLE links FIELDS out;
@@ -108,11 +108,11 @@ DEFINE INDEX IF NOT EXISTS post_visibility ON TABLE post FIELDS visibility;
 -- Active key: 'site_visibility' with value 'public' | 'private'. Default: 'public'.
 
 -- ============ APP SETTINGS (key-value store) ============
-DEFINE TABLE IF NOT EXISTS app_settings SCHEMALESS;
+DEFINE TABLE OVERWRITE app_settings SCHEMALESS PERMISSIONS NONE;
 DEFINE INDEX IF NOT EXISTS app_settings_key ON app_settings FIELDS key UNIQUE;
 
 -- ============ HASH-BASED FILE LIBRARY ============
-DEFINE TABLE IF NOT EXISTS folder SCHEMAFULL;
+DEFINE TABLE OVERWRITE folder SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS name ON folder TYPE string;
 DEFINE FIELD IF NOT EXISTS slug ON folder TYPE string;
 DEFINE FIELD IF NOT EXISTS parent ON folder TYPE option<record<folder>> DEFAULT NONE;
@@ -121,7 +121,7 @@ DEFINE FIELD IF NOT EXISTS updated_at ON folder TYPE datetime DEFAULT time::now(
 DEFINE INDEX IF NOT EXISTS folder_slug_unique ON TABLE folder FIELDS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS folder_parent ON TABLE folder FIELDS parent;
 
-DEFINE TABLE OVERWRITE files SCHEMAFULL;
+DEFINE TABLE OVERWRITE files SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS hash ON files TYPE string;
 DEFINE FIELD IF NOT EXISTS original_name ON files TYPE string;
 DEFINE FIELD IF NOT EXISTS stored_name ON files TYPE string;
@@ -159,14 +159,14 @@ DEFINE INDEX IF NOT EXISTS files_created_by ON TABLE files FIELDS created_by;
 -- File tags are stored independently in files.tags and are not shared with post tags.
 
 -- ============ SMART FOLDERS ============
-DEFINE TABLE OVERWRITE media_smart_folder SCHEMAFULL;
+DEFINE TABLE OVERWRITE media_smart_folder SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS name ON media_smart_folder TYPE string;
 DEFINE FIELD IF NOT EXISTS filters ON media_smart_folder TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS created_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 
 -- ============ ACCESS LOGS ============
-DEFINE TABLE OVERWRITE access_logs SCHEMAFULL;
+DEFINE TABLE OVERWRITE access_logs SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS timestamp ON access_logs TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS method ON access_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS path ON access_logs TYPE string;
@@ -182,7 +182,7 @@ DEFINE INDEX IF NOT EXISTS access_logs_path ON access_logs FIELDS path;
 DEFINE INDEX IF NOT EXISTS access_logs_status_code ON access_logs FIELDS status_code;
 
 -- ============ ACTIVITY LOGS ============
-DEFINE TABLE OVERWRITE activity_logs SCHEMAFULL;
+DEFINE TABLE OVERWRITE activity_logs SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS timestamp ON activity_logs TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS action ON activity_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS resource_type ON activity_logs TYPE string;
@@ -195,7 +195,7 @@ DEFINE INDEX IF NOT EXISTS activity_logs_timestamp_desc ON activity_logs FIELDS 
 DEFINE INDEX IF NOT EXISTS activity_logs_action ON activity_logs FIELDS action;
 
 -- ============ ERROR LOGS ============
-DEFINE TABLE OVERWRITE error_logs SCHEMAFULL;
+DEFINE TABLE OVERWRITE error_logs SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS timestamp ON error_logs TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS level ON error_logs TYPE string ASSERT $value IN ['debug', 'info', 'warn', 'error'];
 DEFINE FIELD IF NOT EXISTS message ON error_logs TYPE string;
@@ -208,6 +208,6 @@ DEFINE INDEX IF NOT EXISTS error_logs_timestamp_desc ON error_logs FIELDS timest
 DEFINE INDEX IF NOT EXISTS error_logs_level ON error_logs FIELDS level;
 
 -- ============ BACKUP SNAPSHOTS ============
-DEFINE TABLE IF NOT EXISTS backups SCHEMALESS;
+DEFINE TABLE OVERWRITE backups SCHEMALESS PERMISSIONS NONE;
 DEFINE INDEX IF NOT EXISTS backups_created_at ON backups FIELDS created_at;
 DEFINE INDEX IF NOT EXISTS backups_parent ON backups FIELDS parent;
