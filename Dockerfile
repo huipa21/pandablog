@@ -55,7 +55,7 @@ WORKDIR /app
 COPY --from=builder --chown=nuxt:nodejs /app/runtime/ ./
 
 # Storage + data dirs (volumes mount over these)
-RUN mkdir -p storage/uploads storage/variants storage/downloads .data/rate-limit \
+RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups .data/rate-limit \
  && chown -R nuxt:nodejs storage .data
 
 USER nuxt

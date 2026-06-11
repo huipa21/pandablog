@@ -206,3 +206,8 @@ DEFINE FIELD IF NOT EXISTS path ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS method ON error_logs TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS error_logs_timestamp_desc ON error_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS error_logs_level ON error_logs FIELDS level;
+
+-- ============ BACKUP SNAPSHOTS ============
+DEFINE TABLE IF NOT EXISTS backups SCHEMALESS;
+DEFINE INDEX IF NOT EXISTS backups_created_at ON backups FIELDS created_at;
+DEFINE INDEX IF NOT EXISTS backups_parent ON backups FIELDS parent;

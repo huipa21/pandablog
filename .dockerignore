@@ -25,6 +25,7 @@ tests
 storage/uploads
 storage/variants
 storage/downloads
+storage/backups
 Dockerfile
 .dockerignore
 docker-compose*.yml

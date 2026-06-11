@@ -18,6 +18,7 @@ public/uploads/*
 storage/uploads/*
 storage/variants/*
 storage/downloads/*
+storage/backups/*
 !storage/uploads/.gitkeep
 !storage/downloads/.gitkeep
 pandablog.code-workspace

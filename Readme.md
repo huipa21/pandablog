@@ -366,7 +366,41 @@ Manual smoke flow:
 - Add a graph visualization route with Cytoscape.js.
 - Add analytics collection and dashboard widgets.
 - Add stronger cache invalidation when posts are published or archived.
-- Add backup automation for both SurrealDB exports and `public/uploads`.
+
+## Backup & Restore
+
+Admin → Tools → Backups (superadmin only) provides manual snapshot management.
+
+### Snapshot layout
+
+Each snapshot is stored in `storage/backups/<id>/`:
+
+```
+db.surql.gz     Gzipped SurrealDB export (full DB, every snapshot)
+media.tar.gz    Gzipped tar of media originals (full or incremental set)
+manifest.json   SHA-256 hashes + metadata for integrity verification
+```
+
+### Backup types
+
+- **Full** — entire database + all files currently in `storage/uploads/`.
+- **Incremental** — fresh full DB dump + only media files that are *new* since the parent snapshot.
+  Incrementals form a chain; restore walks the chain oldest-first to reconstruct the full media set.
+
+### Restore semantics
+
+Restore is **replace-only**: the DB is wiped and reimported, variant images (`storage/variants/`) are cleared, then each chain ancestor's media tar is extracted into `storage/uploads/` (idempotent by hash filename). Variants are regenerated in the background at a concurrency of 2 after restore completes.
+
+### Export / Import
+
+Use **Download DB** and **Download Media** buttons to export a snapshot's archives. Upload them via **Import backup** on another instance to register them as a new restorable full snapshot. Optional `manifest.json` enables SHA-256 integrity verification on import.
+
+### Known limitations
+
+- No scheduled/automatic backups in v1 (manual trigger only).
+- No per-snapshot retention policy (delete manually from the UI).
+- Consolidated incremental download returns the tip tar only; restore automatically applies the full chain.
+- The in-process backup mutex prevents concurrent backups; only one job runs at a time per Node process.
 
 ## Auth Setup
 

@@ -502,3 +502,70 @@ export async function updateMediaSettings(settings: MediaSettings): Promise<void
     { table: APP_SETTINGS_TABLE, id: 'media', key: 'media', value: settings }
   )
 }
+
+// ---------------------------------------------------------------------------
+// Backup & restore settings
+// ---------------------------------------------------------------------------
+
+export interface BackupSettings {
+  /** Maximum number of READY backups to retain (ancestors are always kept). 0 = unlimited. */
+  max_backups: number
+  /** Validate a dump in a throwaway staging DB before importing it. */
+  validate_before_restore: boolean
+  /** Take an automatic safety snapshot before a restore so it can be rolled back. */
+  auto_safety_snapshot: boolean
+  /** Tables excluded from a partial backup by default in the create dialog. */
+  default_excluded_tables: string[]
+}
+
+const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
+  max_backups: 10,
+  validate_before_restore: true,
+  auto_safety_snapshot: true,
+  default_excluded_tables: []
+}
+
+export async function getBackupSettings(): Promise<BackupSettings> {
+  const db = await useDb()
+  const response = await queryDb(db, 'SELECT * FROM app_settings WHERE key = $key LIMIT 1;', { key: 'backups' })
+  const rows = queryRows<Record<string, unknown>>(response)
+
+  if (!rows || !rows.length) {
+    return { ...DEFAULT_BACKUP_SETTINGS }
+  }
+
+  const row = rows[0]
+  if (!row || !row.value || typeof row.value !== 'object') {
+    return { ...DEFAULT_BACKUP_SETTINGS }
+  }
+
+  const settings = row.value as Record<string, unknown>
+  return {
+    max_backups: numberValue(settings.max_backups, DEFAULT_BACKUP_SETTINGS.max_backups, 0, 1000),
+    validate_before_restore: typeof settings.validate_before_restore === 'boolean'
+      ? settings.validate_before_restore
+      : DEFAULT_BACKUP_SETTINGS.validate_before_restore,
+    auto_safety_snapshot: typeof settings.auto_safety_snapshot === 'boolean'
+      ? settings.auto_safety_snapshot
+      : DEFAULT_BACKUP_SETTINGS.auto_safety_snapshot,
+    default_excluded_tables: Array.isArray(settings.default_excluded_tables)
+      ? (settings.default_excluded_tables as unknown[]).filter((t): t is string => typeof t === 'string')
+      : DEFAULT_BACKUP_SETTINGS.default_excluded_tables
+  }
+}
+
+export async function updateBackupSettings(settings: BackupSettings): Promise<void> {
+  const db = await useDb()
+  await queryDb(db, `DELETE FROM app_settings WHERE key = $key AND id != type::record($table, $id);`, {
+    table: APP_SETTINGS_TABLE, id: 'backups', key: 'backups'
+  })
+  await queryDb(
+    db,
+    `UPSERT type::record($table, $id) CONTENT {
+      key: $key,
+      value: $value,
+      updated_at: time::now()
+    };`,
+    { table: APP_SETTINGS_TABLE, id: 'backups', key: 'backups', value: settings }
+  )
+}

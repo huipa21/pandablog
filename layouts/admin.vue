@@ -299,6 +299,7 @@ const navSections = computed(() => {
       {
         label: t('admin.nav.tools'),
         items: [
+           { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' },
           { to: '/admin/logs', label: t('admin.nav.logs'), icon: 'i-lucide-clipboard-list' }
         ]
       }
@@ -324,6 +325,7 @@ const breadcrumbLabels = computed<Record<string, string>>(() => ({
   themes: t('admin.nav.themes'),
   system: t('admin.nav.system'),
   logs: t('admin.nav.logs'),
+  backups: t('admin.nav.backups'),
   access: t('admin.nav.access'),
   activity: t('admin.nav.activity'),
   errors: t('admin.nav.errors'),
