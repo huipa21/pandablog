@@ -41,7 +41,7 @@ export default defineEventHandler((event) => {
     }
   }
 
-  setResponseHeader(event, 'Retry-After', '15')
+  setResponseHeader(event, 'Retry-After', 15)
   throw createError({
     statusCode: 503,
     statusMessage: 'Service Unavailable',

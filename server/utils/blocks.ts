@@ -38,6 +38,16 @@ export function flattenNodeText(node: JsonContent | null | undefined): string {
     return node.text ?? ''
   }
 
+  if (node.type === 'rubyUnit') {
+    // Annotation atom: the visible base text lives in attrs.base. The reading
+    // (attrs.reading) is phonetic furigana/pinyin/jyutping and is indexed
+    // separately via collectRubyReadings so it does not split the base
+    // characters apart. Without base extraction the visible characters never
+    // reach block.text and annotated words (e.g. 日本語 with furigana) are
+    // invisible to full-text search.
+    return stringAttr(node.attrs?.base)
+  }
+
   if (node.type === 'relatedPost' || node.type === 'wikiLink') {
     return stringAttr(node.attrs?.label) || stringAttr(node.attrs?.target)
   }
@@ -78,9 +88,65 @@ export function flattenNodeText(node: JsonContent | null | undefined): string {
     return stringAttr(node.attrs?.html)
   }
 
+  // Inline textblocks (paragraph/heading) hold a run of inline nodes where the
+  // text nodes already carry their own spaces. Adjacent inline atoms — notably
+  // `rubyUnit` annotations — must be concatenated WITHOUT an inserted space, or
+  // an annotated word like 你好 becomes "你 好" and its multi-character ngrams
+  // (你好, 好世, …) never enter the index, breaking CJK search. Block-level
+  // containers keep a space separator so distinct blocks stay tokenised apart.
+  const childSeparator = INLINE_TEXTBLOCK_TYPES.has(node.type ?? '') ? '' : ' '
   const ownText = typeof node.text === 'string' ? node.text : ''
-  const childText = node.content?.map(flattenNodeText).filter(Boolean).join(' ') ?? ''
-  return [ownText, childText].filter(Boolean).join(' ').trim()
+  const childText = node.content?.map(flattenNodeText).filter(Boolean).join(childSeparator) ?? ''
+  return [ownText, childText].filter(Boolean).join(childSeparator).trim()
+}
+
+/** Node types whose children are inline content and must join without spaces. */
+const INLINE_TEXTBLOCK_TYPES = new Set(['paragraph', 'heading'])
+
+/**
+ * Recursively collect annotation readings (furigana / pinyin / jyutping) from
+ * every `rubyUnit` in the subtree. Returned space-joined so each reading is an
+ * independent search token — searching the reading (e.g. わたし) then finds the
+ * post even though the visible base text is the kanji (私). Kept separate from
+ * `flattenNodeText` so appending readings never breaks the contiguous CJK base
+ * (which preserves multi-character ngrams like 国際交流).
+ */
+export function collectRubyReadings(node: JsonContent | null | undefined): string {
+  if (!node) {
+    return ''
+  }
+
+  const readings: string[] = []
+  const visit = (current: JsonContent | null | undefined) => {
+    if (!current) {
+      return
+    }
+    if (current.type === 'rubyUnit') {
+      const reading = stringAttr(current.attrs?.reading)
+      if (reading) {
+        readings.push(reading)
+      }
+    }
+    if (Array.isArray(current.content)) {
+      for (const child of current.content) {
+        visit(child as JsonContent)
+      }
+    }
+  }
+
+  visit(node)
+  return readings.join(' ')
+}
+
+/**
+ * Build the full-text index payload for a block: the visible base text
+ * (contiguous, so CJK compounds keep their multi-character ngrams) followed by
+ * annotation readings as separate tokens. Stored in `block.text`. NOT used for
+ * content stats — readings are phonetic aids, not authored characters, so stats
+ * are recomputed from `flattenNodeText` (base only).
+ */
+export function flattenBlockSearchText(node: JsonContent | null | undefined): string {
+  return [flattenNodeText(node), collectRubyReadings(node)].filter(Boolean).join(' ')
 }
 
 /**
@@ -121,7 +187,7 @@ export function extractBlocksFromDoc(doc: JsonContent | null | undefined): Block
     attrs[BLOCK_ID_ATTR] = blockId
 
     const node: JsonContent = { ...raw, attrs }
-    const text = flattenNodeText(node)
+    const text = flattenBlockSearchText(node)
     const hash = hashNode(node)
 
     blocks.push({ blockId, node, text, hash })

@@ -16,7 +16,10 @@ export default defineEventHandler(async (event) => {
   const isAdmin = await isAdminAuthenticated(event)
   const response = await queryDb(
     db,
-    'SELECT * FROM post WHERE slug = $slug AND status = "published" LIMIT 1;',
+    `SELECT id, title, slug, summary, status, cover_image, author, author_username,
+      published_at, created_at, updated_at, view_count, word_count, cjk_char_count,
+      visibility, password_hint, password_source, password_owner
+     FROM post WHERE slug = $slug AND status = "published" LIMIT 1;`,
     { slug }
   )
   const post = firstRow<Record<string, unknown>>(response)

@@ -80,6 +80,7 @@
             <tr
               v-for="post in posts"
               :key="post.id"
+              v-memo="postRowMemo(post)"
               class="cursor-default hover:bg-[var(--pb-surface-subtle)]"
               :class="editingCell?.postId === post.id ? 'pb-selected-surface' : ''"
               @click="quickEditEnabled ? queueRowEdit(post) : undefined"
@@ -380,9 +381,10 @@ const draft = reactive({
   password: ''
 })
 
-const allVisibleSelected = computed(() => posts.value.length > 0 && posts.value.every((post) => selectedIds.value.includes(post.id)))
-const someVisibleSelected = computed(() => !allVisibleSelected.value && posts.value.some((post) => selectedIds.value.includes(post.id)))
-const selectedPosts = computed(() => posts.value.filter((post) => selectedIds.value.includes(post.id)))
+const selectedIdSet = computed(() => new Set(selectedIds.value))
+const allVisibleSelected = computed(() => posts.value.length > 0 && posts.value.every((post) => selectedIdSet.value.has(post.id)))
+const someVisibleSelected = computed(() => !allVisibleSelected.value && posts.value.some((post) => selectedIdSet.value.has(post.id)))
+const selectedPosts = computed(() => posts.value.filter((post) => selectedIdSet.value.has(post.id)))
 const selectedIntent = computed<BulkIntent>(() => {
   if (!selectedPosts.value.length) {
     return 'archive'
@@ -554,6 +556,30 @@ function inlineEditorKey(postId: string, field: EditableField) {
 
 function isSavingPost(postId: string) {
   return savingCellKey.value.startsWith(`${postId}-`)
+}
+
+function postRowMemo(post: PostRecord) {
+  const editing = editingCell.value?.postId === post.id
+  return [
+    post.id,
+    post.title,
+    post.status,
+    post.visibility,
+    post.published_at,
+    post.updated_at,
+    post.word_count,
+    post.cjk_char_count,
+    taxonomyMemoKey(post.tags),
+    taxonomyMemoKey(post.categories),
+    selectedIdSet.value.has(post.id),
+    editing,
+    editing ? editingCell.value?.field : '',
+    isSavingPost(post.id)
+  ]
+}
+
+function taxonomyMemoKey(items?: Array<TagRecord | CategoryRecord>) {
+  return items?.map((item) => `${item.id}:${item.name}`).join('|') ?? ''
 }
 
 async function saveCurrentCell(options: { close?: boolean } = {}) {

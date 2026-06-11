@@ -10,6 +10,7 @@ import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../
 import {
   buildDocFromBlocks,
   extractBlocksFromDoc,
+  flattenNodeText,
   loadBlocksForPost,
   syncPostBlocks,
   syncPostLinks
@@ -211,6 +212,8 @@ function parseDoc(value: unknown): JsonContent | null {
 }
 
 function computeStatsFromBlocks(blocks: BlockRecord[]) {
-  const combined = blocks.map((block) => block.text ?? '').join('\n')
+  // Stats count authored characters only. Recompute from the node (base text)
+  // rather than block.text, which also carries annotation readings for search.
+  const combined = blocks.map((block) => flattenNodeText(block.node)).join('\n')
   return computeContentStats(combined)
 }

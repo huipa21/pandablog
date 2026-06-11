@@ -40,7 +40,10 @@ export default defineEventHandler(async (event) => {
 
   const response = await queryDb(
     db,
-    `SELECT * FROM post WHERE ${where} ${ownerFilter} ${taxonomyFilter} ORDER BY ${orderBy} LIMIT $limit START $start;
+    `SELECT id, title, slug, summary, status, cover_image, author_username,
+      published_at, created_at, updated_at, view_count, word_count, cjk_char_count,
+      visibility, password_hint, password_source, password_owner
+     FROM post WHERE ${where} ${ownerFilter} ${taxonomyFilter} ORDER BY ${orderBy} LIMIT $limit START $start;
      SELECT count() AS total FROM post WHERE ${where} ${ownerFilter} ${taxonomyFilter} GROUP ALL;
      SELECT * FROM tag ORDER BY name ASC;
      SELECT * FROM category ORDER BY name ASC;

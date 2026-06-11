@@ -3,9 +3,10 @@ import { createWriteStream } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { requireContentManager } from '../../utils/auth'
-import { queryDbRecord, useDb } from '../../utils/db'
+import { queryDb, useDb } from '../../utils/db'
 import { mediaResolveOriginalPath } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
+import { queryRows } from '../../utils/surrealResult'
 
 const require = createRequire(import.meta.url)
 const archiver: typeof import('archiver') = require('archiver')
@@ -41,6 +42,17 @@ export default defineEventHandler(async (event) => {
 
   const archive = archiver('zip', { zlib: { level: 5 } })
   const output = createWriteStream(zipPath)
+  const fileResponse = await queryDb(
+    db,
+    `SELECT id, hash, original_name, original_path
+     FROM files
+     WHERE hash IN $hashes;`,
+    { hashes }
+  )
+  const filesByHash = new Map(queryRows<Record<string, unknown>>(fileResponse).map((record) => {
+    const file = mediaNormalizeFileRecord(record)
+    return [file.hash, file]
+  }))
 
   await new Promise<void>((resolvePromise, reject) => {
     output.on('close', resolvePromise)
@@ -50,10 +62,8 @@ export default defineEventHandler(async (event) => {
     const appendFiles = async () => {
       for (const hash of hashes) {
         try {
-          const record = await queryDbRecord(db, 'files', hash)
-          if (!record) continue
-          const file = mediaNormalizeFileRecord(record)
-          if (!file.original_path) continue
+          const file = filesByHash.get(hash)
+          if (!file?.original_path) continue
           const absolutePath = mediaResolveOriginalPath(file.original_path)
           archive.file(absolutePath, { name: file.original_name })
         } catch {

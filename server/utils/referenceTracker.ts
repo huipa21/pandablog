@@ -4,6 +4,14 @@ import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealR
 import { mediaNormalizeFileRecord } from './mediaLibrary'
 import type { PostVisibility } from '~/types/content'
 
+const MEDIA_REFERENCE_FILE_COLUMNS = [
+  'id',
+  'hash',
+  'referenced_by',
+  'reference_count',
+  'visibility'
+].join(', ')
+
 interface MediaVisibilityCascadeResult {
   madePrivate: string[]
   madePublic: string[]
@@ -59,7 +67,7 @@ export async function mediaCascadeVisibilityForPost(
     return result
   }
 
-  const response = await queryDb(db, 'SELECT * FROM files WHERE hash IN $hashes;', { hashes })
+  const response = await queryDb(db, `SELECT ${MEDIA_REFERENCE_FILE_COLUMNS} FROM files WHERE hash IN $hashes;`, { hashes })
   const files = queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
   const normalizedSource = normalizeSourceRecordId(sourceRecordId)
   const restrictedPost = isRestrictedPostVisibility(postVisibility)
@@ -108,7 +116,7 @@ export async function mediaRemoveAllReferencesForSource(db: Surreal, sourceRecor
   const source = normalizeSourceRecordId(sourceRecordId)
   const response = await queryDb(
     db,
-    'SELECT * FROM files WHERE referenced_by CONTAINS type::record($source_table, $source_id);',
+    `SELECT ${MEDIA_REFERENCE_FILE_COLUMNS} FROM files WHERE referenced_by CONTAINS type::record($source_table, $source_id);`,
     {
       source_table: source.table,
       source_id: source.id

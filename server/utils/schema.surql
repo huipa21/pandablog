@@ -4,6 +4,11 @@ REMOVE TABLE IF EXISTS media;
 REMOVE TABLE IF EXISTS concept;
 REMOVE TABLE IF EXISTS mentions;
 REMOVE INDEX IF EXISTS post_featured ON post;
+REMOVE INDEX IF EXISTS post_title_fts ON post;
+REMOVE INDEX IF EXISTS post_summary_fts ON post;
+REMOVE INDEX IF EXISTS block_text_fts ON block;
+REMOVE INDEX IF EXISTS files_original_name_fts ON files;
+REMOVE INDEX IF EXISTS files_comment_fts ON files;
 REMOVE FIELD IF EXISTS content_json ON post;
 REMOVE FIELD IF EXISTS content_text ON post;
 REMOVE FIELD IF EXISTS is_featured ON post;
@@ -12,7 +17,15 @@ REMOVE INDEX IF EXISTS post_content_fts ON post;
 REMOVE TABLE IF EXISTS logging_settings;
 
 -- ============ ANALYZER ============
-DEFINE ANALYZER IF NOT EXISTS blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ascii;
+-- Multilingual full-text search (English + CJK: Simplified/Traditional Chinese, Japanese).
+-- IMPORTANT: SurrealDB applies the ngram filter ONLY at indexing time, never at query time
+-- (see core idx/ft/analyzer/filter.rs is_stage). Queries are matched as whole tokens, so the
+-- ngram MAX must be >= the longest exact query token you want to match. ngram(1, 2) breaks all
+-- multi-char search (English words and 3+ char CJK phrases). ngram(1, 15) indexes every
+-- substring up to 15 chars, enabling whole-word English and multi-char CJK substring matching.
+-- The `class` tokenizer separates Han<->Latin runs even without spaces. `ascii` is intentionally
+-- dropped: it transliterates/strips CJK and would prevent CJK matches.
+DEFINE ANALYZER OVERWRITE blog_analyzer TOKENIZERS blank, class FILTERS lowercase, ngram(1, 15);
 
 -- ============ USERS ============
 DEFINE TABLE OVERWRITE users SCHEMAFULL PERMISSIONS NONE;

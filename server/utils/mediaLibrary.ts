@@ -12,6 +12,34 @@ import type { MediaSettings } from './settings'
 import type { SessionUser } from './users'
 import type { MediaFolderRecord, MediaRecord, MediaVariantRecord, MediaVariantSize, UploadFileResult } from '~/types/content'
 
+export const MEDIA_FILE_RECORD_COLUMNS = [
+  'id',
+  'hash',
+  'original_name',
+  'stored_name',
+  'extension',
+  'mime_type',
+  'size',
+  'original_path',
+  'variants',
+  'image_meta',
+  'width',
+  'height',
+  'is_image',
+  'folders',
+  'tags',
+  'comment',
+  'reference_count',
+  'referenced_by',
+  'visibility',
+  'created_by',
+  'uploaded_by',
+  'perceptual_hash',
+  'created_at',
+  'uploaded_at',
+  'updated_at'
+].join(', ')
+
 export interface MediaCreateUploadInput {
   originalName: string
   data: Buffer
@@ -243,7 +271,7 @@ export async function mediaReadFileByHash(db: Surreal, hash: string) {
 }
 
 export async function mediaFindSimilarImage(db: Surreal, perceptualHash: string, threshold: number) {
-  const response = await queryDb(db, 'SELECT * FROM files WHERE perceptual_hash != NONE;')
+  const response = await queryDb(db, `SELECT ${MEDIA_FILE_RECORD_COLUMNS} FROM files WHERE perceptual_hash != NONE;`)
 
   for (const record of queryRows<Record<string, unknown>>(response)) {
     const file = mediaNormalizeFileRecord(record)
@@ -267,7 +295,8 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   const tagQueries = normalizeStringArray(options.tags)
   const useRegex = options.search_regex === true
   const caseInsensitive = options.case_insensitive !== false
-  const response = await queryDb(db, 'SELECT * FROM files;')
+  const ftsSearchIds = search && !useRegex ? await mediaSearchFtsIds(db, search) : null
+  const response = await queryDb(db, `SELECT ${MEDIA_FILE_RECORD_COLUMNS} FROM files;`)
   const allFiles = queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
   const fromDate = options.uploaded_from ? normalizeDateBoundary(options.uploaded_from, 'start') : null
   const toDate = options.uploaded_to ? normalizeDateBoundary(options.uploaded_to, 'end') : null
@@ -288,7 +317,7 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     .filter((file) => !fromDate || new Date(file.uploaded_at || file.created_at).getTime() >= fromDate.getTime())
     .filter((file) => !toDate || new Date(file.uploaded_at || file.created_at).getTime() <= toDate.getTime())
     .filter((file) => !options.orphan || ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length))
-    .filter((file) => !search || mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive }))
+    .filter((file) => !search || (ftsSearchIds ? ftsSearchIds.has(file.id) : mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive })))
     .filter((file) => !fileName || mediaTextMatches(file.original_name, fileName, { useRegex, caseInsensitive }))
     .filter((file) => !extension || mediaTextMatches(file.extension, extension, { useRegex, caseInsensitive }))
     .filter((file) => !comment || mediaTextMatches(file.comment || '', comment, { useRegex, caseInsensitive }))
@@ -305,6 +334,18 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     limit,
     pages: Math.ceil(total / limit)
   }
+}
+
+async function mediaSearchFtsIds(db: Surreal, search: string) {
+  const response = await queryDb(
+    db,
+    `SELECT id
+     FROM files
+     WHERE original_name @0@ $needle OR comment @1@ $needle;`,
+    { needle: search }
+  )
+
+  return new Set(queryRows<{ id: unknown }>(response).map((record) => stringifyRecordId(record.id)))
 }
 
 async function mediaReadFolderById(db: Surreal, folderId: string) {
@@ -351,9 +392,7 @@ function mediaTextMatches(value: string, query: string, options: { useRegex: boo
 
 function mediaGlobalTextMatches(file: MediaRecord, query: string, options: { useRegex: boolean, caseInsensitive: boolean }) {
   return mediaTextMatches(file.original_name, query, options)
-    || mediaTextMatches(file.extension, query, options)
     || mediaTextMatches(file.comment || '', query, options)
-    || mediaTextMatches((file.tags || []).join(' '), query, options)
 }
 
 function mediaTagsMatch(tags: string[], queries: string[], options: { useRegex: boolean, caseInsensitive: boolean, relation?: 'and' | 'or' }) {

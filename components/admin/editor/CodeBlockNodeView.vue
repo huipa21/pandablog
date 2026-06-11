@@ -119,6 +119,15 @@ const bodyWrapEl = ref<HTMLElement | null>(null)
 const hasOverflow = ref(false)
 
 const COLLAPSE_HEIGHT_PX = 256
+interface CodeLineRow {
+  number: number
+  highlighted: boolean
+}
+
+let cachedLineCount = 0
+let cachedLineHighlights = ''
+let cachedLineRows: CodeLineRow[] = []
+
 const bodyWrapStyle = computed(() => {
   if (!collapsed.value || !hasOverflow.value) {
     return {}
@@ -132,10 +141,22 @@ const lineCount = computed(() => {
   const lines = text.split('\n').length
   return Math.max(lines, 1)
 })
-const lineRows = computed(() => Array.from({ length: lineCount.value }, (_entry, index) => {
-  const number = index + 1
-  return { number, highlighted: highlightedLineSet.value.has(number) }
-}))
+const lineRows = computed(() => {
+  const count = lineCount.value
+  const highlights = lineHighlights.value
+  if (count === cachedLineCount && highlights === cachedLineHighlights) {
+    return cachedLineRows
+  }
+
+  const highlighted = highlightedLineSet.value
+  cachedLineCount = count
+  cachedLineHighlights = highlights
+  cachedLineRows = Array.from({ length: count }, (_entry, index) => {
+    const number = index + 1
+    return { number, highlighted: highlighted.has(number) }
+  })
+  return cachedLineRows
+})
 
 const fileIcon = computed(() => {
   const ext = (fileName.value.split('.').pop() ?? language.value).toLowerCase()

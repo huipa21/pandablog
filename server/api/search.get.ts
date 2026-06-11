@@ -1,5 +1,5 @@
 import { queryDb, useDb } from '../utils/db'
-import { queryRows, stringifyRecordId } from '../utils/surrealResult'
+import { queryRows, recordIdPart, stringifyRecordId } from '../utils/surrealResult'
 import type { JsonContent, SearchBlockMatch, SearchPostResult, SearchResponse, SearchSort } from '~/types/content'
 
 /**
@@ -45,45 +45,136 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
     owners?: unknown[]
   }>(ftsResponse, 0)
 
-  if (!matches.length) {
+  // FTS the post table directly on title (@0@) and summary (@1@). Title matches
+  // must surface even when no block matches, and rank above body hits.
+  const postFtsResponse = await queryDb(
+    db,
+    `SELECT
+      id,
+      title,
+      summary,
+      search::score(0) AS title_score,
+      search::score(1) AS summary_score,
+      search::highlight('<mark>', '</mark>', 0) AS title_snippet,
+      search::highlight('<mark>', '</mark>', 1) AS summary_snippet
+     FROM post
+     WHERE status = 'published'
+       AND (visibility = 'public' OR visibility IS NONE)
+       AND (title @0@ $needle OR summary @1@ $needle)
+     LIMIT 500;`,
+    { needle: q }
+  )
+  const postMatches = queryRows<{
+    id: unknown
+    title?: unknown
+    summary?: unknown
+    title_score?: unknown
+    summary_score?: unknown
+    title_snippet?: unknown
+    summary_snippet?: unknown
+  }>(postFtsResponse, 0)
+
+  if (!matches.length && !postMatches.length) {
     return { query: q, sort, limit, total: 0, maxPerPost, results: [] }
   }
 
-  // Collect referenced post ids.
+  // Collect candidate post ids from BOTH block owners and direct post matches.
   const referencedPostIds = new Set<string>()
   for (const match of matches) {
     for (const owner of match.owners ?? []) {
       referencedPostIds.add(stringifyRecordId(owner))
     }
   }
+  const postFtsById = new Map<string, {
+    titleScore: number
+    summaryScore: number
+    titleSnippet: string
+    summarySnippet: string
+  }>()
+  for (const match of postMatches) {
+    const postId = stringifyRecordId(match.id)
+    referencedPostIds.add(postId)
+    postFtsById.set(postId, {
+      titleScore: Number(match.title_score ?? 0),
+      summaryScore: Number(match.summary_score ?? 0),
+      titleSnippet: String(match.title_snippet ?? match.title ?? ''),
+      summarySnippet: String(match.summary_snippet ?? match.summary ?? '')
+    })
+  }
   if (!referencedPostIds.size) {
     return { query: q, sort, limit, total: 0, maxPerPost, results: [] }
   }
 
-  // Load all eligible (published + public) posts, then filter by referenced ids.
+  const postIdParams: Record<string, unknown> = { post_table: 'post' }
+  const postIdExpressions = [...referencedPostIds].map((postId, index) => {
+    postIdParams[`post_id_${index}`] = recordIdPart(postId, 'post')
+    return `type::record($post_table, $post_id_${index})`
+  })
+
+  // Load only eligible posts referenced by the matches.
   const postResponse = await queryDb(
     db,
     `SELECT id, slug, title, summary, cover_image, published_at, author_username
      FROM post
      WHERE status = 'published'
-       AND (visibility = 'public' OR visibility IS NONE);`
+       AND (visibility = 'public' OR visibility IS NONE)
+       AND id IN [${postIdExpressions.join(', ')}];`,
+    postIdParams
   )
-  const allPublicPosts = queryRows<Record<string, unknown>>(postResponse, 0)
+  const publicPosts = queryRows<Record<string, unknown>>(postResponse, 0)
   const postById = new Map<string, Record<string, unknown>>()
-  for (const post of allPublicPosts) {
-    const id = stringifyRecordId(post.id)
-    if (referencedPostIds.has(id)) {
-      postById.set(id, post)
-    }
+  for (const post of publicPosts) {
+    postById.set(stringifyRecordId(post.id), post)
   }
 
-  // Group block matches by post, cap at maxPerPost, aggregate score.
+  // Title hits must outrank body hits; weight title/summary scores above blocks.
+  const TITLE_WEIGHT = 10
+  const SUMMARY_WEIGHT = 3
+
+  // Group matches by post, cap at maxPerPost, aggregate score.
   const grouped = new Map<string, {
     post: Record<string, unknown>
-    matches: SearchBlockMatch[]
+    fieldMatches: SearchBlockMatch[]
+    blockMatches: SearchBlockMatch[]
     totalMatches: number
     score: number
   }>()
+
+  const ensureEntry = (postId: string) => {
+    const post = postById.get(postId)
+    if (!post) return null
+    let entry = grouped.get(postId)
+    if (!entry) {
+      entry = { post, fieldMatches: [], blockMatches: [], totalMatches: 0, score: 0 }
+      grouped.set(postId, entry)
+    }
+    return entry
+  }
+
+  // Seed entries for posts matched by title/summary, weighting them highest.
+  for (const [postId, fts] of postFtsById) {
+    const entry = ensureEntry(postId)
+    if (!entry) continue
+    entry.score += fts.titleScore * TITLE_WEIGHT + fts.summaryScore * SUMMARY_WEIGHT
+    if (fts.titleScore > 0) {
+      entry.totalMatches += 1
+      entry.fieldMatches.push({
+        blockId: `title:${postId}`,
+        type: 'title',
+        snippet: fts.titleSnippet,
+        score: fts.titleScore * TITLE_WEIGHT
+      })
+    }
+    if (fts.summaryScore > 0) {
+      entry.totalMatches += 1
+      entry.fieldMatches.push({
+        blockId: `summary:${postId}`,
+        type: 'summary',
+        snippet: fts.summarySnippet,
+        score: fts.summaryScore * SUMMARY_WEIGHT
+      })
+    }
+  }
 
   for (const match of matches) {
     const blockId = stringifyRecordId(match.id)
@@ -93,19 +184,11 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
 
     for (const owner of match.owners ?? []) {
       const postId = stringifyRecordId(owner)
-      const post = postById.get(postId)
-      if (!post) continue
-
-      let entry = grouped.get(postId)
-      if (!entry) {
-        entry = { post, matches: [], totalMatches: 0, score: 0 }
-        grouped.set(postId, entry)
-      }
+      const entry = ensureEntry(postId)
+      if (!entry) continue
       entry.totalMatches += 1
       entry.score += matchScore
-      if (entry.matches.length < maxPerPost) {
-        entry.matches.push({ blockId, type, snippet, score: matchScore })
-      }
+      entry.blockMatches.push({ blockId, type, snippet, score: matchScore })
     }
   }
 
@@ -121,7 +204,8 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
     },
     score: entry.score,
     totalMatches: entry.totalMatches,
-    matches: entry.matches
+    // Field (title/summary) matches first so the strongest signal shows on top.
+    matches: [...entry.fieldMatches, ...entry.blockMatches].slice(0, maxPerPost)
   }))
 
   sortResults(results, sort)

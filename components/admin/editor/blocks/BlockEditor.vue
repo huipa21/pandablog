@@ -339,6 +339,8 @@ const hasTextSelection = ref(false)
 const selectionTick = ref(0)
 const lastTextSelection = ref<{ from: number; to: number } | null>(null)
 let syncingFootnotes = false
+let lastEmittedModelValue: JsonContent | null = null
+let lastAppliedModelValueJson = JSON.stringify(props.modelValue)
 
 watch([activeBlockRange, dragHandleRef], () => {
   if (activeBlockRange.value && dragHandleRef.value) {
@@ -716,7 +718,7 @@ const editor = useEditor({
     updateSelectionState(ed)
     refreshSlashQuery(ed)
     scheduleTrackActiveBlock(ed)
-    emit('update:modelValue', ed.getJSON() as JsonContent)
+    emitEditorModelValue(ed)
     syncSelectedBlock(ed)
   },
   onCreate({ editor: ed }) {
@@ -801,13 +803,26 @@ function updateSelectionState(ed: Editor) {
 
 defineExpose({ editor, openInserter: () => { inserterOpen.value = true }, closeInserter, pickBlock: handleInserterPick })
 
+function emitEditorModelValue(ed: Editor) {
+  const nextValue = ed.getJSON() as JsonContent
+  lastEmittedModelValue = nextValue
+  emit('update:modelValue', nextValue)
+}
+
 watch(() => props.modelValue, (value) => {
   const ed = editor.value
   if (!ed || !value) return
-  if (JSON.stringify(ed.getJSON()) !== JSON.stringify(value)) {
-    ed.commands.setContent(value, false)
+  if (value === lastEmittedModelValue) {
+    return
   }
-}, { deep: true })
+
+  const nextValueJson = JSON.stringify(value)
+  if (nextValueJson !== lastAppliedModelValueJson) {
+    ed.commands.setContent(value, false)
+    lastAppliedModelValueJson = nextValueJson
+  }
+  lastEmittedModelValue = null
+})
 
 watch(slashItems, (items) => {
   if (slashSelectedIndex.value >= items.length) {

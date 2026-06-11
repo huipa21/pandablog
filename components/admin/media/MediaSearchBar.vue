@@ -78,6 +78,17 @@ const emit = defineEmits<{
   'search': []
 }>()
 
+const filterKeys = [
+  'search',
+  'type',
+  'tag',
+  'uploaded_from',
+  'uploaded_to',
+  'orphan',
+  'search_regex',
+  'case_insensitive'
+] as const satisfies ReadonlyArray<keyof MediaSearchFilters>
+
 const { t } = useI18n()
 const local = reactive<MediaSearchFilters>({ ...props.modelValue })
 const allTags = ref<string[]>([])
@@ -104,13 +115,26 @@ const typeItems = computed(() => [
   { label: t('admin.media.typeOther'), value: 'other' }
 ])
 
-watch(() => props.modelValue, (value) => {
-  Object.assign(local, value)
-}, { deep: true })
+watch(() => filterSnapshot(props.modelValue), () => {
+  if (!filtersEqual(local, props.modelValue)) {
+    Object.assign(local, props.modelValue)
+  }
+})
 
-watch(local, () => {
-  emit('update:modelValue', { ...local })
-}, { deep: true })
+watch(() => filterSnapshot(local), () => {
+  const next = { ...local }
+  if (!filtersEqual(next, props.modelValue)) {
+    emit('update:modelValue', next)
+  }
+})
+
+function filterSnapshot(value: MediaSearchFilters) {
+  return filterKeys.map((key) => value[key])
+}
+
+function filtersEqual(left: MediaSearchFilters, right: MediaSearchFilters) {
+  return filterKeys.every((key) => left[key] === right[key])
+}
 
 function submit() {
   emit('search')

@@ -106,7 +106,14 @@ const fetchWithSession: PublicFetch = (url) => {
   return clientFetch(url)
 }
 
-const { data: post, error } = await useAsyncData(`post-${slug.value}`, () => fetchWithSession<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`))
+const { data: post, error } = await useAsyncData(
+  `post-${slug.value}`,
+  () => fetchWithSession<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`),
+  {
+    deep: false,
+    transform: markPostContentRaw
+  }
+)
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const editLink = computed(() => {
@@ -154,6 +161,17 @@ function contentLengthLabel(value: PostRecord) {
 
 function isLocked(value: PostRecord | PostLockedResponse): value is PostLockedResponse {
   return (value as PostLockedResponse).locked === true
+}
+
+function markPostContentRaw(value: PostRecord | PostLockedResponse) {
+  if (isLocked(value)) {
+    return value
+  }
+
+  return {
+    ...value,
+    content_json: markRaw(value.content_json)
+  }
 }
 </script>
 

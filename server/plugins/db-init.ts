@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { flattenBlockSearchText } from '../utils/blocks'
 import { queryDb, useDb } from '../utils/db'
 import { initializeLoggingSettings } from '../utils/logging'
 import { initializeRuntimeSettings } from '../utils/settings'
@@ -20,6 +21,7 @@ import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMod
 const SCHEMA_HASH_KEY = '__schema_hash'
 const USER_TABLE_MIGRATION_KEY = '__user_table_migration_v1'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v1'
+const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const APP_SETTINGS_TABLE = 'app_settings'
 const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
@@ -60,6 +62,7 @@ export default defineNitroPlugin(async () => {
     await initializeRuntimeSettings(true)
     await ensureDefaultFolder(db)
     await backfillPostStats(db)
+    await backfillBlockText(db)
     await initializeLoggingSettings()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -354,6 +357,56 @@ async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
   }
 
   await setAppSetting(db, POST_STATS_BACKFILL_KEY, new Date().toISOString(), 'post stats backfill marker')
+}
+
+/**
+ * Recompute `block.text` from the stored `block.node` for every block.
+ * Necessary because the FTS source text is computed at save time, so existing
+ * rows keep stale text after the text-extraction logic changes (e.g. adding
+ * `rubyUnit` base extraction so annotated characters become searchable).
+ * Writing the new text also reindexes the row under the current analyzer.
+ */
+async function backfillBlockText(db: Awaited<ReturnType<typeof useDb>>) {
+  const existing = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: BLOCK_TEXT_REINDEX_KEY },
+    { label: 'block text reindex marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(existing)) {
+    return
+  }
+
+  try {
+    const response = await queryDb(
+      db,
+      'SELECT id, node, text FROM block;',
+      undefined,
+      { label: 'block text reindex load', timeoutMs: 30_000 }
+    )
+    const rows = queryRows<{ id?: unknown, node?: unknown, text?: unknown }>(response, 0)
+
+    for (const row of rows) {
+      const blockId = stringifyRecordId(row.id)
+      if (!blockId) continue
+      const recomputed = flattenBlockSearchText(row.node as never)
+      const current = typeof row.text === 'string' ? row.text : ''
+      if (recomputed === current) continue
+      const id = blockId.startsWith('block:') ? blockId.slice(6) : blockId
+      await queryDb(
+        db,
+        'UPDATE type::record($table, $id) MERGE { text: $text, updated_at: time::now() };',
+        { table: 'block', id, text: recomputed },
+        { label: 'block text reindex update', timeoutMs: 10_000 }
+      )
+    }
+  } catch (error) {
+    console.warn('[db-init] block text reindex failed', error)
+    return
+  }
+
+  await setAppSetting(db, BLOCK_TEXT_REINDEX_KEY, new Date().toISOString(), 'block text reindex marker')
 }
 
 async function resetPostStatsFieldDefinitionsBeforeSchema(db: Awaited<ReturnType<typeof useDb>>) {
