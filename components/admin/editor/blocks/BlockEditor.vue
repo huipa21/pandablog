@@ -806,6 +806,7 @@ defineExpose({ editor, openInserter: () => { inserterOpen.value = true }, closeI
 function emitEditorModelValue(ed: Editor) {
   const nextValue = ed.getJSON() as JsonContent
   lastEmittedModelValue = nextValue
+  lastAppliedModelValueJson = JSON.stringify(nextValue)
   emit('update:modelValue', nextValue)
 }
 
@@ -2306,7 +2307,10 @@ function onBlockDrop(targetIndex: number) {
   content.splice(nextTarget, 0, moved)
 
   ed.commands.setContent({ type: 'doc', content }, false)
-  emit('update:modelValue', ed.getJSON() as JsonContent)
+  const nextValue = ed.getJSON() as JsonContent
+  lastEmittedModelValue = nextValue
+  lastAppliedModelValueJson = JSON.stringify(nextValue)
+  emit('update:modelValue', nextValue)
 
   nextTick(() => {
     if (!editor.value) return

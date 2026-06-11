@@ -10,7 +10,7 @@ interface QueryOptions {
 let client: Surreal | null = null
 let connectionPromise: Promise<Surreal> | null = null
 let connectionGeneration = 0
-let keepAliveTimer: ReturnType<typeof setInterval> | null = null
+let keepAliveTimer: ReturnType<typeof globalThis.setInterval> | null = null
 
 const KEEP_ALIVE_INTERVAL_MS = 30_000
 
@@ -43,7 +43,7 @@ function startKeepAlive() {
     return
   }
 
-  keepAliveTimer = setInterval(async () => {
+  keepAliveTimer = globalThis.setInterval(async () => {
     if (!client) {
       stopKeepAlive()
       return
@@ -66,7 +66,7 @@ function startKeepAlive() {
 
 function stopKeepAlive() {
   if (keepAliveTimer) {
-    clearInterval(keepAliveTimer)
+    globalThis.clearInterval(keepAliveTimer)
     keepAliveTimer = null
   }
 }
