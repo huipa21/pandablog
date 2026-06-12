@@ -22,7 +22,7 @@ if (!sessionPassword || sessionPassword.length < 32) {
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-17',
-  devtools: { enabled: true },
+  devtools: { enabled: !isProd },
   modules: [
     '@nuxt/ui',
     '@nuxt/image',

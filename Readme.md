@@ -98,6 +98,32 @@ Build the production image from `Dockerfile`:
 docker build -t pandablog:latest .
 ```
 
+The default image uses `node:22-bookworm-slim` for native-module compatibility.
+To test a smaller Alpine-based image, build both stages from Alpine:
+
+```bash
+docker build --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine .
+```
+
+Only promote the Alpine image after a smoke test of login, image upload/variant
+generation, backups, and public post rendering. Native modules such as `sharp`
+and `argon2` are compiled for the selected base image.
+
+Check image size and runtime memory:
+
+```bash
+docker images pandablog
+docker history --no-trunc pandablog:latest
+docker run --rm pandablog:latest sh -c 'du -h -d 3 /app | sort -hr | head -40'
+docker stats --no-stream pandablog-app
+```
+
+A several-hundred-MB image is expected for this SSR app because it includes the
+Node runtime, Nuxt/Nitro server output, native image/auth dependencies, syntax
+highlighting, editor assets, Mermaid, and CJK text tooling. Around 100-200 MiB
+memory under light personal traffic is normal; measure again after admin editor
+use, media processing, and backup operations.
+
 Optional: export the image as a tarball for transfer to another host:
 
 ```bash
