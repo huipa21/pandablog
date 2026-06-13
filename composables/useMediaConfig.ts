@@ -3,6 +3,7 @@ import type { Ref } from 'vue'
 interface MediaSettings {
   allowed_extensions: string[]
   max_file_size_mb: number
+  oversized_image_threshold_mb: number
   max_files_per_upload: number
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
@@ -28,6 +29,7 @@ export function useMediaConfig() {
       settings.value = {
         allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z'],
         max_file_size_mb: 10,
+        oversized_image_threshold_mb: 0,
         max_files_per_upload: 5,
         enable_perceptual_dedup: true,
         perceptual_dedup_threshold: 5,

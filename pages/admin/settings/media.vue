@@ -30,6 +30,20 @@
           </template>
         </UFormField>
 
+        <UFormField :label="t('admin.settings.media.oversizedThreshold')" name="oversized_image_threshold_mb">
+          <UInput
+            v-model.number="form.oversized_image_threshold_mb"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            icon="i-lucide-image-upscale"
+          />
+          <template #hint>
+            {{ t('admin.settings.media.oversizedThresholdHint') }}
+          </template>
+        </UFormField>
+
         <!-- Max Files Per Upload -->
         <UFormField :label="t('admin.settings.media.maxFilesPerUpload')" name="max_files_per_upload">
           <UInput
@@ -221,6 +235,7 @@ import { ref, computed, reactive } from 'vue'
 interface MediaSettings {
   allowed_extensions: string[]
   max_file_size_mb: number
+  oversized_image_threshold_mb: number
   max_files_per_upload: number
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
@@ -255,6 +270,7 @@ const adminToast = useAdminToast()
 const form = reactive<MediaSettings>({
   allowed_extensions: [],
   max_file_size_mb: 10,
+  oversized_image_threshold_mb: 0,
   max_files_per_upload: 5,
   enable_perceptual_dedup: true,
   perceptual_dedup_threshold: 5,

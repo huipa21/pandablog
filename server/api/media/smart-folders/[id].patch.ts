@@ -60,7 +60,7 @@ function sanitizeFilters(filters: unknown): Record<string, unknown> {
   if (f.filename_regex_case_insensitive === true) {
     result.filename_regex_case_insensitive = true
   }
-  if (typeof f.file_type === 'string' && ['image', 'video', 'document', 'archive', 'other'].includes(f.file_type)) {
+  if (typeof f.file_type === 'string' && ['image', 'video', 'audio', 'document', 'archive', 'other'].includes(f.file_type)) {
     result.file_type = f.file_type
   }
   if (typeof f.date_from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.date_from)) {

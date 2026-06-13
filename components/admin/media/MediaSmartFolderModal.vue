@@ -97,6 +97,7 @@ const typeItems = computed(() => [
   { label: t('admin.media.typeAll'), value: 'all' },
   { label: t('admin.media.typeImages'), value: 'image' },
   { label: t('admin.media.typeVideos'), value: 'video' },
+  { label: t('admin.media.typeAudio'), value: 'audio' },
   { label: t('admin.media.typeDocuments'), value: 'document' },
   { label: t('admin.media.typeArchives'), value: 'archive' },
   { label: t('admin.media.typeOther'), value: 'other' }

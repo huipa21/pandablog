@@ -174,7 +174,7 @@
     <MediaDetailPanel
       :file="selectedMedia"
       :folders="folders"
-      @close="selectedMedia = null"
+      @close="closeDetailPanel"
       @updated="handleFileUpdated"
       @deleted="handleFileDeleted"
     />
@@ -351,6 +351,8 @@ const {
 } = useMedia()
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const files = ref<MediaRecord[]>([])
 const folders = ref<MediaFolderRecord[]>([])
@@ -488,7 +490,9 @@ function tagStyle(count: number) {
 }
 
 onMounted(async () => {
+  applyRouteFilters()
   await Promise.all([loadFolders(), loadMedia(), loadSmartFolders(), loadMediaTags()])
+  await openRouteMediaFile()
 })
 
 async function loadMedia() {
@@ -1021,6 +1025,50 @@ async function handleUploadComplete(results: Array<{ status: string }>) {
 
 async function openById(id: string) {
   selectedMedia.value = await getMedia(id)
+}
+
+async function openRouteMediaFile() {
+  const fileId = stringQueryParam(route.query.file)
+  if (!fileId) return
+
+  try {
+    selectedMedia.value = await getMedia(fileId)
+  } catch (err: any) {
+    adminToast.error(err, t('admin.media.loadFailed'))
+  }
+}
+
+function closeDetailPanel() {
+  selectedMedia.value = null
+  if (!route.query.file) return
+
+  const query = { ...route.query }
+  delete query.file
+  void router.replace({ query })
+}
+
+function stringQueryParam(value: unknown) {
+  return typeof value === 'string' ? value : Array.isArray(value) && typeof value[0] === 'string' ? value[0] : ''
+}
+
+function applyRouteFilters() {
+  const type = stringQueryParam(route.query.type)
+  if (!isMediaType(type)) return
+
+  mode.value = 'all'
+  selectedFolder.value = ''
+  selectedMediaTags.value = []
+  selectedTagRelation.value = 'and'
+  selectedSmartFolder.value = ''
+  filters.value = {
+    ...defaultFilters(),
+    type
+  }
+  page.value = 1
+}
+
+function isMediaType(type: string): type is MediaFilters['type'] {
+  return ['image', 'video', 'audio', 'document', 'archive', 'other'].includes(type)
 }
 
 function handleFileUpdated(file: MediaRecord) {

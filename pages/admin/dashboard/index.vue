@@ -11,11 +11,11 @@
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.posts') }}</h2>
         <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.dashboard.postsDescription') }}</p>
       </NuxtLink>
-      <div class="pb-admin-surface border-dashed p-5 opacity-80">
-        <UIcon name="i-lucide-image" class="mb-4 size-6 text-[var(--pb-text-muted)]" />
+      <NuxtLink to="/admin/dashboard/media" class="pb-admin-surface block p-5 transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)]">
+        <UIcon name="i-lucide-image" class="mb-4 size-6 text-[var(--pb-primary)]" />
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.assets') }}</h2>
         <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.dashboard.assetsDescription') }}</p>
-      </div>
+      </NuxtLink>
       <NuxtLink v-if="isSuperadmin" to="/admin/dashboard/analytics" class="pb-admin-surface block p-5 transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)]">
         <UIcon name="i-lucide-chart-no-axes-combined" class="mb-4 size-6 text-[var(--pb-primary)]" />
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.analytics') }}</h2>

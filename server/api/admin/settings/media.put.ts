@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
       ? body.allowed_extensions.map(e => String(e).toLowerCase()).filter(e => e)
       : [],
     max_file_size_mb: typeof body.max_file_size_mb === 'number' ? Math.max(1, Math.min(100, body.max_file_size_mb)) : 10,
+    oversized_image_threshold_mb: typeof body.oversized_image_threshold_mb === 'number' ? Math.max(0, Math.min(100, body.oversized_image_threshold_mb)) : 0,
     max_files_per_upload: typeof body.max_files_per_upload === 'number' ? Math.max(1, Math.min(20, body.max_files_per_upload)) : 5,
     enable_perceptual_dedup: body.enable_perceptual_dedup !== false,
     perceptual_dedup_threshold: typeof body.perceptual_dedup_threshold === 'number'

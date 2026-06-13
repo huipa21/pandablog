@@ -171,6 +171,7 @@ export function useMedia() {
     const ext = extension.toLowerCase()
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'].includes(ext) || mimeType.startsWith('image/')) return 'image'
     if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || mimeType.startsWith('video/')) return 'video'
+    if (['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'oga'].includes(ext) || mimeType.startsWith('audio/')) return 'audio'
     if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'].includes(ext)) return 'document'
     if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'archive'
     return 'other'
@@ -188,6 +189,7 @@ export function useMedia() {
     const iconMap: Record<MediaFileType, string> = {
       image: 'i-lucide-image',
       video: 'i-lucide-film',
+      audio: 'i-lucide-audio-lines',
       document: 'i-lucide-file-text',
       archive: 'i-lucide-file-archive',
       other: 'i-lucide-file'

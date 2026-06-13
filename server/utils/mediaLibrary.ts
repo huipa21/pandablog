@@ -427,6 +427,8 @@ function mediaRecordMatchesType(file: MediaRecord, type: string) {
       return file.is_image === true
     case 'video':
       return file.mime_type.startsWith('video/')
+    case 'audio':
+      return file.mime_type.startsWith('audio/')
     case 'document':
       return ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'].includes(file.extension.toLowerCase())
     case 'archive':
@@ -434,6 +436,7 @@ function mediaRecordMatchesType(file: MediaRecord, type: string) {
     case 'other':
       return !file.is_image
         && !file.mime_type.startsWith('video/')
+        && !file.mime_type.startsWith('audio/')
         && !['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'zip', 'rar', '7z', 'tar', 'gz'].includes(file.extension.toLowerCase())
     default:
       return true

@@ -539,6 +539,7 @@ function safeUrl(value: string) {
 export interface MediaSettings {
   allowed_extensions: string[]
   max_file_size_mb: number
+  oversized_image_threshold_mb: number
   max_files_per_upload: number
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
@@ -553,6 +554,7 @@ export interface MediaSettings {
 const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z'],
   max_file_size_mb: 10,
+  oversized_image_threshold_mb: 0,
   max_files_per_upload: 5,
   enable_perceptual_dedup: false,
   perceptual_dedup_threshold: 5,
@@ -582,6 +584,7 @@ export async function getMediaSettings(): Promise<MediaSettings> {
   return {
     allowed_extensions: Array.isArray(settings.allowed_extensions) ? settings.allowed_extensions as string[] : DEFAULT_MEDIA_SETTINGS.allowed_extensions,
     max_file_size_mb: typeof settings.max_file_size_mb === 'number' ? settings.max_file_size_mb : DEFAULT_MEDIA_SETTINGS.max_file_size_mb,
+    oversized_image_threshold_mb: typeof settings.oversized_image_threshold_mb === 'number' && settings.oversized_image_threshold_mb >= 0 ? settings.oversized_image_threshold_mb : DEFAULT_MEDIA_SETTINGS.oversized_image_threshold_mb,
     max_files_per_upload: typeof settings.max_files_per_upload === 'number' ? settings.max_files_per_upload : DEFAULT_MEDIA_SETTINGS.max_files_per_upload,
     enable_perceptual_dedup: typeof settings.enable_perceptual_dedup === 'boolean' ? settings.enable_perceptual_dedup : DEFAULT_MEDIA_SETTINGS.enable_perceptual_dedup,
     perceptual_dedup_threshold: typeof settings.perceptual_dedup_threshold === 'number' ? settings.perceptual_dedup_threshold : DEFAULT_MEDIA_SETTINGS.perceptual_dedup_threshold,

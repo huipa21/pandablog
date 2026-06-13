@@ -108,7 +108,7 @@ export type SearchSort = 'relevance' | 'date_desc' | 'date_asc' | 'title'
 
 // ============ MEDIA LIBRARY ============
 
-export type MediaFileType = 'image' | 'video' | 'document' | 'archive' | 'other'
+export type MediaFileType = 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'
 
 export interface MediaImageMeta {
   width?: number | null
