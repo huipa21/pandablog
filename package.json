@@ -23,6 +23,7 @@
     "hash-password": "tsx scripts/hash-password.ts"
   },
   "dependencies": {
+    "@nuxt/fonts": "^0.14.0",
     "@nuxt/icon": "^2.2.2",
     "@nuxt/image": "^2.0.0",
     "@nuxt/ui": "^4.7.1",
@@ -52,6 +53,8 @@
     "@tiptap/starter-kit": "^2.27.2",
     "@tiptap/suggestion": "^2.27.2",
     "@tiptap/vue-3": "^2.27.2",
+    "@unovis/ts": "^1.6.5",
+    "@unovis/vue": "^1.6.5",
     "@vitest/coverage-v8": "^4.1.6",
     "adm-zip": "^0.5.17",
     "archiver": "^8.0.0",
@@ -63,6 +66,7 @@
     "kuroshiro": "^1.2.0",
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
     "lowlight": "^3.3.0",
+    "maxmind": "^5.0.6",
     "mermaid": "^11.15.0",
     "mrmime": "^2.0.1",
     "node-cron": "^4.2.1",

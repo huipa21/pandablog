@@ -24,6 +24,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-05-17',
   devtools: { enabled: !isProd },
   modules: [
+    '@nuxt/fonts',
     '@nuxt/ui',
     '@nuxt/image',
     '@nuxt/icon',
@@ -31,6 +32,17 @@ export default defineNuxtConfig({
     '@nuxtjs/i18n',
     'nuxt-auth-utils'
   ],
+  fonts: {
+    families: [
+      {
+        name: 'Lora',
+        provider: 'google',
+        weights: [400, 500, 600, 700],
+        styles: ['normal', 'italic'],
+        global: true
+      }
+    ]
+  },
   i18n: {
     strategy: 'no_prefix',
     defaultLocale: 'en',
@@ -61,6 +73,7 @@ export default defineNuxtConfig({
     surrealDatabase: env('SURREAL_DATABASE', 'main'),
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
+    geoipDbPath: env('GEOIP_DB_PATH', 'storage/geoip/dbip-city-lite.mmdb'),
     session: {
       password: sessionPassword,
       maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -81,11 +94,17 @@ export default defineNuxtConfig({
       }
     }
   },
+  build: {
+    transpile: ['@unovis/ts', '@unovis/vue']
+  },
   image: {
     provider: 'ipx',
     domains: []
   },
   vite: {
+    optimizeDeps: {
+      include: ['striptags']
+    },
     plugins: [
       svgLoader({
         defaultImport: 'component',

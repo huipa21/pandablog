@@ -1,6 +1,6 @@
 import { queryDb, useDb } from '../../utils/db'
 import { normalizePost } from '../../utils/content'
-import { firstRow, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
+import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
 import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../utils/visibility'
 import { buildDocFromBlocks, loadBlocksForPost } from '../../utils/blocks'
 import { isAdminAuthenticated } from '../../utils/auth'
@@ -58,6 +58,7 @@ export default defineEventHandler(async (event) => {
   const sanitized = sanitizePost(visiblePost)
   const normalized = normalizePost(sanitized)
   const blocks = await loadBlocksForPost(db, normalized.id)
+  const tags = await loadTagsForPost(db, normalized.id)
 
   if (!isAdmin) {
     incrementPostViewCount(db, post).catch((error) => {
@@ -69,12 +70,32 @@ export default defineEventHandler(async (event) => {
   return {
     ...normalized,
     content_json: buildDocFromBlocks(blocks),
-    blocks
+    blocks,
+    tags
   }
 })
 
 function toPostVisibility(value: unknown): PostVisibility {
   return value === 'private' || value === 'password' ? value : 'public'
+}
+
+async function loadTagsForPost(db: Awaited<ReturnType<typeof useDb>>, postRecordId: string) {
+  const postId = recordIdPart(postRecordId, 'post')
+  const response = await queryDb(
+    db,
+    `SELECT out.name AS name, out.slug AS slug
+     FROM tagged
+     WHERE in = type::record('post', $postId)
+     FETCH out;`,
+    { postId }
+  )
+
+  return queryRows<Record<string, unknown>>(response)
+    .map((row) => ({
+      name: String(row.name ?? '').trim(),
+      slug: String(row.slug ?? '').trim()
+    }))
+    .filter((tag) => tag.name && tag.slug)
 }
 
 async function incrementPostViewCount(db: Awaited<ReturnType<typeof useDb>>, post: Record<string, unknown>) {

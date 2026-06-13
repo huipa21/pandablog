@@ -31,7 +31,9 @@
       "errors": "错误",
       "setup": "设置向导",
       "login": "登录",
-      "backups": "备份"
+      "backups": "备份",
+      "analytics": "分析",
+      "analyticsSettings": "分析"
     },
     "layout": {
       "openNavigation": "打开导航",
@@ -78,7 +80,34 @@
       "assets": "资源",
       "assetsDescription": "本地上传管理会在编辑器阶段完善。",
       "analytics": "分析",
-      "analyticsDescription": "页面浏览量和来源统计会在发布功能稳定后加入。"
+      "analyticsDescription": "查看访问量、热门页面、跳出率和城市级覆盖。"
+    },
+    "analytics": {
+      "eyebrow": "洞察",
+      "title": "分析",
+      "description": "基于本地隐私友好的页面访问事件和每日汇总生成流量指标。",
+      "refresh": "刷新",
+      "loadFailed": "无法加载分析数据",
+      "pageViews": "页面浏览量",
+      "uniqueVisitors": "独立访客",
+      "uniqueVisitorsApproximate": "多日范围按每日独立访客求和。",
+      "bounceRate": "跳出率",
+      "avgVisitTime": "平均访问时长",
+      "viewsTrend": "访问趋势",
+      "viewsTrendDescription": "所选时间范围内的每日页面浏览量。",
+      "topPages": "热门页面",
+      "geoDistribution": "地理分布",
+      "geoDescription": "存在本地 DB-IP 数据库时显示城市级位置。",
+      "geoAttribution": "IP Geolocation by DB-IP。",
+      "empty": "此范围内暂无分析数据。",
+      "emptyGeo": "此范围内暂无地理数据。",
+      "seconds": "{count} 秒",
+      "minutes": "{count} 分钟",
+      "ranges": {
+        "today": "今天",
+        "sevenDays": "7 天",
+        "thirtyDays": "30 天"
+      }
     },
     "setup": {
       "eyebrow": "首次运行",
@@ -1202,6 +1231,22 @@
         "deleted": "主题已删除",
         "deleteFailed": "删除失败"
       },
+      "analytics": {
+        "eyebrow": "设置",
+        "title": "分析",
+        "description": "控制本地页面访问采集、会话窗口和原始数据保留。",
+        "collectionTitle": "采集",
+        "enableCollection": "启用分析采集",
+        "enableCollectionHelp": "只跟踪公开页面访问，跳过后台、登录、API 和资源路由。",
+        "sessionWindow": "会话窗口（分钟）",
+        "sessionWindowHelp": "同一访客在此窗口内持续活跃时会归为同一次访问。",
+        "retentionDays": "原始数据保留（天）",
+        "retentionDaysHelp": "完成每日汇总后，删除早于此天数的原始访问和会话数据。",
+        "geoTitle": "城市级地理位置",
+        "geoDescription": "将 DB-IP City Lite 放在 storage/geoip/dbip-city-lite.mmdb，或设置 GEOIP_DB_PATH。缺少数据库时地理字段留空。",
+        "saved": "分析设置已保存",
+        "saveFailed": "无法保存分析设置"
+      },
       "general": {
         "title": "通用",
         "description": "配置站点身份、页脚和公开访问模式。",
@@ -1387,6 +1432,7 @@
     },
     "search": {
       "title": "搜索",
+      "back": "返回",
       "placeholder": "搜索文章...",
       "button": "搜索",
       "prompt": "在上方输入关键词来搜索博客。",
@@ -1424,6 +1470,7 @@
       "sitePrivateDescription": "此博客当前为私密状态。请以管理员身份登录后查看文章。",
       "loadFailed": "无法加载文章",
       "protected": "受保护",
+      "openPost": "打开 {title}",
       "readMore": "阅读全文",
       "emptyTitle": "暂无已发布文章",
       "emptyDescription": "请先在后台发布第一篇笔记。"

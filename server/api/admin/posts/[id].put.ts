@@ -9,14 +9,13 @@ import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import {
   buildDocFromBlocks,
+  computeStatsFromBlocks,
   extractBlocksFromDoc,
-  flattenNodeText,
   loadBlocksForPost,
   syncPostBlocks,
   syncPostLinks
 } from '../../../utils/blocks'
-import { computeContentStats } from '~/utils/contentStats'
-import type { BlockRecord, JsonContent, PostVisibility } from '~/types/content'
+import type { JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
@@ -209,11 +208,4 @@ function normalizePasswordSource(value: unknown): 'custom' | 'user' {
 function parseDoc(value: unknown): JsonContent | null {
   if (value && typeof value === 'object') return value as JsonContent
   return null
-}
-
-function computeStatsFromBlocks(blocks: BlockRecord[]) {
-  // Stats count authored characters only. Recompute from the node (base text)
-  // rather than block.text, which also carries annotation readings for search.
-  const combined = blocks.map((block) => flattenNodeText(block.node)).join('\n')
-  return computeContentStats(combined)
 }

@@ -16,11 +16,11 @@
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.assets') }}</h2>
         <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.dashboard.assetsDescription') }}</p>
       </div>
-      <div class="pb-admin-surface border-dashed p-5 opacity-80">
-        <UIcon name="i-lucide-chart-no-axes-combined" class="mb-4 size-6 text-[var(--pb-text-muted)]" />
+      <NuxtLink v-if="isSuperadmin" to="/admin/analytics" class="pb-admin-surface block p-5 transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)]">
+        <UIcon name="i-lucide-chart-no-axes-combined" class="mb-4 size-6 text-[var(--pb-primary)]" />
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.analytics') }}</h2>
         <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.dashboard.analyticsDescription') }}</p>
-      </div>
+      </NuxtLink>
     </div>
   </section>
 </template>
@@ -29,4 +29,8 @@
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
+const { data: session } = await useAsyncData('admin-dashboard-session', () => $fetch<{ user: { role?: string } | null }>('/api/auth/session'), {
+  default: () => ({ user: null })
+})
+const isSuperadmin = computed(() => session.value.user?.role === 'superadmin')
 </script>

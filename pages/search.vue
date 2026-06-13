@@ -1,7 +1,18 @@
 <template>
   <div class="mx-auto max-w-4xl space-y-6">
     <header class="space-y-3">
-      <h1 class="font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('public.search.title') }}</h1>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('public.search.title') }}</h1>
+        <UButton
+          :to="backRoute"
+          variant="ghost"
+          color="neutral"
+          icon="i-lucide-arrow-left"
+          size="sm"
+        >
+          {{ t('public.search.back') }}
+        </UButton>
+      </div>
       <div class="flex flex-wrap items-end gap-3">
         <form class="flex flex-1 items-center gap-2" role="search" @submit.prevent="onSubmit">
           <UInput
@@ -71,6 +82,8 @@ const { t } = useI18n()
 
 const query = ref<string>(typeof route.query.q === 'string' ? route.query.q : '')
 const sort = ref<SearchSort>(normalizeSort(route.query.sort))
+const returnPath = computed(() => normalizeReturnPath(route.query.from))
+const backRoute = computed(() => returnPath.value || '/')
 
 const sortOptions = computed(() => [
   { label: t('public.search.sort.relevance'), value: 'relevance' as const },
@@ -100,13 +113,13 @@ const resultSummary = computed(() => {
 
 watch(sort, (next) => {
   if (next === params.value.sort) return
-  navigateTo({ path: '/search', query: { ...route.query, sort: next } })
+  navigateTo({ path: '/search', query: withReturnQuery({ q: params.value.q, sort: next }) })
 })
 
 function onSubmit() {
   const q = query.value.trim()
   if (!q) return
-  navigateTo({ path: '/search', query: { q, sort: sort.value } })
+  navigateTo({ path: '/search', query: withReturnQuery({ q, sort: sort.value }) })
 }
 
 function normalizeSort(value: unknown): SearchSort {
@@ -114,6 +127,16 @@ function normalizeSort(value: unknown): SearchSort {
     return value
   }
   return 'relevance'
+}
+
+function normalizeReturnPath(value: unknown) {
+  if (typeof value !== 'string') return ''
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/search')) return ''
+  return value
+}
+
+function withReturnQuery(queryValue: Record<string, string>) {
+  return returnPath.value ? { ...queryValue, from: returnPath.value } : queryValue
 }
 
 function moreMatchesLabel(count: number) {

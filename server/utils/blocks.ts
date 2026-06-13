@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { Surreal } from 'surrealdb'
 import type { BlockRecord, JsonContent } from '~/types/content'
+import { computeContentStats } from '../../utils/contentStats'
 import { queryDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 
@@ -147,6 +148,11 @@ export function collectRubyReadings(node: JsonContent | null | undefined): strin
  */
 export function flattenBlockSearchText(node: JsonContent | null | undefined): string {
   return [flattenNodeText(node), collectRubyReadings(node)].filter(Boolean).join(' ')
+}
+
+export function computeStatsFromBlocks(blocks: BlockRecord[]) {
+  const combined = blocks.map((block) => flattenNodeText(block.node)).join('\n')
+  return computeContentStats(combined)
 }
 
 /**

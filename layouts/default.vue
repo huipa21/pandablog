@@ -109,7 +109,7 @@
           <BlogSearchBar :key="`compact-search-${publicLocale}`" variant="compact" class="hidden md:flex" />
           <UButton
             class="md:hidden"
-            to="/search"
+            :to="searchRoute"
             variant="ghost"
             color="neutral"
             icon="i-lucide-search"
@@ -146,7 +146,7 @@
           <slot />
         </main>
 
-        <aside class="space-y-4 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
+        <aside :class="sidebarClasses">
           <slot v-if="hasPageSidebar" name="sidebar" />
           <template v-else>
             <BlogOwnerBio />
@@ -248,6 +248,11 @@ const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
 const isHome = computed(() => route.path === '/')
 const hasLayoutSidebar = computed(() => !isHome.value || hasPageSidebar.value)
+const searchRoute = computed(() => route.path === '/search' ? '/search' : { path: '/search', query: { from: route.fullPath } })
+const sidebarClasses = computed(() => [
+  'space-y-4',
+  isHome.value ? undefined : 'lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto'
+])
 const siteShellStyle = computed(() => ({
   '--pb-site-content-max': 'var(--pb-layout-content-max)'
 }))

@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const taxonomyFilter = filteredPostIds ? 'AND id IN $postIds' : ''
   const response = await queryDb(
     db,
-    `SELECT id, slug, title, summary, cover_image, published_at, visibility
+    `SELECT id, slug, title, summary, cover_image, published_at, visibility, view_count, word_count, cjk_char_count
      FROM post
      WHERE status = "published" ${visibilityFilter} ${taxonomyFilter}
      ORDER BY published_at DESC, id DESC
@@ -32,15 +32,33 @@ export default defineEventHandler(async (event) => {
      SELECT count() AS total FROM post WHERE status = "published" ${visibilityFilter} ${taxonomyFilter} GROUP ALL;`,
     { limit, start, postIds: filteredPostIds ?? [] }
   )
-  const posts = queryRows<Record<string, unknown>>(response, 0).map<PostListItem>((post) => ({
-    id: stringifyRecordId(post.id),
-    slug: String(post.slug ?? ''),
-    title: String(post.title ?? ''),
-    summary: post.summary === undefined ? null : post.summary as string | null,
-    cover_image: post.cover_image === undefined ? null : post.cover_image as string | null,
-    published_at: post.published_at ? String(post.published_at) : null,
-    visibility: normalizeVisibility(post.visibility)
-  }))
+  const postRows = queryRows<Record<string, unknown>>(response, 0)
+  const postIds = postRows.map((post) => post.id).filter(Boolean)
+  const categoriesByPostId = await loadCategoriesForPosts(db, postIds)
+  const excerptPostIds = postRows
+    .filter((post) => !hasSummary(post.summary))
+    .map((post) => post.id)
+    .filter(Boolean)
+  const excerptsByPostId = await loadExcerptsForPosts(db, excerptPostIds)
+  const posts = postRows.map<PostListItem>((post) => {
+    const postId = stringifyRecordId(post.id)
+    const summary = hasSummary(post.summary) ? String(post.summary).trim() : null
+
+    return {
+      id: postId,
+      slug: String(post.slug ?? ''),
+      title: String(post.title ?? ''),
+      summary,
+      excerpt: summary ? null : excerptsByPostId.get(postId) ?? null,
+      cover_image: post.cover_image === undefined ? null : post.cover_image as string | null,
+      published_at: post.published_at ? String(post.published_at) : null,
+      view_count: Number(post.view_count ?? 0),
+      word_count: Number(post.word_count ?? 0),
+      cjk_char_count: Number(post.cjk_char_count ?? 0),
+      visibility: normalizeVisibility(post.visibility),
+      categories: categoriesByPostId.get(postId) ?? []
+    }
+  })
   const count = firstRow<{ total?: number }>(response, 1)
 
   return {
@@ -53,6 +71,87 @@ export default defineEventHandler(async (event) => {
 
 function normalizeVisibility(value: unknown): PostVisibility {
   return value === 'private' || value === 'password' ? value : 'public'
+}
+
+function hasSummary(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+async function loadCategoriesForPosts(db: Awaited<ReturnType<typeof useDb>>, postIds: unknown[]) {
+  const categoriesByPostId = new Map<string, Array<{ name: string, slug: string }>>()
+
+  if (!postIds.length) {
+    return categoriesByPostId
+  }
+
+  const response = await queryDb(
+    db,
+    `SELECT in AS post_id, out.name AS name, out.slug AS slug
+     FROM categorized_as
+     WHERE in IN $postIds
+     FETCH out;`,
+    { postIds }
+  )
+
+  for (const row of queryRows<Record<string, unknown>>(response)) {
+    const postId = stringifyRecordId(row.post_id)
+    const name = String(row.name ?? '').trim()
+    const slug = String(row.slug ?? '').trim()
+
+    if (!name || !slug) {
+      continue
+    }
+
+    const categories = categoriesByPostId.get(postId) ?? []
+    categories.push({ name, slug })
+    categoriesByPostId.set(postId, categories)
+  }
+
+  return categoriesByPostId
+}
+
+async function loadExcerptsForPosts(db: Awaited<ReturnType<typeof useDb>>, postIds: unknown[]) {
+  const textByPostId = new Map<string, string[]>()
+
+  if (!postIds.length) {
+    return new Map<string, string>()
+  }
+
+  const response = await queryDb(
+    db,
+    `SELECT in AS post_id, out.text AS text, seq
+     FROM has_blocks
+     WHERE in IN $postIds
+     ORDER BY seq ASC
+     FETCH out;`,
+    { postIds }
+  )
+
+  for (const row of queryRows<Record<string, unknown>>(response)) {
+    const postId = stringifyRecordId(row.post_id)
+    const text = String(row.text ?? '').trim()
+
+    if (!text) {
+      continue
+    }
+
+    const parts = textByPostId.get(postId) ?? []
+    parts.push(text)
+    textByPostId.set(postId, parts)
+  }
+
+  return new Map(Array.from(textByPostId.entries()).map(([postId, parts]) => [postId, createExcerpt(parts.join(' '))]))
+}
+
+function createExcerpt(text: string) {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+
+  if (normalized.length <= 220) {
+    return normalized
+  }
+
+  const clipped = normalized.slice(0, 220).replace(/\s+\S*$/, '').trimEnd()
+  return `${clipped || normalized.slice(0, 220).trimEnd()}...`
 }
 
 async function resolveFilteredPostIds(db: Awaited<ReturnType<typeof useDb>>, filters: { tag: string, category: string }) {

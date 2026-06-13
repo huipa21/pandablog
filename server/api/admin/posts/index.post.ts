@@ -6,7 +6,7 @@ import { uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
-import { buildDocFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks } from '../../../utils/blocks'
+import { buildDocFromBlocks, computeStatsFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks } from '../../../utils/blocks'
 import type { JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -74,6 +74,16 @@ export default defineEventHandler(async (event) => {
   const blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks)
   const linkedSlugs = await syncPostLinks(db, normalizedPost.id, blocks)
   const reassembledDoc = buildDocFromBlocks(blocks)
+  const stats = computeStatsFromBlocks(blocks)
+
+  await queryDb(
+    db,
+    'UPDATE type::record($table, $id) MERGE { word_count: $word_count, cjk_char_count: $cjk_char_count };',
+    { table: 'post', id: postId, ...stats },
+    { label: 'post stats create' }
+  )
+  normalizedPost.word_count = stats.word_count
+  normalizedPost.cjk_char_count = stats.cjk_char_count
 
   await syncPostTaxonomy(
     db,

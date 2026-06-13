@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { queryDb, useDb } from './db'
 import { queryRows } from './surrealResult'
 import { createUserWithPasswordHash, findUserByUsername, setUserPasswordHash, updateUser } from './users'
@@ -49,14 +50,24 @@ const ADMIN_ONLY_SETTING_KEYS = [
   ADMIN_FORMAT_LOCALE_KEY
 ] as const
 
+export const ANALYTICS_SETTING_KEYS = [
+  'analytics_enabled',
+  'analytics_session_window_minutes',
+  'analytics_retention_days'
+] as const
+
+export const ANALYTICS_HASH_SALT_KEY = 'analytics_hash_salt'
+
 export const ADMIN_SETTING_KEYS = [
   ...PUBLIC_SETTING_KEYS,
   ...RUNTIME_SETTING_KEYS,
-  ...ADMIN_ONLY_SETTING_KEYS
+  ...ADMIN_ONLY_SETTING_KEYS,
+  ...ANALYTICS_SETTING_KEYS
 ] as const
 
 const SECRET_SETTING_KEYS = [
-  'admin_password_hash'
+  'admin_password_hash',
+  ANALYTICS_HASH_SALT_KEY
 ] as const
 
 export const ADMIN_USERNAME = 'admin'
@@ -71,9 +82,16 @@ export type AdminLocaleSetting = SupportedLocale
 export type AdminDateFormatSetting = AdminDateFormat
 export type AdminTimezoneSetting = AdminTimezone
 export type AdminFormatLocaleSetting = AdminFormatLocale
+export type AnalyticsSettingKey = typeof ANALYTICS_SETTING_KEYS[number]
 
 export interface RuntimeFlags {
   trust_proxy_headers: boolean
+}
+
+export interface AnalyticsSettings {
+  analytics_enabled: boolean
+  analytics_session_window_minutes: number
+  analytics_retention_days: number
 }
 
 export interface AdminCredentials {
@@ -85,6 +103,11 @@ export interface AdminCredentials {
 const APP_SETTINGS_TABLE = 'app_settings'
 const DEFAULT_RUNTIME_FLAGS: RuntimeFlags = {
   trust_proxy_headers: process.env.NODE_ENV === 'production'
+}
+const DEFAULT_ANALYTICS_SETTINGS: AnalyticsSettings = {
+  analytics_enabled: false,
+  analytics_session_window_minutes: 30,
+  analytics_retention_days: 90
 }
 
 export interface SettingsLink {
@@ -116,9 +139,11 @@ export interface PublicSiteSettings {
 
 const publicSettingKeySet = new Set<string>(PUBLIC_SETTING_KEYS)
 const runtimeSettingKeySet = new Set<string>(RUNTIME_SETTING_KEYS)
+const analyticsSettingKeySet = new Set<string>(ANALYTICS_SETTING_KEYS)
 const secretSettingKeySet = new Set<string>(SECRET_SETTING_KEYS)
 
 let runtimeFlagsCache: RuntimeFlags = { ...DEFAULT_RUNTIME_FLAGS }
+let analyticsSettingsCache: AnalyticsSettings = { ...DEFAULT_ANALYTICS_SETTINGS }
 
 async function readRawAppSettings(keys: readonly string[]): Promise<Record<string, unknown>> {
   const db = await useDb()
@@ -158,6 +183,10 @@ export async function writeAppSettings(values: Record<string, unknown>, keys: re
 
   if (entries.some(([key]) => runtimeSettingKeySet.has(key))) {
     await initializeRuntimeSettings()
+  }
+
+  if (entries.some(([key]) => analyticsSettingKeySet.has(key))) {
+    await initializeAnalyticsSettings()
   }
 }
 
@@ -247,6 +276,28 @@ export function filterAdminSettings(values: Record<string, unknown>) {
     }
   }
 
+  if ('analytics_enabled' in filtered) {
+    filtered.analytics_enabled = booleanValue(filtered.analytics_enabled, DEFAULT_ANALYTICS_SETTINGS.analytics_enabled)
+  }
+
+  if ('analytics_session_window_minutes' in filtered) {
+    filtered.analytics_session_window_minutes = integerValue(
+      filtered.analytics_session_window_minutes,
+      DEFAULT_ANALYTICS_SETTINGS.analytics_session_window_minutes,
+      5,
+      24 * 60
+    )
+  }
+
+  if ('analytics_retention_days' in filtered) {
+    filtered.analytics_retention_days = integerValue(
+      filtered.analytics_retention_days,
+      DEFAULT_ANALYTICS_SETTINGS.analytics_retention_days,
+      7,
+      3650
+    )
+  }
+
   return filtered
 }
 
@@ -276,6 +327,41 @@ export async function initializeRuntimeSettings(seedDefaults = false): Promise<R
 
   runtimeFlagsCache = normalizeRuntimeFlags(settings)
   return runtimeFlagsCache
+}
+
+export function getAnalyticsSettings(): AnalyticsSettings {
+  return analyticsSettingsCache
+}
+
+export async function initializeAnalyticsSettings(seedDefaults = false): Promise<AnalyticsSettings> {
+  const settings = await readRawAppSettings(ANALYTICS_SETTING_KEYS)
+
+  if (seedDefaults) {
+    const missingEntries = Object.entries(DEFAULT_ANALYTICS_SETTINGS).filter(([key]) => !(key in settings))
+    if (missingEntries.length) {
+      const db = await useDb()
+      for (const [key, value] of missingEntries) {
+        await upsertAppSetting(db, key, value)
+        settings[key] = value
+      }
+    }
+  }
+
+  analyticsSettingsCache = normalizeAnalyticsSettings(settings)
+  return analyticsSettingsCache
+}
+
+export async function getAnalyticsHashSalt(): Promise<string> {
+  const settings = await readRawAppSettings([ANALYTICS_HASH_SALT_KEY])
+  const existing = stringValue(settings[ANALYTICS_HASH_SALT_KEY])
+  if (existing.length >= 32) {
+    return existing
+  }
+
+  const salt = randomBytes(32).toString('hex')
+  const db = await useDb()
+  await upsertAppSetting(db, ANALYTICS_HASH_SALT_KEY, salt)
+  return salt
 }
 
 export async function readAdminCredentials(): Promise<AdminCredentials> {
@@ -334,6 +420,24 @@ function normalizeRuntimeFlags(values: Record<string, unknown>): RuntimeFlags {
   }
 }
 
+function normalizeAnalyticsSettings(values: Record<string, unknown>): AnalyticsSettings {
+  return {
+    analytics_enabled: booleanValue(values.analytics_enabled, DEFAULT_ANALYTICS_SETTINGS.analytics_enabled),
+    analytics_session_window_minutes: integerValue(
+      values.analytics_session_window_minutes,
+      DEFAULT_ANALYTICS_SETTINGS.analytics_session_window_minutes,
+      5,
+      24 * 60
+    ),
+    analytics_retention_days: integerValue(
+      values.analytics_retention_days,
+      DEFAULT_ANALYTICS_SETTINGS.analytics_retention_days,
+      7,
+      3650
+    )
+  }
+}
+
 function booleanValue(value: unknown, fallback: boolean) {
   return typeof value === 'boolean' ? value : fallback
 }
@@ -376,6 +480,10 @@ function numberValue(value: unknown, fallback: number, min: number, max: number)
   }
 
   return Math.min(max, Math.max(min, number))
+}
+
+function integerValue(value: unknown, fallback: number, min: number, max: number) {
+  return Math.round(numberValue(value, fallback, min, max))
 }
 
 function jsonContentValue(value: unknown): JsonContent | null {

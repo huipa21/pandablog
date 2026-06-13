@@ -18,7 +18,12 @@
         :key="post.id"
         :class="articleClasses"
       >
-        <NuxtLink :to="`/blog/${post.slug}`" :class="mediaLinkClasses">
+        <NuxtLink
+          :to="`/blog/${post.slug}`"
+          class="absolute inset-0 z-10 rounded-[var(--pb-radius-card-outer)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pb-selected-border)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--pb-card-bg)]"
+          :aria-label="t('public.postList.openPost', { title: post.title })"
+        />
+        <div :class="mediaClasses">
           <img
             v-if="post.cover_image"
             :src="post.cover_image"
@@ -28,23 +33,37 @@
           <div v-else :class="placeholderClasses">
             <UIcon name="i-lucide-newspaper" class="size-10 text-[var(--pb-icon-muted)]" />
           </div>
-        </NuxtLink>
+        </div>
         <div :class="contentClasses">
+          <div v-if="post.categories?.length" class="relative z-20 mb-4 flex flex-wrap gap-2">
+            <NuxtLink
+              v-for="category in post.categories"
+              :key="category.slug"
+              :to="`/category/${category.slug}`"
+              class="inline-flex items-center rounded-[var(--pb-radius-sm)] bg-[var(--pb-primary)] px-3 py-1 text-xs font-semibold text-[var(--pb-primary-contrast)] shadow-[var(--pb-shadow-sm)] transition hover:bg-[var(--pb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pb-selected-border)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--pb-card-bg)]"
+            >
+              {{ category.name }}
+            </NuxtLink>
+          </div>
           <h2 :class="titleClasses">
-            <NuxtLink :to="`/blog/${post.slug}`" class="hover:text-[var(--pb-link-hover)]">{{ post.title }}</NuxtLink>
+            {{ post.title }}
           </h2>
-          <p v-if="post.summary" :class="summaryClasses">{{ post.summary }}</p>
+          <p v-if="postExcerpt(post)" :class="summaryClasses">{{ postExcerpt(post) }}</p>
           <div class="mt-auto pt-5">
-            <div class="mb-3 flex items-center gap-3 text-xs text-[var(--pb-text-subtle)]">
+            <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--pb-text-subtle)]">
               <time v-if="post.published_at" :datetime="post.published_at">{{ formatDate(post.published_at) }}</time>
+              <span v-if="hasViewCount(post)" class="inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-eye" class="size-3.5 text-[var(--pb-icon-muted)]" />
+                {{ formatViews(post.view_count) }}
+              </span>
+              <span v-if="contentLengthLabel(post)" class="inline-flex items-center gap-1.5">
+                <UIcon name="i-lucide-file-text" class="size-3.5 text-[var(--pb-icon-muted)]" />
+                {{ contentLengthLabel(post) }}
+              </span>
               <UBadge v-if="post.visibility === 'password'" color="warning" variant="subtle" size="xs">
                 {{ t('public.postList.protected') }}
               </UBadge>
             </div>
-            <NuxtLink :to="`/blog/${post.slug}`" class="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--pb-link)] hover:text-[var(--pb-link-hover)] hover:underline">
-              {{ t('public.postList.readMore') }}
-              <UIcon name="i-lucide-arrow-right" class="size-4" />
-            </NuxtLink>
           </div>
         </div>
       </article>
@@ -87,30 +106,30 @@ const layoutClasses = computed(() => [
 const skeletonCount = computed(() => isListView.value ? 4 : 6)
 const skeletonClasses = computed(() => [
   'rounded-[var(--pb-radius-card-outer)]',
-  isListView.value ? 'h-52' : 'h-80'
+  isListView.value ? 'h-52' : 'aspect-square'
 ])
 const articleClasses = computed(() => [
-  'group overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]',
-  isListView.value ? 'post-card-list-item grid' : 'flex h-full flex-col'
+  'group relative cursor-pointer overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]',
+  isListView.value ? 'post-card-list-item grid' : 'post-card-grid-item grid'
 ])
-const mediaLinkClasses = computed(() => [
-  'block overflow-hidden bg-[var(--pb-surface-subtle)]',
-  isListView.value ? 'h-full' : undefined
+const mediaClasses = computed(() => [
+  'relative z-0 block overflow-hidden bg-[var(--pb-surface-subtle)]',
+  isListView.value ? 'h-full' : 'h-full min-h-0'
 ])
 const imageClasses = computed(() => [
   'w-full object-cover transition duration-500 group-hover:scale-[1.03]',
-  isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'aspect-[3/2]'
+  isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'h-full aspect-auto'
 ])
 const placeholderClasses = computed(() => [
   'grid w-full place-items-center bg-[linear-gradient(135deg,var(--pb-surface-subtle),var(--pb-selected-bg))]',
-  isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'aspect-[3/2]'
+  isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'h-full aspect-auto'
 ])
 const contentClasses = computed(() => [
   'flex flex-1 flex-col',
-  isListView.value ? 'p-5 md:p-6' : 'p-5'
+  isListView.value ? 'p-5 md:p-6' : 'min-h-0 overflow-hidden p-5'
 ])
 const titleClasses = computed(() => [
-  'font-[var(--pb-font-display)] font-semibold leading-tight text-[var(--pb-text)]',
+  'font-[var(--pb-font-display)] font-semibold leading-tight text-[var(--pb-text)] transition group-hover:text-[var(--pb-link-hover)]',
   isListView.value ? 'text-2xl' : 'text-xl'
 ])
 const summaryClasses = computed(() => [
@@ -135,13 +154,43 @@ const isSitePrivateError = computed(() => {
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))
 }
+
+function hasViewCount(post: PostListItem) {
+  return post.view_count !== undefined && post.view_count !== null
+}
+
+function formatViews(value: number | null | undefined) {
+  const count = Math.max(0, Number(value) || 0)
+  return `${new Intl.NumberFormat(locale.value).format(count)} ${t(count === 1 ? 'public.post.view' : 'public.post.views')}`
+}
+
+function contentLengthLabel(post: PostListItem) {
+  const words = Number(post.word_count ?? 0)
+  const cjk = Number(post.cjk_char_count ?? 0)
+  if (!words && !cjk) return ''
+  const formatter = new Intl.NumberFormat(locale.value)
+  const parts: string[] = []
+  if (cjk) parts.push(`${formatter.format(cjk)} ${t('public.post.chars')}`)
+  if (words) parts.push(`${formatter.format(words)} ${t('public.post.words')}`)
+  return parts.join(' · ')
+}
+
+function postExcerpt(post: PostListItem) {
+  return post.summary?.trim() || post.excerpt?.trim() || ''
+}
 </script>
 
 <style scoped>
 .post-card-grid {
   gap: clamp(1.5rem, 2vw, 2rem);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.post-card-grid-item {
+  aspect-ratio: 1 / 1;
+  grid-template-rows: minmax(0, 42%) minmax(0, 1fr);
 }
 
 .post-card-list {

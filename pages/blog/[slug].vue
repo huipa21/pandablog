@@ -52,6 +52,16 @@
             </div>
             <h1 class="mt-5 font-[var(--pb-font-display)] text-4xl font-semibold leading-[1.14] tracking-normal text-[var(--pb-text)] md:text-5xl lg:text-[3.5rem]">{{ post.title }}</h1>
             <p v-if="post.summary" class="mt-4 text-lg leading-relaxed text-[var(--pb-text-muted)] md:text-xl">{{ post.summary }}</p>
+            <div v-if="post.tags?.length" class="mt-5 flex flex-wrap gap-2">
+              <NuxtLink
+                v-for="tag in post.tags"
+                :key="tag.slug"
+                :to="`/tag/${tag.slug}`"
+                class="inline-flex items-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] px-3 py-1 text-sm font-medium text-[var(--pb-text-muted)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pb-selected-border)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--pb-card-bg)]"
+              >
+                #{{ tag.name }}
+              </NuxtLink>
+            </div>
           </header>
 
           <div class="blog-content">

@@ -62,9 +62,14 @@ export interface PostListItem {
   slug: string
   title: string
   summary?: string | null
+  excerpt?: string | null
   cover_image?: string | null
   published_at?: string | null
+  view_count?: number
+  word_count?: number
+  cjk_char_count?: number
   visibility?: PostVisibility
+  categories?: Array<Pick<CategoryRecord, 'name' | 'slug'>>
 }
 
 export interface PostLockedResponse {

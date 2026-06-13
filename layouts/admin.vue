@@ -293,12 +293,14 @@ const navSections = computed(() => {
           { to: '/admin/settings/general', label: t('admin.nav.general'), icon: 'i-lucide-sliders-horizontal' },
           { to: '/admin/settings/profile', label: t('admin.nav.profile'), icon: 'i-lucide-user' },
           { to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' },
+          { to: '/admin/settings/analytics', label: t('admin.nav.analyticsSettings'), icon: 'i-lucide-chart-no-axes-combined' },
           { to: '/admin/settings/system', label: t('admin.nav.system'), icon: 'i-lucide-monitor-cog' }
         ]
       },
       {
         label: t('admin.nav.tools'),
         items: [
+          { to: '/admin/analytics', label: t('admin.nav.analytics'), icon: 'i-lucide-chart-no-axes-combined' },
            { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' },
           { to: '/admin/logs', label: t('admin.nav.logs'), icon: 'i-lucide-clipboard-list' }
         ]
@@ -323,6 +325,7 @@ const breadcrumbLabels = computed<Record<string, string>>(() => ({
   footer: t('admin.nav.footer'),
   visibility: t('admin.nav.visibility'),
   themes: t('admin.nav.themes'),
+  analytics: t('admin.nav.analytics'),
   system: t('admin.nav.system'),
   logs: t('admin.nav.logs'),
   backups: t('admin.nav.backups'),

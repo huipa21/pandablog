@@ -42,7 +42,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/')
   }
 
-  if (to.path.startsWith('/admin/settings') || to.path.startsWith('/admin/logs')) {
+  if (to.path.startsWith('/admin/settings') || to.path.startsWith('/admin/logs') || to.path.startsWith('/admin/analytics')) {
     if (role !== 'superadmin') {
       return navigateTo('/admin')
     }

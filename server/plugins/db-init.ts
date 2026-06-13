@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { flattenBlockSearchText } from '../utils/blocks'
+import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { queryDb, useDb } from '../utils/db'
 import { initializeLoggingSettings } from '../utils/logging'
-import { initializeRuntimeSettings } from '../utils/settings'
+import { initializeAnalyticsSettings, initializeRuntimeSettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE } from '~/utils/adminLocale'
 import { computeContentStats } from '~/utils/contentStats'
+import type { JsonContent } from '~/types/content'
 import {
   ADMIN_DATE_FORMAT_KEY,
   ADMIN_FORMAT_LOCALE_KEY,
@@ -20,7 +21,7 @@ import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMod
 
 const SCHEMA_HASH_KEY = '__schema_hash'
 const USER_TABLE_MIGRATION_KEY = '__user_table_migration_v1'
-const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v1'
+const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v2'
 const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const APP_SETTINGS_TABLE = 'app_settings'
@@ -60,6 +61,7 @@ export default defineNitroPlugin(async () => {
     await ensureDefaultAdminLocale(db)
     await ensureDefaultAdminRegionalSettings(db)
     await initializeRuntimeSettings(true)
+    await initializeAnalyticsSettings(true)
     await ensureDefaultFolder(db)
     await backfillPostStats(db)
     await backfillBlockText(db)
@@ -327,17 +329,17 @@ async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
   try {
     const response = await queryDb(
       db,
-      `SELECT in AS post_id, out.text AS text FROM has_blocks FETCH out;`,
+      `SELECT in AS post_id, out.node AS node FROM has_blocks FETCH out;`,
       undefined,
       { label: 'post stats backfill load blocks', timeoutMs: 30_000 }
     )
-    const rows = queryRows<{ post_id?: unknown, text?: unknown }>(response, 0)
+    const rows = queryRows<{ post_id?: unknown, node?: unknown }>(response, 0)
     const textsByPost = new Map<string, string[]>()
     for (const row of rows) {
       const postId = stringifyRecordId(row.post_id)
       if (!postId) continue
       const list = textsByPost.get(postId) ?? []
-      list.push(typeof row.text === 'string' ? row.text : '')
+      list.push(flattenNodeText(row.node as JsonContent | null | undefined))
       textsByPost.set(postId, list)
     }
 

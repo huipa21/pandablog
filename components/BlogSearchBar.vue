@@ -129,7 +129,17 @@ function syncSearchAttributes(value: string) {
 function submit() {
   const q = query.value.trim()
   if (!q) return
-  navigateTo({ path: '/search', query: { q } })
+  const from = getSearchReturnPath()
+  navigateTo({ path: '/search', query: from ? { q, from } : { q } })
+}
+
+function getSearchReturnPath() {
+  if (route.path !== '/search') return route.fullPath
+
+  const from = route.query.from
+  if (typeof from !== 'string') return ''
+  if (!from.startsWith('/') || from.startsWith('//') || from.startsWith('/search')) return ''
+  return from
 }
 </script>
 

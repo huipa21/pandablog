@@ -31,7 +31,9 @@
       "errors": "Errors",
       "setup": "Setup",
       "login": "Login",
-      "backups": "Backups"
+      "backups": "Backups",
+      "analytics": "Analytics",
+      "analyticsSettings": "Analytics"
     },
     "layout": {
       "openNavigation": "Open navigation",
@@ -78,7 +80,34 @@
       "assets": "Assets",
       "assetsDescription": "Local upload management lands in the editor phase.",
       "analytics": "Analytics",
-      "analyticsDescription": "Page views and referrers are planned after publishing is solid."
+      "analyticsDescription": "Review visits, top pages, bounce rate, and city-level reach."
+    },
+    "analytics": {
+      "eyebrow": "Insights",
+      "title": "Analytics",
+      "description": "Local traffic metrics from privacy-preserving pageview events and daily rollups.",
+      "refresh": "Refresh",
+      "loadFailed": "Could not load analytics",
+      "pageViews": "Page views",
+      "uniqueVisitors": "Unique visitors",
+      "uniqueVisitorsApproximate": "Summed by day for multi-day ranges.",
+      "bounceRate": "Bounce rate",
+      "avgVisitTime": "Avg. visit time",
+      "viewsTrend": "Views trend",
+      "viewsTrendDescription": "Daily page views for the selected range.",
+      "topPages": "Top pages",
+      "geoDistribution": "Geo distribution",
+      "geoDescription": "City-level locations when the local DB-IP database is present.",
+      "geoAttribution": "IP Geolocation by DB-IP.",
+      "empty": "No analytics data for this range.",
+      "emptyGeo": "No geo data for this range.",
+      "seconds": "{count}s",
+      "minutes": "{count}m",
+      "ranges": {
+        "today": "Today",
+        "sevenDays": "7 days",
+        "thirtyDays": "30 days"
+      }
     },
     "setup": {
       "eyebrow": "First run",
@@ -1202,6 +1231,22 @@
         "deleted": "Theme deleted",
         "deleteFailed": "Delete failed"
       },
+      "analytics": {
+        "eyebrow": "Settings",
+        "title": "Analytics",
+        "description": "Control local pageview collection, session windows, and raw-data retention.",
+        "collectionTitle": "Collection",
+        "enableCollection": "Enable analytics collection",
+        "enableCollectionHelp": "Tracks public pageviews only. Admin, login, API, and asset routes are skipped.",
+        "sessionWindow": "Session window (minutes)",
+        "sessionWindowHelp": "Views from the same visitor are grouped while they are active within this window.",
+        "retentionDays": "Raw retention (days)",
+        "retentionDaysHelp": "Raw pageviews and sessions older than this are deleted after daily rollup.",
+        "geoTitle": "City-level geo",
+        "geoDescription": "Place DB-IP City Lite at storage/geoip/dbip-city-lite.mmdb or set GEOIP_DB_PATH. Missing databases leave geo fields empty.",
+        "saved": "Analytics settings saved",
+        "saveFailed": "Could not save analytics settings"
+      },
       "general": {
         "title": "General",
         "description": "Configure your site identity, footer, and public access mode.",
@@ -1387,6 +1432,7 @@
     },
     "search": {
       "title": "Search",
+      "back": "Back",
       "placeholder": "Search posts...",
       "button": "Search",
       "prompt": "Type a query above to search the blog.",
@@ -1424,6 +1470,7 @@
       "sitePrivateDescription": "This blog is currently private. Sign in as admin to view posts.",
       "loadFailed": "Could not load posts",
       "protected": "Protected",
+      "openPost": "Open {title}",
       "readMore": "Read more",
       "emptyTitle": "No published posts yet",
       "emptyDescription": "Publish your first note from the admin area."
