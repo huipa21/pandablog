@@ -100,7 +100,7 @@ function targetForRole(role: Role) {
     return redirect.startsWith('/admin') ? '/' : redirect
   }
 
-  return redirect || '/admin'
+  return redirect || '/admin/dashboard'
 }
 </script>
 
@@ -196,7 +196,7 @@ function targetForRole(role: Role) {
 
 .login-error {
   margin: -0.5rem 0 0;
-  color: #b42318;
+  color: var(--ui-error);
   font-size: 0.875rem;
   font-weight: 650;
   line-height: 1.4;

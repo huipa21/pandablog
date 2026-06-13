@@ -18,7 +18,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (to.path === '/admin/login') {
-    return navigateTo({ path: '/login', query: { redirect: String(to.query.redirect ?? '/admin') } })
+    return navigateTo({ path: '/login', query: { redirect: String(to.query.redirect ?? '/admin/dashboard') } })
   }
 
   if (to.path === '/login') {
@@ -42,15 +42,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo('/')
   }
 
-  if (to.path.startsWith('/admin/settings') || to.path.startsWith('/admin/logs') || to.path.startsWith('/admin/analytics')) {
+  if (to.path.startsWith('/admin/settings') || to.path.startsWith('/admin/logs') || to.path.startsWith('/admin/dashboard/analytics')) {
     if (role !== 'superadmin') {
-      return navigateTo('/admin')
+      return navigateTo('/admin/dashboard')
     }
   }
 
   if (to.path.startsWith('/admin/users')) {
     if (role !== 'superadmin' && role !== 'admin') {
-      return navigateTo('/admin')
+      return navigateTo('/admin/dashboard')
     }
   }
 

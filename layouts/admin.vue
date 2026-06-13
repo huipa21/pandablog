@@ -73,7 +73,7 @@
       ]"
     >
       <NuxtLink
-        to="/admin"
+        to="/admin/dashboard"
         class="mb-4 flex h-12 items-center gap-3 rounded-[var(--pb-radius-lg)] bg-[var(--pb-surface-subtle)] px-3 text-[var(--pb-text)]"
         :class="collapsed ? 'md:justify-center md:px-0' : ''"
         :title="collapsed ? siteName : undefined"
@@ -259,7 +259,7 @@ const navSections = computed(() => {
     {
       label: '',
       items: [
-        { to: '/admin', label: t('admin.nav.dashboard'), icon: 'i-lucide-layout-dashboard' }
+        { to: '/admin/dashboard', label: t('admin.nav.dashboard'), icon: 'i-lucide-layout-dashboard' }
       ]
     }
   ]
@@ -268,7 +268,7 @@ const navSections = computed(() => {
     sections.push({
       label: t('admin.nav.posts'),
       items: [
-        { to: '/admin/posts', label: t('admin.nav.allPosts'), icon: 'i-lucide-file-text' },
+        { to: '/admin/posts', label: t('admin.nav.posts'), icon: 'i-lucide-file-text' },
         { to: '/admin/categories', label: t('admin.nav.categories'), icon: 'i-lucide-folder' },
         { to: '/admin/tags', label: t('admin.nav.tags'), icon: 'i-lucide-tags' },
         { to: '/admin/media', label: t('admin.nav.mediaLibrary'), icon: 'i-lucide-image' }
@@ -300,8 +300,7 @@ const navSections = computed(() => {
       {
         label: t('admin.nav.tools'),
         items: [
-          { to: '/admin/analytics', label: t('admin.nav.analytics'), icon: 'i-lucide-chart-no-axes-combined' },
-           { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' },
+          { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' },
           { to: '/admin/logs', label: t('admin.nav.logs'), icon: 'i-lucide-clipboard-list' }
         ]
       }
@@ -313,6 +312,7 @@ const navSections = computed(() => {
 
 const breadcrumbLabels = computed<Record<string, string>>(() => ({
   admin: t('admin.nav.dashboard'),
+  dashboard: t('admin.nav.dashboard'),
   posts: t('admin.nav.posts'),
   categories: t('admin.nav.categories'),
   tags: t('admin.nav.tags'),
@@ -342,8 +342,11 @@ const breadcrumbs = computed(() => {
     return []
   }
 
-  return parts.map((part, index) => {
-    const to = `/${parts.slice(0, index + 1).join('/')}`
+  const visibleParts = parts[1] === 'dashboard' ? [parts[0], ...parts.slice(2)] : parts
+
+  return visibleParts.map((part, index) => {
+    const routePartCount = parts[1] === 'dashboard' && index > 0 ? index + 2 : index + 1
+    const to = `/${parts.slice(0, routePartCount).join('/')}`
     return {
       to,
       label: breadcrumbLabels.value[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
@@ -352,7 +355,7 @@ const breadcrumbs = computed(() => {
 })
 
 function isActiveNav(to: string) {
-  if (to === '/admin') return route.path === to
+  if (to === '/admin/dashboard') return route.path === '/admin' || route.path === to || route.path.startsWith(`${to}/`)
   return route.path === to || route.path.startsWith(`${to}/`)
 }
 

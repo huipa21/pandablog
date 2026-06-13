@@ -9,6 +9,6 @@ const route = useRoute()
 
 await navigateTo({
   path: '/login',
-  query: { redirect: String(route.query.redirect ?? '/admin') }
+  query: { redirect: String(route.query.redirect ?? '/admin/dashboard') }
 }, { replace: true })
 </script>

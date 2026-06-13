@@ -49,7 +49,7 @@
               @click="toggleThemeMode"
             />
             <PublicLanguageSwitcher :key="`hero-language-${publicLocale}`" />
-            <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
+            <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin/dashboard" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
               {{ t('public.nav.admin') }}
             </UButton>
             <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
@@ -126,7 +126,7 @@
             @click="toggleThemeMode"
           />
           <PublicLanguageSwitcher :key="`compact-language-${publicLocale}`" />
-          <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
+          <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin/dashboard" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
             {{ t('public.nav.admin') }}
           </UButton>
           <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">

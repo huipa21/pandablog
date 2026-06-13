@@ -56,7 +56,7 @@ async function completeSetup() {
         confirm_password: confirmPassword.value
       }
     })
-    await navigateTo(String(route.query.redirect ?? '/admin'))
+    await navigateTo(String(route.query.redirect ?? '/admin/dashboard'))
   } catch (err: any) {
     errorMessage.value = err?.data?.message ?? err?.statusMessage ?? err?.message ?? t('admin.setup.failed')
   } finally {
