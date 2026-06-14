@@ -322,15 +322,15 @@ const blockDefinitions: BlockDefinition[] = [
   {
     name: 'embed',
     title: 'Embed',
-    description: 'Embed content from a URL.',
+    description: 'Embed a YouTube video from a URL.',
     icon: 'i-lucide-globe-2',
     category: 'embed',
-    keywords: ['url', 'oembed', 'iframe'],
+    keywords: ['url', 'youtube', 'video'],
     implemented: true,
     supports: { align: true, spacing: true },
     createContent: () => ({
-      type: 'customHtml',
-      attrs: { html: '' }
+      type: 'videoEmbed',
+      attrs: { provider: 'youtube', videoId: '', start: 0 }
     })
   },
   {

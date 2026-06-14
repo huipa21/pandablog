@@ -162,13 +162,27 @@
           :title="t('admin.editor.blocks.embedTitle')"
           :description="t('admin.editor.blocks.embedDescription')"
           :label="t('admin.editor.blocks.embedUrl')"
-          placeholder="https://example.com"
+          placeholder="https://www.youtube.com/watch?v=... or <iframe src=&quot;https://www.youtube.com/embed/...&quot;></iframe>"
           :validate="validateEmbedUrlInput"
           :confirm-label="t('admin.editor.blocks.insertEmbed')"
+          multiline
+          :rows="4"
           @update:open="(value) => { if (!value) closeEmbedUrlDialog() }"
           @cancel="closeEmbedUrlDialog"
           @confirm="confirmEmbedUrl"
-        />
+        >
+          <div class="mt-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)] p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-[var(--pb-text-muted)]">
+              {{ t('admin.editor.blocks.supportedEmbeds') }}
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <span class="inline-flex items-center gap-2 rounded-[var(--pb-radius-sm)] border border-[var(--pb-selected-border)] bg-[var(--pb-card-bg)] px-2.5 py-1.5 text-sm font-semibold text-[var(--pb-text)]">
+                <UIcon name="i-lucide-youtube" class="size-4 text-[var(--pb-primary)]" />
+                YouTube
+              </span>
+            </div>
+          </div>
+        </AdminPromptDialog>
 
         <AdminPromptDialog
           :open="mediaTextRemoteUrlDialogOpen"
@@ -234,6 +248,7 @@ import { CodeBlockEnhanced } from '~/extensions/codeBlockEnhanced'
 import { DiffBlockNode } from '~/extensions/diffBlock'
 import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
+import { VideoEmbedNode } from '~/extensions/videoEmbed'
 import { ImageBlockNode } from '~/extensions/imageBlock'
 import { MediaTextNode } from '~/extensions/mediaText'
 import { FilesBlockNode } from '~/extensions/filesBlock'
@@ -248,6 +263,7 @@ import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.v
 import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
 import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
+import VideoEmbedNodeView from '~/components/admin/editor/VideoEmbedNodeView.vue'
 import ImageBlockNodeView from '~/components/admin/editor/ImageBlockNodeView.vue'
 import MediaTextNodeView from '~/components/admin/editor/MediaTextNodeView.vue'
 import FilesBlockNodeView from '~/components/admin/editor/FilesBlockNodeView.vue'
@@ -271,6 +287,7 @@ import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 import { useMediaUrl } from '~/composables/useMediaUrl'
 import { mediaRecordToFileItem } from '~/utils/mediaFiles'
+import { resolveVideoEmbed } from '~/utils/videoEmbed'
 
 interface ActiveBlockRange {
   from: number
@@ -424,6 +441,11 @@ const editor = useEditor({
     CustomHtmlNode.extend({
       addNodeView() {
         return VueNodeViewRenderer(CustomHtmlNodeView)
+      }
+    }),
+    VideoEmbedNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(VideoEmbedNodeView)
       }
     }),
     ImageBlockNode.extend({
@@ -2095,144 +2117,26 @@ function closeEmbedUrlDialog() {
 }
 
 function validateEmbedUrlInput(rawUrl: string) {
-  const normalizedUrl = normalizeEmbedUrl(rawUrl)
-  return normalizedUrl ? null : 'Please enter a valid URL, e.g. https://example.com'
+  const embed = resolveVideoEmbed(rawUrl)
+  return embed ? null : t('admin.editor.blocks.youtubeOnly')
 }
 
 function confirmEmbedUrl(rawUrl: string) {
   const ed = editor.value
   const pos = pendingEmbedInsertPos.value
-  const normalizedUrl = normalizeEmbedUrl(rawUrl)
-  if (!ed || pos === null || !normalizedUrl) {
+  const embed = resolveVideoEmbed(rawUrl)
+  if (!ed || pos === null) {
     closeEmbedUrlDialog()
     return
   }
+  if (!embed) return
 
-  const embedHtml = buildEmbedHtmlFromUrl(normalizedUrl)
   const safePos = normalizeStandaloneBlockInsertPos(ed, pos, 'embed')
   ed.chain().focus().insertContentAt(safePos, {
-    type: 'customHtml',
-    attrs: { html: embedHtml }
+    type: 'videoEmbed',
+    attrs: embed
   }).run()
   closeEmbedUrlDialog()
-}
-
-function normalizeEmbedUrl(rawUrl: string) {
-  try {
-    return new URL(rawUrl).toString()
-  } catch {
-    try {
-      return new URL(`https://${rawUrl}`).toString()
-    } catch {
-      return null
-    }
-  }
-}
-
-function buildEmbedHtmlFromUrl(url: string) {
-  const parsed = new URL(url)
-  const hostname = parsed.hostname.toLowerCase()
-  const pathname = parsed.pathname.toLowerCase()
-
-  const youtubeId = getYouTubeVideoId(parsed)
-  if (youtubeId) {
-    const src = `https://www.youtube-nocookie.com/embed/${youtubeId}`
-    return `<div style="max-width:960px;margin:0 auto;">
-  <iframe
-    src="${escapeHtmlAttr(src)}"
-    title="${escapeHtmlAttr(t('admin.editor.blocks.youtubeVideo'))}"
-    style="width:100%;height:420px;border:0;border-radius:12px;"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowfullscreen
-    loading="lazy"
-  ></iframe>
-</div>`
-  }
-
-  const isVideoFile = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i.test(pathname)
-  if (isVideoFile) {
-    return `<div style="max-width:960px;margin:0 auto;">
-  <video controls style="width:100%;max-height:70vh;border-radius:12px;background:#000;" src="${escapeHtmlAttr(url)}"></video>
-</div>`
-  }
-
-  const isAudioFile = /\.(mp3|wav|ogg|flac|m4a|aac)(\?|#|$)/i.test(pathname)
-  if (isAudioFile) {
-    return `<div style="max-width:960px;margin:0 auto;padding:1rem;">
-  <audio controls style="width:100%;" src="${escapeHtmlAttr(url)}"></audio>
-</div>`
-  }
-
-  const vimeoMatch = hostname.includes('vimeo.com')
-    ? parsed.pathname.match(/\/(\d+)(?:$|\/)/)
-    : null
-  if (vimeoMatch?.[1]) {
-    const src = `https://player.vimeo.com/video/${vimeoMatch[1]}`
-    return `<div style="max-width:960px;margin:0 auto;">
-  <iframe
-    src="${escapeHtmlAttr(src)}"
-    title="${escapeHtmlAttr(t('admin.editor.blocks.vimeoVideo'))}"
-    style="width:100%;height:420px;border:0;border-radius:12px;"
-    allow="autoplay; fullscreen; picture-in-picture"
-    allowfullscreen
-    loading="lazy"
-  ></iframe>
-</div>`
-  }
-
-  // Generic website embed fallback. Some sites block framing by policy.
-  return `<div style="max-width:1100px;margin:0 auto;">
-  <iframe
-    src="${escapeHtmlAttr(url)}"
-    title="${escapeHtmlAttr(t('admin.editor.blocks.embeddedWebpage'))}"
-    style="width:100%;height:720px;border:0;border-radius:12px;background:#fff;"
-    loading="lazy"
-    referrerpolicy="no-referrer"
-  ></iframe>
-  <p style="margin:0.5rem 0 0;font:500 13px ui-sans-serif,system-ui,sans-serif;color:#64748b;">${escapeHtmlText(t('admin.editor.blocks.embedBlockedHelp'))} <a href="${escapeHtmlAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtmlText(url)}</a></p>
-</div>`
-}
-
-function getYouTubeVideoId(parsed: URL) {
-  const hostname = parsed.hostname.toLowerCase()
-  const pathname = parsed.pathname
-
-  if (hostname === 'youtu.be') {
-    const id = pathname.replace(/^\//, '').split('/')[0]
-    return id || null
-  }
-
-  if (hostname.endsWith('youtube.com') || hostname.endsWith('youtube-nocookie.com')) {
-    if (pathname.startsWith('/watch')) {
-      return parsed.searchParams.get('v')
-    }
-
-    const segments = pathname.split('/').filter(Boolean)
-    if (segments[0] === 'embed' && segments[1]) {
-      return segments[1]
-    }
-    if (segments[0] === 'shorts' && segments[1]) {
-      return segments[1]
-    }
-  }
-
-  return null
-}
-
-function escapeHtmlAttr(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
-
-function escapeHtmlText(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
 }
 
 // ─── DRAG AND DROP ───────────────────────────────────────────────────────────

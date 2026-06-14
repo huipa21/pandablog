@@ -13,6 +13,7 @@
   <NodeRubyUnit v-else-if="node.type === 'rubyUnit'" :node="node" />
   <NodeAnnotationBlock v-else-if="node.type === 'annotationBlock'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
+  <NodeVideoEmbed v-else-if="node.type === 'videoEmbed'" :node="node" />
   <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
   <NodeFilesBlock v-else-if="node.type === 'filesBlock'" :node="node" />
   <NodeColumnsBlock v-else-if="node.type === 'columnsBlock'" :node="node" />
@@ -30,6 +31,7 @@ import type { JsonContent } from '~/types/content'
 import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
 import NodeCodeBlock from './NodeCodeBlock.vue'
 import NodeCustomHtml from './NodeCustomHtml.vue'
+import NodeVideoEmbed from './NodeVideoEmbed.vue'
 import NodeDiffBlock from './NodeDiffBlock.vue'
 import NodeImage from './NodeImage.vue'
 import NodeFootnotesBlock from './NodeFootnotesBlock.vue'

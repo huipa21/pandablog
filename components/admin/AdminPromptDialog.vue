@@ -16,6 +16,8 @@
           {{ description }}
         </p>
 
+        <slot />
+
         <form class="mt-5 space-y-4" novalidate @submit.prevent="handleSubmit">
           <UFormField :label="label" :error="errorMessage || undefined">
             <UTextarea
