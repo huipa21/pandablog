@@ -1,0 +1,33 @@
+services:
+  app:
+    image: ${PANDABLOG_IMAGE:-localhost/pandablog:latest}
+    # Match the UID:GID that OWNS the bind-mounted ./app-storage and ./app-data
+    # directories on the host. Your production surrealdb runs as 1002:1002, so
+    # the deploy user is most likely 1002. Adjust if different.
+    user: "1002:1002"
+    pull_policy: never
+    container_name: pandablog-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    expose:
+      - 3000
+    volumes:
+      - ./app-storage:/app/storage
+      - ./app-data:/app/.data
+      # GeoIP analytics database (optional). Place the DB-IP City Lite MMDB at
+      # ./app-storage/geoip/dbip-city-lite.mmdb on the host. Because the whole
+      # storage dir is bind-mounted, it will be visible inside the container at
+      # /app/storage/geoip/dbip-city-lite.mmdb (the default GEOIP_DB_PATH).
+    networks:
+      - nginx
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  nginx:
+    external: true
