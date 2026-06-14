@@ -200,6 +200,7 @@ export async function getAnalyticsGeo(range: AnalyticsRange, limit: number): Pro
       `SELECT country, region, city, math::sum(views) AS views
        FROM analytics_daily_geo
        WHERE date >= $fromDate AND date < $toDate
+         AND country != NONE
        GROUP BY country, region, city;`,
       { fromDate: utcDateString(range.rollupStart), toDate: utcDateString(range.rollupEnd) },
       { label: 'analytics geo rollup', timeoutMs: 10_000 },
@@ -216,6 +217,7 @@ export async function getAnalyticsGeo(range: AnalyticsRange, limit: number): Pro
       `SELECT country, region, city, count() AS views
        FROM pageview
        WHERE created_at >= $from AND created_at < $to
+         AND country != NONE
        GROUP BY country, region, city;`,
       { from: range.liveStart, to: range.to },
       { label: 'analytics geo live', timeoutMs: 10_000 },
@@ -379,8 +381,13 @@ function addCount(map: Map<string, number>, key: string, value: number) {
 }
 
 function addGeoCount(map: Map<string, AnalyticsGeoRow>, row: DailyGeoRow) {
+  const country = stringValue(row.country)
+  if (!country) {
+    return
+  }
+
   const location = {
-    country: stringValue(row.country) || 'Unknown',
+    country,
     region: stringValue(row.region),
     city: stringValue(row.city),
     views: numberValue(row.views)

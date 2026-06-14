@@ -202,8 +202,16 @@
       "viewsTrendDescription": "Daily page views for the selected range.",
       "topPages": "Top pages",
       "geoDistribution": "Geo distribution",
-      "geoDescription": "City-level locations when the local DB-IP database is present.",
+      "geoDescription": "Public-IP pageviews resolved by the local DB-IP database; localhost and unresolved traffic are excluded.",
       "geoAttribution": "IP Geolocation by DB-IP.",
+      "geoMapLabel": "World map of page views by country",
+      "topLocations": "Top locations",
+      "emptyGeoMap": "The Geo DB is ready, but this range has no resolved public-IP pageviews.",
+      "lessTraffic": "Less",
+      "moreTraffic": "More",
+      "customFrom": "Custom range start date",
+      "customTo": "Custom range end date",
+      "customRangeTo": "to",
       "empty": "No analytics data for this range.",
       "emptyGeo": "No geo data for this range.",
       "seconds": "{count}s",
@@ -211,7 +219,8 @@
       "ranges": {
         "today": "Today",
         "sevenDays": "7 days",
-        "thirtyDays": "30 days"
+        "thirtyDays": "30 days",
+        "custom": "Custom"
       }
     },
     "setup": {

@@ -202,8 +202,16 @@
       "viewsTrendDescription": "所选时间范围内的每日页面浏览量。",
       "topPages": "热门页面",
       "geoDistribution": "地理分布",
-      "geoDescription": "存在本地 DB-IP 数据库时显示城市级位置。",
+      "geoDescription": "显示由本地 DB-IP 数据库解析出的公网访问；本机和未解析流量会被排除。",
       "geoAttribution": "IP Geolocation by DB-IP。",
+      "geoMapLabel": "按国家显示页面浏览量的世界地图",
+      "topLocations": "热门位置",
+      "emptyGeoMap": "Geo 数据库可用，但此范围内暂无已解析的公网访问。",
+      "lessTraffic": "较少",
+      "moreTraffic": "较多",
+      "customFrom": "自定义范围开始日期",
+      "customTo": "自定义范围结束日期",
+      "customRangeTo": "至",
       "empty": "此范围内暂无分析数据。",
       "emptyGeo": "此范围内暂无地理数据。",
       "seconds": "{count} 秒",
@@ -211,7 +219,8 @@
       "ranges": {
         "today": "今天",
         "sevenDays": "7 天",
-        "thirtyDays": "30 天"
+        "thirtyDays": "30 天",
+        "custom": "自定义"
       }
     },
     "setup": {

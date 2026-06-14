@@ -17,7 +17,7 @@ export async function resolveAnalyticsSession(
   const cutoff = new Date(now.getTime() - sessionWindowMinutes * 60_000)
   const existing = firstRow<AnalyticsSessionRecord>(await queryDb(
     db,
-    `SELECT id FROM analytics_session
+    `SELECT id, last_seen_at FROM analytics_session
      WHERE visitor_hash = $visitorHash
        AND last_seen_at >= $cutoff
      ORDER BY last_seen_at DESC
@@ -48,8 +48,8 @@ export async function resolveAnalyticsSession(
   }
   const created = firstRow<AnalyticsSessionRecord>(await queryDb(
     db,
-    'CREATE analytics_session CONTENT $session;',
-    { session: payload },
+    'CREATE analytics_session CONTENT $analyticsSession;',
+    { analyticsSession: payload },
     { label: 'analytics session create', timeoutMs: 5_000 }
   ))
 

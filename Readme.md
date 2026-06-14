@@ -42,6 +42,16 @@ NUXT_SESSION_PASSWORD="at-least-32-random-characters"
 
 On first deployment, visit `/admin` and complete the setup wizard. Admin username is fixed as `admin`; the wizard stores the password hash in SurrealDB `app_settings`.
 
+### Optional Analytics Geo Database
+
+City-level analytics use a local MaxMind-compatible `.mmdb` file, not a SurrealDB table. Download the DB-IP City Lite database in MMDB format from DB-IP, then place it at:
+
+```text
+storage/geoip/dbip-city-lite.mmdb
+```
+
+To use a different location, set `GEOIP_DB_PATH` or `NUXT_GEOIP_DB_PATH` to the absolute path. In Docker, mount the file or the whole `storage` volume into the app container so it exists at `/app/storage/geoip/dbip-city-lite.mmdb`.
+
 ## Install And Run
 
 Install dependencies:

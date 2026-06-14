@@ -8,15 +8,16 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <UButton
-          v-for="item in rangeItems"
-          :key="item.value"
-          :variant="range === item.value ? 'solid' : 'soft'"
-          color="primary"
-          @click="range = item.value"
-        >
-          {{ item.label }}
-        </UButton>
+        <UDropdownMenu :items="rangeMenuItems" :content="{ align: 'end' }">
+          <UButton color="primary" variant="soft" icon="i-lucide-calendar-range" trailing-icon="i-lucide-chevron-down">
+            {{ selectedRangeLabel }}
+          </UButton>
+        </UDropdownMenu>
+        <div v-if="range === 'custom'" class="flex flex-wrap items-center gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-selected-bg)] p-2">
+          <UInput v-model="customFrom" type="date" size="sm" :max="customTo || undefined" :aria-label="t('admin.analytics.customFrom')" class="w-36" />
+          <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.analytics.customRangeTo') }}</span>
+          <UInput v-model="customTo" type="date" size="sm" :min="customFrom || undefined" :aria-label="t('admin.analytics.customTo')" class="w-36" />
+        </div>
         <UButton icon="i-lucide-refresh-cw" variant="ghost" :loading="pending" @click="refreshAll">
           {{ t('admin.analytics.refresh') }}
         </UButton>
@@ -86,21 +87,33 @@
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.analytics.geoDescription') }}</p>
       </div>
 
-      <div v-if="geoPending" class="grid gap-3 md:grid-cols-2">
-        <USkeleton v-for="index in 6" :key="index" class="h-14" />
+      <div v-if="geoPending" class="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+        <USkeleton class="h-80" />
+        <div class="grid gap-3">
+          <USkeleton v-for="index in 6" :key="index" class="h-14" />
+        </div>
       </div>
-      <div v-else-if="locations.length" class="grid gap-3 md:grid-cols-2">
-        <div v-for="location in locations" :key="location.key" class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-[var(--pb-text)]">{{ location.label }}</p>
-              <p class="text-xs text-[var(--pb-text-muted)]">{{ location.country }}</p>
+      <div v-else class="grid gap-4" :class="topLocations.length ? 'xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]' : ''">
+        <AdminAnalyticsGeoMap
+          :locations="locations"
+          :ariaLabel="t('admin.analytics.geoMapLabel')"
+          :empty-label="t('admin.analytics.emptyGeoMap')"
+          :less-label="t('admin.analytics.lessTraffic')"
+          :more-label="t('admin.analytics.moreTraffic')"
+        />
+        <div v-if="topLocations.length" class="grid content-start gap-3">
+          <h3 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.analytics.topLocations') }}</h3>
+          <div v-for="location in topLocations" :key="location.key" class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold text-[var(--pb-text)]">{{ location.label }}</p>
+                <p class="text-xs text-[var(--pb-text-muted)]">{{ location.country }}</p>
+              </div>
+              <UBadge color="primary" variant="soft">{{ formatNumber(location.views) }}</UBadge>
             </div>
-            <UBadge color="primary" variant="soft">{{ formatNumber(location.views) }}</UBadge>
           </div>
         </div>
       </div>
-      <p v-else class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.analytics.emptyGeo') }}</p>
 
       <p class="mt-4 text-xs text-[var(--pb-text-muted)]">{{ t('admin.analytics.geoAttribution') }}</p>
     </section>
@@ -111,6 +124,13 @@
 definePageMeta({ layout: 'admin' })
 
 type RangePreset = 'today' | '7d' | '30d'
+type RangeOption = RangePreset | 'custom'
+
+interface AnalyticsQuery {
+  range: RangeOption
+  from?: string
+  to?: string
+}
 
 interface AnalyticsOverview {
   scorecards: {
@@ -134,13 +154,32 @@ interface GeoResponse {
 
 const { t, locale } = useI18n()
 const sessionFetch = useSessionFetch()
-const range = ref<RangePreset>('7d')
-const rangeItems = computed<Array<{ label: string, value: RangePreset }>>(() => [
+const range = ref<RangeOption>('7d')
+const customFrom = ref(addDateInputDays(formatDateInput(new Date()), -6))
+const customTo = ref(formatDateInput(new Date()))
+const rangeItems = computed<Array<{ label: string, value: RangeOption }>>(() => [
   { label: t('admin.analytics.ranges.today'), value: 'today' },
   { label: t('admin.analytics.ranges.sevenDays'), value: '7d' },
-  { label: t('admin.analytics.ranges.thirtyDays'), value: '30d' }
+  { label: t('admin.analytics.ranges.thirtyDays'), value: '30d' },
+  { label: t('admin.analytics.ranges.custom'), value: 'custom' }
 ])
-const analyticsQuery = computed(() => ({ range: range.value }))
+const rangeMenuItems = computed(() => [rangeItems.value.map(item => ({
+  label: item.label,
+  icon: range.value === item.value ? 'i-lucide-check' : 'i-lucide-calendar-days',
+  onSelect: () => selectRange(item.value)
+}))])
+const selectedRangeLabel = computed(() => rangeItems.value.find(item => item.value === range.value)?.label ?? '')
+const analyticsQuery = computed<AnalyticsQuery>(() => {
+  if (range.value !== 'custom') {
+    return { range: range.value }
+  }
+
+  return {
+    range: 'custom',
+    from: customFrom.value,
+    to: addDateInputDays(customTo.value, 1)
+  }
+})
 
 const { data: overview, pending: overviewPending, error, refresh: refreshOverview } = await useAsyncData(
   'admin-analytics-overview',
@@ -154,7 +193,7 @@ const { data: topPagesData, pending: topPagesPending, refresh: refreshTopPages }
 )
 const { data: geoData, pending: geoPending, refresh: refreshGeo } = await useAsyncData(
   'admin-analytics-geo',
-  () => sessionFetch<GeoResponse>('/api/admin/analytics/geo', { query: { ...analyticsQuery.value, limit: 10 } }),
+  () => sessionFetch<GeoResponse>('/api/admin/analytics/geo', { query: { ...analyticsQuery.value, limit: 50 } }),
   { watch: [range] }
 )
 
@@ -192,6 +231,7 @@ const locations = computed(() => (geoData.value?.locations ?? []).map((location)
     label: parts.length ? parts.join(', ') : location.country
   }
 }))
+const topLocations = computed(() => locations.value.slice(0, 10))
 
 function formatNumber(value: number) {
   return numberFormatter.value.format(value)
@@ -210,6 +250,36 @@ function formatDuration(seconds: number) {
 async function refreshAll() {
   await Promise.all([refreshOverview(), refreshTopPages(), refreshGeo()])
 }
+
+function selectRange(value: RangeOption) {
+  range.value = value
+}
+
+function formatDateInput(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+
+function addDateInputDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  date.setUTCDate(date.getUTCDate() + days)
+  return formatDateInput(date)
+}
+
+watch(customFrom, (from) => {
+  if (from && customTo.value && from > customTo.value) {
+    customTo.value = from
+  }
+})
+
+watch(customTo, (to) => {
+  if (to && customFrom.value && to < customFrom.value) {
+    customFrom.value = to
+  }
+})
 </script>
 
 <style scoped>

@@ -1,4 +1,5 @@
 import { getRequestHeader, getRequestIP, readBody, setResponseStatus } from 'h3'
+import { RecordId } from 'surrealdb'
 import { isAnalyticsBot } from '../../utils/analytics/bots'
 import { lookupAnalyticsGeo } from '../../utils/analytics/geo'
 import { hashAnalyticsVisitor } from '../../utils/analytics/hash'
@@ -46,39 +47,30 @@ export default defineEventHandler(async (event) => {
     )
     const referrer = normalizeAnalyticsReferrer(body.referrer ?? getRequestHeader(event, 'referer'))
 
-    const assignments = [
-      'path = $path',
-      'visitor_hash = $visitorHash',
-      'created_at = $createdAt'
-    ]
-    const params: Record<string, unknown> = {
+    const pageview: Record<string, unknown> = {
       path,
-      visitorHash,
-      createdAt: now
+      visitor_hash: visitorHash,
+      created_at: now
     }
 
     if (referrer) {
-      assignments.push('referrer = $referrer')
-      params.referrer = referrer
+      pageview.referrer = referrer
     }
 
     if (session) {
-      assignments.push('session = type::record($sessionTable, $sessionId)')
-      params.sessionTable = 'analytics_session'
-      params.sessionId = recordIdPart(session, 'analytics_session')
+      pageview.session = new RecordId('analytics_session', recordIdPart(session, 'analytics_session'))
     }
 
     for (const key of ['country', 'region', 'city'] as const) {
       if (geo[key]) {
-        assignments.push(`${key} = $${key}`)
-        params[key] = geo[key]
+        pageview[key] = geo[key]
       }
     }
 
     await queryDb(
       db,
-      `CREATE pageview SET ${assignments.join(', ')};`,
-      params,
+      'CREATE pageview CONTENT $pageview;',
+      { pageview },
       { label: 'analytics pageview create', timeoutMs: 5_000, retryOnReconnect: false }
     )
   } catch (error) {

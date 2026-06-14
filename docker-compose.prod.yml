@@ -32,6 +32,9 @@ services:
     volumes:
       - app-storage:/app/storage
       - app-data:/app/.data
+      # Optional geo analytics database:
+      # place DB-IP City Lite at /app/storage/geoip/dbip-city-lite.mmdb
+      # or set NUXT_GEOIP_DB_PATH to a mounted absolute path.
       # Themes are bundled into the image. Uncomment to allow live theme
       # uploads to persist across container rebuilds:
       # - app-themes:/app/themes
