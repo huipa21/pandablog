@@ -270,6 +270,40 @@
         </div>
       </details>
 
+      <details v-if="blockName === 'blockMath'" open class="rounded-md border border-stone-200 bg-white p-3">
+        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.formula') }}</summary>
+        <div class="mt-3 space-y-3">
+          <UFormField :label="t('admin.editor.settingsPanel.theme')">
+            <USelect class="w-full" :model-value="String(attrs.theme ?? 'github-dark')" :items="themeItems" @update:model-value="setBlockMathTheme" />
+          </UFormField>
+          <UFormField :label="t('admin.editor.settingsPanel.alignment')">
+            <USelect class="w-full" :model-value="String(attrs.align ?? 'center')" :items="alignmentItems" @update:model-value="setBlockMathAlign" />
+          </UFormField>
+          <div class="grid grid-cols-2 gap-2">
+            <UFormField :label="t('admin.editor.settingsPanel.paddingX')">
+              <UInput type="number" min="0" max="96" :model-value="Number(attrs.paddingX ?? 16)" @update:model-value="setBlockMathPaddingX" />
+            </UFormField>
+            <UFormField :label="t('admin.editor.settingsPanel.paddingY')">
+              <UInput type="number" min="0" max="96" :model-value="Number(attrs.paddingY ?? 16)" @update:model-value="setBlockMathPaddingY" />
+            </UFormField>
+          </div>
+          <UFormField :label="t('admin.editor.settingsPanel.fontFamily')">
+            <USelect class="w-full" :model-value="String(attrs.fontFamily ?? 'katex')" :items="blockMathFontFamilyItems" @update:model-value="setBlockMathFontFamily" />
+          </UFormField>
+          <UFormField :label="t('admin.editor.settingsPanel.fontSizeScale', { value: Number(attrs.fontSize ?? 1.15).toFixed(2) })">
+            <input
+              type="range"
+              min="75"
+              max="250"
+              step="5"
+              :value="Math.round(Number(attrs.fontSize ?? 1.15) * 100)"
+              class="w-full"
+              @input="setBlockMathFontSize(($event.target as HTMLInputElement).value)"
+            >
+          </UFormField>
+        </div>
+      </details>
+
       <details v-if="blockName === 'columnsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.columns') }}</summary>
         <div class="mt-3 space-y-4">
@@ -775,6 +809,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES } from '~/extensions/codeBlockEnhanced'
+import { BLOCK_MATH_FONT_FAMILIES, DEFAULT_BLOCK_MATH_PADDING_X, DEFAULT_BLOCK_MATH_PADDING_Y, normalizeBlockMathFontSize, normalizeBlockMathPadding } from '~/extensions/blockMath'
 import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME, QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
 import { DEFAULT_SEPARATOR_COLOR, SEPARATOR_PALETTE, SEPARATOR_SELECTED_BORDER_COLOR } from '~/extensions/separator'
 import type { JsonContent } from '~/types/content'
@@ -796,6 +831,7 @@ const headingLevelItems = computed(() => [1, 2, 3, 4, 5, 6].map((level) => ({ la
 
 const languageItems = CODE_BLOCK_LANGUAGES.map((l) => ({ label: l.label, value: l.value as string }))
 const themeItems = CODE_BLOCK_THEMES.map((t) => ({ label: t.label, value: t.value as string }))
+const blockMathFontFamilyItems = BLOCK_MATH_FONT_FAMILIES.map((family) => ({ label: family.label, value: family.value as string }))
 const diffLanguageItems = DIFF_BLOCK_LANGUAGES.map((language) => ({ label: language.label, value: language.value as string }))
 const titlePositionItems = computed(() => [
   { label: t('admin.editor.settingsPanel.none'), value: 'none' },
@@ -1347,6 +1383,31 @@ function setCodeZoom(value: unknown) {
   const next = Number(value)
   const zoom = Number.isFinite(next) ? Math.max(0.7, Math.min(2, next > 10 ? next / 100 : next)) : 1
   updateAttrs({ zoom: Math.round(zoom * 100) / 100 })
+}
+
+function setBlockMathTheme(value: unknown) {
+  updateAttrs({ theme: asSelectValue(value, 'github-dark') })
+}
+
+function setBlockMathAlign(value: unknown) {
+  updateAttrs({ align: asSelectValue(value, 'center') })
+}
+
+function setBlockMathPaddingX(value: unknown) {
+  updateAttrs({ paddingX: normalizeBlockMathPadding(value, DEFAULT_BLOCK_MATH_PADDING_X) })
+}
+
+function setBlockMathPaddingY(value: unknown) {
+  updateAttrs({ paddingY: normalizeBlockMathPadding(value, DEFAULT_BLOCK_MATH_PADDING_Y) })
+}
+
+function setBlockMathFontFamily(value: unknown) {
+  updateAttrs({ fontFamily: asSelectValue(value, 'katex') })
+}
+
+function setBlockMathFontSize(value: unknown) {
+  const next = Number(value)
+  updateAttrs({ fontSize: normalizeBlockMathFontSize(Number.isFinite(next) && next > 10 ? next / 100 : next) })
 }
 
 function setSeparatorStyle(value: unknown) {

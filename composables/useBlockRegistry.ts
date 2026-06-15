@@ -4,6 +4,7 @@ import {
   DEFAULT_DIFF_OLD_LABEL,
 } from '~/utils/diffBlock'
 import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME } from '~/extensions/blockquoteEnhanced'
+import { DEFAULT_BLOCK_MATH_ALIGN, DEFAULT_BLOCK_MATH_FONT_FAMILY, DEFAULT_BLOCK_MATH_FONT_SIZE, DEFAULT_BLOCK_MATH_PADDING_X, DEFAULT_BLOCK_MATH_PADDING_Y, DEFAULT_BLOCK_MATH_THEME } from '~/extensions/blockMath'
 import { DEFAULT_ANNOT_LANG } from '~/extensions/rubyUnit'
 import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
 
@@ -292,6 +293,28 @@ const blockDefinitions: BlockDefinition[] = [
     createContent: () => ({
       type: 'mermaid',
       attrs: { code: '' }
+    })
+  },
+  {
+    name: 'blockMath',
+    title: 'Formula',
+    description: 'Render a display math formula with KaTeX.',
+    icon: 'i-lucide-sigma',
+    category: 'advanced',
+    keywords: ['math', 'formula', 'latex', 'equation', 'science', 'katex'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: () => ({
+      type: 'blockMath',
+      attrs: {
+        latex: '',
+        theme: DEFAULT_BLOCK_MATH_THEME,
+        align: DEFAULT_BLOCK_MATH_ALIGN,
+        paddingX: DEFAULT_BLOCK_MATH_PADDING_X,
+        paddingY: DEFAULT_BLOCK_MATH_PADDING_Y,
+        fontSize: DEFAULT_BLOCK_MATH_FONT_SIZE,
+        fontFamily: DEFAULT_BLOCK_MATH_FONT_FAMILY
+      }
     })
   },
   {

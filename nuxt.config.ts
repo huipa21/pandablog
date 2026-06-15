@@ -103,7 +103,7 @@ export default defineNuxtConfig({
   },
   vite: {
     optimizeDeps: {
-      include: ['striptags']
+      include: ['highlight.js/lib/languages/latex', 'katex', 'striptags']
     },
     plugins: [
       svgLoader({

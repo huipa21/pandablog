@@ -3,7 +3,8 @@ import { normalizePost } from '../../utils/content'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
 import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../utils/visibility'
 import { buildDocFromBlocks, loadBlocksForPost } from '../../utils/blocks'
-import { isAdminAuthenticated } from '../../utils/auth'
+import { getSessionUser, isAdminTier } from '../../utils/auth'
+import { assertCanManagePostRecord } from '../../utils/permissions'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
@@ -13,20 +14,31 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await useDb()
-  const isAdmin = await isAdminAuthenticated(event)
+  const contentManager = await getContentManagerSession(event)
+  const visibleStatuses = contentManager ? ['published', 'draft'] : ['published']
   const response = await queryDb(
     db,
     `SELECT id, title, slug, summary, status, cover_image, author, author_username,
       published_at, created_at, updated_at, view_count, word_count, cjk_char_count,
       visibility, password_hint, password_source, password_owner
-     FROM post WHERE slug = $slug AND status = "published" LIMIT 1;`,
-    { slug }
+     FROM post WHERE slug = $slug AND status IN $visibleStatuses LIMIT 1;`,
+    { slug, visibleStatuses }
   )
   const post = firstRow<Record<string, unknown>>(response)
 
   if (!post) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }
+
+  const isUnpublishedPreview = post.status !== 'published'
+  if (isUnpublishedPreview) {
+    if (!contentManager) {
+      throw createError({ statusCode: 404, message: 'Post not found' })
+    }
+    assertCanManagePostRecord(contentManager, post)
+  }
+
+  const isAdmin = isAdminTier(contentManager)
 
   const access = await evaluatePostAccess(event, {
     id: stringifyRecordId(post.id),
@@ -54,13 +66,13 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const visiblePost = isAdmin ? post : withOptimisticViewCount(post)
+  const visiblePost = isAdmin || isUnpublishedPreview ? post : withOptimisticViewCount(post)
   const sanitized = sanitizePost(visiblePost)
   const normalized = normalizePost(sanitized)
   const blocks = await loadBlocksForPost(db, normalized.id)
   const tags = await loadTagsForPost(db, normalized.id)
 
-  if (!isAdmin) {
+  if (!isAdmin && !isUnpublishedPreview) {
     incrementPostViewCount(db, post).catch((error) => {
       const message = error instanceof Error ? error.message : 'unknown error'
       console.warn(`[posts] failed to increment view count for ${normalized.id}: ${message}`)
@@ -77,6 +89,23 @@ export default defineEventHandler(async (event) => {
 
 function toPostVisibility(value: unknown): PostVisibility {
   return value === 'private' || value === 'password' ? value : 'public'
+}
+
+async function getContentManagerSession(event: Parameters<typeof getSessionUser>[0]) {
+  try {
+    const user = await getSessionUser(event)
+    if (!user || !isContentManagerRole(user.role)) {
+      return null
+    }
+
+    return user
+  } catch {
+    return null
+  }
+}
+
+function isContentManagerRole(value: unknown) {
+  return value === 'superadmin' || value === 'admin' || value === 'author'
 }
 
 async function loadTagsForPost(db: Awaited<ReturnType<typeof useDb>>, postRecordId: string) {

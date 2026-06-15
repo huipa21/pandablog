@@ -9,8 +9,10 @@
   <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
   <NodeDiffBlock v-else-if="node.type === 'diffBlock'" :node="node" />
   <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
+  <NodeBlockMath v-else-if="node.type === 'blockMath'" :node="node" />
   <NodeRelatedPost v-else-if="node.type === 'relatedPost'" :node="node" />
   <NodeRubyUnit v-else-if="node.type === 'rubyUnit'" :node="node" />
+  <NodeInlineMath v-else-if="node.type === 'inlineMath'" :node="node" />
   <NodeAnnotationBlock v-else-if="node.type === 'annotationBlock'" :node="node" />
   <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
   <NodeVideoEmbed v-else-if="node.type === 'videoEmbed'" :node="node" />
@@ -39,9 +41,11 @@ import NodeColumnsBlock from './NodeColumnsBlock.vue'
 import NodeFilesBlock from './NodeFilesBlock.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
+import NodeBlockMath from './NodeBlockMath.vue'
 import NodeQuoteBlock from './NodeQuoteBlock.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
 import NodeRubyUnit from './NodeRubyUnit.vue'
+import NodeInlineMath from './NodeInlineMath.vue'
 import NodeAnnotationBlock from './NodeAnnotationBlock.vue'
 import NodeTabsBlock from './NodeTabsBlock.vue'
 import NodeAccordionBlock from './NodeAccordionBlock.vue'

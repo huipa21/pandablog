@@ -18,6 +18,9 @@
       <UTooltip :text="t('admin.editor.toolbar.inlineCode')">
         <UButton type="button" icon="i-lucide-code" size="xs" :color="editor.isActive('code') ? 'primary' : 'neutral'" variant="ghost" @mousedown.prevent="editor.chain().focus().toggleCode().run()" />
       </UTooltip>
+      <UTooltip :text="t('admin.editor.toolbar.inlineFormula')">
+        <UButton type="button" icon="i-lucide-sigma" size="xs" color="neutral" variant="ghost" @mousedown.prevent="setInlineMath" />
+      </UTooltip>
       <USeparator orientation="vertical" class="h-6" />
       <UTooltip :text="t('admin.editor.toolbar.link')">
         <UButton type="button" icon="i-lucide-link" size="xs" :color="editor.isActive('link') ? 'primary' : 'neutral'" variant="ghost" @mousedown.prevent="setLink" />
@@ -95,6 +98,17 @@ function setLink() {
   const previousHref = editor.getAttributes('link').href as string | undefined
   linkInitialHref.value = previousHref ?? 'https://'
   linkDialogOpen.value = true
+}
+
+function setInlineMath() {
+  const editor = props.editor
+  if (!editor) {
+    return
+  }
+
+  const { from, to, empty } = editor.state.selection
+  const latex = empty ? '' : editor.state.doc.textBetween(from, to, ' ')
+  editor.chain().focus().setInlineMath({ latex }).run()
 }
 
 function confirmLink(href: string) {

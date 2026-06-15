@@ -224,6 +224,7 @@ import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import type { Editor } from '@tiptap/core'
 import type { MarkType, Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
+import latexLanguage from 'highlight.js/lib/languages/latex'
 import { Footnote } from '~/extensions/footnote'
 import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
@@ -256,6 +257,8 @@ import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlock'
 import { RubyUnit } from '~/extensions/rubyUnit'
+import { InlineMath } from '~/extensions/inlineMath'
+import { BlockMath } from '~/extensions/blockMath'
 import { AnnotationBlockNode } from '~/extensions/annotationBlock'
 import { RubyEditExtension } from '~/extensions/rubyEditState'
 import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
@@ -275,6 +278,7 @@ import AccordionBlockNodeView from '~/components/admin/editor/AccordionBlockNode
 import AccordionPaneNodeView from '~/components/admin/editor/AccordionPaneNodeView.vue'
 import QuoteBlockNodeView from '~/components/admin/editor/QuoteBlockNodeView.vue'
 import RubyUnitNodeView from '~/components/admin/editor/RubyUnitNodeView.vue'
+import MathNodeView from '~/components/admin/editor/MathNodeView.vue'
 import AnnotationBlockNodeView from '~/components/admin/editor/AnnotationBlockNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
@@ -310,6 +314,7 @@ const emit = defineEmits<{
 }>()
 
 const lowlight = createLowlight(common)
+lowlight.register('latex', latexLanguage)
 const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
 const editorContainer = ref<HTMLElement | null>(null)
@@ -534,6 +539,11 @@ const editor = useEditor({
         return VueNodeViewRenderer(MermaidNodeView)
       }
     }),
+    BlockMath.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(MathNodeView)
+      }
+    }),
     // RelatedPost: same shape as the removed wikiLink node, but with a Vue NodeView and no input rule.
     RelatedPostNode.extend({
       addNodeView() {
@@ -554,6 +564,11 @@ const editor = useEditor({
     RubyUnit.extend({
       addNodeView() {
         return VueNodeViewRenderer(RubyUnitNodeView)
+      }
+    }),
+    InlineMath.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(MathNodeView)
       }
     }),
     AnnotationBlockNode.extend({

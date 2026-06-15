@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+@import "katex/dist/katex.min.css";
 
 :root {
   color-scheme: light;
@@ -78,6 +79,7 @@
   --pb-prose-link-underline-offset: 0.18em;
   --pb-inline-code-bg: var(--color-bg-subtle, #f4f4f4);
   --pb-inline-code-color: var(--color-text, #171a20);
+  --pb-math-error: var(--color-danger, crimson);
   --pb-table-border: var(--pb-border);
   --pb-table-header-bg: var(--pb-surface-subtle);
   --pb-table-cell-padding: 0.5rem;
