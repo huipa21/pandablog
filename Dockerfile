@@ -83,7 +83,7 @@ ENV NODE_ENV=production \
     NUXT_TELEMETRY_DISABLED=1 \
     NITRO_HOST=0.0.0.0 \
     NITRO_PORT=3000 \
-    NODE_OPTIONS=--max-old-space-size=640 \
+    NODE_OPTIONS=--max-old-space-size=1024 \
     PORT=3000
 
 EXPOSE 3000
