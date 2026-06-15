@@ -31,7 +31,6 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
-import NodeCodeBlock from './NodeCodeBlock.vue'
 import NodeCustomHtml from './NodeCustomHtml.vue'
 import NodeVideoEmbed from './NodeVideoEmbed.vue'
 import NodeDiffBlock from './NodeDiffBlock.vue'
@@ -41,14 +40,16 @@ import NodeColumnsBlock from './NodeColumnsBlock.vue'
 import NodeFilesBlock from './NodeFilesBlock.vue'
 import NodeMediaText from './NodeMediaText.vue'
 import NodeMermaid from './NodeMermaid.vue'
-import NodeBlockMath from './NodeBlockMath.vue'
 import NodeQuoteBlock from './NodeQuoteBlock.vue'
 import NodeRelatedPost from './NodeRelatedPost.vue'
 import NodeRubyUnit from './NodeRubyUnit.vue'
-import NodeInlineMath from './NodeInlineMath.vue'
 import NodeAnnotationBlock from './NodeAnnotationBlock.vue'
 import NodeTabsBlock from './NodeTabsBlock.vue'
 import NodeAccordionBlock from './NodeAccordionBlock.vue'
+
+const NodeCodeBlock = defineAsyncComponent(() => import('./NodeCodeBlock.vue'))
+const NodeBlockMath = defineAsyncComponent(() => import('./NodeBlockMath.vue'))
+const NodeInlineMath = defineAsyncComponent(() => import('./NodeInlineMath.vue'))
 
 const props = defineProps<{
   node: JsonContent

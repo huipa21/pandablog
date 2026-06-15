@@ -102,10 +102,6 @@ export default defineNuxtConfig({
   build: {
     transpile: ['@unovis/ts', '@unovis/vue']
   },
-  image: {
-    provider: 'ipx',
-    domains: []
-  },
   vite: {
     optimizeDeps: {
       include: ['highlight.js/lib/languages/latex', 'katex', 'striptags']

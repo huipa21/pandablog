@@ -89,8 +89,10 @@ async function handlePost(event: Parameters<typeof shouldBypassPublicCache>[0]) 
 
   const sanitized = sanitizePost(post)
   const normalized = normalizePost(sanitized)
-  const blocks = await loadBlocksForPost(db, normalized.id)
-  const tags = await loadTagsForPost(db, normalized.id)
+  const [blocks, tags] = await Promise.all([
+    loadBlocksForPost(db, normalized.id),
+    loadTagsForPost(db, normalized.id)
+  ])
 
   return {
     ...normalized,
