@@ -1,6 +1,6 @@
 import { InputRule, mergeAttributes, Node } from '@tiptap/core'
 
-export const DEFAULT_BLOCK_MATH_THEME = 'github-dark'
+export const DEFAULT_BLOCK_MATH_THEME = 'none'
 export const DEFAULT_BLOCK_MATH_ALIGN = 'center'
 export const DEFAULT_BLOCK_MATH_PADDING_X = 16
 export const DEFAULT_BLOCK_MATH_PADDING_Y = 16

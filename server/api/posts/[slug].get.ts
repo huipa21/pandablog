@@ -3,10 +3,33 @@ import { normalizePost } from '../../utils/content'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
 import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../utils/visibility'
 import { buildDocFromBlocks, loadBlocksForPost } from '../../utils/blocks'
-import { getSessionUser, isAdminTier } from '../../utils/auth'
+import { getSessionUser } from '../../utils/auth'
 import { assertCanManagePostRecord } from '../../utils/permissions'
+import { PUBLIC_POST_CACHE_SECONDS, shouldBypassPublicCache } from '../../utils/public-cache'
 
 export default defineEventHandler(async (event) => {
+  setResponseHeader(event, 'Vary', 'Cookie')
+
+  if (await shouldBypassPublicCache(event)) {
+    setResponseHeader(event, 'Cache-Control', 'private, no-store')
+    return await handlePost(event)
+  }
+
+  return await cachedPostHandler(event)
+})
+
+const cachedPostHandler = defineCachedEventHandler(handlePost, {
+  name: 'posts-slug-public-v1',
+  maxAge: PUBLIC_POST_CACHE_SECONDS,
+  staleMaxAge: PUBLIC_POST_CACHE_SECONDS * 2,
+  swr: true,
+  varies: ['cookie'],
+  getKey: event => `post:${getRouterParam(event, 'slug') ?? ''}`
+})
+
+async function handlePost(event: Parameters<typeof shouldBypassPublicCache>[0]) {
+  setResponseHeader(event, 'Vary', 'Cookie')
+
   const slug = getRouterParam(event, 'slug')
 
   if (!slug) {
@@ -38,8 +61,6 @@ export default defineEventHandler(async (event) => {
     assertCanManagePostRecord(contentManager, post)
   }
 
-  const isAdmin = isAdminTier(contentManager)
-
   const access = await evaluatePostAccess(event, {
     id: stringifyRecordId(post.id),
     visibility: toPostVisibility(post.visibility),
@@ -66,18 +87,10 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const visiblePost = isAdmin || isUnpublishedPreview ? post : withOptimisticViewCount(post)
-  const sanitized = sanitizePost(visiblePost)
+  const sanitized = sanitizePost(post)
   const normalized = normalizePost(sanitized)
   const blocks = await loadBlocksForPost(db, normalized.id)
   const tags = await loadTagsForPost(db, normalized.id)
-
-  if (!isAdmin && !isUnpublishedPreview) {
-    incrementPostViewCount(db, post).catch((error) => {
-      const message = error instanceof Error ? error.message : 'unknown error'
-      console.warn(`[posts] failed to increment view count for ${normalized.id}: ${message}`)
-    })
-  }
 
   return {
     ...normalized,
@@ -85,7 +98,7 @@ export default defineEventHandler(async (event) => {
     blocks,
     tags
   }
-})
+}
 
 function toPostVisibility(value: unknown): PostVisibility {
   return value === 'private' || value === 'password' ? value : 'public'
@@ -125,23 +138,4 @@ async function loadTagsForPost(db: Awaited<ReturnType<typeof useDb>>, postRecord
       slug: String(row.slug ?? '').trim()
     }))
     .filter((tag) => tag.name && tag.slug)
-}
-
-async function incrementPostViewCount(db: Awaited<ReturnType<typeof useDb>>, post: Record<string, unknown>) {
-  const id = recordIdPart(stringifyRecordId(post.id), 'post')
-  const response = await queryDb(
-    db,
-    'UPDATE type::record($table, $id) SET view_count += 1 RETURN AFTER;',
-    { table: 'post', id },
-    { label: 'post view count increment', timeoutMs: 10_000 }
-  )
-
-  return firstRow<Record<string, unknown>>(response) ?? post
-}
-
-function withOptimisticViewCount(post: Record<string, unknown>) {
-  return {
-    ...post,
-    view_count: Number(post.view_count ?? 0) + 1
-  }
 }

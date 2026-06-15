@@ -66,6 +66,10 @@ export function readUnlockedIds(event: H3Event): Set<string> {
   return new Set(payload?.ids ?? [])
 }
 
+export function hasUnlockedPostCookie(event: H3Event): boolean {
+  return Boolean(getCookie(event, COOKIE_NAME))
+}
+
 export function addUnlockedId(event: H3Event, postId: string): void {
   const current = readUnlockedIds(event)
   current.add(postId)

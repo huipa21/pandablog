@@ -92,6 +92,16 @@
       >
         <UIcon name="i-lucide-link" class="size-4" />
       </button>
+      <button
+        type="button"
+        class="bt-btn"
+        :class="{ 'bt-btn-active': inlineActive.inlineMath }"
+        :aria-pressed="inlineActive.inlineMath"
+        :title="t('admin.editor.toolbar.inlineFormula')"
+        @mousedown.prevent="openInlineMathDialog"
+      >
+        <UIcon name="i-lucide-sigma" class="size-4" />
+      </button>
 
       <div class="relative">
         <button
@@ -240,18 +250,58 @@
       </UCard>
     </template>
   </UModal>
+
+  <UModal v-model:open="inlineMathDialogOpen">
+    <template #content>
+      <UCard>
+        <template #header>
+          <div>
+            <h3 class="text-base font-semibold text-stone-900">{{ t('admin.editor.toolbar.inlineFormula') }}</h3>
+            <p class="text-xs text-stone-500">{{ t('admin.editor.toolbar.inlineFormulaDescription') }}</p>
+          </div>
+        </template>
+
+        <div class="bt-inline-math-dialog">
+          <UFormField :label="t('admin.editor.toolbar.latexSource')">
+            <UTextarea
+              v-model="inlineMathForm.latex"
+              :rows="5"
+              :placeholder="t('admin.editor.toolbar.inlineFormulaPlaceholder')"
+              autofocus
+              class="w-full font-mono text-sm"
+            />
+          </UFormField>
+
+          <section class="bt-inline-math-preview" :class="{ 'is-empty': !inlineMathForm.latex.trim() }" :aria-label="t('admin.editor.toolbar.formulaPreview')">
+            <span v-if="!inlineMathForm.latex.trim()" class="bt-inline-math-preview-empty">
+              {{ t('admin.editor.toolbar.formulaPreviewEmpty') }}
+            </span>
+            <span v-else class="math-render" v-html="inlineMathPreviewHtml" />
+          </section>
+        </div>
+
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <UButton type="button" variant="ghost" color="neutral" @click="closeInlineMathDialog">{{ t('admin.editor.toolbar.cancel') }}</UButton>
+            <UButton type="button" color="primary" :disabled="!inlineMathForm.latex.trim()" @click="applyInlineMathDialog">{{ t('admin.editor.toolbar.insertFormula') }}</UButton>
+          </div>
+        </template>
+      </UCard>
+    </template>
+  </UModal>
 </template>
 
 <script setup lang="ts">
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue'
 import type { Editor } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { Fragment } from '@tiptap/pm/model'
 import type { CSSProperties } from 'vue'
 import { hasAnyDropdownInlineActive, inlineMenuLabel } from './inlineFormatting'
 import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
 import { DEFAULT_ANNOT_LANG, isAnnotLang, type AnnotLang } from '~/extensions/rubyUnit'
 import { useReadings } from '~/composables/editor/useReadings'
+import { renderLatex } from '~/utils/renderLatex'
 
 const props = defineProps<{
   editor: Editor | null
@@ -282,6 +332,8 @@ const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 const linkDialogOpen = ref(false)
 const linkDialogRange = ref<{ from: number; to: number } | null>(null)
+const inlineMathDialogOpen = ref(false)
+const inlineMathDialogRange = ref<{ from: number; to: number } | null>(null)
 const highlightPaletteOpen = ref(false)
 const customHighlightColor = ref(DEFAULT_HIGHLIGHT_COLOR)
 const highlightColors = HIGHLIGHT_COLORS
@@ -340,6 +392,12 @@ const linkForm = reactive({
   text: '',
   openMode: 'same-tab' as 'same-tab' | 'new-tab' | 'new-window'
 })
+const inlineMathForm = reactive({
+  latex: ''
+})
+const inlineMathPreviewHtml = computed(() => inlineMathForm.latex.trim()
+  ? renderLatex(inlineMathForm.latex, { displayMode: false })
+  : '')
 
 const linkOpenModeItems = computed(() => [
   { label: t('admin.editor.toolbar.openSameTab'), value: 'same-tab' },
@@ -440,6 +498,7 @@ const inlineActive = computed(() => {
       code: false,
       highlight: false,
       link: false,
+      inlineMath: false,
       subscript: false,
       superscript: false
     }
@@ -452,6 +511,7 @@ const inlineActive = computed(() => {
     code: selectionHasMark(ed, 'code'),
     highlight: selectionHasMark(ed, 'highlight'),
     link: selectionHasMark(ed, 'link'),
+    inlineMath: selectionHasInlineNode(ed, 'inlineMath'),
     subscript: selectionHasMark(ed, 'subscript'),
     superscript: selectionHasMark(ed, 'superscript')
   }
@@ -520,6 +580,47 @@ function openLinkDialog() {
     ? previousOpenMode
     : (previousTarget === '_blank' ? 'new-tab' : 'same-tab')
   linkDialogOpen.value = true
+}
+
+function openInlineMathDialog() {
+  const editor = props.editor
+  if (!editor) return
+
+  const inlineNode = currentInlineMathNode(editor)
+  if (inlineNode) {
+    inlineMathDialogRange.value = inlineNode.range
+    inlineMathForm.latex = inlineNode.latex
+    inlineMathDialogOpen.value = true
+    return
+  }
+
+  const range = currentInlineTextRange(editor)
+  inlineMathDialogRange.value = range
+  inlineMathForm.latex = range ? editor.state.doc.textBetween(range.from, range.to, ' ', ' ') : ''
+  inlineMathDialogOpen.value = true
+}
+
+function closeInlineMathDialog() {
+  inlineMathDialogOpen.value = false
+  inlineMathDialogRange.value = null
+  inlineMathForm.latex = ''
+}
+
+function applyInlineMathDialog() {
+  const editor = props.editor
+  const latex = inlineMathForm.latex.trim()
+  if (!editor || !latex) return
+
+  const range = normalizeRange(editor, inlineMathDialogRange.value)
+  const insertPos = range?.from ?? editor.state.selection.from
+  if (range) {
+    editor.chain().focus().insertContentAt(range, { type: 'inlineMath', attrs: { latex } }).run()
+  } else {
+    editor.chain().focus().setInlineMath({ latex }).run()
+  }
+
+  collapseToTextPosition(editor, insertPos + 1, { clearStoredMarks: true })
+  closeInlineMathDialog()
 }
 
 function applyLinkDialog() {
@@ -797,6 +898,58 @@ function selectionHasMark(editor: Editor, markName: string) {
   return found
 }
 
+function selectionHasInlineNode(editor: Editor, nodeName: string) {
+  if (editor.isActive(nodeName)) {
+    return true
+  }
+
+  const nodeType = editor.state.schema.nodes[nodeName]
+  if (!nodeType) {
+    return false
+  }
+
+  const { from, to, empty, $from } = editor.state.selection
+  if (empty) {
+    return $from.nodeAfter?.type === nodeType || $from.nodeBefore?.type === nodeType
+  }
+
+  let found = false
+  editor.state.doc.nodesBetween(from, to, (node) => {
+    if (found) return false
+    if (node.type === nodeType) {
+      found = true
+      return false
+    }
+  })
+
+  return found
+}
+
+function currentInlineMathNode(editor: Editor) {
+  const nodeType = editor.state.schema.nodes.inlineMath
+  if (!nodeType) {
+    return null
+  }
+
+  const { selection } = editor.state
+  if (selection instanceof NodeSelection && selection.node.type === nodeType) {
+    return {
+      latex: String(selection.node.attrs.latex ?? ''),
+      range: { from: selection.from, to: selection.to }
+    }
+  }
+
+  return null
+}
+
+function currentInlineTextRange(editor: Editor): { from: number, to: number } | null {
+  const { selection } = editor.state
+  if (selection instanceof TextSelection && !selection.empty) {
+    return { from: selection.from, to: selection.to }
+  }
+  return null
+}
+
 function loadAnnotateLang(): AnnotLang {
   if (typeof window === 'undefined') return DEFAULT_ANNOT_LANG
   try {
@@ -1005,6 +1158,45 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
 .bt-highlight-clear:hover {
   border-color: rgb(45 212 191);
   color: rgb(15 118 110);
+}
+
+.bt-inline-math-dialog {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.bt-inline-math-preview {
+  min-height: 4.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem;
+  border: 1px solid var(--pb-divider);
+  border-radius: var(--pb-radius-md);
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
+  overflow-x: auto;
+}
+
+.bt-inline-math-preview.is-empty {
+  border-style: dashed;
+  color: var(--pb-text-placeholder);
+}
+
+.bt-inline-math-preview .math-render {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.bt-inline-math-preview :deep(.katex) {
+  font-size: 1.08em;
+}
+
+.bt-inline-math-preview-empty {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .bt-btn-suffix {

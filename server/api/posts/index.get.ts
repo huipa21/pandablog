@@ -1,9 +1,33 @@
+import type { H3Event } from 'h3'
 import { queryDb, useDb } from '../../utils/db'
 import { firstRow, queryRows, stringifyRecordId } from '../../utils/surrealResult'
 import { isAdminAuthenticated } from '../../utils/auth'
+import { PUBLIC_LIST_CACHE_SECONDS, shouldBypassPublicCache } from '../../utils/public-cache'
 import type { PostListItem, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
+  setResponseHeader(event, 'Vary', 'Cookie')
+
+  if (await shouldBypassPublicCache(event)) {
+    setResponseHeader(event, 'Cache-Control', 'private, no-store')
+    return await handlePostList(event)
+  }
+
+  return await cachedPostListHandler(event)
+})
+
+const cachedPostListHandler = defineCachedEventHandler(handlePostList, {
+  name: 'posts-index-public-v1',
+  maxAge: PUBLIC_LIST_CACHE_SECONDS,
+  staleMaxAge: PUBLIC_LIST_CACHE_SECONDS * 2,
+  swr: true,
+  varies: ['cookie'],
+  getKey: getPostListCacheKey
+})
+
+async function handlePostList(event: H3Event) {
+  setResponseHeader(event, 'Vary', 'Cookie')
+
   const query = getQuery(event)
   const limit = Math.min(Number(query.limit ?? 20), 100)
   const start = Math.max(Number(query.start ?? 0), 0)
@@ -67,7 +91,16 @@ export default defineEventHandler(async (event) => {
     limit,
     start
   }
-})
+}
+
+function getPostListCacheKey(event: H3Event) {
+  const query = getQuery(event)
+  const parts = Object.entries(query)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(',') : String(value ?? '')}`)
+
+  return `posts-index:${parts.join('&') || 'default'}`
+}
 
 function normalizeVisibility(value: unknown): PostVisibility {
   return value === 'private' || value === 'password' ? value : 'public'

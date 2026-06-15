@@ -1,4 +1,5 @@
 import { findUserById, toSessionUser, type SessionUser } from '../../utils/users'
+import { hasAuthSessionCookie } from '../../utils/session-cookie'
 
 /**
  * Source of truth for "is the user logged in" is the signed session cookie.
@@ -9,6 +10,10 @@ import { findUserById, toSessionUser, type SessionUser } from '../../utils/users
  * confirms the user is gone or has been deactivated.
  */
 export default defineEventHandler(async (event) => {
+  if (!hasAuthSessionCookie(event)) {
+    return { loggedIn: false, user: null }
+  }
+
   const session = await getUserSession(event)
   const sessionUser = session.user as SessionUser | undefined
 

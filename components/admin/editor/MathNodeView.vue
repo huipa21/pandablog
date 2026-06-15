@@ -6,30 +6,31 @@
       isInline ? 'inline-math' : 'block-math',
       'math-nodeview',
       isEditing ? 'is-edit-mode' : 'is-render-mode',
-      !isInline ? `code-theme-${theme}` : '',
       selected ? 'is-selected' : ''
     ]"
     :data-type="isInline ? 'inline-math' : 'block-math'"
     :data-latex="latex"
-    :data-theme="!isInline ? theme : undefined"
     :data-align="!isInline ? align : undefined"
     :data-padding-x="!isInline ? paddingX : undefined"
     :data-padding-y="!isInline ? paddingY : undefined"
     :data-font-size="!isInline ? fontSize : undefined"
     :data-font-family="!isInline ? fontFamily : undefined"
     :style="!isInline ? blockStyle : undefined"
+    :title="isInline ? t('admin.editor.nodeViews.inlineFormulaHint') : undefined"
     contenteditable="false"
     data-node-view-wrapper
     @mousedown.stop="selectMathNode"
   >
     <span
       v-if="isInline && !editMode"
-      class="math-render"
+      class="inline-math-display"
       :class="{ 'is-empty': !latex.trim() }"
       @click.stop="enterEditMode"
       @dblclick.stop="enterEditMode"
-      v-html="renderedHtml"
-    />
+    >
+      <span class="math-render" v-html="renderedHtml" />
+      <UIcon name="i-lucide-pencil" class="inline-math-click-hint" aria-hidden="true" />
+    </span>
     <div
       v-else-if="!isInline"
       class="math-block-shell"
@@ -130,7 +131,6 @@ import { NodeSelection } from '@tiptap/pm/state'
 import latexLanguage from 'highlight.js/lib/languages/latex'
 import { createLowlight } from 'lowlight'
 import katex from 'katex'
-import { CODE_BLOCK_THEMES, DEFAULT_CODE_THEME } from '~/extensions/codeBlockEnhanced'
 import {
   DEFAULT_BLOCK_MATH_ALIGN,
   DEFAULT_BLOCK_MATH_FONT_FAMILY,
@@ -160,28 +160,26 @@ const nodeViewEl = ref<HTMLElement | null>(null)
 const sourceInputEl = ref<HTMLTextAreaElement | null>(null)
 const highlightEl = ref<HTMLElement | null>(null)
 const editMode = ref(false)
-const blockMode = ref<'source' | 'preview'>('source')
+const blockMode = ref<'source' | 'preview'>('preview')
 const { t } = useI18n()
 
 const isInline = computed(() => props.node.type.name === 'inlineMath')
 const selected = computed(() => Boolean(props.selected))
 const latex = computed(() => typeof props.node.attrs.latex === 'string' ? props.node.attrs.latex : '')
-const supportedThemes = new Set<string>(CODE_BLOCK_THEMES.map((item) => item.value as string))
-const theme = computed(() => {
-  const raw = typeof props.node.attrs.theme === 'string' ? props.node.attrs.theme : DEFAULT_CODE_THEME
-  return supportedThemes.has(raw) ? raw : DEFAULT_CODE_THEME
-})
 const align = computed(() => normalizeBlockMathAlign(props.node.attrs.align ?? DEFAULT_BLOCK_MATH_ALIGN))
 const paddingX = computed(() => normalizeBlockMathPadding(props.node.attrs.paddingX, DEFAULT_BLOCK_MATH_PADDING_X))
 const paddingY = computed(() => normalizeBlockMathPadding(props.node.attrs.paddingY, DEFAULT_BLOCK_MATH_PADDING_Y))
 const fontSize = computed(() => normalizeBlockMathFontSize(props.node.attrs.fontSize ?? DEFAULT_BLOCK_MATH_FONT_SIZE))
 const fontFamily = computed(() => normalizeBlockMathFontFamily(props.node.attrs.fontFamily ?? DEFAULT_BLOCK_MATH_FONT_FAMILY))
+const justify = computed(() => align.value === 'left' ? 'flex-start' : align.value === 'right' ? 'flex-end' : 'center')
 const isEditing = computed(() => isInline.value ? editMode.value : blockMode.value === 'source')
 const blockStyle = computed(() => ({
   '--pb-math-padding-x': `${paddingX.value}px`,
   '--pb-math-padding-y': `${paddingY.value}px`,
   '--pb-math-font-size': String(fontSize.value),
-  '--pb-math-align': align.value
+  '--pb-math-source-font-size': `${Math.max(13, Math.round(fontSize.value * 16))}px`,
+  '--pb-math-align': align.value,
+  '--pb-math-justify': justify.value
 }))
 const sourceText = computed(() => latex.value || ' ')
 const renderedHtml = computed(() => {
@@ -206,7 +204,12 @@ const highlightedHtml = computed(() => {
 })
 
 watch(selected, async (isSelected) => {
-  if (!isSelected || !isInline.value || latex.value.trim()) return
+  if (!isSelected) {
+    if (!isInline.value) blockMode.value = 'preview'
+    return
+  }
+
+  if (!isInline.value || latex.value.trim()) return
   await enterEditMode()
 })
 
@@ -314,8 +317,21 @@ function validateLatex(value: string, displayMode: boolean) {
 }
 
 .inline-math.math-nodeview {
-  display: inline;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12em;
+  padding: 0 0.18em;
+  vertical-align: baseline;
+  border-bottom: 1px dotted color-mix(in srgb, var(--pb-primary) 48%, transparent);
+  border-radius: var(--pb-radius-sm);
+  background: color-mix(in srgb, var(--pb-primary) 8%, transparent);
   cursor: pointer;
+}
+
+.inline-math.math-nodeview:hover,
+.inline-math.math-nodeview.is-selected {
+  border-bottom-color: var(--pb-primary);
+  background: color-mix(in srgb, var(--pb-primary) 14%, transparent);
 }
 
 .block-math.math-nodeview {
@@ -323,8 +339,8 @@ function validateLatex(value: string, displayMode: boolean) {
   margin: 1rem 0;
   overflow-x: auto;
   cursor: pointer;
-  background: var(--code-bg, Canvas);
-  color: var(--code-fg, CanvasText);
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
   border-radius: var(--pb-radius-card-inner);
 }
 
@@ -342,8 +358,31 @@ function validateLatex(value: string, displayMode: boolean) {
   display: inline;
 }
 
+.inline-math-display {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12em;
+  min-width: 0;
+}
+
+.inline-math-click-hint {
+  width: 0.88em;
+  height: 0.88em;
+  flex: 0 0 auto;
+  color: var(--pb-primary);
+  opacity: 0.62;
+  transform: translateY(0.08em);
+}
+
+.inline-math.math-nodeview:hover .inline-math-click-hint,
+.inline-math.math-nodeview.is-selected .inline-math-click-hint {
+  opacity: 1;
+}
+
 .block-math .math-render {
-  display: block;
+  display: flex;
+  justify-content: var(--pb-math-justify, center);
+  min-width: 0;
   padding: var(--pb-math-padding-y, 16px) var(--pb-math-padding-x, 16px);
   overflow-x: auto;
   font-family: var(--pb-font-display);
@@ -352,9 +391,12 @@ function validateLatex(value: string, displayMode: boolean) {
 }
 
 .math-render :deep(.katex-display) {
+  display: inline-block;
+  max-width: 100%;
   margin: 0.5rem 0;
   overflow-x: auto;
   overflow-y: hidden;
+  text-align: inherit;
 }
 
 .math-render.is-empty {
@@ -395,11 +437,20 @@ function validateLatex(value: string, displayMode: boolean) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
 }
 
+.block-math[data-font-family='serif'] .math-render :deep(.katex),
+.block-math[data-font-family='serif'] .math-render :deep(.katex *),
+.block-math[data-font-family='sans'] .math-render :deep(.katex),
+.block-math[data-font-family='sans'] .math-render :deep(.katex *),
+.block-math[data-font-family='mono'] .math-render :deep(.katex),
+.block-math[data-font-family='mono'] .math-render :deep(.katex *) {
+  font-family: inherit !important;
+}
+
 .math-block-shell {
   display: block;
   overflow: hidden;
-  background: var(--code-bg, Canvas);
-  color: var(--code-fg, CanvasText);
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
 }
 
 .math-block-header {
@@ -410,16 +461,10 @@ function validateLatex(value: string, displayMode: boolean) {
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--pb-surface) 72%, transparent);
   color: inherit;
   opacity: 0.95;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
-}
-
-.block-math[data-theme='github-light'] .math-block-header,
-.block-math[data-theme='vs-light'] .math-block-header,
-.block-math[data-theme='solarized-light'] .math-block-header {
-  background: rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--pb-divider);
 }
 
 .math-block-header-left,
@@ -493,18 +538,17 @@ function validateLatex(value: string, displayMode: boolean) {
 .math-block-tab.is-active {
   background: rgba(127, 127, 127, 0.25);
   opacity: 1;
-  color: var(--code-fg, CanvasText);
+  color: var(--pb-text);
 }
 
 .math-block-body {
   display: block;
-  min-height: 9rem;
-  background: var(--code-bg, Canvas);
+  background: var(--pb-surface-subtle);
 }
 
 .math-preview-wrap {
-  background: var(--code-bg, var(--pb-card-bg));
-  color: var(--code-fg, var(--pb-text));
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
 }
 
 .math-source-panel {
@@ -520,7 +564,7 @@ function validateLatex(value: string, displayMode: boolean) {
 
 .block-math .math-source-panel {
   display: block;
-  background: var(--code-bg, Canvas);
+  background: var(--pb-surface-subtle);
   border-radius: var(--pb-radius-card-inner);
   overflow: hidden;
 }
@@ -530,6 +574,12 @@ function validateLatex(value: string, displayMode: boolean) {
   display: block;
   background: var(--code-bg, Canvas);
   color: var(--code-fg, CanvasText);
+}
+
+.math-source-wrap.is-block-source {
+  min-height: calc(var(--pb-math-source-font-size, 16px) * 1.45 + var(--pb-math-padding-y, 16px) * 2);
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
 }
 
 .math-source-wrap.is-inline-source {
@@ -561,8 +611,16 @@ function validateLatex(value: string, displayMode: boolean) {
 }
 
 .is-block-source .math-source-highlight {
-  min-height: 8rem;
-  padding: var(--pb-code-block-padding-y) 1rem;
+  min-height: calc(var(--pb-math-source-font-size, 16px) * 1.45 + var(--pb-math-padding-y, 16px) * 2);
+  padding: var(--pb-math-padding-y, 16px) var(--pb-math-padding-x, 16px);
+  background: var(--pb-surface-subtle) !important;
+  color: var(--pb-text) !important;
+  font-size: var(--pb-math-source-font-size, 16px) !important;
+  line-height: 1.45 !important;
+}
+
+.is-block-source .math-source-highlight :deep(*) {
+  color: inherit !important;
 }
 
 .math-source-highlight :deep(code) {
@@ -599,8 +657,11 @@ function validateLatex(value: string, displayMode: boolean) {
 }
 
 .is-block-source .math-source-input {
-  min-height: 8rem;
-  padding: var(--pb-code-block-padding-y) 1rem;
+  min-height: calc(var(--pb-math-source-font-size, 16px) * 1.45 + var(--pb-math-padding-y, 16px) * 2);
+  padding: var(--pb-math-padding-y, 16px) var(--pb-math-padding-x, 16px);
+  caret-color: var(--pb-text);
+  font-size: var(--pb-math-source-font-size, 16px);
+  line-height: 1.45;
 }
 
 .math-source-input::selection {

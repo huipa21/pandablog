@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { isSetupCompleted } from './settings'
+import { hasAuthSessionCookie } from './session-cookie'
 import type { SessionUser, UserRole } from './users'
 
 export interface AdminUser {
@@ -10,6 +11,10 @@ export interface AdminUser {
 }
 
 export async function getSessionUser(event: H3Event): Promise<SessionUser | null> {
+  if (!hasAuthSessionCookie(event)) {
+    return null
+  }
+
   const session = await getUserSession(event)
   const user = session.user as SessionUser | undefined
 

@@ -94,6 +94,11 @@ export default defineNuxtConfig({
       }
     }
   },
+  routeRules: {
+    '/_ipx/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
+  },
   build: {
     transpile: ['@unovis/ts', '@unovis/vue']
   },

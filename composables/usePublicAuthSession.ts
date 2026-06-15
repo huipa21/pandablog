@@ -14,14 +14,27 @@ interface PublicAuthSession {
   user: PublicSessionUser | null
 }
 
+const EMPTY_PUBLIC_AUTH_SESSION: PublicAuthSession = { loggedIn: false, user: null }
+
 type PublicFetch = <T>(url: string) => Promise<T>
 
 export function usePublicAuthSession() {
   return useAsyncData<PublicAuthSession>(
     'public-auth-session',
-    () => fetchWithSession<PublicAuthSession>('/api/auth/session').catch(() => ({ loggedIn: false, user: null })),
-    { default: () => ({ loggedIn: false, user: null }) }
+    async () => {
+      if (import.meta.server && !hasServerSessionCookie()) {
+        return EMPTY_PUBLIC_AUTH_SESSION
+      }
+
+      return fetchWithSession<PublicAuthSession>('/api/auth/session').catch(() => EMPTY_PUBLIC_AUTH_SESSION)
+    },
+    { default: () => EMPTY_PUBLIC_AUTH_SESSION }
   )
+}
+
+function hasServerSessionCookie() {
+  const cookie = useRequestHeaders(['cookie']).cookie ?? ''
+  return /(?:^|;\s*)nuxt-session=/.test(cookie)
 }
 
 function fetchWithSession<T>(url: string): Promise<T> {

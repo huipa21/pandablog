@@ -273,9 +273,6 @@
       <details v-if="blockName === 'blockMath'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.formula') }}</summary>
         <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.theme')">
-            <USelect class="w-full" :model-value="String(attrs.theme ?? 'github-dark')" :items="themeItems" @update:model-value="setBlockMathTheme" />
-          </UFormField>
           <UFormField :label="t('admin.editor.settingsPanel.alignment')">
             <USelect class="w-full" :model-value="String(attrs.align ?? 'center')" :items="alignmentItems" @update:model-value="setBlockMathAlign" />
           </UFormField>
@@ -1383,10 +1380,6 @@ function setCodeZoom(value: unknown) {
   const next = Number(value)
   const zoom = Number.isFinite(next) ? Math.max(0.7, Math.min(2, next > 10 ? next / 100 : next)) : 1
   updateAttrs({ zoom: Math.round(zoom * 100) / 100 })
-}
-
-function setBlockMathTheme(value: unknown) {
-  updateAttrs({ theme: asSelectValue(value, 'github-dark') })
 }
 
 function setBlockMathAlign(value: unknown) {
