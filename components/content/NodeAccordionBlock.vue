@@ -277,7 +277,7 @@ function normalizeDefaultOpenIndices(value: unknown, count: number, single: bool
   transform: none;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 48rem) {
   .accordion-block-grid {
     grid-template-columns: 1fr;
   }

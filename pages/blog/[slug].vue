@@ -15,8 +15,8 @@
       </template>
     </template>
 
-    <div class="post-shell mx-auto grid gap-8">
-      <article v-if="post && !error && !isLocked(post)" class="theme-scope grid gap-8">
+    <div class="post-shell mx-auto grid min-w-0 gap-8">
+      <article v-if="post && !error && !isLocked(post)" class="theme-scope grid min-w-0 gap-8">
         <figure v-if="post.cover_image" class="post-hero overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-hero-bg)] shadow-[var(--pb-shadow-md)]">
           <img
             :src="post.cover_image"
@@ -25,7 +25,7 @@
           >
         </figure>
 
-        <div class="post-reading-frame mx-auto w-full rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-6 shadow-[var(--pb-shadow-sm)] md:p-8">
+        <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-6 shadow-[var(--pb-shadow-sm)] md:p-8">
           <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--pb-text-subtle)]">
@@ -187,6 +187,7 @@ function markPostContentRaw(value: PostRecord | PostLockedResponse) {
 
 <style scoped>
 .post-shell {
+  width: 100%;
   max-width: min(100%, var(--pb-layout-content-max));
 }
 
@@ -197,7 +198,8 @@ function markPostContentRaw(value: PostRecord | PostLockedResponse) {
 }
 
 .post-reading-frame {
-  width: clamp(min(100%, var(--pb-post-content-min-width)), 100%, var(--pb-post-content-fluid-width));
+  width: 100%;
+  min-width: 0;
   max-width: var(--pb-post-content-max-width);
   background: linear-gradient(
     180deg,

@@ -2,9 +2,9 @@ services:
   app:
     image: ${PANDABLOG_IMAGE:-localhost/pandablog:latest}
     # Match the UID:GID that OWNS the bind-mounted ./app-storage and ./app-data
-    # directories on the host. Your production surrealdb runs as 1002:1002, so
-    # the deploy user is most likely 1002. Adjust if different.
-    user: "1002:1002"
+    # directories on the host. This is important to ensure that the container can read/write to these volumes
+    # the deploy user is most likely 1000. Adjust if different.
+    user: "1000:1000"
     pull_policy: never
     container_name: pandablog-app
     restart: unless-stopped

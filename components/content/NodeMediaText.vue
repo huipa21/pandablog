@@ -190,4 +190,25 @@ const mediaElementStyle = computed(() => ({
   padding: 0.75rem 1rem;
   min-width: 0;
 }
+
+@media (max-width: 48rem) {
+  .mediatext-row,
+  .mediatext-row[data-media-position="right"] {
+    flex-direction: column;
+  }
+
+  .mediatext-media {
+    flex: 0 0 auto !important;
+    width: 100%;
+  }
+
+  .mediatext-divider {
+    width: 100%;
+    height: 6px;
+    border-top: 1px solid var(--pb-divider);
+    border-right: 0;
+    border-bottom: 1px solid var(--pb-divider);
+    border-left: 0;
+  }
+}
 </style>

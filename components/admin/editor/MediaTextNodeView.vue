@@ -286,43 +286,26 @@ onBeforeUnmount(() => {
   padding: 0.75rem 1rem;
   min-width: 0;
 }
-</style>
 
-<style scoped>
-.mediatext-row {
-  display: flex;
-  align-items: stretch;
-  width: 100%;
-  min-height: 8rem;
-}
+@media (max-width: 48rem) {
+  .mediatext-row,
+  .mediatext-row[data-media-position="right"] {
+    flex-direction: column;
+  }
 
-.mediatext-row[data-media-position="right"] {
-  flex-direction: row-reverse;
-}
+  .mediatext-media {
+    flex: 0 0 auto !important;
+    width: 100%;
+  }
 
-.mediatext-media {
-  padding: 0.75rem;
-  background: rgb(250 250 249);
-  min-width: 0;
-}
-
-.mediatext-divider {
-  width: 6px;
-  cursor: col-resize;
-  background: transparent;
-  border-left: 1px solid rgb(231 229 228);
-  border-right: 1px solid rgb(231 229 228);
-  transition: background-color 120ms ease;
-  flex: 0 0 auto;
-}
-
-.mediatext-divider:hover {
-  background: rgba(13, 148, 136, 0.15);
-}
-
-.mediatext-text {
-  flex: 1 1 auto;
-  padding: 0.75rem 1rem;
-  min-width: 0;
+  .mediatext-divider {
+    width: 100%;
+    height: 6px;
+    cursor: row-resize;
+    border-top: 1px solid rgb(231 229 228);
+    border-right: 0;
+    border-bottom: 1px solid rgb(231 229 228);
+    border-left: 0;
+  }
 }
 </style>

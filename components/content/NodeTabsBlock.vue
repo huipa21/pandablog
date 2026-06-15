@@ -209,7 +209,7 @@ function normalizeBlockWidth(value: string) {
   margin-bottom: 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 48rem) {
   .tabs-block[data-orientation="vertical"] .tabs-block-shell {
     grid-template-columns: 1fr;
   }

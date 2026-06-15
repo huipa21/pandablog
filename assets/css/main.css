@@ -157,7 +157,8 @@ html {
 }
 
 .pb-content-frame {
-  width: clamp(min(100%, var(--pb-post-content-min-width)), 100%, var(--pb-post-content-fluid-width));
+  width: 100%;
+  min-width: 0;
   max-width: var(--pb-post-content-max-width);
 }
 

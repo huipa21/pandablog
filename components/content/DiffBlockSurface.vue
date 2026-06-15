@@ -391,7 +391,7 @@ async function copyDiff() {
   border-right: 1px solid var(--diff-border);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 48rem) {
   .diff-block-header {
     align-items: flex-start;
     flex-direction: column;
