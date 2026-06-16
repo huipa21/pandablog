@@ -264,6 +264,21 @@
         "publishedNewest": "Published newest",
         "publishedOldest": "Published oldest"
       },
+      "columnFilter": {
+        "sort": "Sort",
+        "sortAsc": "Ascending",
+        "sortDesc": "Descending",
+        "titlePlaceholder": "Filter by regex…",
+        "titleInvalid": "Invalid regular expression",
+        "searchPlaceholder": "Search…",
+        "lengthMin": "Min",
+        "lengthMax": "Max",
+        "lengthHint": "Words + CJK characters, counted as 1 unit each.",
+        "dateFrom": "From",
+        "dateTo": "To",
+        "noResults": "No matches",
+        "clearAll": "Clear filters"
+      },
       "table": {
         "title": "Title",
         "tags": "Tags",

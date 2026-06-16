@@ -264,6 +264,21 @@
         "publishedNewest": "最近发布优先",
         "publishedOldest": "最早发布优先"
       },
+      "columnFilter": {
+        "sort": "排序",
+        "sortAsc": "升序",
+        "sortDesc": "降序",
+        "titlePlaceholder": "按正则筛选…",
+        "titleInvalid": "正则表达式无效",
+        "searchPlaceholder": "搜索…",
+        "lengthMin": "最小",
+        "lengthMax": "最大",
+        "lengthHint": "字数 + 中日韩字符，各计为 1 个单位。",
+        "dateFrom": "起始",
+        "dateTo": "结束",
+        "noResults": "无匹配项",
+        "clearAll": "清除筛选"
+      },
       "table": {
         "title": "标题",
         "tags": "标签",

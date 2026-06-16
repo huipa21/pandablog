@@ -14,33 +14,13 @@
             </UButton>
           </UDropdownMenu>
           <UBadge v-if="quickEditEnabled && !isArchivedView" color="primary" variant="subtle">{{ t('admin.posts.quickEditOn') }}</UBadge>
+          <UButton v-if="filtersActive" icon="i-lucide-filter-x" color="neutral" variant="soft" @click="clearFilters">
+            {{ t('admin.posts.columnFilter.clearAll') }}
+          </UButton>
           <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
             {{ t('admin.posts.newPost') }}
           </UButton>
         </div>
-      </div>
-
-      <div class="pb-admin-surface flex flex-wrap items-center gap-2 p-3">
-        <USelect v-model="statusFilter" :items="statusFilterOptions" size="sm" class="w-40" />
-        <USelect v-model="sortBy" :items="sortOptions" size="sm" class="w-48" />
-        <AdminMultiSelectFilter
-          v-model="selectedCategoryIds"
-          :items="categoryFilterOptions"
-          :label="t('admin.taxonomy.categoriesTitle')"
-          :placeholder="t('admin.taxonomy.categoriesTitle')"
-          icon="i-lucide-folder"
-        />
-        <AdminMultiSelectFilter
-          v-model="selectedTagIds"
-          :items="tagFilterOptions"
-          :label="t('admin.taxonomy.tagsTitle')"
-          :placeholder="t('admin.taxonomy.tagsTitle')"
-          icon="i-lucide-tags"
-        />
-        <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28" />
-        <UButton v-if="filtersActive" size="sm" variant="ghost" color="neutral" icon="i-lucide-x" @click="clearFilters">
-          {{ t('admin.common.clear') }}
-        </UButton>
       </div>
     </div>
 
@@ -66,14 +46,175 @@
                   @change="toggleSelectAll($event)"
                 >
               </th>
-              <th class="min-w-64 px-4 py-3 font-medium">{{ t('admin.posts.table.title') }}</th>
-              <th class="min-w-48 px-4 py-3 font-medium">{{ t('admin.posts.table.tags') }}</th>
-              <th class="min-w-48 px-4 py-3 font-medium">{{ t('admin.posts.table.categories') }}</th>
-              <th class="min-w-40 px-4 py-3 font-medium">{{ t('admin.posts.table.privacy') }}</th>
-              <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.status') }}</th>
-              <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.length') }}</th>
-              <th class="min-w-36 px-4 py-3 font-medium">{{ t('admin.posts.table.published') }}</th>
-              <th class="min-w-32 px-4 py-3 font-medium">{{ t('admin.posts.table.updated') }}</th>
+              <th class="min-w-64 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.title')"
+                  sortable
+                  :sort-dir="sortKey === 'title' ? sortDir : null"
+                  :active="titleActive"
+                  @sort="(dir) => setSort('title', dir)"
+                  @clear="titleQuery = ''"
+                >
+                  <div class="grid gap-1.5">
+                    <UInput
+                      v-model="titleQuery"
+                      size="sm"
+                      icon="i-lucide-regex"
+                      :placeholder="t('admin.posts.columnFilter.titlePlaceholder')"
+                      :color="titleRegexValid ? undefined : 'error'"
+                    />
+                    <p v-if="!titleRegexValid" class="text-xs text-[var(--color-danger,#dc2626)]">{{ t('admin.posts.columnFilter.titleInvalid') }}</p>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-48 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.tags')"
+                  :active="selectedTagIds.length > 0"
+                  @clear="selectedTagIds = []"
+                >
+                  <div class="grid gap-2">
+                    <UInput v-model="tagSearch" size="sm" icon="i-lucide-search" :placeholder="t('admin.posts.columnFilter.searchPlaceholder')" />
+                    <div class="grid max-h-56 gap-0.5 overflow-y-auto">
+                      <label
+                        v-for="option in filteredTagOptions"
+                        :key="option.id"
+                        class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-1.5 py-1 text-sm text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)]"
+                      >
+                        <input v-model="selectedTagIds" type="checkbox" :value="option.id" class="rounded border-[var(--pb-border-strong)]">
+                        <span class="truncate">{{ option.name }}</span>
+                      </label>
+                      <p v-if="!filteredTagOptions.length" class="px-1.5 py-2 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.posts.columnFilter.noResults') }}</p>
+                    </div>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-48 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.categories')"
+                  :active="selectedCategoryIds.length > 0"
+                  @clear="selectedCategoryIds = []"
+                >
+                  <div class="grid gap-2">
+                    <UInput v-model="categorySearch" size="sm" icon="i-lucide-search" :placeholder="t('admin.posts.columnFilter.searchPlaceholder')" />
+                    <div class="grid max-h-56 gap-0.5 overflow-y-auto">
+                      <label
+                        v-for="option in filteredCategoryOptions"
+                        :key="option.id"
+                        class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-1.5 py-1 text-sm text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)]"
+                        :style="{ paddingLeft: `${0.375 + option.level * 0.85}rem` }"
+                      >
+                        <input v-model="selectedCategoryIds" type="checkbox" :value="option.id" class="rounded border-[var(--pb-border-strong)]">
+                        <span class="truncate">{{ option.name }}</span>
+                      </label>
+                      <p v-if="!filteredCategoryOptions.length" class="px-1.5 py-2 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.posts.columnFilter.noResults') }}</p>
+                    </div>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-40 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.privacy')"
+                  sortable
+                  :sort-dir="sortKey === 'visibility' ? sortDir : null"
+                  :active="selectedVisibilities.length > 0"
+                  @sort="(dir) => setSort('visibility', dir)"
+                  @clear="selectedVisibilities = []"
+                >
+                  <div class="grid gap-0.5">
+                    <label
+                      v-for="option in visibilityFilterOptions"
+                      :key="option.value"
+                      class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-1.5 py-1 text-sm text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)]"
+                    >
+                      <input v-model="selectedVisibilities" type="checkbox" :value="option.value" class="rounded border-[var(--pb-border-strong)]">
+                      <span>{{ option.label }}</span>
+                    </label>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-32 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.status')"
+                  sortable
+                  :sort-dir="sortKey === 'status' ? sortDir : null"
+                  :active="selectedStatuses.length > 0"
+                  @sort="(dir) => setSort('status', dir)"
+                  @clear="selectedStatuses = []"
+                >
+                  <div class="grid gap-0.5">
+                    <label
+                      v-for="option in statusCheckboxOptions"
+                      :key="option.value"
+                      class="flex cursor-pointer items-center gap-2 rounded-[var(--pb-radius-sm)] px-1.5 py-1 text-sm text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)]"
+                    >
+                      <input v-model="selectedStatuses" type="checkbox" :value="option.value" class="rounded border-[var(--pb-border-strong)]">
+                      <span>{{ option.label }}</span>
+                    </label>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-32 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.length')"
+                  sortable
+                  :sort-dir="sortKey === 'length' ? sortDir : null"
+                  :active="lengthActive"
+                  @sort="(dir) => setSort('length', dir)"
+                  @clear="() => { lengthMin = ''; lengthMax = '' }"
+                >
+                  <div class="grid gap-2">
+                    <div class="grid grid-cols-2 gap-2">
+                      <UInput v-model="lengthMin" type="number" min="0" size="sm" :placeholder="t('admin.posts.columnFilter.lengthMin')" />
+                      <UInput v-model="lengthMax" type="number" min="0" size="sm" :placeholder="t('admin.posts.columnFilter.lengthMax')" />
+                    </div>
+                    <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.posts.columnFilter.lengthHint') }}</p>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-36 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.published')"
+                  sortable
+                  :sort-dir="sortKey === 'published' ? sortDir : null"
+                  :active="publishedActive"
+                  @sort="(dir) => setSort('published', dir)"
+                  @clear="() => { publishedFrom = ''; publishedTo = '' }"
+                >
+                  <div class="grid gap-2">
+                    <label class="grid gap-1 text-xs text-[var(--pb-text-subtle)]">
+                      {{ t('admin.posts.columnFilter.dateFrom') }}
+                      <UInput v-model="publishedFrom" type="date" size="sm" />
+                    </label>
+                    <label class="grid gap-1 text-xs text-[var(--pb-text-subtle)]">
+                      {{ t('admin.posts.columnFilter.dateTo') }}
+                      <UInput v-model="publishedTo" type="date" size="sm" />
+                    </label>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
+              <th class="min-w-32 px-4 py-3 font-medium">
+                <AdminPostColumnFilter
+                  :label="t('admin.posts.table.updated')"
+                  sortable
+                  align="end"
+                  :sort-dir="sortKey === 'updated' ? sortDir : null"
+                  :active="updatedActive"
+                  @sort="(dir) => setSort('updated', dir)"
+                  @clear="() => { updatedFrom = ''; updatedTo = '' }"
+                >
+                  <div class="grid gap-2">
+                    <label class="grid gap-1 text-xs text-[var(--pb-text-subtle)]">
+                      {{ t('admin.posts.columnFilter.dateFrom') }}
+                      <UInput v-model="updatedFrom" type="date" size="sm" />
+                    </label>
+                    <label class="grid gap-1 text-xs text-[var(--pb-text-subtle)]">
+                      {{ t('admin.posts.columnFilter.dateTo') }}
+                      <UInput v-model="updatedTo" type="date" size="sm" />
+                    </label>
+                  </div>
+                </AdminPostColumnFilter>
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--pb-border)]">
@@ -230,7 +371,10 @@
       <UEmpty v-else icon="i-lucide-file-text" :title="t('admin.posts.emptyTitle')" :description="t('admin.posts.emptyDescription')" class="py-12" />
 
       <div v-if="!pending && totalPosts > 0" class="flex flex-col gap-3 border-t border-[var(--pb-border)] px-4 py-3 text-sm text-[var(--pb-text-muted)] md:flex-row md:items-center md:justify-between">
-        <span>{{ pageRangeLabel }}</span>
+        <div class="flex items-center gap-3">
+          <span>{{ pageRangeLabel }}</span>
+          <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28" />
+        </div>
         <div class="flex items-center gap-2">
           <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevrons-left" :aria-label="t('admin.common.firstPage')" :disabled="page <= 1" @click="goToPage(1)" />
           <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" :aria-label="t('admin.common.previousPage')" :disabled="page <= 1" @click="goToPage(page - 1)" />
@@ -272,9 +416,9 @@ import type { CategoryRecord, PostRecord, PostStatus, PostVisibility, TagRecord 
 
 definePageMeta({ layout: 'admin' })
 
-type PostStatusFilter = PostStatus | 'all'
 type BulkIntent = 'archive' | 'hard-delete' | 'mixed'
-type AdminPostSort = 'updated_desc' | 'updated_asc' | 'published_desc' | 'published_asc'
+type SortKey = 'updated' | 'published' | 'title' | 'status' | 'visibility' | 'length'
+type SortDir = 'asc' | 'desc'
 type PerPageOption = '10' | '25' | '50' | '100'
 
 type EditableField = 'title' | 'tags' | 'categories' | 'visibility' | 'status'
@@ -282,20 +426,19 @@ type EditableField = 'title' | 'tags' | 'categories' | 'visibility' | 'status'
 const { t } = useI18n()
 const { formatAdminDate, formatAdminNumber } = useAdminRegionalSettings()
 const creating = ref(false)
-const statusFilter = ref<PostStatusFilter>('all')
-const statusFilterOptions = computed(() => [
-  { label: t('admin.posts.filters.allActive'), value: 'all' },
-  { label: t('admin.posts.filters.draft'), value: 'draft' },
-  { label: t('admin.posts.filters.published'), value: 'published' },
-  { label: t('admin.posts.filters.archived'), value: 'archived' }
-])
-const sortBy = ref<AdminPostSort>('updated_desc')
-const sortOptions = computed(() => [
-  { label: t('admin.posts.filters.updatedNewest'), value: 'updated_desc' },
-  { label: t('admin.posts.filters.updatedOldest'), value: 'updated_asc' },
-  { label: t('admin.posts.filters.publishedNewest'), value: 'published_desc' },
-  { label: t('admin.posts.filters.publishedOldest'), value: 'published_asc' }
-])
+const titleQuery = ref('')
+const tagSearch = ref('')
+const categorySearch = ref('')
+const selectedStatuses = ref<PostStatus[]>([])
+const selectedVisibilities = ref<PostVisibility[]>([])
+const lengthMin = ref('')
+const lengthMax = ref('')
+const publishedFrom = ref('')
+const publishedTo = ref('')
+const updatedFrom = ref('')
+const updatedTo = ref('')
+const sortKey = ref<SortKey>('updated')
+const sortDir = ref<SortDir>('desc')
 const perPage = ref<PerPageOption>('10')
 const perPageOptions = computed(() => [
   { label: t('admin.common.perPage', { count: 10 }), value: '10' },
@@ -303,18 +446,51 @@ const perPageOptions = computed(() => [
   { label: t('admin.common.perPage', { count: 50 }), value: '50' },
   { label: t('admin.common.perPage', { count: 100 }), value: '100' }
 ])
+const statusCheckboxOptions = computed<Array<{ value: PostStatus, label: string }>>(() => [
+  { value: 'draft', label: t('admin.posts.status.draft') },
+  { value: 'published', label: t('admin.posts.status.published') },
+  { value: 'archived', label: t('admin.posts.status.archived') }
+])
+const visibilityFilterOptions = computed<Array<{ value: PostVisibility, label: string }>>(() => [
+  { value: 'public', label: t('admin.posts.visibility.public') },
+  { value: 'private', label: t('admin.posts.visibility.private') },
+  { value: 'password', label: t('admin.posts.visibility.password') }
+])
 const selectedTagIds = ref<string[]>([])
 const selectedCategoryIds = ref<string[]>([])
 const page = ref(1)
 const perPageNumber = computed(() => Number(perPage.value))
 const start = computed(() => (page.value - 1) * perPageNumber.value)
+const titleRegexValid = computed(() => {
+  const value = titleQuery.value.trim()
+  if (!value) {
+    return true
+  }
+
+  try {
+    void new RegExp(value)
+    return true
+  } catch {
+    return false
+  }
+})
+const lengthMinNumber = computed(() => normalizeRangeInput(lengthMin.value))
+const lengthMaxNumber = computed(() => normalizeRangeInput(lengthMax.value))
 const postListQuery = computed(() => ({
-  ...(statusFilter.value === 'all' ? {} : { status: statusFilter.value }),
-  sort: sortBy.value,
+  sort: `${sortKey.value}_${sortDir.value}`,
   limit: perPageNumber.value,
   start: start.value,
+  ...(titleRegexValid.value && titleQuery.value.trim() ? { title: titleQuery.value.trim() } : {}),
+  ...(selectedStatuses.value.length ? { statuses: selectedStatuses.value.join(',') } : {}),
+  ...(selectedVisibilities.value.length ? { visibilities: selectedVisibilities.value.join(',') } : {}),
   ...(selectedTagIds.value.length ? { tag_ids: selectedTagIds.value.join(',') } : {}),
-  ...(selectedCategoryIds.value.length ? { category_ids: selectedCategoryIds.value.join(',') } : {})
+  ...(selectedCategoryIds.value.length ? { category_ids: selectedCategoryIds.value.join(',') } : {}),
+  ...(lengthMinNumber.value !== null ? { length_min: lengthMinNumber.value } : {}),
+  ...(lengthMaxNumber.value !== null ? { length_max: lengthMaxNumber.value } : {}),
+  ...(publishedFrom.value ? { published_from: publishedFrom.value } : {}),
+  ...(publishedTo.value ? { published_to: publishedTo.value } : {}),
+  ...(updatedFrom.value ? { updated_from: updatedFrom.value } : {}),
+  ...(updatedTo.value ? { updated_to: updatedTo.value } : {})
 }))
 const { data, pending, error, refresh } = await useAsyncData(
   'admin-posts',
@@ -355,11 +531,35 @@ const categoryFilterOptions = computed(() => flattenCategoryOptions(categoryOpti
   name: entry.category.name,
   level: entry.level
 })))
-const isArchivedView = computed(() => statusFilter.value === 'archived')
-const filtersActive = computed(() => statusFilter.value !== 'all'
-  || sortBy.value !== 'updated_desc'
+const filteredTagOptions = computed(() => {
+  const term = tagSearch.value.trim().toLowerCase()
+  if (!term) {
+    return tagFilterOptions.value
+  }
+  return tagFilterOptions.value.filter((option) => option.name.toLowerCase().includes(term))
+})
+const filteredCategoryOptions = computed(() => {
+  const term = categorySearch.value.trim().toLowerCase()
+  if (!term) {
+    return categoryFilterOptions.value
+  }
+  return categoryFilterOptions.value.filter((option) => option.name.toLowerCase().includes(term))
+})
+const titleActive = computed(() => titleRegexValid.value && titleQuery.value.trim().length > 0)
+const lengthActive = computed(() => lengthMinNumber.value !== null || lengthMaxNumber.value !== null)
+const publishedActive = computed(() => Boolean(publishedFrom.value) || Boolean(publishedTo.value))
+const updatedActive = computed(() => Boolean(updatedFrom.value) || Boolean(updatedTo.value))
+const isArchivedView = computed(() => selectedStatuses.value.length === 1 && selectedStatuses.value[0] === 'archived')
+const filtersActive = computed(() => titleActive.value
+  || selectedStatuses.value.length > 0
+  || selectedVisibilities.value.length > 0
   || selectedTagIds.value.length > 0
-  || selectedCategoryIds.value.length > 0)
+  || selectedCategoryIds.value.length > 0
+  || lengthActive.value
+  || publishedActive.value
+  || updatedActive.value
+  || sortKey.value !== 'updated'
+  || sortDir.value !== 'desc')
 
 const adminToast = useAdminToast()
 const bulkDeleting = ref(false)
@@ -463,12 +663,27 @@ onBeforeUnmount(() => {
   clearRowClickTimer()
 })
 
-watch([statusFilter, sortBy, perPage, selectedTagIds, selectedCategoryIds], () => {
+watch([
+  titleQuery,
+  selectedStatuses,
+  selectedVisibilities,
+  selectedTagIds,
+  selectedCategoryIds,
+  lengthMin,
+  lengthMax,
+  publishedFrom,
+  publishedTo,
+  updatedFrom,
+  updatedTo,
+  sortKey,
+  sortDir,
+  perPage
+], () => {
   page.value = 1
   selectedIds.value = []
   cancelCellEdit()
   closeConfirmDialog()
-  if (statusFilter.value === 'archived' && quickEditEnabled.value) {
+  if (isArchivedView.value && quickEditEnabled.value) {
     quickEditEnabled.value = false
     cancelCellEdit()
   }
@@ -908,11 +1123,36 @@ function splitNames(value: string) {
 }
 
 function clearFilters() {
-  statusFilter.value = 'all'
-  sortBy.value = 'updated_desc'
+  titleQuery.value = ''
+  tagSearch.value = ''
+  categorySearch.value = ''
+  selectedStatuses.value = []
+  selectedVisibilities.value = []
   selectedTagIds.value = []
   selectedCategoryIds.value = []
+  lengthMin.value = ''
+  lengthMax.value = ''
+  publishedFrom.value = ''
+  publishedTo.value = ''
+  updatedFrom.value = ''
+  updatedTo.value = ''
+  sortKey.value = 'updated'
+  sortDir.value = 'desc'
   page.value = 1
+}
+
+function setSort(key: SortKey, dir: SortDir) {
+  sortKey.value = key
+  sortDir.value = dir
+}
+
+function normalizeRangeInput(value: string): number | null {
+  const raw = value.trim()
+  if (!raw) {
+    return null
+  }
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? Math.max(Math.trunc(parsed), 0) : null
 }
 
 function goToPage(nextPage: number) {
