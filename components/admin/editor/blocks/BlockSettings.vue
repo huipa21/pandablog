@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div class="block-settings-panel space-y-4">
     <div v-if="!blockName" class="rounded-md border border-dashed border-stone-200 p-4 text-sm text-stone-500">
       {{ t('admin.editor.settingsPanel.selectBlock') }}
     </div>
@@ -2148,6 +2148,38 @@ function runTableCommand(command: 'addColumnAfter' | 'addRowAfter' | 'deleteColu
 </script>
 
 <style scoped>
+.block-settings-panel :where(.border-stone-200) {
+  border-color: var(--pb-card-border) !important;
+}
+
+.block-settings-panel :where(.border-teal-100) {
+  border-color: color-mix(in srgb, var(--pb-selected-border) 34%, var(--pb-card-border)) !important;
+}
+
+.block-settings-panel :where(.bg-white) {
+  background: var(--pb-card-bg) !important;
+}
+
+.block-settings-panel :where(.bg-teal-50) {
+  background: var(--pb-selected-bg) !important;
+}
+
+.block-settings-panel :where(.text-stone-900) {
+  color: var(--pb-text) !important;
+}
+
+.block-settings-panel :where(.text-stone-500) {
+  color: var(--pb-text-subtle) !important;
+}
+
+.block-settings-panel :where(.text-teal-700) {
+  color: var(--pb-icon-accent) !important;
+}
+
+.block-settings-panel :where(.text-teal-900) {
+  color: var(--pb-text) !important;
+}
+
 .code-settings-panel :deep(.code-settings-field .u-select),
 .code-settings-panel :deep(.code-settings-field .u-input),
 .code-settings-panel :deep(.code-settings-field .u-input-root) {

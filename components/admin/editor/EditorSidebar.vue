@@ -1,10 +1,10 @@
 <template>
-  <aside class="h-full border-l border-stone-200 bg-white">
-    <div class="sticky top-0 z-10 flex border-b border-stone-200 bg-white">
+  <aside class="h-full border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)]">
+    <div class="sticky top-0 z-10 flex border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)]">
       <button
         type="button"
         class="flex-1 border-b-2 px-4 py-3 text-sm font-medium"
-        :class="editorStore.sidebarTab === 'post' ? 'border-teal-600 text-teal-700' : 'border-transparent text-stone-500 hover:text-stone-900'"
+        :class="editorStore.sidebarTab === 'post' ? 'border-[var(--pb-selected-border)] text-[var(--pb-link-hover)]' : 'border-transparent text-[var(--pb-text-subtle)] hover:text-[var(--pb-text)]'"
         @click="editorStore.setSidebarTab('post')"
       >
         {{ t('admin.editor.sidebar.post') }}
@@ -12,7 +12,7 @@
       <button
         type="button"
         class="flex-1 border-b-2 px-4 py-3 text-sm font-medium"
-        :class="editorStore.sidebarTab === 'block' ? 'border-teal-600 text-teal-700' : 'border-transparent text-stone-500 hover:text-stone-900'"
+        :class="editorStore.sidebarTab === 'block' ? 'border-[var(--pb-selected-border)] text-[var(--pb-link-hover)]' : 'border-transparent text-[var(--pb-text-subtle)] hover:text-[var(--pb-text)]'"
         @click="editorStore.setSidebarTab('block')"
       >
         {{ t('admin.editor.sidebar.block') }}
@@ -21,13 +21,13 @@
 
     <div class="h-[calc(100%-3rem)] overflow-y-auto">
       <div v-if="editorStore.sidebarTab === 'post'" class="space-y-4 p-4">
-        <div class="flex items-center justify-between rounded-md bg-stone-50 px-3 py-2 text-sm">
-          <span class="text-stone-500">{{ t('admin.editor.sidebar.status') }}</span>
+        <div class="flex items-center justify-between rounded-[var(--pb-radius-md)] bg-[var(--pb-surface-subtle)] px-3 py-2 text-sm">
+          <span class="text-[var(--pb-text-subtle)]">{{ t('admin.editor.sidebar.status') }}</span>
           <UBadge :color="currentStatus === 'published' ? 'success' : 'neutral'" variant="subtle">{{ statusLabel(currentStatus) }}</UBadge>
         </div>
 
-        <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.summarySlug') }}</summary>
+        <details open class="rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] p-3">
+        <summary class="cursor-pointer text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.sidebar.summarySlug') }}</summary>
         <div class="mt-3 space-y-3">
           <UFormField :label="t('admin.editor.sidebar.slug')">
             <UInput v-model="form.slug" icon="i-lucide-link" />
@@ -38,18 +38,18 @@
         </div>
       </details>
 
-      <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.template') }}</summary>
+      <details open class="rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] p-3">
+        <summary class="cursor-pointer text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.sidebar.template') }}</summary>
         <div class="mt-3">
           <USelect v-model="selectedTemplate" :items="templateItems" />
         </div>
       </details>
 
-      <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.coverImage') }}</summary>
+      <details open class="rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] p-3">
+        <summary class="cursor-pointer text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.sidebar.coverImage') }}</summary>
         <div class="mt-3 space-y-3">
           <div v-if="form.cover_image" class="space-y-2">
-            <div class="overflow-hidden rounded-md border border-stone-200">
+            <div class="overflow-hidden rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)]">
               <img :src="form.cover_image" :alt="t('admin.editor.sidebar.coverImageAlt')" class="h-36 w-full object-cover">
             </div>
             <div class="flex gap-2">
@@ -70,8 +70,8 @@
         </div>
       </details>
 
-      <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.categories') }}</summary>
+      <details open class="rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] p-3">
+        <summary class="cursor-pointer text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.sidebar.categories') }}</summary>
         <div class="mt-3 space-y-2">
           <div class="flex gap-2">
             <UInput
@@ -99,16 +99,16 @@
             </UBadge>
           </div>
 
-          <label v-for="category in categories" :key="category.id" class="flex cursor-pointer items-center gap-2 text-sm text-stone-700">
-            <input v-model="form.category_ids" type="checkbox" :value="category.id" class="rounded border-stone-300">
+          <label v-for="category in categories" :key="category.id" class="flex cursor-pointer items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+            <input v-model="form.category_ids" type="checkbox" :value="category.id" class="rounded border-[var(--pb-border-strong)]">
             <span>{{ category.name }}</span>
           </label>
-          <p v-if="!categories.length" class="text-sm text-stone-500">{{ t('admin.posts.noCategoriesYet') }}</p>
+          <p v-if="!categories.length" class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.posts.noCategoriesYet') }}</p>
         </div>
       </details>
 
-      <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.tags') }}</summary>
+      <details open class="rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] p-3">
+        <summary class="cursor-pointer text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.sidebar.tags') }}</summary>
         <div class="mt-3 space-y-2">
           <div class="flex gap-2">
             <UInput
@@ -136,46 +136,46 @@
             </UBadge>
           </div>
 
-          <label v-for="tag in tags" :key="tag.id" class="flex cursor-pointer items-center gap-2 text-sm text-stone-700">
-            <input v-model="form.tag_ids" type="checkbox" :value="tag.id" class="rounded border-stone-300">
+          <label v-for="tag in tags" :key="tag.id" class="flex cursor-pointer items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+            <input v-model="form.tag_ids" type="checkbox" :value="tag.id" class="rounded border-[var(--pb-border-strong)]">
             <span>{{ tag.name }}</span>
           </label>
-          <p v-if="!tags.length" class="text-sm text-stone-500">{{ t('admin.posts.noTagsYet') }}</p>
+          <p v-if="!tags.length" class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.posts.noTagsYet') }}</p>
         </div>
       </details>
 
-      <details open class="rounded-md border border-stone-200 p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.sidebar.visibility') }}</summary>
+      <details open class="rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] p-3">
+        <summary class="cursor-pointer text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.sidebar.visibility') }}</summary>
         <div class="mt-3 space-y-3">
           <label class="flex cursor-pointer items-start gap-2 text-sm">
             <input v-model="form.visibility" type="radio" value="public" class="mt-1">
-            <span><span class="font-medium">{{ t('admin.posts.visibility.public') }}</span><span class="block text-xs text-stone-500">{{ t('admin.editor.sidebar.publicDescription') }}</span></span>
+            <span><span class="font-medium text-[var(--pb-text)]">{{ t('admin.posts.visibility.public') }}</span><span class="block text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.sidebar.publicDescription') }}</span></span>
           </label>
           <label class="flex cursor-pointer items-start gap-2 text-sm">
             <input v-model="form.visibility" type="radio" value="private" class="mt-1">
-            <span><span class="font-medium">{{ t('admin.posts.visibility.private') }}</span><span class="block text-xs text-stone-500">{{ t('admin.editor.sidebar.privateDescription') }}</span></span>
+            <span><span class="font-medium text-[var(--pb-text)]">{{ t('admin.posts.visibility.private') }}</span><span class="block text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.sidebar.privateDescription') }}</span></span>
           </label>
           <label class="flex cursor-pointer items-start gap-2 text-sm">
             <input v-model="form.visibility" type="radio" value="password" class="mt-1">
             <span class="flex-1">
-              <span class="font-medium">{{ t('admin.posts.visibility.password') }}</span>
-              <span class="block text-xs text-stone-500">{{ t('admin.editor.sidebar.passwordDescription') }}</span>
+              <span class="font-medium text-[var(--pb-text)]">{{ t('admin.posts.visibility.password') }}</span>
+              <span class="block text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.sidebar.passwordDescription') }}</span>
             </span>
           </label>
 
-          <div v-if="form.visibility === 'password'" class="mt-3 space-y-3 rounded-md border border-stone-200 bg-stone-50 p-3">
+          <div v-if="form.visibility === 'password'" class="mt-3 space-y-3 rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-3">
             <input
               v-model="form.password"
               type="password"
               :placeholder="t('admin.editor.sidebar.passwordPlaceholder')"
-              class="w-full rounded border border-stone-300 px-2 py-1 text-sm"
+              class="w-full rounded border border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] px-2 py-1 text-sm text-[var(--pb-text)]"
               autocomplete="new-password"
             >
             <input
               v-model="form.password_hint"
               type="text"
               :placeholder="t('admin.editor.sidebar.passwordHintPlaceholder')"
-              class="w-full rounded border border-stone-300 px-2 py-1 text-sm"
+              class="w-full rounded border border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] px-2 py-1 text-sm text-[var(--pb-text)]"
             >
           </div>
         </div>

@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const merged = { ...existing, ...body }
   const payload = buildPostPayload(merged, user.role === 'author' ? user.username : previousPost.author_username)
 
-  if (!payload.title) {
+  if (payload.status === 'published' && !payload.title) {
     throw createError({ statusCode: 400, message: 'Title is required' })
   }
 

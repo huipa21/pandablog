@@ -3,16 +3,16 @@
     <Transition name="media-picker">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @click="close" />
-        <section class="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-          <header class="flex items-center justify-between border-b border-stone-200 px-4 py-3">
+        <section class="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]">
+          <header class="flex items-center justify-between border-b border-[var(--pb-divider)] px-4 py-3">
             <div>
-              <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.title') }}</h2>
-              <p class="text-xs text-stone-500">{{ t('admin.media.selectedCount', { count: selected.length }) }}</p>
+              <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.media.title') }}</h2>
+              <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.selectedCount', { count: selected.length }) }}</p>
             </div>
             <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="close" />
           </header>
 
-          <div class="flex border-b border-stone-200">
+          <div class="flex border-b border-[var(--pb-divider)]">
             <button type="button" class="picker-tab" :class="tab === 'browse' ? activeTabClass : inactiveTabClass" @click="tab = 'browse'">
               <UIcon name="i-lucide-images" class="size-4" />
               {{ t('admin.media.browse') }}
@@ -33,7 +33,7 @@
             </div>
 
             <div v-else-if="tab === 'url'" class="mx-auto flex w-full max-w-xl flex-col gap-3">
-              <p class="text-sm text-stone-600">
+              <p class="text-sm text-[var(--pb-text-muted)]">
                 {{ t('admin.media.directUrlHelp') }}
               </p>
               <UFormField :label="t('admin.media.imageUrl')" required>
@@ -64,7 +64,7 @@
               <div v-if="loading" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 <USkeleton v-for="index in 10" :key="index" class="aspect-square rounded-lg" />
               </div>
-              <div v-else-if="!files.length" class="rounded-lg border border-dashed border-stone-300 py-12 text-center text-sm text-stone-500">
+              <div v-else-if="!files.length" class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-border-strong)] py-12 text-center text-sm text-[var(--pb-text-subtle)]">
                 {{ t('admin.media.noFilesFound') }}
               </div>
               <MediaGrid
@@ -82,8 +82,8 @@
             </div>
           </div>
 
-          <footer class="flex items-center justify-between gap-3 border-t border-stone-200 px-4 py-3">
-            <div class="min-w-0 truncate text-sm text-stone-600">{{ selectedNames }}</div>
+          <footer class="flex items-center justify-between gap-3 border-t border-[var(--pb-divider)] px-4 py-3">
+            <div class="min-w-0 truncate text-sm text-[var(--pb-text-muted)]">{{ selectedNames }}</div>
             <div class="flex gap-2">
               <UButton type="button" color="neutral" variant="ghost" @click="close">{{ t('admin.media.cancel') }}</UButton>
               <UButton type="button" icon="i-lucide-check" :disabled="!selected.length" @click="confirmSelection">{{ t('admin.media.select') }}</UButton>
@@ -156,8 +156,8 @@ const filters = ref<PickerFilters>({
   case_insensitive: true
 })
 
-const activeTabClass = 'border-teal-600 text-teal-700'
-const inactiveTabClass = 'border-transparent text-stone-500 hover:text-stone-900'
+const activeTabClass = 'border-[var(--pb-selected-border)] text-[var(--pb-link-hover)]'
+const inactiveTabClass = 'border-transparent text-[var(--pb-text-subtle)] hover:text-[var(--pb-text)]'
 const selectedNames = computed(() => selected.value.map((file) => file.original_name).join(', ') || t('admin.media.noFilesSelected'))
 
 watch(() => props.open, (value) => {

@@ -2,20 +2,20 @@
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" class="absolute inset-0 bg-black/40" :aria-label="t('admin.common.close')" @click="emit('close')" />
-      <section class="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
-        <header class="flex items-center justify-between border-b border-stone-200 p-4">
-          <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.searchMedia') }}</h2>
+      <section class="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]">
+        <header class="flex items-center justify-between border-b border-[var(--pb-divider)] p-4">
+          <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.media.searchMedia') }}</h2>
           <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="emit('close')" />
         </header>
 
-        <div class="border-b border-stone-200 px-4 pt-3">
-          <div class="flex flex-wrap gap-1 rounded-md bg-stone-100 p-1">
+        <div class="border-b border-[var(--pb-divider)] px-4 pt-3">
+          <div class="flex flex-wrap gap-1 rounded-[var(--pb-radius-md)] bg-[var(--pb-surface-subtle)] p-1">
             <button
               v-for="tab in tabs"
               :key="tab.value"
               type="button"
               class="rounded px-3 py-1.5 text-sm font-medium transition"
-              :class="activeTab === tab.value ? 'bg-white text-stone-950 shadow-sm' : 'text-stone-600 hover:text-stone-950'"
+              :class="activeTab === tab.value ? 'bg-[var(--pb-card-bg)] text-[var(--pb-text)] shadow-[var(--pb-shadow-sm)]' : 'text-[var(--pb-text-muted)] hover:text-[var(--pb-text)]'"
               @click="activeTab = tab.value"
             >
               {{ tab.label }}
@@ -36,7 +36,7 @@
                 <UInput v-model="form.comment" icon="i-lucide-message-square" placeholder="draft" />
               </UFormField>
               <UFormField :label="t('admin.media.tags')">
-                <div class="rounded-md border border-stone-300 px-2 py-1.5">
+                <div class="rounded-[var(--pb-radius-md)] border border-[var(--pb-border-strong)] px-2 py-1.5">
                   <MediaTagInput v-model="form.tags" />
                 </div>
               </UFormField>
@@ -51,25 +51,25 @@
               </UFormField>
             </div>
 
-            <div class="flex flex-wrap gap-4 rounded-lg border border-stone-200 p-3">
-              <label class="flex items-center gap-2 text-sm text-stone-700">
-                <input v-model="form.search_regex" type="checkbox" class="rounded border-stone-300">
+            <div class="flex flex-wrap gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
+              <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+                <input v-model="form.search_regex" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
                 <span>{{ t('admin.media.regex') }}</span>
               </label>
-              <label class="flex items-center gap-2 text-sm text-stone-700">
-                <input v-model="form.case_insensitive" type="checkbox" class="rounded border-stone-300">
+              <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+                <input v-model="form.case_insensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
                 <span>{{ t('admin.media.caseInsensitive') }}</span>
               </label>
-              <label class="flex items-center gap-2 text-sm text-stone-700">
-                <input v-model="form.orphan" type="checkbox" class="rounded border-stone-300">
+              <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+                <input v-model="form.orphan" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
                 <span>{{ t('admin.media.orphanOnly') }}</span>
               </label>
             </div>
           </section>
 
-          <section v-else-if="activeTab === 'advanced'" class="space-y-3 rounded-lg border border-stone-200 p-3">
+          <section v-else-if="activeTab === 'advanced'" class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
             <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-sm font-medium text-stone-900">{{ t('admin.media.advancedConditions') }}</h3>
+              <h3 class="text-sm font-medium text-[var(--pb-text)]">{{ t('admin.media.advancedConditions') }}</h3>
               <div class="ml-auto w-32">
                 <USelect v-model="form.rootOp" :items="opItems" :content="selectContent" :ui="selectUi" />
               </div>
@@ -81,14 +81,14 @@
               <div
                 v-for="condition in form.conditions"
                 :key="condition.id"
-                class="grid gap-2 rounded-md bg-stone-50 p-2 md:grid-cols-[160px_140px_minmax(160px,1fr)_minmax(120px,1fr)_auto]"
+                class="grid gap-2 rounded-[var(--pb-radius-md)] bg-[var(--pb-surface-subtle)] p-2 md:grid-cols-[160px_140px_minmax(160px,1fr)_minmax(120px,1fr)_auto]"
               >
                 <USelect v-model="condition.field" :items="fieldItems" :content="selectContent" :ui="selectUi" />
                 <USelect v-model="condition.operator" :items="operatorItems" :content="selectContent" :ui="selectUi" />
                 <UInput v-model="condition.value" :placeholder="t('admin.media.value')" />
                 <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" :placeholder="t('admin.media.to')" />
-                <label v-else class="flex items-center gap-2 text-xs text-stone-600">
-                  <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-stone-300">
+                <label v-else class="flex items-center gap-2 text-xs text-[var(--pb-text-muted)]">
+                  <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
                   <span>{{ t('admin.media.caseInsensitive') }}</span>
                 </label>
                 <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="removeCondition(form.conditions, condition.id)" />
@@ -98,10 +98,10 @@
             <div
               v-for="group in form.groups"
               :key="group.id"
-              class="space-y-2 rounded-lg border border-stone-200 bg-white p-3"
+              class="space-y-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3"
             >
               <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-stone-700">{{ t('admin.media.group') }}</span>
+                <span class="text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.media.group') }}</span>
                 <div class="w-28">
                   <USelect v-model="group.op" :items="opItems" :content="selectContent" :ui="selectUi" />
                 </div>
@@ -112,14 +112,14 @@
               <div
                 v-for="condition in group.conditions"
                 :key="condition.id"
-                class="grid gap-2 rounded-md bg-stone-50 p-2 md:grid-cols-[160px_140px_minmax(160px,1fr)_minmax(120px,1fr)_auto]"
+                class="grid gap-2 rounded-[var(--pb-radius-md)] bg-[var(--pb-surface-subtle)] p-2 md:grid-cols-[160px_140px_minmax(160px,1fr)_minmax(120px,1fr)_auto]"
               >
                 <USelect v-model="condition.field" :items="fieldItems" :content="selectContent" :ui="selectUi" />
                 <USelect v-model="condition.operator" :items="operatorItems" :content="selectContent" :ui="selectUi" />
                 <UInput v-model="condition.value" :placeholder="t('admin.media.value')" />
                 <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" :placeholder="t('admin.media.to')" />
-                <label v-else class="flex items-center gap-2 text-xs text-stone-600">
-                  <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-stone-300">
+                <label v-else class="flex items-center gap-2 text-xs text-[var(--pb-text-muted)]">
+                  <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
                   <span>{{ t('admin.media.caseInsensitive') }}</span>
                 </label>
                 <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="removeCondition(group.conditions, condition.id)" />
@@ -131,11 +131,11 @@
             <div
               v-for="entry in favoriteSearches"
               :key="entry.id"
-              class="flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-3 md:flex-row md:items-center"
+              class="flex flex-col gap-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3 md:flex-row md:items-center"
             >
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-medium text-stone-950">{{ entry.name }}</div>
-                <div class="mt-1 truncate text-xs text-stone-500">{{ savedSummary(entry.form) }}</div>
+                <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ entry.name }}</div>
+                <div class="mt-1 truncate text-xs text-[var(--pb-text-subtle)]">{{ savedSummary(entry.form) }}</div>
               </div>
               <div class="flex shrink-0 gap-2">
                 <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-pencil" @click="loadSavedSearch(entry)">{{ t('admin.media.load') }}</UButton>
@@ -143,18 +143,18 @@
                 <UButton type="button" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" @click="deleteFavorite(entry.id)" />
               </div>
             </div>
-            <div v-if="!favoriteSearches.length" class="rounded-lg border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500">{{ t('admin.media.noFavoriteSearches') }}</div>
+            <div v-if="!favoriteSearches.length" class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-border-strong)] py-10 text-center text-sm text-[var(--pb-text-subtle)]">{{ t('admin.media.noFavoriteSearches') }}</div>
           </section>
 
           <section v-else class="space-y-3">
             <div
               v-for="entry in recentSearches"
               :key="entry.id"
-              class="flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-3 md:flex-row md:items-center"
+              class="flex flex-col gap-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3 md:flex-row md:items-center"
             >
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-medium text-stone-950">{{ entry.name }}</div>
-                <div class="mt-1 truncate text-xs text-stone-500">{{ savedSummary(entry.form) }}</div>
+                <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ entry.name }}</div>
+                <div class="mt-1 truncate text-xs text-[var(--pb-text-subtle)]">{{ savedSummary(entry.form) }}</div>
               </div>
               <div class="flex shrink-0 gap-2">
                 <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-pencil" @click="loadSavedSearch(entry)">{{ t('admin.media.load') }}</UButton>
@@ -162,11 +162,11 @@
                 <UButton type="button" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" @click="deleteRecent(entry.id)" />
               </div>
             </div>
-            <div v-if="!recentSearches.length" class="rounded-lg border border-dashed border-stone-300 py-10 text-center text-sm text-stone-500">{{ t('admin.media.noRecentSearches') }}</div>
+            <div v-if="!recentSearches.length" class="rounded-[var(--pb-radius-card-inner)] border border-dashed border-[var(--pb-border-strong)] py-10 text-center text-sm text-[var(--pb-text-subtle)]">{{ t('admin.media.noRecentSearches') }}</div>
           </section>
         </div>
 
-        <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-stone-200 p-4">
+        <footer class="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--pb-divider)] p-4">
           <UButton type="button" icon="i-lucide-star" color="neutral" variant="soft" @click="openFavoriteDialog">{{ t('admin.media.saveFavorite') }}</UButton>
           <UButton type="button" color="neutral" variant="ghost" @click="resetForm">{{ t('admin.media.reset') }}</UButton>
           <UButton type="button" icon="i-lucide-search" @click="applySearch">{{ t('admin.media.search') }}</UButton>
@@ -175,8 +175,8 @@
 
       <div v-if="favoriteDialogOpen" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
         <button type="button" class="absolute inset-0 bg-black/30" :aria-label="t('admin.common.close')" @click="favoriteDialogOpen = false" />
-        <form class="relative w-full max-w-md rounded-lg bg-white p-4 shadow-xl" @submit.prevent="confirmSaveFavorite">
-          <h3 class="text-base font-semibold text-stone-950">{{ t('admin.media.saveFavoriteSearch') }}</h3>
+        <form class="relative w-full max-w-md rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-lg)]" @submit.prevent="confirmSaveFavorite">
+          <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.media.saveFavoriteSearch') }}</h3>
           <UFormField :label="t('admin.media.name')" class="mt-4">
             <UInput v-model="favoriteName" icon="i-lucide-star" autofocus />
           </UFormField>

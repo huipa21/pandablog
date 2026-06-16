@@ -2763,7 +2763,7 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
 
 <style scoped>
 :deep(.pandablog-block-editor .ProseMirror) {
-  color: rgb(41 37 36);
+  color: var(--pb-text);
   padding: 0.5rem 0;
 }
 
@@ -2805,17 +2805,17 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
   align-items: center;
   justify-content: center;
   border-radius: 0.45rem;
-  border: 1px solid rgb(153 246 228);
-  background: rgb(240 253 250);
-  color: rgb(15 118 110);
+  border: 1px solid color-mix(in srgb, var(--pb-selected-border) 34%, var(--pb-card-border));
+  background: var(--pb-selected-bg);
+  color: var(--pb-link);
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
   transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
 .block-grid-handle:hover,
 .block-grid-add:hover {
-  border-color: rgb(45 212 191);
-  background: rgb(204 251 241);
+  border-color: var(--pb-selected-border);
+  background: var(--pb-card-bg-hover);
 }
 
 :deep(.pandablog-block-editor .ProseMirror > *) {
@@ -2829,7 +2829,7 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
 
 :deep(.pandablog-block-editor .ProseMirror > .ProseMirror-selectednode),
 :deep(.pandablog-block-editor .ProseMirror > *:hover) {
-  outline-color: rgb(204 251 241);
+  outline-color: color-mix(in srgb, var(--pb-selected-border) 34%, transparent);
 }
 
 :deep(.pandablog-block-editor .ProseMirror p) {
@@ -2874,8 +2874,8 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
 }
 
 :deep(.pandablog-block-editor .ProseMirror blockquote) {
-  border-left: 4px solid rgb(13 148 136);
-  color: rgb(68 64 60);
+  border-left: 4px solid var(--pb-primary);
+  color: var(--pb-text-muted);
   padding-left: 1rem;
 }
 

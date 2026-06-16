@@ -1,43 +1,43 @@
 <template>
   <div class="space-y-4">
     <div
-      class="rounded-lg border-2 border-dashed bg-white p-6 text-center transition"
-      :class="isDragging ? 'border-teal-500 bg-teal-50' : 'border-stone-300 hover:border-stone-400'"
+      class="rounded-[var(--pb-radius-card-outer)] border-2 border-dashed bg-[var(--pb-card-bg)] p-6 text-center transition"
+      :class="isDragging ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-border-strong)] hover:border-[var(--pb-selected-border)]'"
       @dragover.prevent="isDragging = true"
       @dragleave="isDragging = false"
       @drop.prevent="handleDrop"
     >
-      <UIcon name="i-lucide-cloud-upload" class="mx-auto mb-3 size-9 text-stone-400" />
-      <div class="text-sm font-medium text-stone-800">{{ t('admin.media.dropFilesHere') }}</div>
-      <div class="mt-1 text-xs text-stone-500">{{ t('admin.media.uploadLimit', { size: mediaConfig.getMaxFileSizeDisplay(), count: mediaConfig.getMaxFilesPerUpload() }) }}</div>
+      <UIcon name="i-lucide-cloud-upload" class="mx-auto mb-3 size-9 text-[var(--pb-icon-muted)]" />
+      <div class="text-sm font-medium text-[var(--pb-text)]">{{ t('admin.media.dropFilesHere') }}</div>
+      <div class="mt-1 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.uploadLimit', { size: mediaConfig.getMaxFileSizeDisplay(), count: mediaConfig.getMaxFilesPerUpload() }) }}</div>
       <UButton type="button" icon="i-lucide-folder-open" size="sm" class="mt-4" @click="openFileDialog">
         {{ t('admin.media.selectFiles') }}
       </UButton>
       <input ref="fileInput" type="file" multiple class="sr-only" @change="handleFileSelect">
     </div>
 
-    <div v-if="items.length" class="space-y-4 rounded-lg border border-stone-200 bg-white p-4">
+    <div v-if="items.length" class="space-y-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4">
       <div class="grid gap-3 md:grid-cols-2">
         <UFormField :label="t('admin.media.generalComment')">
           <UTextarea v-model="generalComment" :rows="2" />
         </UFormField>
         <UFormField :label="t('admin.media.generalTags')">
-          <div class="rounded-md border border-stone-300 px-2 py-1.5">
+          <div class="rounded-[var(--pb-radius-md)] border border-[var(--pb-border-strong)] px-2 py-1.5">
             <MediaTagInput v-model="generalTags" />
           </div>
         </UFormField>
       </div>
 
-      <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3" :class="privateUpload ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-stone-200 bg-white'">
+      <label class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3" :class="privateUpload ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-card-border)] bg-[var(--pb-card-bg)]'">
         <USwitch v-model="privateUpload" />
         <span class="grid gap-0.5">
-          <span class="font-medium text-stone-900">{{ t('admin.media.privateUpload') }}</span>
-          <span class="text-xs text-stone-500">{{ t('admin.media.privateUploadHelp') }}</span>
+          <span class="font-medium text-[var(--pb-text)]">{{ t('admin.media.privateUpload') }}</span>
+          <span class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.privateUploadHelp') }}</span>
         </span>
       </label>
 
-      <div class="overflow-x-auto rounded-lg border border-stone-200">
-        <table class="min-w-full table-fixed divide-y divide-stone-200 text-sm">
+      <div class="overflow-x-auto rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-card-border)]">
+        <table class="min-w-full table-fixed divide-y divide-[var(--pb-divider)] text-sm">
           <colgroup>
             <col class="w-20">
             <col class="w-44">
@@ -47,7 +47,7 @@
             <col class="w-36">
             <col class="w-20">
           </colgroup>
-          <thead class="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+          <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wide text-[var(--pb-text-subtle)]">
             <tr>
               <th class="px-3 py-2 text-left">{{ t('admin.media.preview') }}</th>
               <th class="px-3 py-2 text-left">{{ t('admin.media.file') }}</th>
@@ -58,18 +58,18 @@
               <th class="px-3 py-2 text-right">{{ t('admin.media.action') }}</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-stone-200 bg-white">
+          <tbody class="divide-y divide-[var(--pb-divider)] bg-[var(--pb-card-bg)]">
             <tr v-for="item in items" :key="item.id" class="align-top">
               <td class="px-3 py-2">
-                <div class="flex size-14 items-center justify-center overflow-hidden rounded border border-stone-200 bg-stone-100">
+                <div class="flex size-14 items-center justify-center overflow-hidden rounded border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)]">
                   <img v-if="item.previewUrl" :src="item.previewUrl" :alt="item.file.name" class="h-full w-full object-cover">
-                  <UIcon v-else :name="getFileIcon(extensionFor(item.file.name), item.file.type)" class="size-6 text-stone-500" />
+                  <UIcon v-else :name="getFileIcon(extensionFor(item.file.name), item.file.type)" class="size-6 text-[var(--pb-icon-muted)]" />
                 </div>
               </td>
               <td class="px-3 py-2">
                 <div class="min-w-0">
-                  <div class="truncate font-medium text-stone-900">{{ item.file.name }}</div>
-                  <div class="text-xs text-stone-500">{{ formatFileSize(item.file.size) }}</div>
+                  <div class="truncate font-medium text-[var(--pb-text)]">{{ item.file.name }}</div>
+                  <div class="text-xs text-[var(--pb-text-subtle)]">{{ formatFileSize(item.file.size) }}</div>
                 </div>
               </td>
               <td class="px-3 py-2">
@@ -79,14 +79,14 @@
                 <UTextarea v-model="item.comment" :rows="2" class="min-w-56" />
               </td>
               <td class="px-3 py-2">
-                <div class="rounded-md border border-stone-300 px-2 py-1.5">
+                <div class="rounded-[var(--pb-radius-md)] border border-[var(--pb-border-strong)] px-2 py-1.5">
                   <MediaTagInput v-model="item.tags" />
                 </div>
               </td>
               <td class="px-3 py-2">
                 <div class="w-28 space-y-1">
-                  <div class="text-xs text-stone-500">{{ uploading ? `${item.progress}%` : t('admin.media.waiting') }}</div>
-                  <div class="h-1 w-full overflow-hidden rounded bg-stone-200">
+                  <div class="text-xs text-[var(--pb-text-subtle)]">{{ uploading ? `${item.progress}%` : t('admin.media.waiting') }}</div>
+                  <div class="h-1 w-full overflow-hidden rounded bg-[var(--pb-surface-subtle)]">
                     <div class="h-full rounded bg-teal-500 transition-[width] duration-150" :style="{ width: `${uploading ? item.progress : 0}%` }" />
                   </div>
                 </div>

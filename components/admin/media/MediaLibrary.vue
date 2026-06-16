@@ -2,25 +2,25 @@
   <section class="space-y-5">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-3xl font-semibold tracking-normal text-stone-950">{{ t('admin.media.title') }}</h1>
-        <p class="text-sm text-stone-500">{{ t('admin.media.fileCount', { count: total }) }}</p>
+        <h1 class="text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.media.title') }}</h1>
+        <p class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.media.fileCount', { count: total }) }}</p>
       </div>
       <div class="flex items-center gap-2">
         <UButton type="button" icon="i-lucide-upload" @click="uploadModalOpen = true">{{ t('admin.media.uploadFiles') }}</UButton>
         <UButton type="button" icon="i-lucide-search" color="neutral" variant="soft" @click="searchModalOpen = true">{{ t('admin.media.search') }}</UButton>
-        <div class="flex rounded-md border border-stone-200">
+        <div class="flex rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)]">
           <button
             type="button"
-            class="rounded-l-md px-2 py-1.5 text-stone-600 transition hover:bg-stone-100"
-            :class="viewMode === 'grid' ? 'bg-stone-100 text-stone-900' : ''"
+            class="rounded-l-[var(--pb-radius-md)] px-2 py-1.5 text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-card-bg-hover)]"
+            :class="viewMode === 'grid' ? 'bg-[var(--pb-selected-bg)] text-[var(--pb-text)]' : ''"
             @click="setViewMode('grid')"
           >
             <UIcon name="i-lucide-grid-2x2" class="size-4" />
           </button>
           <button
             type="button"
-            class="rounded-r-md px-2 py-1.5 text-stone-600 transition hover:bg-stone-100"
-            :class="viewMode === 'list' ? 'bg-stone-100 text-stone-900' : ''"
+            class="rounded-r-[var(--pb-radius-md)] px-2 py-1.5 text-[var(--pb-text-muted)] transition hover:bg-[var(--pb-card-bg-hover)]"
+            :class="viewMode === 'list' ? 'bg-[var(--pb-selected-bg)] text-[var(--pb-text)]' : ''"
             @click="setViewMode('list')"
           >
             <UIcon name="i-lucide-list" class="size-4" />
@@ -53,7 +53,7 @@
 
       <div class="min-w-0 space-y-5">
         <!-- Active filters indicator -->
-        <div v-if="hasActiveFilters && mode !== 'smart'" class="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <div v-if="hasActiveFilters && mode !== 'smart'" class="flex flex-wrap items-center gap-2 rounded-[var(--pb-radius-card-inner)] border border-amber-300/50 bg-amber-500/10 p-3">
           <UIcon name="i-lucide-filter" class="size-4 text-amber-700" />
           <span class="text-sm font-medium text-amber-800">{{ t('admin.media.activeFilters') }}</span>
           <span v-if="filters.file_name" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterName', { value: filters.file_name }) }}</span>
@@ -68,18 +68,18 @@
         </div>
 
         <!-- Tags view -->
-        <div v-if="mode === 'tag'" class="space-y-4 rounded-lg border border-stone-200 bg-white p-5">
+        <div v-if="mode === 'tag'" class="space-y-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5">
           <div class="flex items-center gap-3">
-            <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.tags') }}</h2>
+            <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.media.tags') }}</h2>
             <UInput v-model="tagSearch" size="sm" icon="i-lucide-search" :placeholder="t('admin.media.searchTags')" class="max-w-xs" />
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <div v-if="selectedMediaTags.length" class="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 p-1">
-              <span class="px-2 text-xs font-medium uppercase tracking-wide text-stone-500">{{ t('admin.media.match') }}</span>
+            <div v-if="selectedMediaTags.length" class="flex items-center gap-2 rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-1">
+              <span class="px-2 text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.media.match') }}</span>
               <button
                 type="button"
                 class="rounded-md px-2.5 py-1 text-xs font-semibold transition"
-                :class="selectedTagRelation === 'and' ? 'bg-white text-stone-950 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
+                :class="selectedTagRelation === 'and' ? 'bg-[var(--pb-card-bg)] text-[var(--pb-text)] shadow-[var(--pb-shadow-sm)]' : 'text-[var(--pb-text-subtle)] hover:text-[var(--pb-text)]'"
                 @click="setSelectedTagRelation('and')"
               >
                 AND
@@ -87,14 +87,14 @@
               <button
                 type="button"
                 class="rounded-md px-2.5 py-1 text-xs font-semibold transition"
-                :class="selectedTagRelation === 'or' ? 'bg-white text-stone-950 shadow-sm' : 'text-stone-500 hover:text-stone-800'"
+                :class="selectedTagRelation === 'or' ? 'bg-[var(--pb-card-bg)] text-[var(--pb-text)] shadow-[var(--pb-shadow-sm)]' : 'text-[var(--pb-text-subtle)] hover:text-[var(--pb-text)]'"
                 @click="setSelectedTagRelation('or')"
               >
                 OR
               </button>
             </div>
             <UButton v-if="selectedMediaTags.length" type="button" icon="i-lucide-x" size="xs" color="neutral" variant="soft" @click="clearTagSelection">{{ t('admin.media.clearSelection') }}</UButton>
-            <p class="text-sm text-stone-500">
+            <p class="text-sm text-[var(--pb-text-subtle)]">
               <template v-if="selectedMediaTags.length">{{ t('admin.media.tagsSelected', { count: selectedMediaTags.length }) }}</template>
               <template v-else>{{ t('admin.media.selectTagsHint') }}</template>
             </p>
@@ -104,20 +104,20 @@
               v-for="tag in visibleMediaTags"
               :key="tag.id"
               type="button"
-              class="rounded-full px-3 py-1.5 font-medium transition hover:-translate-y-0.5 hover:bg-teal-50 hover:text-teal-800"
-              :class="isMediaTagSelected(tag.name) ? 'bg-teal-100 text-teal-900 ring-1 ring-teal-200' : 'bg-stone-100 text-stone-700'"
+              class="rounded-full px-3 py-1.5 font-medium transition hover:-translate-y-0.5 hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
+              :class="isMediaTagSelected(tag.name) ? 'bg-[var(--pb-selected-bg)] text-[var(--pb-text)] ring-1 ring-[var(--pb-selected-border)]' : 'bg-[var(--pb-surface-subtle)] text-[var(--pb-text-muted)]'"
               :style="tagStyle(tag.count)"
               @click="toggleMediaTag(tag.name)"
             >
               #{{ tag.name }}
-              <span class="ml-1 text-stone-400">{{ tag.count }}</span>
+              <span class="ml-1 text-[var(--pb-text-subtle)]">{{ tag.count }}</span>
             </button>
           </div>
-          <p v-else class="text-sm text-stone-500">{{ t('admin.media.noTagsFound') }}</p>
+          <p v-else class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.media.noTagsFound') }}</p>
         </div>
 
         <!-- File grid toolbar -->
-        <div v-if="mode !== 'tag' || selectedMediaTags.length" class="flex flex-wrap items-center gap-2 rounded-lg border border-stone-200 bg-white p-3">
+        <div v-if="mode !== 'tag' || selectedMediaTags.length" class="flex flex-wrap items-center gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-3">
           <UButton type="button" icon="i-lucide-check-check" color="neutral" variant="soft" @click="selectAllFiles">{{ t('admin.media.selectAll') }}</UButton>
           <UButton type="button" icon="i-lucide-eraser" color="neutral" variant="ghost" :disabled="selectedHashes.size === 0" @click="clearSelection">{{ t('admin.media.clear') }}</UButton>
           <UDropdownMenu :items="bulkActionItems">
@@ -129,7 +129,7 @@
             {{ t('admin.media.deleteOrphans') }}<template v-if="selectedHashes.size"> ({{ selectedHashes.size }})</template>
           </UButton>
           <div class="ml-auto flex flex-wrap items-center gap-2">
-            <div class="text-sm text-stone-500">{{ t('admin.media.pageOf', { page, pages }) }}</div>
+            <div class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.media.pageOf', { page, pages }) }}</div>
             <UButton type="button" icon="i-lucide-chevron-left" color="neutral" variant="ghost" :disabled="page <= 1" @click="changePage(page - 1)" />
             <UButton type="button" icon="i-lucide-chevron-right" color="neutral" variant="ghost" :disabled="page >= pages" @click="changePage(page + 1)" />
             <div class="w-44">
@@ -148,9 +148,9 @@
             <USkeleton v-for="index in 10" :key="index" class="aspect-square rounded-lg" />
           </div>
 
-          <div v-else-if="!files.length" class="rounded-lg border border-dashed border-stone-300 bg-white py-14 text-center">
-            <UIcon name="i-lucide-inbox" class="mx-auto mb-2 size-10 text-stone-400" />
-            <p class="text-sm text-stone-600">{{ t('admin.media.noMediaFiles') }}</p>
+          <div v-else-if="!files.length" class="rounded-[var(--pb-radius-card-outer)] border border-dashed border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] py-14 text-center">
+            <UIcon name="i-lucide-inbox" class="mx-auto mb-2 size-10 text-[var(--pb-icon-muted)]" />
+            <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.media.noMediaFiles') }}</p>
           </div>
 
           <MediaGrid
@@ -195,9 +195,9 @@
     <Teleport to="body">
       <div v-if="uploadModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <button type="button" class="absolute inset-0 bg-black/40" :aria-label="t('admin.common.close')" @click="uploadModalOpen = false" />
-        <section class="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
-          <header class="flex items-center justify-between border-b border-stone-200 p-4">
-            <h2 class="text-lg font-semibold text-stone-950">{{ t('admin.media.uploadFiles') }}</h2>
+        <section class="relative flex max-h-[92vh] w-full max-w-5xl flex-col rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]">
+          <header class="flex items-center justify-between border-b border-[var(--pb-divider)] p-4">
+            <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.media.uploadFiles') }}</h2>
             <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="uploadModalOpen = false" />
           </header>
           <div class="min-h-0 flex-1 overflow-y-auto p-4">

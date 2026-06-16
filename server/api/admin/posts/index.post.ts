@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   const password = typeof body.password === 'string' ? body.password : ''
   const passwordSource = visibility === 'password' && password.length > 0 ? 'custom' : 'user'
 
-  if (!payload.title) {
+  if (payload.status === 'published' && !payload.title) {
     throw createError({ statusCode: 400, message: 'Title is required' })
   }
 

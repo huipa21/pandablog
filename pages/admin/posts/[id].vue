@@ -174,6 +174,7 @@ const pendingLeavePath = ref<string | null>(null)
 const bypassLeaveGuard = ref(false)
 const hasLoadedDbSnapshot = ref(false)
 const savedDbSnapshot = ref('')
+const keepNewDraftShell = ref(false)
 
 const saveStatusClass = computed(() =>
   saveStatusType.value === 'error' ? 'text-red-600' : 'text-[var(--pb-text-subtle)]'
@@ -265,6 +266,19 @@ const hasUnsavedDbChanges = computed(() => {
 
   return serializeDbPayload() !== savedDbSnapshot.value
 })
+
+const isNewDraftShell = computed(() => {
+  if (route.query.new !== '1' || keepNewDraftShell.value || !hasLoadedDbSnapshot.value) {
+    return false
+  }
+
+  const loadedPost = post.value
+  return loadedPost?.status === 'draft'
+    && !loadedPost.title.trim()
+    && isEmptyDocContent(loadedPost.content_json)
+})
+
+const needsLeaveDecision = computed(() => hasUnsavedDbChanges.value || isNewDraftShell.value)
 
 // ─── LOCAL SAVE (localStorage) ───────────────────────────────────────────────
 const localStorageKey = computed(() => `pb-post-local-${id.value}`)
@@ -446,7 +460,7 @@ onBeforeUnmount(() => {
 })
 
 onBeforeRouteLeave((to) => {
-  if (bypassLeaveGuard.value || !hasUnsavedDbChanges.value || savingAction.value === 'save-db') {
+  if (bypassLeaveGuard.value || !needsLeaveDecision.value || savingAction.value === 'save-db') {
     return true
   }
 
@@ -456,7 +470,7 @@ onBeforeRouteLeave((to) => {
 })
 
 function handleBeforeUnload(event: BeforeUnloadEvent) {
-  if (bypassLeaveGuard.value || !hasUnsavedDbChanges.value || savingAction.value === 'save-db') {
+  if (bypassLeaveGuard.value || !needsLeaveDecision.value || savingAction.value === 'save-db') {
     return
   }
 
@@ -470,6 +484,11 @@ function cancelLeave() {
 }
 
 async function discardAndLeave() {
+  if (isNewDraftShell.value) {
+    await discardNewDraftShellAndLeave()
+    return
+  }
+
   await continueLeaveNavigation()
 }
 
@@ -479,7 +498,21 @@ async function saveAndLeave() {
     return
   }
 
+  keepNewDraftShell.value = true
   await continueLeaveNavigation()
+}
+
+async function discardNewDraftShellAndLeave() {
+  savingAction.value = 'save-db'
+  try {
+    await fetchAdmin(apiPath.value, { method: 'DELETE' })
+    clearLocalSave()
+    await continueLeaveNavigation()
+  } catch (err: any) {
+    adminToast.error(err, t('admin.editor.archiveFailed'))
+  } finally {
+    savingAction.value = null
+  }
 }
 
 async function continueLeaveNavigation() {
@@ -526,6 +559,20 @@ function emptyDoc(): JsonContent {
     type: 'doc',
     content: [{ type: 'paragraph', content: [] }]
   }
+}
+
+function isEmptyDocContent(value: JsonContent | null | undefined) {
+  const children = Array.isArray(value?.content) ? value.content : []
+  if (children.length === 0) {
+    return true
+  }
+
+  return children.every((child) => {
+    if (child.type !== 'paragraph') {
+      return false
+    }
+    return !Array.isArray(child.content) || child.content.length === 0
+  })
 }
 
 function formatDate(value: string) {

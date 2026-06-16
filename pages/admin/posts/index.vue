@@ -492,10 +492,10 @@ async function createPost() {
     const post = await $fetch<PostRecord>('/api/admin/posts', {
       method: 'POST',
       body: {
-        title: t('admin.posts.untitledNote')
+        title: ''
       }
     })
-    await navigateTo(`/admin/posts/${encodeURIComponent(post.id)}`)
+    await navigateTo({ path: `/admin/posts/${encodeURIComponent(post.id)}`, query: { new: '1' } })
   } catch (error: any) {
     adminToast.error(error, t('admin.posts.createFailed'))
     creating.value = false

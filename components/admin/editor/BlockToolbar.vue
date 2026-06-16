@@ -224,8 +224,8 @@
       <UCard>
         <template #header>
           <div>
-            <h3 class="text-base font-semibold text-stone-900">{{ t('admin.editor.toolbar.editLink') }}</h3>
-            <p class="text-xs text-stone-500">{{ t('admin.editor.toolbar.editLinkDescription') }}</p>
+            <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.editor.toolbar.editLink') }}</h3>
+            <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.toolbar.editLinkDescription') }}</p>
           </div>
         </template>
 
@@ -256,8 +256,8 @@
       <UCard>
         <template #header>
           <div>
-            <h3 class="text-base font-semibold text-stone-900">{{ t('admin.editor.toolbar.inlineFormula') }}</h3>
-            <p class="text-xs text-stone-500">{{ t('admin.editor.toolbar.inlineFormulaDescription') }}</p>
+            <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.editor.toolbar.inlineFormula') }}</h3>
+            <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.toolbar.inlineFormulaDescription') }}</p>
           </div>
         </template>
 
@@ -1056,12 +1056,19 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: white;
-  border: 1px solid rgb(231 229 228);
-  border-radius: 0.5rem;
+  color: var(--pb-text);
+  background: color-mix(in srgb, var(--pb-card-bg) 96%, var(--pb-text) 4%);
+  border: 1px solid var(--pb-divider-strong);
+  border-radius: var(--pb-radius-card-inner);
   padding: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--pb-shadow-lg), 0 0 0 1px color-mix(in srgb, var(--pb-text) 8%, transparent);
   z-index: 1000;
+}
+
+:global([data-theme="dark"]) .block-toolbar {
+  background: color-mix(in srgb, var(--pb-card-bg) 84%, var(--pb-text) 16%);
+  border-color: color-mix(in srgb, var(--pb-text) 42%, var(--pb-divider-strong));
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.38), 0 0 0 1px color-mix(in srgb, var(--pb-text) 16%, transparent);
 }
 
 .bt-btn {
@@ -1070,27 +1077,34 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   gap: 2px;
   padding: 4px 6px;
   border-radius: 0.25rem;
-  color: rgb(68 64 60);
+  color: var(--pb-text-subtle);
   background: transparent;
   border: 0;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.bt-btn :deep(svg),
+.bt-btn :deep([class^="i-lucide-"]),
+.bt-btn :deep([class*=" i-lucide-"]) {
+  color: currentcolor;
 }
 
 .bt-btn:hover {
-  background: rgb(245 245 244);
-  color: rgb(13 148 136);
+  background: var(--pb-card-bg-hover);
+  color: var(--pb-text);
 }
 
 .bt-btn-active {
-  background: rgb(204 251 241);
-  color: rgb(13 148 136);
+  background: var(--pb-selected-bg);
+  color: var(--pb-link-hover);
+  box-shadow: inset 0 0 0 1px var(--pb-selected-border);
 }
 
 .bt-separator {
   width: 1px;
   height: 20px;
-  background: rgb(214 211 209);
+  background: var(--pb-divider-strong);
   margin: 0 4px;
 }
 
@@ -1100,10 +1114,10 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   left: 0;
   z-index: 20;
   min-width: 188px;
-  border: 1px solid rgb(231 229 228);
-  border-radius: 0.5rem;
-  background: white;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--pb-divider-strong);
+  border-radius: var(--pb-radius-card-inner);
+  background: var(--pb-card-bg);
+  box-shadow: var(--pb-shadow-lg);
   padding: 8px;
 }
 
@@ -1117,7 +1131,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   width: 22px;
   height: 22px;
   border-radius: 0.375rem;
-  border: 1px solid rgb(214 211 209);
+  border: 1px solid var(--pb-border-strong);
 }
 
 .bt-highlight-actions {
@@ -1135,9 +1149,9 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   gap: 4px;
   padding: 3px 6px;
   border-radius: 0.375rem;
-  border: 1px solid rgb(231 229 228);
-  background: white;
-  color: rgb(68 64 60);
+  border: 1px solid var(--pb-card-border);
+  background: var(--pb-card-bg);
+  color: var(--pb-text-muted);
   font-size: 0.75rem;
   line-height: 1rem;
 }
@@ -1156,8 +1170,8 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
 
 .bt-highlight-picker:hover,
 .bt-highlight-clear:hover {
-  border-color: rgb(45 212 191);
-  color: rgb(15 118 110);
+  border-color: var(--pb-selected-border);
+  color: var(--pb-link-hover);
 }
 
 .bt-inline-math-dialog {
@@ -1214,10 +1228,10 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   flex-direction: column;
   min-width: 180px;
   padding: 4px;
-  border: 1px solid rgb(231 229 228);
-  border-radius: 0.5rem;
-  background: white;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--pb-divider-strong);
+  border-radius: var(--pb-radius-card-inner);
+  background: var(--pb-card-bg);
+  box-shadow: var(--pb-shadow-lg);
 }
 
 .bt-annotate-lang-option {
@@ -1228,19 +1242,19 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   padding: 6px 8px;
   border-radius: 0.375rem;
   text-align: left;
-  color: rgb(68 64 60);
+  color: var(--pb-text-muted);
   background: transparent;
   border: none;
   cursor: pointer;
 }
 
 .bt-annotate-lang-option:hover {
-  background: rgb(245 245 244);
+  background: var(--pb-card-bg-hover);
 }
 
 .bt-annotate-lang-option.is-active {
-  background: rgb(204 251 241);
-  color: rgb(15 118 110);
+  background: var(--pb-selected-bg);
+  color: var(--pb-link-hover);
 }
 
 .bt-annotate-lang-label {
@@ -1250,6 +1264,6 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
 
 .bt-annotate-lang-hint {
   font-size: 0.7rem;
-  color: rgb(120 113 108);
+  color: var(--pb-text-subtle);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-wrap items-end gap-3 rounded-lg border border-stone-200 bg-white p-3">
+  <div class="flex flex-wrap items-end gap-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-3">
     <UFormField :label="t('admin.media.search')" class="min-w-[180px] flex-[2]">
       <UInput v-model="local.search" icon="i-lucide-search" :placeholder="t('admin.media.nameOrComment')" @keydown.enter.prevent="submit" />
     </UFormField>
@@ -25,12 +25,12 @@
         />
         <ul
           v-if="tagDropdownOpen && filteredTags.length"
-          class="absolute z-[80] mt-1 max-h-44 w-full overflow-y-auto rounded-md border border-stone-200 bg-white py-1 shadow-lg"
+          class="absolute z-[80] mt-1 max-h-44 w-full overflow-y-auto rounded-[var(--pb-radius-md)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] py-1 shadow-[var(--pb-shadow-lg)]"
         >
           <li
             v-for="tag in filteredTags"
             :key="tag"
-            class="cursor-pointer px-3 py-1.5 text-sm text-stone-700 hover:bg-teal-50 hover:text-teal-800"
+            class="cursor-pointer px-3 py-1.5 text-sm text-[var(--pb-text-muted)] hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-link-hover)]"
             @mousedown.prevent="selectTag(tag)"
           >
             {{ tag }}
@@ -38,16 +38,16 @@
         </ul>
       </div>
     </UFormField>
-    <label class="flex items-center gap-2 pb-1 text-sm text-stone-700">
-      <input v-model="local.orphan" type="checkbox" class="rounded border-stone-300">
+    <label class="flex items-center gap-2 pb-1 text-sm text-[var(--pb-text-muted)]">
+      <input v-model="local.orphan" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
       <span>{{ t('admin.media.orphanOnly') }}</span>
     </label>
-    <label class="flex items-center gap-2 pb-1 text-sm text-stone-700">
-      <input v-model="local.search_regex" type="checkbox" class="rounded border-stone-300">
+    <label class="flex items-center gap-2 pb-1 text-sm text-[var(--pb-text-muted)]">
+      <input v-model="local.search_regex" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
       <span>{{ t('admin.media.regex') }}</span>
     </label>
-    <label class="flex items-center gap-2 pb-1 text-sm text-stone-700">
-      <input v-model="local.case_insensitive" type="checkbox" class="rounded border-stone-300">
+    <label class="flex items-center gap-2 pb-1 text-sm text-[var(--pb-text-muted)]">
+      <input v-model="local.case_insensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
       <span>{{ t('admin.media.caseInsensitive') }}</span>
     </label>
     <div class="flex gap-2">

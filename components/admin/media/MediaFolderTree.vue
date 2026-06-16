@@ -1,5 +1,5 @@
 <template>
-  <aside class="space-y-4 rounded-lg border border-stone-200 bg-white p-3">
+  <aside class="space-y-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-3">
     <div class="space-y-1">
       <button type="button" class="folder-row" :class="activeClass(mode === 'all')" @click="emit('select-all')">
         <UIcon name="i-lucide-library" class="size-4" />
@@ -12,7 +12,7 @@
     </div>
 
     <div class="space-y-2">
-      <div class="flex items-center justify-between px-1 text-xs font-medium uppercase tracking-wide text-stone-500">
+      <div class="flex items-center justify-between px-1 text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">
         <span>{{ t('admin.media.folders') }}</span>
         <UButton type="button" icon="i-lucide-plus" size="xs" variant="ghost" color="neutral" @click="createFolder" />
       </div>
@@ -32,12 +32,12 @@
             <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="opacity-0 group-hover:opacity-100" />
           </UDropdownMenu>
         </div>
-        <p v-if="!folders.length" class="px-2 text-xs text-stone-500">{{ t('admin.media.noFolders') }}</p>
+        <p v-if="!folders.length" class="px-2 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.noFolders') }}</p>
       </div>
     </div>
 
     <div class="space-y-2">
-      <div class="flex items-center justify-between px-1 text-xs font-medium uppercase tracking-wide text-stone-500">
+      <div class="flex items-center justify-between px-1 text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">
         <span>{{ t('admin.media.smartFolders') }}</span>
         <UButton type="button" icon="i-lucide-plus" size="xs" variant="ghost" color="neutral" @click="emit('create-smart-folder')" />
       </div>
@@ -55,7 +55,7 @@
             <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="opacity-0 group-hover:opacity-100" />
           </UDropdownMenu>
         </div>
-        <p v-if="!smartFolders.length" class="px-2 text-xs text-stone-500">{{ t('admin.media.noSmartFolders') }}</p>
+        <p v-if="!smartFolders.length" class="px-2 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.noSmartFolders') }}</p>
       </div>
     </div>
   </aside>
@@ -133,7 +133,7 @@ const deleteFolderDialogDescription = computed(() => pendingDeleteFolder.value
   : t('admin.media.deleteFolderFallback'))
 
 function activeClass(active: boolean) {
-  return active ? 'bg-teal-50 text-teal-800' : 'text-stone-700 hover:bg-stone-50'
+  return active ? 'bg-[var(--pb-selected-bg)] text-[var(--pb-link-hover)]' : 'text-[var(--pb-text-muted)] hover:bg-[var(--pb-card-bg-hover)] hover:text-[var(--pb-text)]'
 }
 
 function createFolder() {

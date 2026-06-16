@@ -1,14 +1,18 @@
 <template>
   <div class="grid gap-2">
-    <label class="text-sm font-medium text-stone-700">{{ label }}</label>
-    <div v-if="previewSource" class="relative overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
-      <img :src="previewSource" :alt="label" class="w-full object-cover" :class="previewClass || 'h-36'" :style="previewStyle">
+    <label class="text-sm font-medium text-[var(--pb-text-muted)]">{{ label }}</label>
+    <div v-if="previewSource" class="relative overflow-hidden rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)]">
+      <img v-if="!previewFailed" :src="previewSource" :alt="label" class="w-full bg-[var(--pb-surface-subtle)] object-cover" :class="previewClass || 'h-36'" :style="previewStyle" @error="previewFailed = true">
+      <div v-else class="flex w-full flex-col items-center justify-center gap-2 bg-[var(--pb-surface-subtle)] px-4 py-8 text-center text-[var(--pb-text-subtle)]" :class="previewClass || 'h-36'" :style="previewStyle">
+        <UIcon name="i-lucide-image-off" class="size-8" />
+        <span class="text-sm font-medium">{{ placeholder || label }}</span>
+      </div>
       <button
         type="button"
-        class="absolute right-2 top-2 rounded-full bg-white/90 p-1 shadow hover:bg-white"
+        class="absolute right-2 top-2 rounded-full border border-[var(--pb-divider)] bg-[var(--pb-card-bg)]/90 p-1 shadow-[var(--pb-shadow-sm)] hover:bg-[var(--pb-card-bg)]"
         @click="emit('update:modelValue', '')"
       >
-        <UIcon name="i-lucide-x" class="size-4 text-stone-700" />
+        <UIcon name="i-lucide-x" class="size-4 text-[var(--pb-text-muted)]" />
       </button>
     </div>
     <div class="grid gap-2 md:grid-cols-[1fr_auto]">
@@ -36,6 +40,11 @@ const props = defineProps<{
 }>()
 
 const previewSource = computed(() => props.previewValue || props.modelValue)
+const previewFailed = ref(false)
+
+watch(previewSource, () => {
+  previewFailed.value = false
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
