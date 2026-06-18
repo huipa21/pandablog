@@ -2976,13 +2976,13 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
 :deep(.pandablog-block-editor .ProseMirror th),
 :deep(.pandablog-block-editor .ProseMirror td) {
   min-width: 6rem;
-  border: 1px solid rgb(231 229 228);
-  padding: 0.5rem;
+  border: 1px solid var(--pb-table-border);
+  padding: var(--pb-table-cell-padding);
   vertical-align: top;
 }
 
 :deep(.pandablog-block-editor .ProseMirror th) {
-  background: rgb(245 245 244);
+  background: var(--pb-table-header-bg);
   font-weight: 650;
 }
 

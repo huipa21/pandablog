@@ -25,6 +25,7 @@ const props = defineProps<{
 
 const rawHtml = computed(() => typeof props.node.attrs?.html === 'string' ? props.node.attrs.html : '')
 const rawSafe = computed(() => rawHtml.value.replace(/<script\b[\s\S]*?<\/script>/gi, ''))
+const documentThemeMode = ref<'light' | 'dark'>('light')
 
 const iframeDoc = computed(() => {
   // Sandboxed iframe with allow-scripts but NOT allow-same-origin -- so any
@@ -43,7 +44,8 @@ const iframeDoc = computed(() => {
       new ResizeObserver(postHeight).observe(document.body);
     <\/script>`
   const baseStyle = `<style>
-    html,body{margin:0;padding:0;font-family:ui-sans-serif,system-ui,sans-serif;color:inherit;background:transparent;}
+    html{color-scheme:${documentThemeMode.value};background:transparent;}
+    body{margin:0;padding:0;font-family:ui-sans-serif,system-ui,sans-serif;color:CanvasText;background:transparent;}
     *{box-sizing:border-box;}
     img,video,iframe{max-width:100%;}
   </style>`
@@ -85,7 +87,13 @@ function autoResize(event: Event) {
   iframeRef.value = event.target as HTMLIFrameElement
 }
 
+function syncDocumentThemeMode() {
+  if (!import.meta.client) return
+  documentThemeMode.value = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+}
+
 onMounted(() => {
+  syncDocumentThemeMode()
   window.addEventListener('message', onMessage)
 })
 
@@ -101,5 +109,10 @@ onBeforeUnmount(() => {
   border: 0;
   display: block;
   background: transparent;
+  color-scheme: inherit;
+}
+.customhtml-block {
+  background: var(--pb-surface);
+  color: var(--pb-text);
 }
 </style>

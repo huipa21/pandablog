@@ -3,7 +3,7 @@
 @import "katex/dist/katex.min.css";
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --color-panda-50: #eef3ff;
   --color-panda-100: #dde7ff;
   --color-panda-200: #bbcffd;

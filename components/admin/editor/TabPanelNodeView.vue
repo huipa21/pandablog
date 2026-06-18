@@ -15,9 +15,10 @@ const title = computed(() => String(props.node.attrs.title ?? 'Tab').trim() || '
 <style scoped>
 .tabs-block-panel {
   min-width: 0;
-  border: 1px solid rgb(231 229 228);
+  border: 1px solid var(--pb-divider);
   border-radius: 0.5rem;
-  background: rgb(255 255 255);
+  background: var(--pb-surface);
+  color: var(--pb-text);
 }
 
 .tabs-block-panel[hidden],

@@ -58,7 +58,7 @@ const theme = computed(() => {
 })
 const fontFamily = computed(() => String(props.node.attrs.fontFamily ?? 'sans'))
 const fontSize = computed(() => String(props.node.attrs.fontSize ?? '1rem'))
-const fontColor = computed(() => String(props.node.attrs.fontColor ?? DEFAULT_QUOTE_FONT_COLOR))
+const fontColor = computed(() => resolveQuoteFontColor(props.node.attrs.fontColor))
 const backgroundColor = computed(() => String(props.node.attrs.backgroundColor ?? ''))
 const authorName = computed(() => String(props.node.attrs.authorName ?? ''))
 const authorTitle = computed(() => String(props.node.attrs.authorTitle ?? ''))
@@ -78,6 +78,11 @@ const blockStyle = computed(() => {
     '--quote-bg-color': backgroundColor.value
   }
 })
+
+function resolveQuoteFontColor(value: unknown) {
+  const color = String(value ?? '').trim()
+  return !color || color === DEFAULT_QUOTE_FONT_COLOR ? 'var(--pb-text)' : color
+}
 </script>
 
 <style scoped>

@@ -12,6 +12,17 @@ function env(name: string, fallback = ''): string {
 }
 
 const isProd = process.env.NODE_ENV === 'production'
+const publicThemeInitScript = `(() => {
+  try {
+    const storedMode = localStorage.getItem('pb-public-color-mode')
+    const mode = storedMode === 'light' || storedMode === 'dark'
+      ? storedMode
+      : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+
+    document.documentElement.dataset.theme = mode
+    document.documentElement.style.colorScheme = mode
+  } catch {}
+})()`
 
 const sessionPassword = env('NUXT_SESSION_PASSWORD')
 if (!sessionPassword || sessionPassword.length < 32) {
@@ -117,6 +128,9 @@ export default defineNuxtConfig({
     head: {
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+      ],
+      script: [
+        { key: 'pb-public-theme-init', innerHTML: publicThemeInitScript }
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }

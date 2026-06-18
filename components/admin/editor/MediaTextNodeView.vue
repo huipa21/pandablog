@@ -1,8 +1,8 @@
 <template>
-  <NodeViewWrapper class="mediatext-nodeview my-4 overflow-hidden rounded-lg border border-stone-200" data-node-view-wrapper :style="blockStyle">
+  <NodeViewWrapper class="mediatext-nodeview my-4 overflow-hidden" data-node-view-wrapper :style="blockStyle">
     <div ref="rowEl" class="mediatext-row" :data-media-position="mediaPosition">
       <div class="mediatext-media" :style="mediaStyle" contenteditable="false" @mousedown="selectMediaTextNode">
-        <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
+        <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="mediatext-caption px-2 py-1 text-center text-sm">{{ mediaTitle }}</div>
         <div class="relative">
           <template v-if="mediaItems.length">
             <img
@@ -18,17 +18,17 @@
             >
             <MediaFileList v-else :files="mediaItems" density="compact" />
           </template>
-          <div v-else class="flex h-40 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-stone-300 bg-stone-50 px-3 text-sm text-stone-500">
-            <UIcon name="i-lucide-image-plus" class="size-6 text-stone-400" />
+          <div v-else class="mediatext-empty flex h-40 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed px-3 text-sm">
+            <UIcon name="i-lucide-image-plus" class="mediatext-empty-icon size-6" />
             <span class="text-xs">{{ t('admin.editor.nodeViews.addMediaDescription') }}</span>
             <div class="mt-1 flex flex-wrap gap-2">
-              <button type="button" class="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100" @click="emitPick('library')">
+              <button type="button" class="mediatext-pick-button rounded-md px-2.5 py-1 text-xs" @click="emitPick('library')">
                 <UIcon name="i-lucide-images" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.mediaLibrary') }}
               </button>
-              <button type="button" class="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100" @click="emitPick('upload')">
+              <button type="button" class="mediatext-pick-button rounded-md px-2.5 py-1 text-xs" @click="emitPick('upload')">
                 <UIcon name="i-lucide-upload" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.uploadFile') }}
               </button>
-              <button type="button" class="rounded-md border border-stone-300 bg-white px-2.5 py-1 text-xs hover:bg-stone-100" @click="emitPick('url')">
+              <button type="button" class="mediatext-pick-button rounded-md px-2.5 py-1 text-xs" @click="emitPick('url')">
                 <UIcon name="i-lucide-link" class="mr-1 inline size-3.5" /> {{ t('admin.editor.nodeViews.pasteUrl') }}
               </button>
             </div>
@@ -36,11 +36,11 @@
           <button
             v-if="mediaItems.length"
             type="button"
-            class="absolute right-1 top-1 rounded bg-white/85 px-1.5 py-0.5 text-[10px] text-stone-600 shadow-sm hover:bg-white"
+            class="mediatext-change-button absolute right-1 top-1 rounded px-1.5 py-0.5 text-[10px] shadow-sm"
             @click="emitPick('library')"
           >{{ t('admin.editor.nodeViews.change') }}</button>
         </div>
-        <div v-if="mediaTitle && mediaTitlePosition === 'bottom'" class="px-2 py-1 text-center text-sm text-stone-500">{{ mediaTitle }}</div>
+        <div v-if="mediaTitle && mediaTitlePosition === 'bottom'" class="mediatext-caption px-2 py-1 text-center text-sm">{{ mediaTitle }}</div>
       </div>
 
       <div class="mediatext-divider" contenteditable="false" @mousedown.prevent="startDrag" />
@@ -250,6 +250,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.mediatext-nodeview {
+  border: 1px solid var(--pb-divider);
+  border-radius: var(--pb-radius-card-inner);
+  background: var(--pb-surface);
+  color: var(--pb-text);
+}
+
 .mediatext-row {
   display: flex;
   align-items: stretch;
@@ -263,22 +270,50 @@ onBeforeUnmount(() => {
 
 .mediatext-media {
   padding: 0.75rem;
-  background: rgb(250 250 249);
+  background: var(--pb-surface-subtle);
   min-width: 0;
+}
+
+.mediatext-caption,
+.mediatext-empty {
+  color: var(--pb-text-subtle);
+}
+
+.mediatext-empty {
+  border-color: var(--pb-divider-strong);
+  background: var(--pb-card-bg);
+}
+
+.mediatext-empty-icon {
+  color: var(--pb-icon-muted);
+}
+
+.mediatext-pick-button,
+.mediatext-change-button {
+  border: 1px solid var(--pb-divider-strong);
+  background: color-mix(in srgb, var(--pb-surface) 88%, var(--pb-text) 12%);
+  color: var(--pb-text-muted);
+}
+
+.mediatext-pick-button:hover,
+.mediatext-change-button:hover {
+  background: var(--pb-selected-bg);
+  border-color: var(--pb-selected-border);
+  color: var(--pb-text);
 }
 
 .mediatext-divider {
   width: 6px;
   cursor: col-resize;
   background: transparent;
-  border-left: 1px solid rgb(231 229 228);
-  border-right: 1px solid rgb(231 229 228);
+  border-left: 1px solid var(--pb-divider);
+  border-right: 1px solid var(--pb-divider);
   transition: background-color 120ms ease;
   flex: 0 0 auto;
 }
 
 .mediatext-divider:hover {
-  background: rgba(13, 148, 136, 0.15);
+  background: color-mix(in srgb, var(--pb-primary) 15%, transparent);
 }
 
 .mediatext-text {
@@ -302,9 +337,9 @@ onBeforeUnmount(() => {
     width: 100%;
     height: 6px;
     cursor: row-resize;
-    border-top: 1px solid rgb(231 229 228);
+    border-top: 1px solid var(--pb-divider);
     border-right: 0;
-    border-bottom: 1px solid rgb(231 229 228);
+    border-bottom: 1px solid var(--pb-divider);
     border-left: 0;
   }
 }

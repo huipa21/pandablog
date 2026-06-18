@@ -1,7 +1,7 @@
 <template>
-  <NodeViewWrapper class="mermaid-nodeview my-4 overflow-hidden rounded-lg border border-stone-300 bg-white" data-node-view-wrapper>
+  <NodeViewWrapper class="mermaid-nodeview my-4 overflow-hidden" data-node-view-wrapper>
     <div v-if="viewMode !== 'preview' || selected" class="mermaid-titlebar" contenteditable="false">
-      <div class="flex items-center gap-2 text-xs font-medium text-stone-600">
+      <div class="mermaid-title flex items-center gap-2 text-xs font-medium">
         <UIcon name="i-lucide-git-fork" class="size-4" />
         <span>Mermaid</span>
       </div>
@@ -139,14 +139,25 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.mermaid-nodeview {
+  border: 1px solid var(--pb-divider-strong);
+  border-radius: var(--pb-radius-card-inner);
+  background: var(--pb-card-bg);
+  color: var(--pb-text);
+}
+
 .mermaid-titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: rgb(245 245 244);
-  border-bottom: 1px solid rgb(231 229 228);
+  background: var(--pb-surface-subtle);
+  border-bottom: 1px solid var(--pb-divider);
+}
+
+.mermaid-title {
+  color: var(--pb-text-muted);
 }
 
 .mermaid-mode-btn {
@@ -154,26 +165,26 @@ onBeforeUnmount(() => {
   font-size: 0.7rem;
   text-transform: capitalize;
   border-radius: 0.25rem;
-  color: rgb(87 83 78);
+  color: var(--pb-text-muted);
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
 }
 
 .mermaid-mode-btn:hover {
-  background: rgb(231 229 228);
+  background: var(--pb-card-bg-hover);
 }
 
 .mermaid-mode-btn.active {
-  background: white;
-  color: rgb(15 118 110);
-  border-color: rgb(231 229 228);
+  background: var(--pb-selected-bg);
+  color: var(--pb-primary);
+  border-color: var(--pb-selected-border);
 }
 
 .mermaid-body {
   display: grid;
   gap: 1px;
-  background: rgb(231 229 228);
+  background: var(--pb-divider);
   min-height: 12rem;
 }
 
@@ -194,7 +205,7 @@ onBeforeUnmount(() => {
 
 .mermaid-editor-pane,
 .mermaid-preview-pane {
-  background: white;
+  background: var(--pb-card-bg);
 }
 
 .mermaid-textarea {
@@ -209,7 +220,7 @@ onBeforeUnmount(() => {
   border: 0;
   outline: none;
   background: transparent;
-  color: rgb(41 37 36);
+  color: var(--pb-text);
 }
 
 .mermaid-preview-pane {
@@ -231,18 +242,18 @@ onBeforeUnmount(() => {
 }
 
 .mermaid-error {
-  color: rgb(190 18 60);
+  color: var(--color-danger, crimson);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   white-space: pre-wrap;
   padding: 0.5rem;
-  background: rgb(254 226 226);
+  background: color-mix(in srgb, var(--color-danger, crimson) 12%, var(--pb-card-bg));
   border-radius: 0.375rem;
   width: 100%;
 }
 
 .mermaid-empty {
-  color: rgb(168 162 158);
+  color: var(--pb-text-subtle);
   font-size: 0.85rem;
 }
 </style>

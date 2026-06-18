@@ -95,16 +95,16 @@ function handleKeyboardDelete(event: KeyboardEvent) {
 <style scoped>
 .columns-block-column {
   min-width: 0;
-  border: 1px solid rgb(231 229 228);
+  border: 1px solid var(--pb-divider);
   border-radius: 0.5rem;
-  background: rgb(255 255 255);
+  background: var(--pb-surface);
   overflow: hidden;
 }
 
 .columns-block-header {
-  border-bottom: 1px solid rgb(231 229 228);
-  background: rgb(250 250 249);
-  color: rgb(28 25 23);
+  border-bottom: 1px solid var(--pb-divider);
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
   font-size: 0.9rem;
   font-weight: 650;
   line-height: 1.35;
@@ -125,6 +125,7 @@ function handleKeyboardDelete(event: KeyboardEvent) {
 
 .columns-block-content {
   min-width: 0;
+  color: var(--pb-text);
   padding: 0.85rem;
 }
 

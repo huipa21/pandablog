@@ -127,12 +127,12 @@ function normalizeBlockWidth(value: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  border-bottom: 1px solid rgb(231 229 228);
+  border-bottom: 1px solid var(--pb-divider);
 }
 
 .tabs-block[data-orientation="vertical"] .tabs-block-list {
   flex-direction: column;
-  border-right: 1px solid rgb(231 229 228);
+  border-right: 1px solid var(--pb-divider);
   border-bottom: 0;
   padding-right: 0.75rem;
 }
@@ -141,7 +141,7 @@ function normalizeBlockWidth(value: string) {
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: rgb(87 83 78);
+  color: var(--pb-text-muted);
   cursor: pointer;
   font-size: 0.92rem;
   font-weight: 650;
@@ -151,8 +151,8 @@ function normalizeBlockWidth(value: string) {
 }
 
 .tabs-block-tab.is-active {
-  border-bottom-color: rgb(15 118 110);
-  color: rgb(15 118 110);
+  border-bottom-color: var(--pb-primary);
+  color: var(--pb-primary);
 }
 
 .tabs-block[data-tab-style="pills"] .tabs-block-list,
@@ -166,19 +166,19 @@ function normalizeBlockWidth(value: string) {
 }
 
 .tabs-block[data-tab-style="pills"] .tabs-block-tab.is-active {
-  border-color: rgb(153 246 228);
-  background: rgb(240 253 250);
+  border-color: var(--pb-selected-border);
+  background: var(--pb-selected-bg);
 }
 
 .tabs-block[data-tab-style="enclosed"] .tabs-block-tab {
-  border: 1px solid rgb(231 229 228);
+  border: 1px solid var(--pb-divider);
   border-radius: 0.45rem 0.45rem 0 0;
-  background: rgb(250 250 249);
+  background: var(--pb-surface-subtle);
 }
 
 .tabs-block[data-tab-style="enclosed"] .tabs-block-tab.is-active {
-  background: rgb(255 255 255);
-  border-color: rgb(153 246 228);
+  background: var(--pb-surface);
+  border-color: var(--pb-selected-border);
 }
 
 .tabs-block-panels {
@@ -187,9 +187,9 @@ function normalizeBlockWidth(value: string) {
 
 .tabs-block-panel {
   min-width: 0;
-  border: 1px solid rgb(231 229 228);
+  border: 1px solid var(--pb-divider);
   border-radius: 0.5rem;
-  background: rgb(255 255 255);
+  background: var(--pb-surface);
 }
 
 .tabs-block-panel[data-active="false"] {
@@ -217,7 +217,7 @@ function normalizeBlockWidth(value: string) {
   .tabs-block[data-orientation="vertical"] .tabs-block-list {
     flex-direction: row;
     border-right: 0;
-    border-bottom: 1px solid rgb(231 229 228);
+    border-bottom: 1px solid var(--pb-divider);
     padding-right: 0;
   }
 }

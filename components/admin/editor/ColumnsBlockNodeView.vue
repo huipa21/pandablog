@@ -260,6 +260,31 @@ function handleKeyboardDelete(event: KeyboardEvent) {
   align-items: stretch;
 }
 
+.columns-block :deep(.columns-block-column) {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--pb-divider);
+  border-radius: 0.5rem;
+  background: var(--pb-surface);
+  overflow: hidden;
+}
+
+.columns-block :deep(.columns-block-header) {
+  border-bottom: 1px solid var(--pb-divider);
+  background: var(--pb-surface-subtle);
+  color: var(--pb-text);
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.35;
+  padding: 0.65rem 0.85rem;
+}
+
+.columns-block :deep(.columns-block-content) {
+  min-width: 0;
+  color: var(--pb-text);
+  padding: 0.85rem;
+}
+
 .columns-block-overlays {
   position: absolute;
   inset: 0;
@@ -289,14 +314,14 @@ function handleKeyboardDelete(event: KeyboardEvent) {
   width: 3px;
   transform: translateX(-50%);
   border-radius: 999px;
-  background: rgb(15 118 110 / 35%);
+  background: color-mix(in srgb, var(--pb-primary) 35%, transparent);
   transition: background-color 120ms ease, width 120ms ease;
 }
 
 .columns-block-resize-handle:hover::before,
 .columns-block-resize-handle:focus-visible::before,
 .columns-block-resize-handle:active::before {
-  background: rgb(13 148 136 / 90%);
+  background: color-mix(in srgb, var(--pb-primary) 90%, var(--pb-text));
   width: 4px;
 }
 

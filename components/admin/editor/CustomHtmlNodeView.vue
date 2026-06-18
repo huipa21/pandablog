@@ -106,7 +106,13 @@ const iframeEl = ref<HTMLIFrameElement | null>(null)
 const iframeHeight = ref(280)
 let heightUpdateTimer: NodeJS.Timeout | null = null
 
-const iframeDoc = computed(() => buildSrcdoc(html.value))
+const iframeTheme = computed(() => ({
+  colorScheme: documentThemeMode.value,
+  color: documentThemeMode.value === 'dark' ? 'CanvasText' : 'CanvasText',
+  background: 'transparent'
+}))
+const documentThemeMode = ref<'light' | 'dark'>('light')
+const iframeDoc = computed(() => buildSrcdoc(html.value, iframeTheme.value))
 const highlightedHtml = computed(() => {
   try {
     const tree = lowlight.highlight('javascript', html.value)
@@ -178,7 +184,12 @@ function syncSourceScroll(event: Event) {
   highlighter.scrollLeft = source.scrollLeft
 }
 
-function buildSrcdoc(input: string) {
+function syncDocumentThemeMode() {
+  if (!import.meta.client) return
+  documentThemeMode.value = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+}
+
+function buildSrcdoc(input: string, theme: { colorScheme: string, color: string, background: string }) {
   // Wrap user content in a minimal document. The iframe is sandboxed so
   // JS executes but cannot access the parent page (no allow-same-origin).
   const bridgeScript = `<script>
@@ -216,7 +227,8 @@ function buildSrcdoc(input: string) {
   <\/script>`
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-    html,body{margin:0;padding:0;font-family:ui-sans-serif,system-ui,sans-serif;color:inherit;background:transparent;}
+    html{color-scheme:${theme.colorScheme};background:${theme.background};}
+    body{margin:0;padding:0;font-family:ui-sans-serif,system-ui,sans-serif;color:${theme.color};background:${theme.background};}
     *{box-sizing:border-box;}
     img,video,iframe{max-width:100%;}
   </style></head><body>${input}${bridgeScript}</body></html>`
@@ -288,6 +300,7 @@ function escapeHtml(value: string): string {
 }
 
 onMounted(() => {
+  syncDocumentThemeMode()
   window.addEventListener('message', onPreviewMessage)
 })
 
@@ -316,7 +329,7 @@ onBeforeUnmount(() => {
 }
 
 .customhtml-nodeview.is-preview-mode.is-selected {
-  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline: 2px solid color-mix(in srgb, var(--pb-primary) 45%, transparent);
   outline-offset: 4px;
   border-radius: 0.25rem;
 }
@@ -329,10 +342,10 @@ onBeforeUnmount(() => {
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--pb-surface) 88%, var(--pb-text) 12%);
   color: inherit;
   opacity: 0.95;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  border-bottom: 1px solid var(--pb-divider);
 }
 
 .customhtml-header-left {
@@ -368,7 +381,7 @@ onBeforeUnmount(() => {
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(127, 127, 127, 0.18);
+  background: color-mix(in srgb, var(--pb-text) 18%, transparent);
   color: inherit;
   opacity: 0.85;
 }
@@ -378,7 +391,7 @@ onBeforeUnmount(() => {
   align-items: center;
   overflow: hidden;
   border-radius: 0.35rem;
-  border: 1px solid rgba(127, 127, 127, 0.28);
+  border: 1px solid var(--pb-divider-strong);
 }
 
 .customhtml-tab {
@@ -393,12 +406,12 @@ onBeforeUnmount(() => {
 }
 
 .customhtml-tab:hover {
-  background: rgba(127, 127, 127, 0.2);
+  background: var(--pb-card-bg-hover);
   opacity: 1;
 }
 
 .customhtml-tab.is-active {
-  background: rgba(127, 127, 127, 0.25);
+  background: var(--pb-selected-bg);
   opacity: 1;
   color: var(--code-fg, #d8dee9);
 }
@@ -410,8 +423,8 @@ onBeforeUnmount(() => {
 }
 
 .customhtml-nodeview.is-preview-mode {
-  background: #fff;
-  color: #1c1917;
+  background: var(--pb-surface);
+  color: var(--pb-text);
 }
 
 .customhtml-nodeview.is-preview-mode .customhtml-body,
@@ -492,7 +505,7 @@ onBeforeUnmount(() => {
 }
 
 .customhtml-preview {
-  background: var(--code-bg, #2e3440);
+  background: var(--pb-surface);
 }
 
 .customhtml-iframe {
@@ -500,5 +513,7 @@ onBeforeUnmount(() => {
   min-height: 9rem;
   border: 0;
   display: block;
+  background: transparent;
+  color-scheme: inherit;
 }
 </style>
