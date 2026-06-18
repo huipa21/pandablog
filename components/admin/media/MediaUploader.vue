@@ -258,23 +258,33 @@ async function uploadQueuedFiles() {
   try {
     for (const item of items.value) {
       item.progress = 0
-      const uploadFile = fileWithDisplayName(item.file, item.displayName)
-      const response = await uploadFiles([uploadFile], (_file, progress) => {
-        item.progress = progress
-      }, { visibility: privateUpload.value ? 'private' : 'public' })
-      const result = response.results[0]
-      if (!result) continue
+      try {
+        const uploadFile = fileWithDisplayName(item.file, item.displayName)
+        const response = await uploadFiles([uploadFile], (_file, progress) => {
+          item.progress = progress
+        }, { visibility: privateUpload.value ? 'private' : 'public' })
+        const result = response.results[0]
+        if (!result) continue
 
-      const comment = item.comment.trim() || generalComment.value.trim()
-      const tags = item.tags.length ? item.tags : generalTags.value
-      const record = result.record
+        const comment = item.comment.trim() || generalComment.value.trim()
+        const tags = item.tags.length ? item.tags : generalTags.value
+        const record = result.record
 
-      if (record && (comment || tags.length || item.displayName.trim())) {
-        result.record = await updateUploadedRecord(record, item.displayName, comment, tags)
+        if (record && (comment || tags.length || item.displayName.trim())) {
+          result.record = await updateUploadedRecord(record, item.displayName, comment, tags)
+        }
+
+        results.push(result)
+        uploadResults.value.push(result)
+      } catch (error) {
+        const result: UploadFileResult = {
+          original_name: item.file.name,
+          status: 'rejected',
+          reason: error instanceof Error ? error.message : t('admin.media.uploadRejected')
+        }
+        results.push(result)
+        uploadResults.value.push(result)
       }
-
-      results.push(result)
-      uploadResults.value.push(result)
     }
 
     clearQueue()

@@ -1,8 +1,8 @@
 <template>
   <Teleport to="body">
     <Transition name="media-picker">
-      <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @click="close" />
+      <div v-if="open" class="fixed inset-0 z-[1200] flex items-center justify-center p-4" @wheel.self.prevent @touchmove.self.prevent>
+        <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @wheel.prevent @touchmove.prevent @click="close" />
         <section class="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]">
           <header class="flex items-center justify-between border-b border-[var(--pb-divider)] px-4 py-3">
             <div>
@@ -159,15 +159,19 @@ const filters = ref<PickerFilters>({
 const activeTabClass = 'border-[var(--pb-selected-border)] text-[var(--pb-link-hover)]'
 const inactiveTabClass = 'border-transparent text-[var(--pb-text-subtle)] hover:text-[var(--pb-text)]'
 const selectedNames = computed(() => selected.value.map((file) => file.original_name).join(', ') || t('admin.media.noFilesSelected'))
+let previousBodyOverflow = ''
 
 watch(() => props.open, (value) => {
   if (value) {
+    lockBodyScroll()
     tab.value = 'browse'
     filters.value.type = props.typeFilter
     urlInput.value = ''
     urlError.value = ''
     urlImporting.value = false
     void refresh()
+  } else {
+    unlockBodyScroll()
   }
 })
 
@@ -290,6 +294,23 @@ function confirmSelection() {
 function close() {
   emit('update:open', false)
 }
+
+function lockBodyScroll() {
+  if (!import.meta.client) return
+  previousBodyOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+}
+
+function unlockBodyScroll() {
+  if (!import.meta.client) return
+  document.body.style.overflow = previousBodyOverflow
+}
+
+onBeforeUnmount(() => {
+  if (props.open) {
+    unlockBodyScroll()
+  }
+})
 </script>
 
 <style scoped>

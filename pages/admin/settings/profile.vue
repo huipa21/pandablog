@@ -27,6 +27,8 @@
         <MediaSettingField
           :label="t('admin.settings.profile.avatar')"
           :model-value="form.owner_avatar"
+          preview-container-class="w-fit rounded-full"
+          preview-image-class="size-32 rounded-full"
           @update:model-value="form.owner_avatar = $event"
           @browse="mediaPickerOpen = true"
         />
@@ -84,6 +86,18 @@
       @update:open="mediaPickerOpen = $event"
       @select="handleAvatarPicked"
     />
+
+    <AdminConfirmActionDialog
+      :open="squareAvatarDialogOpen"
+      :title="t('admin.settings.profile.squareAvatarTitle')"
+      :description="t('admin.settings.profile.squareAvatarDescription')"
+      :confirm-label="t('admin.settings.profile.useAvatarAsIs')"
+      :cancel-label="t('admin.settings.profile.chooseDifferentAvatar')"
+      confirm-color="primary"
+      @update:open="(value) => { if (!value) cancelSquareAvatar() }"
+      @cancel="cancelSquareAvatar"
+      @confirm="confirmSquareAvatar"
+    />
   </section>
 </template>
 
@@ -91,7 +105,7 @@
 import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import MediaSettingField from '~/components/admin/media/MediaSettingField.vue'
 import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
-import type { JsonContent } from '~/types/content'
+import type { JsonContent, MediaRecord } from '~/types/content'
 
 definePageMeta({ layout: 'admin' })
 
@@ -106,6 +120,8 @@ const form = reactive({
   owner_bio: emptyDoc()
 })
 const mediaPickerOpen = ref(false)
+const squareAvatarDialogOpen = ref(false)
+const pendingSquareAvatarUrl = ref('')
 const saving = ref(false)
 const securitySaving = ref(false)
 const adminToast = useAdminToast()
@@ -147,12 +163,40 @@ async function save() {
   }
 }
 
-function handleAvatarPicked(files: Array<{ url?: string }>) {
-  const url = files[0]?.url
-  if (url) {
-    form.owner_avatar = url
+function handleAvatarPicked(files: MediaRecord[]) {
+  const file = files[0]
+  if (file?.url) {
+    if (isSquareImage(file)) {
+      pendingSquareAvatarUrl.value = file.url
+      squareAvatarDialogOpen.value = true
+    } else {
+      form.owner_avatar = file.url
+    }
   }
   mediaPickerOpen.value = false
+}
+
+function confirmSquareAvatar() {
+  if (pendingSquareAvatarUrl.value) {
+    form.owner_avatar = pendingSquareAvatarUrl.value
+  }
+  closeSquareAvatarDialog()
+}
+
+function cancelSquareAvatar() {
+  closeSquareAvatarDialog()
+  mediaPickerOpen.value = true
+}
+
+function closeSquareAvatarDialog() {
+  pendingSquareAvatarUrl.value = ''
+  squareAvatarDialogOpen.value = false
+}
+
+function isSquareImage(file: MediaRecord) {
+  const width = file.width ?? file.image_meta?.width
+  const height = file.height ?? file.image_meta?.height
+  return typeof width === 'number' && width > 0 && width === height
 }
 
 async function changePassword() {

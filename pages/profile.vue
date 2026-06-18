@@ -33,7 +33,8 @@
           :model-value="profileForm.avatar"
           :preview-value="avatarPreviewUrl"
           :placeholder="t('public.profile.avatarPlaceholder')"
-          preview-class="h-48"
+          preview-container-class="w-fit rounded-full"
+          preview-image-class="size-36 rounded-full"
           @update:model-value="profileForm.avatar = normalizeAvatarValue($event)"
           @browse="avatarPickerOpen = true"
         />
@@ -70,6 +71,18 @@
       type-filter="image"
       @update:open="avatarPickerOpen = $event"
       @select="handleAvatarPicked"
+    />
+
+    <AdminConfirmActionDialog
+      :open="squareAvatarDialogOpen"
+      :title="t('public.profile.squareAvatarTitle')"
+      :description="t('public.profile.squareAvatarDescription')"
+      :confirm-label="t('public.profile.useAvatarAsIs')"
+      :cancel-label="t('public.profile.chooseDifferentAvatar')"
+      confirm-color="primary"
+      @update:open="(value) => { if (!value) cancelSquareAvatar() }"
+      @cancel="cancelSquareAvatar"
+      @confirm="confirmSquareAvatar"
     />
   </section>
 </template>
@@ -113,6 +126,8 @@ const passwordForm = reactive({
   confirm_password: ''
 })
 const avatarPickerOpen = ref(false)
+const squareAvatarDialogOpen = ref(false)
+const pendingSquareAvatarId = ref('')
 const profileSaving = ref(false)
 const passwordSaving = ref(false)
 const profileNotice = ref('')
@@ -184,7 +199,39 @@ async function changePassword() {
 }
 
 function handleAvatarPicked(files: MediaRecord[]) {
-  profileForm.avatar = files[0]?.id ?? ''
+  const file = files[0]
+  if (!file?.id) return
+
+  if (isSquareImage(file)) {
+    pendingSquareAvatarId.value = file.id
+    squareAvatarDialogOpen.value = true
+    return
+  }
+
+  profileForm.avatar = file.id
+}
+
+function confirmSquareAvatar() {
+  if (pendingSquareAvatarId.value) {
+    profileForm.avatar = pendingSquareAvatarId.value
+  }
+  closeSquareAvatarDialog()
+}
+
+function cancelSquareAvatar() {
+  closeSquareAvatarDialog()
+  avatarPickerOpen.value = true
+}
+
+function closeSquareAvatarDialog() {
+  pendingSquareAvatarId.value = ''
+  squareAvatarDialogOpen.value = false
+}
+
+function isSquareImage(file: MediaRecord) {
+  const width = file.width ?? file.image_meta?.width
+  const height = file.height ?? file.image_meta?.height
+  return typeof width === 'number' && width > 0 && width === height
 }
 
 function normalizeAvatarValue(value: string) {
