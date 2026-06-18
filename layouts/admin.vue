@@ -16,14 +16,17 @@
             <UIcon name="i-lucide-menu" class="size-5" />
           </button>
           <nav v-if="breadcrumbs.length" class="hidden min-w-0 items-center gap-1 text-sm text-[var(--pb-text-subtle)] xl:flex" aria-label="Admin breadcrumbs">
-            <template v-for="(crumb, index) in breadcrumbs" :key="crumb.to">
+            <template v-for="(crumb, index) in breadcrumbs" :key="`${crumb.label}-${index}`">
               <NuxtLink
-                v-if="index < breadcrumbs.length - 1"
+                v-if="index < breadcrumbs.length - 1 && crumb.to"
                 :to="crumb.to"
                 class="max-w-40 truncate rounded-[var(--pb-radius-sm)] px-2 py-1 transition hover:bg-[var(--pb-surface-subtle)] hover:text-[var(--pb-text)]"
               >
                 {{ crumb.label }}
               </NuxtLink>
+              <span v-else-if="index < breadcrumbs.length - 1" class="max-w-40 truncate px-2 py-1">
+                {{ crumb.label }}
+              </span>
               <span v-else class="max-w-52 truncate px-2 py-1 font-medium text-[var(--pb-text)]">
                 {{ crumb.label }}
               </span>
@@ -255,12 +258,14 @@ onBeforeUnmount(() => {
 })
 
 const navSections = computed(() => {
+  const dashboardItems = [
+    { to: '/admin/dashboard', label: t('admin.nav.dashboard'), icon: 'i-lucide-layout-dashboard' }
+  ]
+
   const sections = [
     {
       label: '',
-      items: [
-        { to: '/admin/dashboard', label: t('admin.nav.dashboard'), icon: 'i-lucide-layout-dashboard' }
-      ]
+      items: dashboardItems
     }
   ]
 
@@ -300,8 +305,7 @@ const navSections = computed(() => {
       {
         label: t('admin.nav.tools'),
         items: [
-          { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' },
-          { to: '/admin/logs', label: t('admin.nav.logs'), icon: 'i-lucide-clipboard-list' }
+          { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' }
         ]
       }
     )
@@ -336,26 +340,65 @@ const breadcrumbLabels = computed<Record<string, string>>(() => ({
   login: t('admin.nav.login')
 }))
 
-const breadcrumbs = computed(() => {
+interface AdminBreadcrumb {
+  to?: string
+  label: string
+}
+
+const breadcrumbs = computed<AdminBreadcrumb[]>(() => {
   const parts = route.path.split('/').filter(Boolean)
   if (parts[0] !== 'admin' || parts.length <= 1) {
     return []
   }
 
-  const visibleParts = parts[1] === 'dashboard' ? [parts[0], ...parts.slice(2)] : parts
+  const firstSegment = parts[1]
+  if (!firstSegment) {
+    return []
+  }
 
-  return visibleParts.map((part, index) => {
-    const routePartCount = parts[1] === 'dashboard' && index > 0 ? index + 2 : index + 1
-    const to = `/${parts.slice(0, routePartCount).join('/')}`
-    return {
-      to,
-      label: breadcrumbLabels.value[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
+  if (firstSegment === 'dashboard') {
+    const crumbs: AdminBreadcrumb[] = [{ to: '/admin/dashboard', label: t('admin.nav.dashboard') }]
+    for (let index = 2; index < parts.length; index += 1) {
+      const part = parts[index]
+      if (!part) {
+        continue
+      }
+      crumbs.push({
+        to: `/${parts.slice(0, index + 1).join('/')}`,
+        label: breadcrumbLabels.value[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
+      })
     }
-  })
+    return crumbs
+  }
+
+  const section = breadcrumbSection(firstSegment)
+  const visiblePartsStart = firstSegment === 'settings' ? 2 : 1
+  const visibleParts = parts.slice(visiblePartsStart)
+  const crumbs: AdminBreadcrumb[] = section ? [{ label: section }] : []
+
+  for (let index = 0; index < visibleParts.length; index += 1) {
+    const part = visibleParts[index]
+    if (!part) {
+      continue
+    }
+    crumbs.push({
+      to: `/${parts.slice(0, visiblePartsStart + index + 1).join('/')}`,
+      label: breadcrumbLabels.value[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
+    })
+  }
+
+  return crumbs
 })
 
+function breadcrumbSection(part: string) {
+  if (['posts', 'categories', 'tags', 'media'].includes(part)) return t('admin.nav.posts')
+  if (part === 'settings') return t('admin.nav.settings')
+  if (part === 'backups') return t('admin.nav.tools')
+  return ''
+}
+
 function isActiveNav(to: string) {
-  if (to === '/admin/dashboard') return route.path === '/admin' || route.path === to || route.path.startsWith(`${to}/`)
+  if (to === '/admin/dashboard') return route.path === '/admin' || route.path === to
   return route.path === to || route.path.startsWith(`${to}/`)
 }
 

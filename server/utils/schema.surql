@@ -274,6 +274,7 @@ DEFINE FIELD OVERWRITE context ON error_logs TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS request_id ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS path ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS method ON error_logs TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS read_at ON error_logs TYPE option<datetime>;
 DEFINE INDEX IF NOT EXISTS error_logs_timestamp_desc ON error_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS error_logs_level ON error_logs FIELDS level;
 

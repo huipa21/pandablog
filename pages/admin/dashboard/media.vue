@@ -8,21 +8,12 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <div class="flex flex-wrap gap-1 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-1">
-          <UButton
-            v-for="item in rangeItems"
-            :key="item.value"
-            size="sm"
-            color="primary"
-            :variant="range === item.value ? 'solid' : 'ghost'"
-            @click="range = item.value"
-          >
-            {{ item.label }}
-          </UButton>
+        <USelect v-model="range" :items="rangeItems" size="sm" class="w-40" :aria-label="t('admin.mediaDashboard.rangeSelect')" />
+        <div v-if="range === 'custom'" class="flex flex-wrap items-center gap-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-selected-bg)] p-2">
+          <UInput v-model="customFrom" type="date" size="sm" :max="customTo || undefined" :aria-label="t('admin.mediaDashboard.customFrom')" class="w-36" />
+          <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.customRangeTo') }}</span>
+          <UInput v-model="customTo" type="date" size="sm" :min="customFrom || undefined" :aria-label="t('admin.mediaDashboard.customTo')" class="w-36" />
         </div>
-        <UButton to="/admin/media" icon="i-lucide-images" variant="soft" color="primary">
-          {{ t('admin.mediaDashboard.openLibrary') }}
-        </UButton>
         <UButton icon="i-lucide-refresh-cw" variant="ghost" :loading="pending" @click="refreshDashboard">
           {{ t('admin.mediaDashboard.refresh') }}
         </UButton>
@@ -271,6 +262,13 @@ definePageMeta({ layout: 'admin' })
 
 type MediaDashboardType = 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'
 type RangePreset = 'today' | '7d' | '30d' | '90d' | 'all'
+type RangeOption = RangePreset | 'custom'
+
+interface MediaDashboardQuery {
+  range: RangeOption
+  from?: string
+  to?: string
+}
 
 interface MediaDashboardFileItem {
   hash: string
@@ -306,7 +304,7 @@ interface MediaDashboardResponse {
     files: MediaDashboardFileItem[]
   }
   time_insights: {
-    range: RangePreset
+    range: RangeOption
     start: string | null
     end: string
     uploaded_items: number
@@ -321,18 +319,32 @@ interface MediaDashboardResponse {
 
 const { t, locale } = useI18n()
 const sessionFetch = useSessionFetch()
-const range = ref<RangePreset>('30d')
-const rangeItems = computed<Array<{ label: string, value: RangePreset }>>(() => [
+const range = ref<RangeOption>('7d')
+const customFrom = ref(addDateInputDays(formatDateInput(new Date()), -6))
+const customTo = ref(formatDateInput(new Date()))
+const rangeItems = computed<Array<{ label: string, value: RangeOption }>>(() => [
   { label: t('admin.mediaDashboard.ranges.today'), value: 'today' },
   { label: t('admin.mediaDashboard.ranges.sevenDays'), value: '7d' },
   { label: t('admin.mediaDashboard.ranges.thirtyDays'), value: '30d' },
   { label: t('admin.mediaDashboard.ranges.ninetyDays'), value: '90d' },
-  { label: t('admin.mediaDashboard.ranges.all'), value: 'all' }
+  { label: t('admin.mediaDashboard.ranges.all'), value: 'all' },
+  { label: t('admin.mediaDashboard.ranges.custom'), value: 'custom' }
 ])
+const dashboardQuery = computed<MediaDashboardQuery>(() => {
+  if (range.value !== 'custom') {
+    return { range: range.value }
+  }
+
+  return {
+    range: 'custom',
+    from: customFrom.value,
+    to: customTo.value
+  }
+})
 const { data: dashboard, pending, error, refresh } = await useAsyncData(
   'admin-dashboard-media',
-  () => sessionFetch<MediaDashboardResponse>('/api/admin/dashboard/media', { query: { range: range.value } }),
-  { watch: [range] }
+  () => sessionFetch<MediaDashboardResponse>('/api/admin/dashboard/media', { query: dashboardQuery.value }),
+  { watch: [range, customFrom, customTo] }
 )
 
 const numberFormatter = computed(() => new Intl.NumberFormat(locale.value))
@@ -346,6 +358,16 @@ const timeInsights = computed(() => dashboard.value?.time_insights ?? emptyTimeI
 const mostReused = computed(() => dashboard.value?.most_reused ?? [])
 const maxTypeCount = computed(() => Math.max(...byType.value.map(type => type.count), 0))
 const selectedRangeLabel = computed(() => rangeItems.value.find(item => item.value === range.value)?.label ?? '')
+const mediaLibraryDateQuery = computed(() => {
+  const start = timeInsights.value.start
+  if (!start) return {}
+
+  const query: Record<string, string> = { uploaded_from: start.slice(0, 10) }
+  if (timeInsights.value.end) {
+    query.uploaded_to = timeInsights.value.end.slice(0, 10)
+  }
+  return query
+})
 const scorecards = computed(() => [
   {
     label: t('admin.mediaDashboard.totalItems'),
@@ -445,10 +467,36 @@ function fileMediaPath(file: MediaDashboardFileItem) {
 }
 
 function typeMediaPath(type: MediaDashboardType) {
-  return { path: '/admin/media', query: { type } }
+  return { path: '/admin/media', query: { type, ...mediaLibraryDateQuery.value } }
 }
 
 async function refreshDashboard() {
   await refresh()
 }
+
+function formatDateInput(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+
+function addDateInputDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  date.setUTCDate(date.getUTCDate() + days)
+  return formatDateInput(date)
+}
+
+watch(customFrom, (from) => {
+  if (from && customTo.value && from > customTo.value) {
+    customTo.value = from
+  }
+})
+
+watch(customTo, (to) => {
+  if (to && customFrom.value && to < customFrom.value) {
+    customFrom.value = to
+  }
+})
 </script>

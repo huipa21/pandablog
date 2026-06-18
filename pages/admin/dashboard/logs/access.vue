@@ -1,0 +1,221 @@
+<template>
+  <section class="grid gap-4">
+    <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.logs.tools') }}</p>
+        <h1 class="mt-1 text-3xl font-semibold text-[var(--pb-text)]">{{ t('admin.logs.accessLogs') }}</h1>
+      </div>
+      <UButton to="/admin/dashboard/logs" size="sm" color="neutral" variant="ghost" icon="i-lucide-arrow-left">{{ t('admin.common.back') }}</UButton>
+    </header>
+
+    <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+      <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <UInput v-model="filters.from" type="datetime-local" :placeholder="t('admin.logs.from')" />
+        <UInput v-model="filters.to" type="datetime-local" :placeholder="t('admin.logs.to')" />
+        <UInput v-model="filters.path" :placeholder="t('admin.logs.path')" />
+        <UInput v-model="filters.search" :placeholder="t('admin.logs.searchPathAgent')" />
+        <UInput v-model="filters.method" :placeholder="t('admin.logs.method')" />
+        <UInput v-model="filters.status" type="number" :placeholder="t('admin.logs.status')" />
+        <UInput v-model="filters.min_status" type="number" :placeholder="t('admin.logs.minStatus')" />
+        <UInput v-model="filters.max_status" type="number" :placeholder="t('admin.logs.maxStatus')" />
+        <USelect v-model="filters.sort" :items="sortItems" />
+        <USelect v-model="filters.limit" :items="limitItems" />
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <UButton icon="i-lucide-filter" @click="() => applyFilters()">{{ t('admin.logs.apply') }}</UButton>
+        <UButton color="neutral" variant="ghost" icon="i-lucide-eraser" @click="clearFilters">{{ t('admin.common.clear') }}</UButton>
+        <UButton color="neutral" variant="outline" icon="i-lucide-download" @click="exportCsv">{{ t('admin.logs.exportCsv') }}</UButton>
+      </div>
+    </div>
+
+    <div class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
+      <div class="overflow-auto">
+        <table class="min-w-full text-sm">
+        <thead class="sticky top-0 bg-[var(--pb-surface-subtle)] text-left text-[var(--pb-text-muted)]">
+          <tr>
+            <th class="px-3 py-2">{{ t('admin.logs.time') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.method') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.path') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.status') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.duration') }}</th>
+            <th class="px-3 py-2">{{ t('admin.logs.ip') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="pending">
+            <td colspan="6" class="px-3 py-6"><USkeleton class="h-6" /></td>
+          </tr>
+          <tr v-else-if="!rows.length">
+            <td colspan="6" class="px-3 py-6 text-center text-[var(--pb-text-subtle)]">{{ t('admin.logs.emptyAccess') }}</td>
+          </tr>
+          <tr
+            v-for="row in rows"
+            :key="String(row.id)"
+            class="cursor-pointer border-t border-[var(--pb-divider)] hover:bg-[var(--pb-card-bg-hover)]"
+            :class="Number(row.status_code) >= 500 ? 'bg-rose-50/60' : Number(row.status_code) >= 400 ? 'bg-amber-50/60' : ''"
+            @click="selectedRow = row"
+          >
+            <td class="px-3 py-2">{{ text(row.timestamp) }}</td>
+            <td class="px-3 py-2">{{ text(row.method) }}</td>
+            <td class="px-3 py-2">{{ text(row.path) }}</td>
+            <td class="px-3 py-2">{{ Number(row.status_code) }}</td>
+            <td class="px-3 py-2">{{ Number(row.response_time_ms) }}ms</td>
+            <td class="px-3 py-2">{{ text(row.ip) }}</td>
+          </tr>
+        </tbody>
+        </table>
+      </div>
+      <AdminLogPagination v-if="!pending && total > 0" :total="total" :limit="limit" :offset="offset" @page="goToOffset" />
+    </div>
+
+    <AdminLogDetailDialog :open="Boolean(selectedRow)" :row="selectedRow" @update:open="(value) => { if (!value) selectedRow = null }" />
+  </section>
+</template>
+
+<script setup lang="ts">
+definePageMeta({ layout: 'admin' })
+
+const route = useRoute()
+const router = useRouter()
+const { t } = useI18n()
+const limitItems = [25, 50, 100, 200]
+const sortItems = computed(() => [
+  { label: t('admin.logs.newest'), value: 'newest' },
+  { label: t('admin.logs.oldest'), value: 'oldest' }
+])
+
+const filters = reactive({
+  from: asDateTimeLocal(route.query.from),
+  to: asDateTimeLocal(route.query.to),
+  path: asText(route.query.path),
+  search: asText(route.query.search),
+  method: asText(route.query.method),
+  status: asText(route.query.status),
+  min_status: asText(route.query.min_status),
+  max_status: asText(route.query.max_status),
+  sort: route.query.sort === 'oldest' ? 'oldest' : 'newest',
+  limit: [25, 50, 100, 200].includes(Number(route.query.limit)) ? Number(route.query.limit) : 50,
+  offset: Number(route.query.offset ?? 0)
+})
+
+const fetchQuery = computed(() => ({ ...route.query }))
+const untypedFetch = useSessionFetch() as any
+const { data, pending, refresh } = await useAsyncData(
+  'admin-access-logs-list',
+  () => untypedFetch('/api/admin/logs/access', { query: fetchQuery.value as Record<string, string> }),
+  { watch: [fetchQuery] }
+)
+
+const rows = computed(() => Array.isArray((data.value as any)?.rows) ? (data.value as any).rows : [])
+const total = computed(() => Number((data.value as any)?.total ?? 0))
+const limit = computed(() => Number((data.value as any)?.limit ?? filters.limit))
+const offset = computed(() => Number((data.value as any)?.offset ?? filters.offset))
+const selectedRow = ref<Record<string, unknown> | null>(null)
+
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+watch(() => filters.search, () => {
+  if (searchDebounce) {
+    clearTimeout(searchDebounce)
+  }
+
+  searchDebounce = setTimeout(() => {
+    applyFilters()
+  }, 300)
+})
+
+async function applyFilters(nextOffset = 0) {
+  await router.replace({
+    query: cleanQuery({
+      from: toIso(filters.from),
+      to: toIso(filters.to),
+      path: filters.path,
+      search: filters.search,
+      method: filters.method,
+      status: filters.status,
+      min_status: filters.min_status,
+      max_status: filters.max_status,
+      sort: filters.sort,
+      limit: String(filters.limit),
+      offset: String(nextOffset)
+    })
+  })
+  await refresh()
+}
+
+function clearFilters() {
+  filters.from = ''
+  filters.to = ''
+  filters.path = ''
+  filters.search = ''
+  filters.method = ''
+  filters.status = ''
+  filters.min_status = ''
+  filters.max_status = ''
+  filters.sort = 'newest'
+  filters.limit = 50
+  applyFilters(0)
+}
+
+function goToOffset(nextOffset: number) {
+  applyFilters(nextOffset)
+}
+
+async function exportCsv() {
+  const query: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(route.query).map(([key, value]) => [key, String(value ?? '')])),
+    format: 'csv',
+    limit: '10000',
+    offset: '0'
+  }
+  const csv = await untypedFetch('/api/admin/logs/access/export', { query, responseType: 'text' })
+  downloadBlob(String(csv), 'access-logs.csv', 'text/csv;charset=utf-8')
+}
+
+function cleanQuery(value: Record<string, string>) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== ''))
+}
+
+function text(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function asText(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function asDateTimeLocal(value: unknown) {
+  if (typeof value !== 'string' || !value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) {
+    return ''
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function toIso(value: string) {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) {
+    return ''
+  }
+
+  return date.toISOString()
+}
+
+function downloadBlob(content: string, fileName: string, contentType: string) {
+  const blob = new Blob([content], { type: contentType })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+</script>

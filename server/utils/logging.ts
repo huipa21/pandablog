@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
 import { applySettingsPatch, redactDeep, shouldAllowDebug, shouldRecordAccessLog, trimByMaxSize } from './logging-logic'
-import { firstRow, queryRows, stringifyRecordId } from './surrealResult'
+import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
 
 const APP_SETTINGS_TABLE = 'app_settings'
@@ -355,6 +355,68 @@ export async function readLogById(type: 'access' | 'activity' | 'errors', id: st
     label: `read ${type} log detail`,
     timeoutMs: 10_000
   })
+}
+
+export async function setErrorLogsReadState(ids: string[], read: boolean) {
+  const uniqueIds = normalizeErrorLogIds(ids)
+  if (!uniqueIds.length) {
+    return []
+  }
+
+  const params: Record<string, unknown> = {}
+  const statements = uniqueIds.map((id, index) => {
+    const idParam = `id_${index}`
+    params[idParam] = id
+    return read
+      ? `UPDATE type::record('error_logs', $${idParam}) SET read_at = time::now() RETURN AFTER;`
+      : `UPDATE type::record('error_logs', $${idParam}) UNSET read_at RETURN AFTER;`
+  })
+
+  const db = await useDb()
+  const response = await queryDb(db, statements.join('\n'), params, {
+    label: read ? 'mark error logs read' : 'mark error logs unread',
+    timeoutMs: 20_000
+  })
+
+  return flattenMutatedLogIds(response)
+}
+
+export async function deleteErrorLogsByIds(ids: string[]) {
+  const uniqueIds = normalizeErrorLogIds(ids)
+  if (!uniqueIds.length) {
+    return []
+  }
+
+  const params: Record<string, unknown> = {}
+  const statements = uniqueIds.map((id, index) => {
+    const idParam = `id_${index}`
+    params[idParam] = id
+    return `DELETE type::record('error_logs', $${idParam}) RETURN BEFORE;`
+  })
+
+  const db = await useDb()
+  const response = await queryDb(db, statements.join('\n'), params, {
+    label: 'delete selected error logs',
+    timeoutMs: 20_000
+  })
+
+  return flattenMutatedLogIds(response)
+}
+
+function normalizeErrorLogIds(ids: string[]) {
+  return Array.from(new Set(ids
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+    .map(id => recordIdPart(id, 'error_logs'))
+    .filter(Boolean)
+  )).slice(0, 200)
+}
+
+function flattenMutatedLogIds(response: unknown) {
+  if (!Array.isArray(response)) {
+    return queryRows<Record<string, unknown>>(response).map(row => stringifyRecordId(row.id))
+  }
+
+  return response.flatMap((_, index) => queryRows<Record<string, unknown>>(response, index).map(row => stringifyRecordId(row.id)))
 }
 
 function applySettings(next: LoggingSettings) {

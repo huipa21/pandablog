@@ -17,6 +17,13 @@ interface MediaDashboardFileRow {
 
 type MediaDashboardType = 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'
 type RangePreset = 'today' | '7d' | '30d' | '90d' | 'all'
+type RangeOption = RangePreset | 'custom'
+
+interface MediaDashboardRange {
+  range: RangeOption
+  start: Date | null
+  end: Date
+}
 
 interface MediaDashboardFileItem {
   hash: string
@@ -37,7 +44,7 @@ interface TypeStat {
 const dashboardTypes: MediaDashboardType[] = ['image', 'video', 'audio', 'document', 'archive', 'other']
 const documentExtensions = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'])
 const archiveExtensions = new Set(['zip', 'rar', '7z', 'tar', 'gz'])
-const rangePresets = new Set<RangePreset>(['today', '7d', '30d', '90d', 'all'])
+const rangePresets = new Set<RangeOption>(['today', '7d', '30d', '90d', 'all', 'custom'])
 const listLimit = 10
 const bytesPerMb = 1024 * 1024
 
@@ -46,6 +53,7 @@ export default defineEventHandler(async (event) => {
 
   const query = getQuery(event)
   const range = rangeQuery(query.range)
+  const rangeWindow = buildRangeWindow(range, query.from, query.to)
   const [db, settings] = await Promise.all([useDb(), getMediaSettings()])
   const response = await queryDb(
     db,
@@ -54,7 +62,7 @@ export default defineEventHandler(async (event) => {
     { label: 'admin media dashboard' }
   )
 
-  const files = queryRows<MediaDashboardFileRow>(response).map(normalizeFileRow)
+  const files = filterFilesByRange(queryRows<MediaDashboardFileRow>(response).map(normalizeFileRow), rangeWindow)
   const byType = buildTypeStats(files)
   const totalItems = files.length
   const totalStorage = sum(files, file => file.size)
@@ -65,7 +73,7 @@ export default defineEventHandler(async (event) => {
   const oversizedImages = files
     .filter(file => file.type === 'image' && file.size > oversizedThresholdBytes)
     .toSorted(sortBySizeThenName)
-  const timeInsights = buildTimeInsights(files, range, oversizedThresholdBytes)
+  const timeInsights = buildTimeInsights(files, rangeWindow, oversizedThresholdBytes)
 
   return {
     summary: {
@@ -138,30 +146,56 @@ function buildOrphans(files: MediaDashboardFileItem[]) {
   }
 }
 
-function buildTimeInsights(files: MediaDashboardFileItem[], range: RangePreset, oversizedThresholdBytes: number) {
-  const now = new Date()
-  const start = rangeStartDate(range, now)
-  const rangeFiles = start
-    ? files.filter(file => uploadedAtMs(file) >= start.getTime() && uploadedAtMs(file) <= now.getTime())
-    : files
-  const uploadedStorage = sum(rangeFiles, file => file.size)
+function buildTimeInsights(files: MediaDashboardFileItem[], rangeWindow: MediaDashboardRange, oversizedThresholdBytes: number) {
+  const uploadedStorage = sum(files, file => file.size)
 
   return {
-    range,
-    start: start?.toISOString() ?? null,
-    end: now.toISOString(),
-    uploaded_items: rangeFiles.length,
+    range: rangeWindow.range,
+    start: rangeWindow.start?.toISOString() ?? null,
+    end: rangeWindow.end.toISOString(),
+    uploaded_items: files.length,
     uploaded_storage: uploadedStorage,
-    average_uploaded_size: average(uploadedStorage, rangeFiles.length),
-    oversized_images: rangeFiles.filter(file => file.type === 'image' && file.size > oversizedThresholdBytes).length,
-    orphaned_uploads: rangeFiles.filter(file => file.reference_count === 0 && file.referenced_by_count === 0).length,
-    by_type: buildTypeStats(rangeFiles)
+    average_uploaded_size: average(uploadedStorage, files.length),
+    oversized_images: files.filter(file => file.type === 'image' && file.size > oversizedThresholdBytes).length,
+    orphaned_uploads: files.filter(file => file.reference_count === 0 && file.referenced_by_count === 0).length,
+    by_type: buildTypeStats(files)
   }
 }
 
-function rangeQuery(value: unknown): RangePreset {
+function rangeQuery(value: unknown): RangeOption {
   const raw = typeof value === 'string' ? value : ''
-  return rangePresets.has(raw as RangePreset) ? raw as RangePreset : '30d'
+  return rangePresets.has(raw as RangeOption) ? raw as RangeOption : '7d'
+}
+
+function buildRangeWindow(range: RangeOption, fromValue: unknown, toValue: unknown): MediaDashboardRange {
+  const now = new Date()
+  if (range === 'custom') {
+    const start = parseDateBoundary(fromValue, 'start') ?? rangeStartDate('7d', now)!
+    const end = parseDateBoundary(toValue, 'end') ?? now
+
+    return {
+      range,
+      start,
+      end: end.getTime() < start.getTime() ? endOfDay(start) : end
+    }
+  }
+
+  return {
+    range,
+    start: rangeStartDate(range, now),
+    end: now
+  }
+}
+
+function filterFilesByRange(files: MediaDashboardFileItem[], rangeWindow: MediaDashboardRange) {
+  if (!rangeWindow.start) return files
+
+  const startMs = rangeWindow.start.getTime()
+  const endMs = rangeWindow.end.getTime()
+  return files.filter((file) => {
+    const uploadedMs = uploadedAtMs(file)
+    return uploadedMs >= startMs && uploadedMs <= endMs
+  })
 }
 
 function rangeStartDate(range: RangePreset, now: Date) {
@@ -177,6 +211,33 @@ function rangeStartDate(range: RangePreset, now: Date) {
   start.setDate(start.getDate() - days + 1)
   start.setHours(0, 0, 0, 0)
   return start
+}
+
+function parseDateBoundary(value: unknown, boundary: 'start' | 'end') {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null
+  }
+
+  const raw = value.trim()
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+  if (dateOnly) {
+    const year = Number(dateOnly[1])
+    const monthIndex = Number(dateOnly[2]) - 1
+    const day = Number(dateOnly[3])
+    const date = boundary === 'start'
+      ? new Date(year, monthIndex, day, 0, 0, 0, 0)
+      : new Date(year, monthIndex, day, 23, 59, 59, 999)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function endOfDay(value: Date) {
+  const date = new Date(value)
+  date.setHours(23, 59, 59, 999)
+  return date
 }
 
 function uploadedAtMs(file: MediaDashboardFileItem) {

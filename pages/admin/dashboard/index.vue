@@ -21,6 +21,11 @@
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.analytics') }}</h2>
         <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.dashboard.analyticsDescription') }}</p>
       </NuxtLink>
+      <NuxtLink v-if="isSuperadmin" to="/admin/dashboard/logs" class="pb-admin-surface block p-5 transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)]">
+        <UIcon name="i-lucide-clipboard-list" class="mb-4 size-6 text-[var(--pb-primary)]" />
+        <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.dashboard.logs') }}</h2>
+        <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.dashboard.logsDescription') }}</p>
+      </NuxtLink>
     </div>
   </section>
 </template>
