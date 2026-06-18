@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="min-w-0">
     <div v-if="pending" :class="layoutClasses">
       <USkeleton v-for="index in skeletonCount" :key="index" :class="skeletonClasses" />
     </div>
@@ -12,7 +12,7 @@
       :description="isSitePrivateError ? t('public.postList.sitePrivateDescription') : undefined"
     />
 
-    <div v-else-if="posts.length" :class="layoutClasses">
+    <div v-else-if="posts.length" :class="layoutClasses" :data-post-card-layout="isListView ? 'list' : 'grid'">
       <article
         v-for="post in posts"
         :key="post.id"
@@ -100,6 +100,7 @@ const isListView = computed(() => props.viewMode === 'list')
 const resolvedEmptyTitle = computed(() => props.emptyTitle || t('public.postList.emptyTitle'))
 const resolvedEmptyDescription = computed(() => props.emptyDescription || t('public.postList.emptyDescription'))
 const layoutClasses = computed(() => [
+  'min-w-0 w-full',
   isListView.value ? 'post-card-list' : 'post-card-grid',
   !isListView.value && props.fixedColumns ? 'post-card-grid-fixed' : undefined
 ])
@@ -109,7 +110,7 @@ const skeletonClasses = computed(() => [
   isListView.value ? 'h-52' : 'aspect-square'
 ])
 const articleClasses = computed(() => [
-  'group relative cursor-pointer overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]',
+  'group relative min-w-0 cursor-pointer overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]',
   isListView.value ? 'post-card-list-item grid' : 'post-card-grid-item grid'
 ])
 const mediaClasses = computed(() => [
@@ -125,7 +126,7 @@ const placeholderClasses = computed(() => [
   isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'h-full aspect-auto'
 ])
 const contentClasses = computed(() => [
-  'flex flex-1 flex-col',
+  'flex min-w-0 flex-1 flex-col',
   isListView.value ? 'p-5 md:p-6' : 'min-h-0 overflow-hidden p-5'
 ])
 const titleClasses = computed(() => [
@@ -182,10 +183,10 @@ function postExcerpt(post: PostListItem) {
 
 <style scoped>
 .post-card-grid {
-  gap: clamp(1.5rem, 2vw, 2rem);
+  gap: clamp(1rem, 1.5vw, 2rem);
   display: grid;
   align-items: start;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .post-card-grid-item {
@@ -201,6 +202,12 @@ function postExcerpt(post: PostListItem) {
 
 .post-card-list-item {
   grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 640px) {
+  .post-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  }
 }
 
 @media (min-width: 768px) {

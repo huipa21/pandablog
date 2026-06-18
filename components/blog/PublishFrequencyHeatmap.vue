@@ -1,6 +1,6 @@
 <template>
   <section
-    class="publish-heatmap rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)] md:p-6"
+    class="publish-heatmap min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)] md:p-6"
   >
     <header class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -279,6 +279,9 @@ function cellColor(level: number) {
 .publish-heatmap-scroll {
   /* Allow horizontal scroll on narrow viewports without breaking page layout. */
   -webkit-overflow-scrolling: touch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding-top: 1.5rem;
 }
 

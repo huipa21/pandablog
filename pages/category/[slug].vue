@@ -1,12 +1,12 @@
 <template>
-  <section id="posts" class="grid gap-6">
+  <section id="posts" class="grid min-w-0 gap-6">
     <header>
       <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('public.category.eyebrow') }}</p>
       <h1 class="mt-1 font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ title }}</h1>
     </header>
 
-    <div v-if="!error && (pending || totalPosts > 0)" class="flex flex-wrap items-center justify-end gap-2 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-3 shadow-[var(--pb-shadow-sm)]">
-      <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28" :aria-label="t('public.home.postsPerPage')" />
+    <div v-if="!error && (pending || totalPosts > 0)" class="flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-3 shadow-[var(--pb-shadow-sm)]">
+      <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28 max-w-full shrink-0" :aria-label="t('public.home.postsPerPage')" />
     </div>
 
     <BlogPostCardList

@@ -38,6 +38,8 @@ themes/*
 tests
 !tests/
 tests/*
+tests/e2e/*
+!tests/e2e/public-responsive-layout.spec.ts
 !tests/unit/
 tests/unit/*
 !tests/unit/annotate.test.ts

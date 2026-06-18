@@ -6,12 +6,12 @@
       <BlogCategoryList />
     </template>
 
-    <section class="grid gap-10 md:gap-12">
+    <section class="grid min-w-0 gap-10 md:gap-12">
       <BlogPublishFrequencyHeatmap />
 
-      <section id="posts" class="grid gap-6">
-        <div v-if="!error && (pending || totalPosts > 0)" class="flex flex-wrap items-center justify-end gap-2 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-3 shadow-[var(--pb-shadow-sm)]">
-          <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28" :aria-label="t('public.home.postsPerPage')" />
+      <section id="posts" class="grid min-w-0 gap-6">
+        <div v-if="!error && (pending || totalPosts > 0)" class="flex min-w-0 flex-wrap items-center justify-end gap-2 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-3 shadow-[var(--pb-shadow-sm)]">
+          <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28 max-w-full shrink-0" :aria-label="t('public.home.postsPerPage')" />
           <div class="inline-flex rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-1">
             <UButton
               size="sm"

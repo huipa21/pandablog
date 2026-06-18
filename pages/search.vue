@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-4xl space-y-6">
+  <div class="mx-auto w-full max-w-[var(--pb-site-content-max)] space-y-6">
     <header class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('public.search.title') }}</h1>
@@ -13,8 +13,8 @@
           {{ t('public.search.back') }}
         </UButton>
       </div>
-      <div class="flex flex-wrap items-end gap-3">
-        <form class="flex flex-1 items-center gap-2" role="search" @submit.prevent="onSubmit">
+      <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <form class="flex min-w-0 flex-1 items-center gap-2" role="search" @submit.prevent="onSubmit">
           <UInput
             v-model="query"
             :placeholder="t('public.search.placeholder')"
@@ -29,7 +29,7 @@
           v-model="sort"
           :items="sortOptions"
           value-key="value"
-          class="w-44"
+          class="w-full sm:w-44"
         />
       </div>
       <p v-if="data" class="text-sm text-[var(--pb-text-subtle)]">

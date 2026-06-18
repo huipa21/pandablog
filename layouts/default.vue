@@ -22,7 +22,7 @@
 
       <!-- Bottom navigation strip -->
       <nav class="public-site-hero-menu absolute inset-x-0 bottom-0 z-20">
-        <div class="mx-auto flex min-h-16 w-full max-w-[var(--pb-site-content-max)] items-center justify-between gap-4 px-5">
+        <div data-public-container="hero-nav" class="mx-auto flex min-h-16 w-full max-w-[var(--pb-site-content-max)] items-center justify-between gap-4 px-5">
           <div class="flex min-w-0 items-center gap-1">
             <UButton
               to="/"
@@ -90,7 +90,7 @@
       <div v-else class="public-site-hero-fallback" aria-hidden="true" />
       <div class="public-site-hero-overlay" aria-hidden="true" />
 
-      <div class="public-site-header-row relative z-10 mx-auto flex w-full max-w-[var(--pb-site-content-max)] items-center gap-2 px-5 sm:gap-3">
+      <div data-public-container="compact-nav" class="public-site-header-row relative z-10 mx-auto flex w-full max-w-[var(--pb-site-content-max)] items-center gap-2 px-5 sm:gap-3">
         <!-- Left cluster -->
         <div class="flex items-center gap-1.5 sm:gap-2">
           <UButton
@@ -140,13 +140,13 @@
     </header>
 
     <!-- Public body -->
-    <div class="mx-auto w-full max-w-[var(--pb-site-content-max)] flex-1 px-5 py-8">
-      <div v-if="hasLayoutSidebar" class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
+    <div data-public-container="body" class="mx-auto min-w-0 w-full max-w-[var(--pb-site-content-max)] flex-1 px-5 py-8">
+      <div v-if="hasLayoutSidebar" class="grid min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
         <main class="min-w-0">
           <slot />
         </main>
 
-        <aside :class="sidebarClasses">
+        <aside data-public-sidebar :class="sidebarClasses">
           <slot v-if="hasPageSidebar" name="sidebar" />
           <template v-else>
             <BlogOwnerBio />
@@ -163,7 +163,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-[var(--pb-border)] bg-[var(--pb-surface)] text-sm text-[var(--pb-text-muted)]">
-      <div class="mx-auto grid w-full max-w-[var(--pb-site-content-max)] gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
+      <div data-public-container="footer" class="mx-auto grid w-full max-w-[var(--pb-site-content-max)] gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
         <div>
           <div class="font-medium text-[var(--pb-text)]">{{ siteName }}</div>
           <p class="mt-1">{{ footerCopyright }}</p>
@@ -195,7 +195,7 @@
       </div>
 
       <div v-if="hasFilingInfo" class="border-t border-[var(--pb-border)] px-5 py-3 text-xs text-[var(--pb-text-subtle)]">
-        <div class="mx-auto flex w-full max-w-[var(--pb-site-content-max)] flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center">
+        <div data-public-container="filing" class="mx-auto flex w-full max-w-[var(--pb-site-content-max)] flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center">
           <a
             v-for="filing in footerFilings"
             :key="`${filing.label}:${filing.url}`"
@@ -250,7 +250,7 @@ const isHome = computed(() => route.path === '/')
 const hasLayoutSidebar = computed(() => !isHome.value || hasPageSidebar.value)
 const searchRoute = computed(() => route.path === '/search' ? '/search' : { path: '/search', query: { from: route.fullPath } })
 const sidebarClasses = computed(() => [
-  'space-y-4',
+  'min-w-0 space-y-4',
   isHome.value ? undefined : 'lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto'
 ])
 const siteShellStyle = computed(() => ({
