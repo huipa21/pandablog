@@ -85,15 +85,21 @@
       >
         <img v-if="siteLogo" :src="siteLogo" alt="" class="h-7 w-7 shrink-0">
         <PandaLogo v-else :size="28" class="text-[var(--pb-primary)]" />
-        <span class="truncate font-semibold" :class="collapsed ? 'md:hidden' : ''">{{ siteName }}</span>
+        <span class="min-w-0 flex-1 truncate font-semibold md:hidden">{{ siteName }}</span>
+        <span v-if="!collapsed" class="hidden min-w-0 flex-1 truncate font-semibold md:inline">{{ siteName }}</span>
       </NuxtLink>
 
       <nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
         <template v-for="section in navSections" :key="section.label || 'root'">
           <div
             v-if="section.label"
-            class="mt-4 mb-1 px-3 text-xs font-medium text-[var(--pb-text-subtle)]"
-            :class="collapsed ? 'md:hidden' : ''"
+            class="mt-4 mb-1 px-3 text-xs font-medium text-[var(--pb-text-subtle)] md:hidden"
+          >
+            {{ section.label }}
+          </div>
+          <div
+            v-if="section.label && !collapsed"
+            class="mt-4 mb-1 hidden px-3 text-xs font-medium text-[var(--pb-text-subtle)] md:block"
           >
             {{ section.label }}
           </div>
@@ -117,7 +123,8 @@
             @click="closeIfMobile"
           >
             <UIcon :name="item.icon" class="size-5 shrink-0" />
-            <span class="truncate" :class="collapsed ? 'md:hidden' : ''">{{ item.label }}</span>
+            <span class="min-w-0 flex-1 truncate md:hidden">{{ item.label }}</span>
+            <span v-if="!collapsed" class="hidden min-w-0 flex-1 truncate md:inline">{{ item.label }}</span>
           </NuxtLink>
         </template>
       </nav>
@@ -131,7 +138,7 @@
         @click="toggleCollapsed"
       >
         <UIcon :name="collapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-5 shrink-0" />
-        <span :class="collapsed ? 'md:hidden' : ''">{{ t('admin.layout.collapse') }}</span>
+        <span v-if="!collapsed">{{ t('admin.layout.collapse') }}</span>
       </button>
     </aside>
 

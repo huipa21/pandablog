@@ -145,6 +145,57 @@ body {
   color: var(--pb-text);
 }
 
+/* Mobile-native touch interactions.
+   Interactive elements should respond instantly to taps (no 300ms delay, no
+   grey flash) and give visible feedback on touch devices. */
+:where(a, button, [role="button"], summary, label, input, select, textarea) {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: none) {
+  :where(a, button, [role="button"], summary, .folder-row):active {
+    opacity: 0.65;
+    transition: opacity 0.06s ease;
+  }
+
+  /* Clickable list rows / cards give a subtle pressed tint on tap. */
+  :where(tr[role], tr.cursor-pointer, article, [data-tap-card]):active {
+    background-color: var(--pb-surface-subtle);
+  }
+}
+
+/* Larger hit areas for small icon controls on touch / coarse pointers,
+   without disturbing precise mouse layouts. */
+@media (pointer: coarse) {
+  :where(button, [role="button"], a):where(.size-5, .size-6, .size-7) {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+}
+
+/* Affordances that are normally revealed on hover (e.g. row "…" menus) must
+   stay reachable on touch. Hide-until-hover only when a fine pointer + hover
+   are actually available; otherwise keep them visible. */
+.pb-hover-reveal {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pb-hover-reveal {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .group:hover .pb-hover-reveal,
+  .pb-hover-reveal:hover,
+  .pb-hover-reveal:focus,
+  .pb-hover-reveal:focus-visible,
+  .pb-hover-reveal:focus-within {
+    opacity: 1;
+  }
+}
+
 .theme-scope :where(svg, [class^="i-lucide-"], [class*=" i-lucide-"]) {
   color: var(--pb-icon);
 }

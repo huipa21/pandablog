@@ -287,16 +287,15 @@
               v-for="post in posts"
               :key="post.id"
               v-memo="postRowMemo(post)"
-              class="cursor-default hover:bg-[var(--pb-surface-subtle)]"
+              class="cursor-pointer hover:bg-[var(--pb-surface-subtle)]"
               :class="editingCell?.postId === post.id ? 'pb-selected-surface' : ''"
-              @click="quickEditEnabled ? queueRowEdit(post) : undefined"
-              @dblclick="openPost(post)"
+              @click="onRowActivate(post)"
             >
               <td class="px-4 py-3 align-top" @click.stop>
                 <input v-model="selectedIds" type="checkbox" :value="post.id" class="rounded border-[var(--pb-border-strong)]">
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'title') : undefined">
+              <td class="px-4 py-3 align-top" @click="onCellClick(post, 'title', $event)">
                 <input
                   v-if="isEditing(post, 'title')"
                   v-model="draft.title"
@@ -312,7 +311,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'tags') : undefined">
+              <td class="px-4 py-3 align-top" @click="onCellClick(post, 'tags', $event)">
                 <div
                   v-if="isEditing(post, 'tags')"
                   :data-inline-editor="inlineEditorKey(post.id, 'tags')"
@@ -344,7 +343,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'categories') : undefined">
+              <td class="px-4 py-3 align-top" @click="onCellClick(post, 'categories', $event)">
                 <div
                   v-if="isEditing(post, 'categories')"
                   :data-inline-editor="inlineEditorKey(post.id, 'categories')"
@@ -376,7 +375,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'visibility') : undefined">
+              <td class="px-4 py-3 align-top" @click="onCellClick(post, 'visibility', $event)">
                 <select
                   v-if="isEditing(post, 'visibility')"
                   v-model="draft.visibility"
@@ -397,7 +396,7 @@
                 </button>
               </td>
 
-              <td class="px-4 py-3 align-top" @click.stop="quickEditEnabled ? startCellEdit(post, 'status') : undefined">
+              <td class="px-4 py-3 align-top" @click="onCellClick(post, 'status', $event)">
                 <select
                   v-if="isEditing(post, 'status')"
                   v-model="draft.status"
@@ -491,6 +490,7 @@ type EditableField = 'title' | 'tags' | 'categories' | 'visibility' | 'status'
 
 const { t } = useI18n()
 const { formatAdminDate, formatAdminNumber } = useAdminRegionalSettings()
+const sessionFetch = useSessionFetch()
 const creating = ref(false)
 const titleQuery = ref('')
 const tagSearch = ref('')
@@ -560,15 +560,15 @@ const postListQuery = computed(() => ({
 }))
 const { data, pending, error, refresh } = await useAsyncData(
   'admin-posts',
-  () => $fetch<{ posts: PostRecord[], total: number, limit: number, start: number }>('/api/admin/posts', {
+  () => sessionFetch<{ posts: PostRecord[], total: number, limit: number, start: number }>('/api/admin/posts', {
     query: postListQuery.value
   }),
   { watch: [postListQuery] }
 )
 const { data: taxonomyData, error: taxonomyError, refresh: refreshTaxonomy } = await useAsyncData('admin-post-taxonomy-options', async () => {
   const [tagResponse, categoryResponse] = await Promise.all([
-    $fetch<{ tags: TagRecord[] }>('/api/admin/tags'),
-    $fetch<{ categories: CategoryRecord[] }>('/api/admin/categories')
+    sessionFetch<{ tags: TagRecord[] }>('/api/admin/tags'),
+    sessionFetch<{ categories: CategoryRecord[] }>('/api/admin/categories')
   ])
 
   return {
@@ -633,7 +633,6 @@ const selectedIds = ref<string[]>([])
 const quickEditEnabled = ref(false)
 const editingCell = ref<{ postId: string, field: EditableField } | null>(null)
 const savingCellKey = ref('')
-const rowClickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const passwordDialogOpen = ref(false)
 const pendingPasswordPost = ref<PostRecord | null>(null)
 const draft = reactive({
@@ -763,10 +762,6 @@ function runForSinglePost(post: PostRecord, action: () => void | Promise<void>) 
   void action()
 }
 
-onBeforeUnmount(() => {
-  clearRowClickTimer()
-})
-
 watch([
   titleQuery,
   selectedStatuses,
@@ -821,16 +816,27 @@ async function createPost() {
   }
 }
 
-function queueRowEdit(post: PostRecord) {
-  clearRowClickTimer()
-  rowClickTimer.value = setTimeout(() => {
+function onRowActivate(post: PostRecord) {
+  if (quickEditEnabled.value) {
     startCellEdit(post, 'title')
-    rowClickTimer.value = null
-  }, 240)
+    return
+  }
+
+  void openPost(post)
+}
+
+function onCellClick(post: PostRecord, field: EditableField, event: MouseEvent) {
+  // Quick-edit ON: a tap edits that specific cell (and must not open the post).
+  // Quick-edit OFF: let the click bubble to the row so a single tap opens it.
+  if (!quickEditEnabled.value) {
+    return
+  }
+
+  event.stopPropagation()
+  startCellEdit(post, field)
 }
 
 async function openPost(post: PostRecord) {
-  clearRowClickTimer()
   await navigateTo(`/admin/posts/${encodeURIComponent(post.id)}`)
 }
 
@@ -839,7 +845,6 @@ function startCellEdit(post: PostRecord, field: EditableField) {
     return
   }
 
-  clearRowClickTimer()
   editingCell.value = { postId: post.id, field }
   draft.title = post.title
   draft.status = post.status === 'archived' ? 'draft' : post.status
@@ -1335,14 +1340,5 @@ function formatContentLength(post: PostRecord) {
   if (cjk) parts.push(t('admin.posts.contentLength.chars', { count: formatAdminNumber(cjk) }))
   if (words) parts.push(t('admin.posts.contentLength.words', { count: formatAdminNumber(words) }))
   return parts.join(' · ')
-}
-
-function clearRowClickTimer() {
-  if (!rowClickTimer.value) {
-    return
-  }
-
-  clearTimeout(rowClickTimer.value)
-  rowClickTimer.value = null
 }
 </script>

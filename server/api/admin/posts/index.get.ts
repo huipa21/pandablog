@@ -8,7 +8,6 @@ import type { PostRecord, PostStatus, PostVisibility } from '~/types/content'
 const statuses: Array<PostStatus | 'all'> = ['all', 'draft', 'published', 'archived']
 const postStatuses: PostStatus[] = ['draft', 'published', 'archived']
 const postVisibilities: PostVisibility[] = ['public', 'private', 'password']
-const contentUnits = '((word_count ?? 0) + (cjk_char_count ?? 0))'
 const sortOrders = {
   updated_desc: 'updated_at DESC',
   updated_asc: 'updated_at ASC',
@@ -20,8 +19,8 @@ const sortOrders = {
   status_desc: 'status DESC, updated_at DESC',
   visibility_asc: 'visibility ASC, updated_at DESC',
   visibility_desc: 'visibility DESC, updated_at DESC',
-  length_asc: 'content_units ASC, id ASC',
-  length_desc: 'content_units DESC, id ASC'
+  length_asc: 'word_count ASC, cjk_char_count ASC, id ASC',
+  length_desc: 'word_count DESC, cjk_char_count DESC, id ASC'
 } as const
 type AdminPostSort = keyof typeof sortOrders
 
@@ -85,12 +84,12 @@ export default defineEventHandler(async (event) => {
   }
 
   if (lengthMin !== null) {
-    conditions.push(`${contentUnits} >= $lengthMin`)
+    conditions.push('(word_count >= $lengthMin OR cjk_char_count >= $lengthMin)')
     params.lengthMin = lengthMin
   }
 
   if (lengthMax !== null) {
-    conditions.push(`${contentUnits} <= $lengthMax`)
+    conditions.push('(word_count <= $lengthMax OR cjk_char_count <= $lengthMax)')
     params.lengthMax = lengthMax
   }
 
@@ -126,7 +125,6 @@ export default defineEventHandler(async (event) => {
     db,
     `SELECT id, title, slug, summary, status, cover_image, author_username,
       published_at, created_at, updated_at, view_count, word_count, cjk_char_count,
-      ${contentUnits} AS content_units,
       visibility, password_hint, password_source, password_owner
      FROM post WHERE ${where} ORDER BY ${orderBy} LIMIT $limit START $start;
      SELECT count() AS total FROM post WHERE ${where} GROUP ALL;

@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const response = await queryDb(
     db,
     `SELECT * FROM category ORDER BY name ASC;
-     SELECT out, count() AS total FROM categorized_as GROUP BY out;`
+      SELECT out FROM categorized_as;`
   )
   const counts = countMap(queryRows<Record<string, unknown>>(response, 1))
   const categories = queryRows<Record<string, unknown>>(response, 0).map((category) => normalizeCategory({
@@ -23,5 +23,10 @@ export default defineEventHandler(async (event) => {
 })
 
 function countMap(rows: Array<Record<string, unknown>>) {
-  return new Map(rows.map((row) => [stringifyRecordId(row.out), Number(row.total ?? 0)]))
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const id = stringifyRecordId(row.out)
+    counts.set(id, (counts.get(id) ?? 0) + 1)
+  }
+  return counts
 }

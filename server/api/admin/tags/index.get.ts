@@ -11,9 +11,9 @@ export default defineEventHandler(async (event) => {
   const baseResponse = await queryDb(
     db,
     `SELECT * FROM tag ORDER BY name ASC;
-     SELECT out, count() AS total FROM tagged GROUP BY out;`
+      SELECT out FROM tagged;`
   )
-  const postCounts = new Map(queryRows<Record<string, unknown>>(baseResponse, 1).map((row) => [stringifyRecordId(row.out), Number(row.total ?? 0)]))
+    const postCounts = countByTarget(queryRows<Record<string, unknown>>(baseResponse, 1))
 
   const tags = queryRows<Record<string, unknown>>(baseResponse, 0).map((tag) => {
     const tagId = stringifyRecordId(tag.id)
@@ -25,3 +25,12 @@ export default defineEventHandler(async (event) => {
 
   return { tags: tags satisfies TagRecord[] }
 })
+
+function countByTarget(rows: Array<Record<string, unknown>>) {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const id = stringifyRecordId(row.out)
+    counts.set(id, (counts.get(id) ?? 0) + 1)
+  }
+  return counts
+}

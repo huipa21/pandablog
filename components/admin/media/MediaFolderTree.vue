@@ -29,7 +29,7 @@
             <span class="truncate">{{ folder.name }}</span>
           </button>
           <UDropdownMenu v-if="folder.slug !== 'default'" :items="folderMenu(folder)">
-            <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="opacity-0 group-hover:opacity-100" />
+            <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="pb-hover-reveal" />
           </UDropdownMenu>
         </div>
         <p v-if="!folders.length" class="px-2 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.noFolders') }}</p>
@@ -52,7 +52,7 @@
             <span class="truncate">{{ sf.name }}</span>
           </button>
           <UDropdownMenu :items="smartFolderMenu(sf)">
-            <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="opacity-0 group-hover:opacity-100" />
+            <UButton type="button" icon="i-lucide-ellipsis" size="xs" variant="ghost" color="neutral" class="pb-hover-reveal" />
           </UDropdownMenu>
         </div>
         <p v-if="!smartFolders.length" class="px-2 text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.noSmartFolders') }}</p>

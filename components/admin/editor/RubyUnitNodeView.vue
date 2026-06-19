@@ -164,6 +164,25 @@ function onClick(event: MouseEvent) {
 
   // Plain click — replace selection with this single ruby and (re)set anchor.
   setMultiSelection(editor.view, [pos], pos, blockPos)
+
+  // Touch devices have no practical double-click, so a plain tap opens the
+  // reading editor directly (mouse keeps select-on-click / edit-on-dblclick).
+  if (isCoarsePointer()) {
+    toggleReadingPopover(editor, pos)
+  }
+}
+
+function isCoarsePointer() {
+  return typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches
+}
+
+function toggleReadingPopover(editor: NonNullable<typeof props.editor>, pos: number) {
+  const state = getRubyEditState(editor.state)
+  if (state.openPopoverPos === pos) {
+    setOpenPopover(editor.view, null)
+  } else {
+    setOpenPopover(editor.view, pos)
+  }
 }
 
 function onDoubleClick() {
@@ -172,12 +191,7 @@ function onDoubleClick() {
   const pos = myPos.value
   if (pos === null) return
   // Toggle: dbl-clicking the same ruby twice closes the popover.
-  const state = getRubyEditState(editor.state)
-  if (state.openPopoverPos === pos) {
-    setOpenPopover(editor.view, null)
-  } else {
-    setOpenPopover(editor.view, pos)
-  }
+  toggleReadingPopover(editor, pos)
 }
 
 function closePopover() {
