@@ -107,7 +107,7 @@ const layoutClasses = computed(() => [
 const skeletonCount = computed(() => isListView.value ? 4 : 6)
 const skeletonClasses = computed(() => [
   'rounded-[var(--pb-radius-card-outer)]',
-  isListView.value ? 'h-52' : 'aspect-square'
+  isListView.value ? 'h-40 sm:h-52' : 'aspect-square'
 ])
 const articleClasses = computed(() => [
   'group relative min-w-0 cursor-pointer overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)] hover:shadow-[var(--pb-shadow-md)]',
@@ -115,23 +115,22 @@ const articleClasses = computed(() => [
 ])
 const mediaClasses = computed(() => [
   'relative z-0 block overflow-hidden bg-[var(--pb-surface-subtle)]',
-  isListView.value ? 'h-full' : 'h-full min-h-0'
+  isListView.value ? 'h-full min-h-0' : 'h-full min-h-0'
 ])
 const imageClasses = computed(() => [
-  'w-full object-cover transition duration-500 group-hover:scale-[1.03]',
-  isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'h-full aspect-auto'
+  'h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]',
+  isListView.value ? 'aspect-auto' : 'aspect-auto'
 ])
 const placeholderClasses = computed(() => [
-  'grid w-full place-items-center bg-[linear-gradient(135deg,var(--pb-surface-subtle),var(--pb-selected-bg))]',
-  isListView.value ? 'aspect-[3/2] md:h-full md:min-h-52 md:aspect-auto' : 'h-full aspect-auto'
+  'grid h-full w-full place-items-center bg-[linear-gradient(135deg,var(--pb-surface-subtle),var(--pb-selected-bg))]'
 ])
 const contentClasses = computed(() => [
   'flex min-w-0 flex-1 flex-col',
-  isListView.value ? 'p-5 md:p-6' : 'min-h-0 overflow-hidden p-5'
+  isListView.value ? 'p-4 sm:p-5 md:p-6' : 'min-h-0 overflow-hidden p-5'
 ])
 const titleClasses = computed(() => [
   'font-[var(--pb-font-display)] font-semibold leading-tight text-[var(--pb-text)] transition group-hover:text-[var(--pb-link-hover)]',
-  isListView.value ? 'text-2xl' : 'text-xl'
+  isListView.value ? 'text-xl sm:text-2xl' : 'text-xl'
 ])
 const summaryClasses = computed(() => [
   'mt-3 text-sm leading-relaxed text-[var(--pb-text-muted)]',
@@ -201,7 +200,8 @@ function postExcerpt(post: PostListItem) {
 }
 
 .post-card-list-item {
-  grid-template-columns: minmax(0, 1fr);
+  min-height: 11rem;
+  grid-template-columns: minmax(7rem, 34%) minmax(0, 1fr);
 }
 
 @media (min-width: 640px) {
@@ -217,6 +217,13 @@ function postExcerpt(post: PostListItem) {
 
   .post-card-list-item {
     grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .post-card-list-item {
+    min-height: 9.5rem;
+    grid-template-columns: minmax(5.75rem, 30%) minmax(0, 1fr);
   }
 }
 </style>

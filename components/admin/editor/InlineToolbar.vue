@@ -5,7 +5,7 @@
     :tippy-options="bubbleTippyOptions"
     :should-show="shouldShow"
   >
-    <div class="flex items-center gap-1 rounded-md border border-stone-200 bg-white p-1 shadow-lg" data-testid="inline-formatting-toolbar">
+    <div class="inline-formatting-toolbar flex items-center gap-1 rounded-md border border-stone-200 bg-white p-1 shadow-lg" data-testid="inline-formatting-toolbar">
       <UTooltip :text="t('admin.editor.toolbar.bold')">
         <UButton type="button" icon="i-lucide-bold" size="xs" :color="editor.isActive('bold') ? 'primary' : 'neutral'" variant="ghost" @mousedown.prevent="editor.chain().focus().toggleBold().run()" />
       </UTooltip>
@@ -78,7 +78,8 @@ const bubbleTippyOptions = {
   appendTo: () => document.body,
   duration: 120,
   interactive: true,
-  placement: 'top' as const
+  placement: 'top' as const,
+  maxWidth: 'calc(100vw - 1rem)'
 }
 const highlightColors = HIGHLIGHT_COLORS
 const linkDialogOpen = ref(false)
@@ -141,3 +142,18 @@ function unsetHighlight() {
   ;(props.editor?.chain().focus() as any)?.unsetHighlight().run()
 }
 </script>
+
+<style scoped>
+@media (max-width: 767px) {
+  .inline-formatting-toolbar {
+    position: fixed;
+    right: 0.5rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+    left: 0.5rem;
+    max-width: calc(100vw - 1rem);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--pb-radius-card-outer);
+  }
+}
+</style>

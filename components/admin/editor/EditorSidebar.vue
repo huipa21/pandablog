@@ -1,5 +1,5 @@
 <template>
-  <aside class="h-full border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)]">
+  <aside data-testid="editor-sidebar-panel" class="h-full border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] pt-12 md:pt-0">
     <div class="sticky top-0 z-10 flex border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)]">
       <button
         type="button"

@@ -9,6 +9,7 @@
         <div class="flex min-w-0 items-center gap-3">
           <button
             v-if="!hideSidebar"
+            data-testid="admin-mobile-menu-button"
             class="grid size-10 place-items-center rounded-[var(--pb-radius-md)] text-[var(--pb-text-muted)] md:hidden"
             :aria-label="t('admin.layout.openNavigation')"
             @click="sidebarOpen = !sidebarOpen"
@@ -84,19 +85,20 @@
       >
         <img v-if="siteLogo" :src="siteLogo" alt="" class="h-7 w-7 shrink-0">
         <PandaLogo v-else :size="28" class="text-[var(--pb-primary)]" />
-        <span v-if="!collapsed" class="truncate font-semibold">{{ siteName }}</span>
+        <span class="truncate font-semibold" :class="collapsed ? 'md:hidden' : ''">{{ siteName }}</span>
       </NuxtLink>
 
       <nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
         <template v-for="section in navSections" :key="section.label || 'root'">
           <div
-            v-if="section.label && !collapsed"
+            v-if="section.label"
             class="mt-4 mb-1 px-3 text-xs font-medium text-[var(--pb-text-subtle)]"
+            :class="collapsed ? 'md:hidden' : ''"
           >
             {{ section.label }}
           </div>
           <div
-            v-else-if="section.label && collapsed"
+            v-if="section.label && collapsed"
             class="mx-2 my-3 hidden border-t border-[var(--pb-border)] md:block"
             aria-hidden="true"
           />
@@ -115,7 +117,7 @@
             @click="closeIfMobile"
           >
             <UIcon :name="item.icon" class="size-5 shrink-0" />
-            <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
+            <span class="truncate" :class="collapsed ? 'md:hidden' : ''">{{ item.label }}</span>
           </NuxtLink>
         </template>
       </nav>
@@ -129,7 +131,7 @@
         @click="toggleCollapsed"
       >
         <UIcon :name="collapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-5 shrink-0" />
-        <span v-if="!collapsed">{{ t('admin.layout.collapse') }}</span>
+        <span :class="collapsed ? 'md:hidden' : ''">{{ t('admin.layout.collapse') }}</span>
       </button>
     </aside>
 

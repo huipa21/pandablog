@@ -14,7 +14,7 @@
 
     <div
       v-if="open"
-      class="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]"
+      class="absolute right-0 z-20 mt-2 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]"
       @click.stop
     >
       <div class="flex items-center justify-between border-b border-[var(--pb-divider)] px-3 py-2">

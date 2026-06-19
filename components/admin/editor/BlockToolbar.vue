@@ -1055,6 +1055,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
 .block-toolbar {
   display: inline-flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 2px;
   color: var(--pb-text);
   background: color-mix(in srgb, var(--pb-card-bg) 96%, var(--pb-text) 4%);
@@ -1063,6 +1064,35 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   padding: 4px;
   box-shadow: var(--pb-shadow-lg), 0 0 0 1px color-mix(in srgb, var(--pb-text) 8%, transparent);
   z-index: 1000;
+}
+
+@media (max-width: 767px) {
+  .block-toolbar {
+    position: fixed !important;
+    right: 0.5rem !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
+    left: 0.5rem !important;
+    top: auto !important;
+    max-width: calc(100vw - 1rem);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--pb-radius-card-outer);
+    padding: 0.375rem;
+  }
+
+  .block-toolbar .bt-btn:first-child,
+  .block-toolbar .bt-separator:first-of-type {
+    display: none;
+  }
+
+  .bt-highlight-popover {
+    position: fixed;
+    right: 0.75rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 3.75rem);
+    left: auto;
+    top: auto;
+    max-width: calc(100vw - 1.5rem);
+  }
 }
 
 :global([data-theme="dark"]) .block-toolbar {

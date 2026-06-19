@@ -2818,6 +2818,20 @@ function getTopLevelBlockIndexAt(ed: Editor, pos: number) {
   background: var(--pb-card-bg-hover);
 }
 
+@media (max-width: 767px) {
+  .block-editor-grid,
+  .block-active-overlay {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+
+  .editor-gutter-col,
+  .block-grid-handle,
+  .block-grid-add {
+    display: none;
+  }
+}
+
 :deep(.pandablog-block-editor .ProseMirror > *) {
   position: relative;
   margin-bottom: 0.75rem;

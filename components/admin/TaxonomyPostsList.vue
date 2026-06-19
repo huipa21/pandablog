@@ -18,8 +18,59 @@
       <USkeleton v-for="index in 4" :key="index" class="h-12" />
     </div>
 
-    <div v-else-if="posts.length" class="overflow-x-auto">
-      <table class="w-full min-w-[980px] border-collapse text-left text-sm">
+    <template v-else-if="posts.length">
+      <div class="grid gap-3 p-3 md:hidden">
+        <NuxtLink
+        v-for="post in posts"
+        :key="post.id"
+        :to="`/admin/posts/${encodeURIComponent(post.id)}`"
+        class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-card-bg-hover)]"
+      >
+        <div class="min-w-0">
+          <h3 class="truncate font-medium text-[var(--pb-text)]">{{ post.title || t('admin.common.untitled') }}</h3>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--pb-text-subtle)]">
+            <UBadge :color="post.status === 'published' ? 'success' : post.status === 'archived' ? 'warning' : 'neutral'" variant="subtle" size="xs">
+              {{ post.status }}
+            </UBadge>
+            <span class="inline-flex items-center gap-1">
+              <UIcon :name="visibilityIcon(post.visibility)" class="size-3.5" />
+              {{ visibilityLabel(post.visibility) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="grid gap-2 text-sm">
+          <div class="grid gap-1">
+            <span class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.tags') }}</span>
+            <span v-if="post.tags?.length" class="flex flex-wrap gap-1">
+              <UBadge v-for="tag in post.tags" :key="tag.id" color="neutral" variant="subtle" size="xs">{{ tag.name }}</UBadge>
+            </span>
+            <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noTags') }}</span>
+          </div>
+          <div class="grid gap-1">
+            <span class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.categories') }}</span>
+            <span v-if="post.categories?.length" class="flex flex-wrap gap-1">
+              <UBadge v-for="category in post.categories" :key="category.id" color="primary" variant="subtle" size="xs">{{ category.name }}</UBadge>
+            </span>
+            <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noCategories') }}</span>
+          </div>
+        </div>
+
+        <dl class="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.published') }}</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(post.published_at) }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.updated') }}</dt>
+            <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(post.updated_at) }}</dd>
+          </div>
+        </dl>
+        </NuxtLink>
+      </div>
+
+      <div class="hidden overflow-x-auto md:block">
+        <table class="w-full min-w-[980px] border-collapse text-left text-sm">
         <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
           <tr>
             <th class="min-w-64 px-4 py-3 font-medium">{{ t('admin.posts.table.title') }}</th>
@@ -65,8 +116,9 @@
             <td class="px-4 py-3 align-top text-[var(--pb-text-muted)]">{{ formatDate(post.updated_at) }}</td>
           </tr>
         </tbody>
-      </table>
-    </div>
+        </table>
+      </div>
+    </template>
 
     <UEmpty v-else icon="i-lucide-file-text" :title="t('admin.posts.assignedEmptyTitle')" :description="t('admin.posts.assignedEmptyDescription')" class="py-12" />
 

@@ -9,8 +9,8 @@
           {{ yearTitle }}
         </h2>
       </div>
-      <div class="flex flex-col items-start gap-2 sm:items-end">
-        <USelect v-model="selectedYear" :items="yearOptions" size="sm" class="w-32" :aria-label="t('public.heatmap.yearAria')" />
+      <div class="flex w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
+        <USelect v-model="selectedYear" :items="yearOptions" size="sm" class="w-full sm:w-32" :aria-label="t('public.heatmap.yearAria')" />
         <p v-if="!pending && !error" class="text-sm text-[var(--pb-text-subtle)]">
           {{ totalPublishedLabel }}
         </p>
@@ -279,10 +279,25 @@ function cellColor(level: number) {
 .publish-heatmap-scroll {
   /* Allow horizontal scroll on narrow viewports without breaking page layout. */
   -webkit-overflow-scrolling: touch;
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   padding-top: 1.5rem;
+}
+
+.publish-heatmap-scroll::after {
+  position: sticky;
+  right: 0;
+  bottom: 0;
+  display: block;
+  float: right;
+  width: 2rem;
+  height: 6rem;
+  margin-top: -6rem;
+  background: linear-gradient(90deg, transparent, var(--pb-card-bg));
+  content: '';
+  pointer-events: none;
 }
 
 .publish-heatmap-board {

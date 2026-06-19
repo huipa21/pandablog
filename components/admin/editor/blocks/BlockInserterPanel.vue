@@ -3,7 +3,7 @@
   <aside
     v-if="inline"
     v-show="open"
-    class="absolute inset-y-0 left-0 z-40 flex h-full w-[320px] flex-col border-r border-stone-200 bg-white shadow-lg"
+    class="fixed inset-0 z-50 flex h-full w-full flex-col border-r border-stone-200 bg-white shadow-lg md:absolute md:inset-y-0 md:left-0 md:z-40 md:w-[320px]"
     data-testid="block-inserter-panel"
     data-inline="true"
     @keydown.esc="$emit('close')"
@@ -15,7 +15,7 @@
   <Teleport v-else to="body">
     <div v-if="open" class="fixed inset-0 z-50" data-testid="block-inserter-panel" @keydown.esc="$emit('close')">
       <button type="button" class="absolute inset-0 cursor-default bg-black/20" :aria-label="t('admin.editor.inserter.close')" @click="$emit('close')" />
-      <aside class="absolute bottom-0 left-0 top-0 flex w-[320px] flex-col border-r border-stone-200 bg-white shadow-xl">
+      <aside class="absolute inset-0 flex w-full flex-col border-r border-stone-200 bg-white shadow-xl md:bottom-0 md:left-0 md:top-0 md:w-[320px]">
         <BlockInserterBody @close="$emit('close')" @insert="$emit('insert', $event)" />
       </aside>
     </div>

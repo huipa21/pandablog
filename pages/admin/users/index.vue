@@ -47,8 +47,48 @@
         <USkeleton v-for="index in 4" :key="index" class="h-14" />
       </div>
 
-      <div v-else-if="users.length" class="overflow-x-auto">
-        <table class="w-full min-w-[760px] table-fixed border-collapse text-left text-sm xl:min-w-0">
+      <template v-else-if="users.length">
+        <div class="grid gap-3 p-3 md:hidden">
+          <article
+          v-for="user in users"
+          :key="user.id"
+          class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]"
+          :class="[!user.active ? 'opacity-60' : '', selectedIds.includes(user.id) ? 'pb-selected-surface' : '']"
+        >
+          <div class="flex min-w-0 items-start gap-3">
+            <input v-model="selectedIds" type="checkbox" :value="user.id" class="mt-1 rounded border-[var(--pb-border-strong)]" :aria-label="t('admin.users.selectUser', { username: user.username })">
+            <button type="button" class="min-w-0 flex-1 text-left" @click="openUserDetail(user)">
+              <span class="block truncate font-medium text-[var(--pb-text)]">{{ user.display_name || user.username }}</span>
+              <span class="mt-1 block truncate text-sm text-[var(--pb-text-muted)]">@{{ user.username }}</span>
+            </button>
+            <UDropdownMenu :items="userCardMenuItems(user)">
+              <UButton icon="i-lucide-more-vertical" color="neutral" variant="ghost" size="sm" :aria-label="t('admin.common.actions')" />
+            </UDropdownMenu>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.users.role') }}</dt>
+              <dd class="mt-1"><UBadge color="neutral" variant="subtle">{{ roleLabel(user.role) }}</UBadge></dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.users.lastLogin') }}</dt>
+              <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(user.last_login_at) }}</dd>
+            </div>
+            <div class="col-span-2">
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.users.email') }}</dt>
+              <dd class="mt-1 truncate text-[var(--pb-text-muted)]">{{ user.email || t('admin.users.noEmail') }}</dd>
+            </div>
+            <div v-if="!user.active">
+              <dt class="sr-only">{{ t('admin.users.disabled') }}</dt>
+              <dd><UBadge color="neutral" variant="subtle">{{ t('admin.users.disabled') }}</UBadge></dd>
+            </div>
+          </dl>
+          </article>
+        </div>
+
+        <div class="hidden overflow-x-auto md:block">
+          <table class="w-full min-w-[760px] table-fixed border-collapse text-left text-sm xl:min-w-0">
           <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
             <tr>
               <th class="w-12 px-4 py-3 font-medium">
@@ -98,8 +138,9 @@
               <td class="truncate px-4 py-3 align-top text-[var(--pb-text-muted)]">{{ formatDate(user.last_login_at) }}</td>
             </tr>
           </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
+      </template>
 
       <UEmpty v-else icon="i-lucide-users" :title="t('admin.users.emptyTitle')" :description="t('admin.users.emptyDescription')" class="py-12" />
 
@@ -342,6 +383,28 @@ const bulkActionItems = computed(() => [[
     onSelect: openRoleDialog
   }
 ]])
+
+function userCardMenuItems(user: ManagedUser) {
+  return [[
+    {
+      label: t('admin.users.actions.viewDetails'),
+      icon: 'i-lucide-user-round-search',
+      onSelect: () => openUserDetail(user)
+    },
+    {
+      label: user.active ? t('admin.users.actions.disable') : t('admin.users.actions.enable'),
+      icon: user.active ? 'i-lucide-user-x' : 'i-lucide-user-check',
+      color: user.active ? ('warning' as const) : ('primary' as const),
+      disabled: user.active && user.id === currentUser.value?.id,
+      onSelect: () => openSingleUserStatusDialog(user)
+    }
+  ]]
+}
+
+function openSingleUserStatusDialog(user: ManagedUser) {
+  selectedIds.value = [user.id]
+  openBulkStatusDialog(user.active ? 'disable' : 'enable')
+}
 
 watch(roleValues, (roles) => {
   if (roleFilter.value !== 'all' && !roles.includes(roleFilter.value)) {

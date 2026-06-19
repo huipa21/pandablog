@@ -14,6 +14,7 @@
           <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28 max-w-full shrink-0" :aria-label="t('public.home.postsPerPage')" />
           <div class="inline-flex rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-1">
             <UButton
+              data-testid="post-view-grid-toggle"
               size="sm"
               :variant="viewMode === 'grid' ? 'solid' : 'ghost'"
               :color="viewMode === 'grid' ? 'primary' : 'neutral'"
@@ -22,6 +23,7 @@
               @click="viewMode = 'grid'"
             />
             <UButton
+              data-testid="post-view-list-toggle"
               size="sm"
               :variant="viewMode === 'list' ? 'solid' : 'ghost'"
               :color="viewMode === 'list' ? 'primary' : 'neutral'"

@@ -32,8 +32,73 @@
         <USkeleton v-for="index in 4" :key="index" class="h-12" />
       </div>
 
-      <div v-else-if="posts.length" class="overflow-x-auto">
-        <table class="w-full min-w-[1120px] border-collapse text-left text-sm">
+      <template v-else-if="posts.length">
+        <div class="grid gap-3 p-3 md:hidden">
+          <article
+          v-for="post in posts"
+          :key="post.id"
+          class="grid gap-3 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]"
+          :class="selectedIds.includes(post.id) ? 'pb-selected-surface' : ''"
+        >
+          <div class="flex min-w-0 items-start gap-3">
+            <input v-model="selectedIds" type="checkbox" :value="post.id" class="mt-1 rounded border-[var(--pb-border-strong)]" :aria-label="post.title || t('admin.common.untitled')">
+            <button type="button" class="min-w-0 flex-1 text-left" @click="openPost(post)">
+              <span class="block truncate font-medium text-[var(--pb-text)]">{{ post.title || t('admin.common.untitled') }}</span>
+              <span class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--pb-text-subtle)]">
+                <UBadge :color="post.status === 'published' ? 'success' : post.status === 'archived' ? 'warning' : 'neutral'" variant="subtle" size="xs">
+                  {{ statusLabel(post.status) }}
+                </UBadge>
+                <span class="inline-flex items-center gap-1">
+                  <UIcon :name="visibilityIcon(post.visibility)" class="size-3.5" />
+                  {{ visibilityLabel(post.visibility) }}
+                </span>
+              </span>
+            </button>
+            <UDropdownMenu :items="postCardMenuItems(post)">
+              <UButton icon="i-lucide-more-vertical" color="neutral" variant="ghost" size="sm" :aria-label="t('admin.common.actions')" />
+            </UDropdownMenu>
+          </div>
+
+          <div class="grid gap-2 text-sm">
+            <div class="grid gap-1">
+              <span class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.tags') }}</span>
+              <span v-if="post.tags?.length" class="flex flex-wrap gap-1">
+                <UBadge v-for="tag in post.tags" :key="tag.id" color="neutral" variant="subtle" size="xs">{{ tag.name }}</UBadge>
+              </span>
+              <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noTags') }}</span>
+            </div>
+            <div class="grid gap-1">
+              <span class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.categories') }}</span>
+              <span v-if="post.categories?.length" class="flex flex-wrap gap-1">
+                <UBadge v-for="category in post.categories" :key="category.id" color="primary" variant="subtle" size="xs">{{ category.name }}</UBadge>
+              </span>
+              <span v-else class="text-[var(--pb-text-subtle)]">{{ t('admin.common.noCategories') }}</span>
+            </div>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.length') }}</dt>
+              <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatContentLength(post) }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.updated') }}</dt>
+              <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(post.updated_at, t('admin.posts.notSet')) }}</dd>
+            </div>
+            <div>
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.table.published') }}</dt>
+              <dd class="mt-1 text-[var(--pb-text-muted)]">{{ formatDate(post.published_at, t('admin.posts.notPublished')) }}</dd>
+            </div>
+            <div v-if="isSavingPost(post.id)">
+              <dt class="text-xs font-medium uppercase tracking-wide text-[var(--pb-text-subtle)]">{{ t('admin.posts.saving') }}</dt>
+              <dd class="mt-1 text-[var(--pb-link)]">{{ t('admin.posts.saving') }}</dd>
+            </div>
+          </dl>
+          </article>
+        </div>
+
+        <div class="hidden overflow-x-auto md:block">
+          <table class="w-full min-w-[1120px] border-collapse text-left text-sm">
           <thead class="bg-[var(--pb-surface-subtle)] text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">
             <tr>
               <th class="w-12 px-4 py-3 font-medium">
@@ -63,7 +128,7 @@
                       :placeholder="t('admin.posts.columnFilter.titlePlaceholder')"
                       :color="titleRegexValid ? undefined : 'error'"
                     />
-                    <p v-if="!titleRegexValid" class="text-xs text-[var(--color-danger,#dc2626)]">{{ t('admin.posts.columnFilter.titleInvalid') }}</p>
+                    <p v-if="!titleRegexValid" class="text-xs text-[var(--ui-error)]">{{ t('admin.posts.columnFilter.titleInvalid') }}</p>
                   </div>
                 </AdminPostColumnFilter>
               </th>
@@ -365,8 +430,9 @@
               </td>
             </tr>
           </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
+      </template>
 
       <UEmpty v-else icon="i-lucide-file-text" :title="t('admin.posts.emptyTitle')" :description="t('admin.posts.emptyDescription')" class="py-12" />
 
@@ -658,6 +724,44 @@ const actionsMenuItems = computed(() => [[
         }
       ])
 ]])
+
+function postCardMenuItems(post: PostRecord) {
+  return [[
+    {
+      label: t('admin.posts.actions.edit'),
+      icon: 'i-lucide-square-pen',
+      onSelect: () => openPost(post)
+    },
+    ...(post.status === 'archived'
+      ? [
+          {
+            label: t('admin.posts.actions.restore'),
+            icon: 'i-lucide-rotate-ccw',
+            color: 'primary' as const,
+            onSelect: () => runForSinglePost(post, restoreSelected)
+          },
+          {
+            label: t('admin.posts.actions.deletePermanently'),
+            icon: 'i-lucide-trash-2',
+            color: 'error' as const,
+            onSelect: () => runForSinglePost(post, deletePermanentlySelected)
+          }
+        ]
+      : [
+          {
+            label: t('admin.posts.actions.archive'),
+            icon: 'i-lucide-archive',
+            color: 'primary' as const,
+            onSelect: () => runForSinglePost(post, openBulkActionDialog)
+          }
+        ])
+  ]]
+}
+
+function runForSinglePost(post: PostRecord, action: () => void | Promise<void>) {
+  selectedIds.value = [post.id]
+  void action()
+}
 
 onBeforeUnmount(() => {
   clearRowClickTimer()

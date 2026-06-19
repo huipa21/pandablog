@@ -35,10 +35,7 @@
             </UButton>
           </div>
 
-          <div class="flex items-center gap-2">
-            <button class="grid size-9 place-items-center rounded-[var(--pb-radius-md)] text-[var(--pb-text-muted)] md:hidden" :aria-label="t('public.nav.toggleNavigation')" @click="mobileNav = !mobileNav">
-              <UIcon name="i-lucide-menu" class="size-5" />
-            </button>
+          <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <UButton
               variant="ghost"
               color="neutral"
@@ -59,20 +56,6 @@
               {{ t('public.nav.login') }}
             </UButton>
           </div>
-        </div>
-        <!-- Mobile nav dropdown -->
-        <div v-if="mobileNav" class="px-5 py-2 md:hidden">
-          <UButton
-            to="/"
-            variant="ghost"
-            color="neutral"
-            size="sm"
-            icon="i-lucide-home"
-            block
-            @click="mobileNav = false"
-          >
-            {{ t('public.nav.home') }}
-          </UButton>
         </div>
       </nav>
     </header>

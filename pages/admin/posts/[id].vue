@@ -1,7 +1,7 @@
 <template>
   <section class="h-[calc(100vh-3.5rem)] overflow-hidden bg-[var(--pb-app-bg)]">
-    <div class="z-20 flex min-h-14 items-center justify-between gap-3 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-4">
-      <div class="flex min-w-0 items-center gap-3">
+    <div class="z-20 flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-3 py-2 md:gap-3 md:px-4">
+      <div class="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
         <UButton to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
           {{ t('admin.editor.backToPosts') }}
         </UButton>
@@ -15,40 +15,48 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex shrink-0 items-center gap-1.5 md:gap-2">
         <UButton
           type="button"
           icon="i-lucide-save"
           variant="soft"
+          size="sm"
           :loading="savingAction === 'save-local'"
           :disabled="savingAction !== null"
+          :aria-label="t('admin.editor.save')"
           @click="saveLocal()"
         >
-          {{ t('admin.editor.save') }}
+          <span class="hidden sm:inline">{{ t('admin.editor.save') }}</span>
         </UButton>
         <UButton
           type="button"
           icon="i-lucide-send"
           color="primary"
+          size="sm"
           :loading="savingAction === 'publish'"
           :disabled="savingAction !== null"
+          :aria-label="currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish')"
           @click="publishOrUpdate()"
         >
-          {{ currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish') }}
+          <span class="hidden sm:inline">{{ currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish') }}</span>
         </UButton>
         <UButton
           type="button"
           icon="i-lucide-external-link"
           variant="soft"
           color="neutral"
+          size="sm"
           :to="viewLink || undefined"
           target="_blank"
           :disabled="!viewLink"
+          :aria-label="t('admin.editor.view')"
         >
-          {{ t('admin.editor.view') }}
+          <span class="hidden sm:inline">{{ t('admin.editor.view') }}</span>
         </UButton>
+        <UButton type="button" icon="i-lucide-plus" color="neutral" variant="soft" size="sm" class="md:hidden" :aria-label="t('admin.editor.inserter.open')" data-testid="mobile-open-inserter" @click="editorStore.openInserter()" />
+        <UButton type="button" icon="i-lucide-panel-right-open" color="neutral" variant="soft" size="sm" class="md:hidden" :aria-label="t('admin.editor.sidebar.post')" data-testid="mobile-open-editor-sidebar" @click="rightPaneCollapsed = false" />
         <UDropdownMenu :items="moreMenuItems">
-          <UButton type="button" icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" />
+          <UButton type="button" icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
         </UDropdownMenu>
       </div>
     </div>
@@ -67,22 +75,22 @@
       />
 
       <main
-        class="min-w-0 flex-1 overflow-y-auto px-4 py-6 transition-[padding] duration-200 md:px-6 lg:px-8"
-        :class="editorStore.inserterOpen ? 'pl-[336px] md:pl-[348px] lg:pl-[356px]' : ''"
+        class="min-w-0 flex-1 overflow-y-auto px-3 py-4 pb-24 transition-[padding] duration-200 md:px-6 md:py-6 md:pb-6 lg:px-8"
+        :class="editorStore.inserterOpen ? 'md:pl-[348px] lg:pl-[356px]' : ''"
       >
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" :title="t('admin.editor.loadPostFailed')" />
           </div>
 
-          <form class="pb-editor-grid-shell rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-6 py-6 shadow-[var(--pb-shadow-sm)] md:px-10 md:py-8" @submit.prevent="saveLocal()">
+          <form class="pb-editor-grid-shell rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-5 shadow-[var(--pb-shadow-sm)] md:px-10 md:py-8" @submit.prevent="saveLocal()">
             <div class="pb-editor-row mb-8">
               <div class="pb-editor-gutter" aria-hidden="true" />
               <input
                 v-model="form.title"
                 type="text"
                 :placeholder="t('admin.editor.addTitle')"
-                class="w-full border-0 bg-transparent text-5xl font-semibold leading-tight tracking-normal text-[var(--pb-text)] outline-none placeholder:text-[var(--pb-text-placeholder)]"
+                class="w-full border-0 bg-transparent text-4xl font-semibold leading-tight tracking-normal text-[var(--pb-text)] outline-none placeholder:text-[var(--pb-text-placeholder)] md:text-5xl"
               >
               <div class="pb-editor-gutter" aria-hidden="true" />
             </div>
@@ -92,10 +100,10 @@
         </div>
       </main>
 
-      <div class="relative h-full shrink-0 border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width]" :class="rightPaneCollapsed ? 'w-11' : 'w-[340px]'">
+      <div class="fixed inset-0 z-50 h-full shrink-0 border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width] md:relative md:z-auto" :class="rightPaneCollapsed ? 'hidden md:block md:w-11' : 'w-full md:w-[340px]'">
         <button
           type="button"
-          class="absolute left-1 top-2 z-20 inline-flex size-7 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)]"
+          class="absolute left-3 top-3 z-20 inline-flex size-8 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)] md:left-1 md:top-2 md:size-7"
           :title="rightPaneCollapsed ? t('admin.editor.expandRightPane') : t('admin.editor.collapseRightPane')"
           @click="rightPaneCollapsed = !rightPaneCollapsed"
         >
@@ -104,7 +112,7 @@
 
         <EditorSidebar
           v-if="!rightPaneCollapsed"
-          class="h-full w-[340px]"
+          class="h-full w-full md:w-[340px]"
           :form="form"
           :categories="categories"
           :tags="tags"
@@ -168,7 +176,7 @@ const adminToast = useAdminToast()
 const currentStatus = ref<PostStatus>('draft')
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
-const rightPaneCollapsed = ref(false)
+const rightPaneCollapsed = ref(true)
 const leaveDialogOpen = ref(false)
 const pendingLeavePath = ref<string | null>(null)
 const bypassLeaveGuard = ref(false)
@@ -179,6 +187,12 @@ const keepNewDraftShell = ref(false)
 const saveStatusClass = computed(() =>
   saveStatusType.value === 'error' ? 'text-red-600' : 'text-[var(--pb-text-subtle)]'
 )
+
+onMounted(() => {
+  if (window.innerWidth >= 768) {
+    rightPaneCollapsed.value = false
+  }
+})
 
 function onInserterPick(name: string) {
   blockEditorRef.value?.pickBlock?.(name)
@@ -606,6 +620,13 @@ function statusLabel(status: PostStatus) {
 .pb-editor-grid-shell {
   --pb-editor-gutter: 32px;
   --pb-editor-gap: 8px;
+}
+
+@media (max-width: 767px) {
+  .pb-editor-grid-shell {
+    --pb-editor-gutter: 0px;
+    --pb-editor-gap: 0px;
+  }
 }
 
 .pb-editor-row {

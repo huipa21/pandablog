@@ -163,15 +163,15 @@ function countryLabel(country: string) {
 }
 
 function heatColor(ratio: number) {
-  if (ratio >= 0.72) return '#dc2626'
-  if (ratio >= 0.38) return '#f59e0b'
-  return '#0d9488'
+  if (ratio >= 0.72) return 'var(--ui-error)'
+  if (ratio >= 0.38) return 'var(--ui-warning)'
+  return 'var(--pb-link)'
 }
 
 function heatAreaColor(ratio: number) {
-  if (ratio >= 0.72) return '#fca5a5'
-  if (ratio >= 0.38) return '#fcd34d'
-  return '#5eead4'
+  if (ratio >= 0.72) return 'color-mix(in srgb, var(--ui-error) 34%, var(--pb-surface-subtle))'
+  if (ratio >= 0.38) return 'color-mix(in srgb, var(--ui-warning) 38%, var(--pb-surface-subtle))'
+  return 'color-mix(in srgb, var(--pb-link) 34%, var(--pb-surface-subtle))'
 }
 
 const COUNTRY_POINTS: Record<string, CountryPoint> = {
@@ -421,15 +421,15 @@ const COUNTRY_POINTS: Record<string, CountryPoint> = {
 }
 
 .analytics-geo-map-legend-swatch-low {
-  background: #0d9488;
+  background: var(--pb-link);
 }
 
 .analytics-geo-map-legend-swatch-mid {
-  background: #f59e0b;
+  background: var(--ui-warning);
 }
 
 .analytics-geo-map-legend-swatch-high {
-  background: #dc2626;
+  background: var(--ui-error);
 }
 
 .analytics-geo-map-empty {
