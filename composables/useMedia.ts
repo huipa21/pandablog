@@ -152,11 +152,11 @@ export function useMedia() {
   }
 
   function getFileUrl(id: string) {
-    return `/api/media/file/${encodeURIComponent(mediaHashFromId(id))}`
+    return `/media/${encodeURIComponent(mediaHashFromId(id))}`
   }
 
   function getThumbnailUrl(id: string) {
-    return `/api/media/variant/thumbnail/${encodeURIComponent(mediaHashFromId(id))}`
+    return `/media/${encodeURIComponent(mediaHashFromId(id))}?variant=thumbnail`
   }
 
   function formatFileSize(bytes: number): string {

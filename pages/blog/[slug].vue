@@ -19,13 +19,13 @@
       <article v-if="post && !error && !isLocked(post)" class="theme-scope grid min-w-0 gap-8">
         <figure v-if="post.cover_image" class="post-hero overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-hero-bg)] shadow-[var(--pb-shadow-md)]">
           <img
-            :src="post.cover_image"
+            :src="publicCoverImage"
             :alt="post.title"
             class="h-full w-full object-cover"
           >
         </figure>
 
-        <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-6 shadow-[var(--pb-shadow-sm)] md:p-8">
+        <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-4 shadow-[var(--pb-shadow-sm)] sm:p-6 md:p-8">
           <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--pb-text-subtle)]">
@@ -102,6 +102,7 @@ definePageMeta({ layout: false })
 
 const route = useRoute()
 const { t, locale } = useI18n()
+const { resolveMediaUrl } = useMediaUrl()
 const slug = computed(() => String(route.params.slug))
 
 type PublicFetch = <T>(url: string) => Promise<T>
@@ -126,6 +127,10 @@ const { data: post, error } = await useAsyncData(
 )
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
+const publicCoverImage = computed(() => {
+  const value = post.value
+  return value && !isLocked(value) ? resolveMediaUrl(value.cover_image ?? '') : ''
+})
 const editLink = computed(() => {
   const value = post.value
   if (!value || isLocked(value)) {
@@ -206,5 +211,19 @@ function markPostContentRaw(value: PostRecord | PostLockedResponse) {
     color-mix(in srgb, var(--pb-card-bg) 90%, var(--pb-selected-bg)),
     color-mix(in srgb, var(--pb-card-bg) 96%, var(--pb-selected-bg))
   );
+}
+
+@media (max-width: 767px) {
+  .post-shell {
+    max-width: none;
+  }
+
+  .post-reading-frame {
+    width: calc(100% + 2.5rem);
+    max-width: none;
+    margin-inline: -1.25rem;
+    border-inline: 0;
+    border-radius: 0;
+  }
 }
 </style>

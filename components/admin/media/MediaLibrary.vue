@@ -375,6 +375,7 @@ const adminToast = useAdminToast()
 const viewMode = ref<'grid' | 'list'>((typeof localStorage !== 'undefined' && localStorage.getItem('media-view-mode') as 'grid' | 'list') || 'grid')
 const itemsPerPage = ref(25)
 const sortBy = ref('uploaded_at_desc')
+let syncingMediaRoute = false
 const uploadModalOpen = ref(false)
 const searchModalOpen = ref(false)
 const smartFolderModalOpen = ref(false)
@@ -492,7 +493,13 @@ function tagStyle(count: number) {
 onMounted(async () => {
   applyRouteFilters()
   await Promise.all([loadFolders(), loadMedia(), loadSmartFolders(), loadMediaTags()])
+  await ensureInitialMediaDetailHistory()
   await openRouteMediaFile()
+})
+
+watch(() => route.query.file, () => {
+  if (syncingMediaRoute) return
+  void openRouteMediaFile()
 })
 
 async function loadMedia() {
@@ -706,6 +713,7 @@ function handleItemClick(file: MediaRecord) {
     toggleSelection(file.hash)
   } else {
     selectedMedia.value = file
+    pushSelectedMediaRoute(file.hash)
   }
 }
 
@@ -1025,16 +1033,45 @@ async function handleUploadComplete(results: Array<{ status: string }>) {
 
 async function openById(id: string) {
   selectedMedia.value = await getMedia(id)
+  pushSelectedMediaRoute(selectedMedia.value.hash)
 }
 
 async function openRouteMediaFile() {
   const fileId = stringQueryParam(route.query.file)
-  if (!fileId) return
+  if (!fileId) {
+    selectedMedia.value = null
+    return
+  }
+
+  if (selectedMedia.value?.hash === fileId || selectedMedia.value?.id === fileId) {
+    return
+  }
 
   try {
     selectedMedia.value = await getMedia(fileId)
   } catch (err: any) {
     adminToast.error(err, t('admin.media.loadFailed'))
+  }
+}
+
+async function ensureInitialMediaDetailHistory() {
+  if (!import.meta.client) return
+
+  const fileId = stringQueryParam(route.query.file)
+  if (!fileId) return
+
+  const back = typeof window.history.state?.back === 'string' ? window.history.state.back : ''
+  if (back.startsWith('/admin/media')) return
+
+  const query = { ...route.query }
+  delete query.file
+
+  syncingMediaRoute = true
+  try {
+    await router.replace({ query })
+    await router.push({ query: { ...query, file: fileId } })
+  } finally {
+    syncingMediaRoute = false
   }
 }
 
@@ -1044,7 +1081,18 @@ function closeDetailPanel() {
 
   const query = { ...route.query }
   delete query.file
-  void router.replace({ query })
+  void router.push({ query })
+}
+
+function pushSelectedMediaRoute(fileHash: string) {
+  if (stringQueryParam(route.query.file) === fileHash) return
+
+  void router.push({
+    query: {
+      ...route.query,
+      file: fileHash
+    }
+  })
 }
 
 function stringQueryParam(value: unknown) {

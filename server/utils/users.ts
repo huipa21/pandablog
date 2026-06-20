@@ -447,7 +447,7 @@ function normalizeAvatarRecordId(value: unknown, strict: boolean) {
 }
 
 function avatarUrlFromRecordId(value: string) {
-  return `/api/media/file/${encodeURIComponent(recordIdPart(value, 'files'))}`
+  return `/media/${encodeURIComponent(recordIdPart(value, 'files'))}`
 }
 
 function serializeDate(value: unknown): string | null {

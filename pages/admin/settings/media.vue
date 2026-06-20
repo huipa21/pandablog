@@ -187,6 +187,18 @@
               <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.media.localOnlyHelp') }}</span>
             </span>
           </label>
+
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input
+              v-model="form.prevent_hotlinking"
+              type="checkbox"
+              class="mt-1 rounded border-[var(--pb-border-strong)]"
+            >
+            <span class="grid gap-1">
+              <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.media.preventHotlinking') }}</span>
+              <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.media.preventHotlinkingHelp') }}</span>
+            </span>
+          </label>
         </fieldset>
 
         <fieldset class="space-y-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
@@ -242,6 +254,7 @@ interface MediaSettings {
   download_cleanup_hours: number
   public_base_url: string
   local_only: boolean
+  prevent_hotlinking: boolean
   orphan_cleanup_enabled: boolean
   orphan_cleanup_days: number
   orphan_cleanup_cron: string
@@ -277,6 +290,7 @@ const form = reactive<MediaSettings>({
   download_cleanup_hours: 1,
   public_base_url: '',
   local_only: false,
+  prevent_hotlinking: false,
   orphan_cleanup_enabled: false,
   orphan_cleanup_days: 30,
   orphan_cleanup_cron: '0 4 * * *'

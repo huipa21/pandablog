@@ -1,10 +1,10 @@
 <template>
   <div class="flex min-h-screen flex-col bg-[var(--pb-app-bg)] text-[var(--pb-text)]" :style="siteShellStyle">
     <!-- Full-width hero header with optional photo (home only) -->
-    <header v-if="isHome" class="public-site-hero relative isolate flex flex-col overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)]" :style="siteHeroStyle">
+    <header v-if="isHome" class="public-site-hero relative isolate hidden flex-col overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)] md:flex" :style="siteHeroStyle">
       <img
         v-if="siteBanner"
-        :src="siteBanner"
+        :src="publicSiteBanner"
         alt=""
         class="public-site-hero-image absolute inset-0 z-0 h-full w-full object-cover"
         :style="siteBannerStyle"
@@ -62,10 +62,10 @@
 
     <!-- Compact header on inner pages: keeps the hero photo, single navigation row.
          Sticky so it stays visible while scrolling the post content. -->
-    <header v-else class="public-site-header-compact sticky top-0 z-30 isolate flex overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)]" :style="siteCompactHeaderStyle">
+    <header class="public-site-header-compact sticky top-0 z-30 isolate flex overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)]" :class="isHome ? 'md:hidden' : undefined" :style="siteCompactHeaderStyle">
       <img
         v-if="siteBanner"
-        :src="siteBanner"
+        :src="publicSiteBanner"
         alt=""
         class="public-site-hero-image absolute inset-0 z-0 h-full w-full object-cover"
         :style="siteBannerStyle"
@@ -123,7 +123,12 @@
     </header>
 
     <!-- Public body -->
-    <div data-public-container="body" class="mx-auto min-w-0 w-full max-w-[var(--pb-site-content-max)] flex-1 px-5 py-8">
+    <div
+      data-public-container="body"
+      class="mx-auto min-w-0 w-full max-w-[var(--pb-site-content-max)] flex-1 px-5 py-8"
+      @touchstart.passive="onPublicTouchStart"
+      @touchend.passive="onPublicTouchEnd"
+    >
       <div v-if="hasLayoutSidebar" class="grid min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10">
         <main class="min-w-0">
           <slot />
@@ -137,6 +142,29 @@
             <BlogCategoryList />
           </template>
         </aside>
+
+        <Teleport to="body">
+          <div v-if="hasMobileSidebarDrawer" class="public-mobile-sidebar md:hidden" :class="mobileSidebarOpen ? 'is-open' : undefined">
+            <button
+              type="button"
+              class="public-mobile-sidebar-backdrop"
+              aria-label="Close sidebar"
+              @click="mobileSidebarOpen = false"
+            />
+            <aside class="public-mobile-sidebar-panel" data-public-mobile-sidebar>
+              <div class="mb-4 flex items-center justify-between gap-3 border-b border-[var(--pb-divider)] pb-3">
+                <span class="text-sm font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Menu</span>
+                <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" aria-label="Close sidebar" @click="mobileSidebarOpen = false" />
+              </div>
+              <slot v-if="hasPageSidebar" name="sidebar" />
+              <template v-else>
+                <BlogOwnerBio />
+                <BlogTagCloud />
+                <BlogCategoryList />
+              </template>
+            </aside>
+          </div>
+        </Teleport>
       </div>
 
       <main v-else class="min-w-0">
@@ -215,8 +243,11 @@ const {
 } = useSiteSettings()
 
 const { t } = useI18n()
+const { resolveMediaUrl } = useMediaUrl()
 const { locale: publicLocale } = usePublicLocale()
 const mobileNav = ref(false)
+const mobileSidebarOpen = ref(false)
+const publicTouchStart = ref<{ x: number, y: number } | null>(null)
 const route = useRoute()
 const slots = useSlots()
 const {
@@ -231,10 +262,13 @@ const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
 const isHome = computed(() => route.path === '/')
 const hasLayoutSidebar = computed(() => !isHome.value || hasPageSidebar.value)
+const hasMobileSidebarDrawer = computed(() => hasLayoutSidebar.value && !isHome.value)
+const publicSiteBanner = computed(() => resolveMediaUrl(siteBanner.value))
+const publicSiteFavicon = computed(() => resolveMediaUrl(siteFavicon.value))
 const searchRoute = computed(() => route.path === '/search' ? '/search' : { path: '/search', query: { from: route.fullPath } })
 const sidebarClasses = computed(() => [
   'min-w-0 space-y-4',
-  isHome.value ? undefined : 'lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto'
+  isHome.value ? undefined : 'hidden md:block lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto'
 ])
 const siteShellStyle = computed(() => ({
   '--pb-site-content-max': 'var(--pb-layout-content-max)'
@@ -254,8 +288,8 @@ const siteCompactHeaderStyle = computed(() => ({
 
 useHead(() => ({
   title: siteName.value,
-  link: siteFavicon.value
-    ? [{ rel: 'icon', href: siteFavicon.value }]
+  link: publicSiteFavicon.value
+    ? [{ rel: 'icon', href: publicSiteFavicon.value }]
     : []
 }))
 
@@ -268,6 +302,43 @@ async function logout() {
   } finally {
     loggingOut.value = false
   }
+}
+
+watch(() => route.fullPath, () => {
+  mobileSidebarOpen.value = false
+})
+
+function onPublicTouchStart(event: TouchEvent) {
+  if (!isMobilePublicSidebarSwipe()) return
+
+  const touch = event.changedTouches[0]
+  if (!touch) return
+  publicTouchStart.value = { x: touch.clientX, y: touch.clientY }
+}
+
+function onPublicTouchEnd(event: TouchEvent) {
+  const start = publicTouchStart.value
+  publicTouchStart.value = null
+  if (!start || !isMobilePublicSidebarSwipe()) return
+
+  const touch = event.changedTouches[0]
+  if (!touch) return
+
+  const deltaX = touch.clientX - start.x
+  const deltaY = touch.clientY - start.y
+  if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return
+
+  const fromRightEdge = start.x >= window.innerWidth - 56
+  if (deltaX < 0 && fromRightEdge) {
+    mobileSidebarOpen.value = true
+  }
+  else if (deltaX > 0 && mobileSidebarOpen.value) {
+    mobileSidebarOpen.value = false
+  }
+}
+
+function isMobilePublicSidebarSwipe() {
+  return import.meta.client && hasMobileSidebarDrawer.value && window.matchMedia('(max-width: 767px)').matches
 }
 
 function isIconName(value: string | undefined) {
@@ -327,5 +398,52 @@ function isImageIcon(value: string | undefined) {
   /* Re-uses .public-site-hero-fallback / -overlay / -image rules above so the
      mini-banner has the same visual treatment as the home hero, just shorter. */
   isolation: isolate;
+}
+
+.public-mobile-sidebar {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.public-mobile-sidebar.is-open {
+  pointer-events: auto;
+}
+
+.public-mobile-sidebar-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--pb-app-bg) 54%, transparent);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.public-mobile-sidebar.is-open .public-mobile-sidebar-backdrop {
+  opacity: 1;
+}
+
+.public-mobile-sidebar-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: min(86vw, 22rem);
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  border-left: 1px solid var(--pb-divider);
+  background: var(--pb-card-bg);
+  box-shadow: var(--pb-shadow-md);
+  padding: 1rem;
+  transform: translateX(100%);
+  transition: transform 180ms ease;
+}
+
+.public-mobile-sidebar.is-open .public-mobile-sidebar-panel {
+  transform: translateX(0);
 }
 </style>

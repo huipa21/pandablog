@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
   // Single file: redirect to the file stream endpoint
   if (hashes.length === 1) {
     const hash = hashes[0]
-    return { type: 'single', url: `/api/media/file/${hash}?download=true` }
+    return { type: 'single', url: `/media/${hash}?download=true` }
   }
 
   // Multiple files: create a zip

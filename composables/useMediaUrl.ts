@@ -26,8 +26,15 @@ export function extractMediaHash(value: string) {
 export function buildPublicMediaUrl(hash: string, mediaBaseUrl: string) {
   const safeHash = encodeURIComponent(hash)
   if (!safeHash) return ''
-  if (!mediaBaseUrl) return `/api/media/file/${safeHash}`
-  return `${mediaBaseUrl}/media/${safeHash}`
+  const baseUrl = mediaBaseUrl || ''
+  return `${baseUrl}/media/${safeHash}`
+}
+
+export function buildPublicMediaVariantUrl(hash: string, size: string, mediaBaseUrl: string) {
+  const url = buildPublicMediaUrl(hash, mediaBaseUrl)
+  const safeSize = encodeURIComponent(size)
+  if (!url || !safeSize) return url
+  return `${url}?variant=${safeSize}`
 }
 
 export function useMediaUrl() {
@@ -69,9 +76,23 @@ export function useMediaUrl() {
     return buildPublicMediaUrl(hash, mediaBaseUrl.value)
   }
 
+  function toPublicMediaVariantUrl(idOrHashOrUrl: string, size: string) {
+    const value = String(idOrHashOrUrl || '').trim()
+    const hash = extractMediaHash(value)
+      || (value.startsWith('files:') ? value.slice('files:'.length) : '')
+      || (looksLikeMediaHash(value) ? value : '')
+
+    if (!hash) {
+      return resolveMediaUrl(value)
+    }
+
+    return buildPublicMediaVariantUrl(hash, size, mediaBaseUrl.value)
+  }
+
   return {
     mediaBaseUrl,
     toPublicMediaUrl,
+    toPublicMediaVariantUrl,
     resolveMediaUrl
   }
 }

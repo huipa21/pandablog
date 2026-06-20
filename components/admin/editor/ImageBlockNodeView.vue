@@ -47,7 +47,7 @@ import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import { extractMediaHash, useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
-const { resolveMediaUrl } = useMediaUrl()
+const { resolveMediaUrl, toPublicMediaVariantUrl } = useMediaUrl()
 
 const sourceSize = computed(() => String(props.node.attrs.sourceSize ?? 'full'))
 const src = computed(() => {
@@ -58,15 +58,14 @@ const src = computed(() => {
     return resolved
   }
 
-  const encoded = encodeURIComponent(hash)
   if (sourceSize.value === 'thumbnail') {
-    return `/api/media/variant/thumbnail/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'thumbnail')
   }
   if (sourceSize.value === 'medium') {
-    return `/api/media/variant/medium/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'medium')
   }
   if (sourceSize.value === 'large') {
-    return `/api/media/variant/large/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'large')
   }
 
   return resolved

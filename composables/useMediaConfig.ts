@@ -8,6 +8,7 @@ interface MediaSettings {
   enable_perceptual_dedup: boolean
   perceptual_dedup_threshold: number
   public_base_url: string
+  prevent_hotlinking: boolean
 }
 
 /**
@@ -33,7 +34,8 @@ export function useMediaConfig() {
         max_files_per_upload: 5,
         enable_perceptual_dedup: true,
         perceptual_dedup_threshold: 5,
-        public_base_url: ''
+        public_base_url: '',
+        prevent_hotlinking: false
       }
     } finally {
       loading.value = false

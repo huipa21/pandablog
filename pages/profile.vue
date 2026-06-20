@@ -245,9 +245,8 @@ function normalizeAvatarValue(value: string) {
 function avatarUrl(value: string) {
   const normalized = normalizeAvatarValue(value)
   if (!normalized) return ''
-  if (normalized.startsWith('/api/media/file/')) return normalized
   if (normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/')) return normalized
-  if (normalized.startsWith('files:')) return `/api/media/file/${encodeURIComponent(normalized.slice('files:'.length))}`
+  if (normalized.startsWith('files:')) return `/media/${encodeURIComponent(normalized.slice('files:'.length))}`
   return ''
 }
 </script>

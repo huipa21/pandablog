@@ -107,7 +107,7 @@ export function mediaNormalizeFileRecord(record: Record<string, unknown>): Media
     mime_type: String(record.mime_type ?? ''),
     size: Number(record.size ?? 0),
     original_path: originalPath,
-    url: `/api/media/file/${encodeURIComponent(hash)}`,
+    url: `/media/${encodeURIComponent(hash)}`,
     variants,
     thumbnail_url: variants?.thumbnail?.url ?? null,
     width,
@@ -656,7 +656,7 @@ function normalizeVariants(value: unknown, hash: string) {
 
     output[size] = {
       path,
-      url: `/api/media/variant/${size}/${encodeURIComponent(hash)}`,
+      url: `/media/${encodeURIComponent(hash)}?variant=${size}`,
       mime_type: stringOrNull(raw.mime_type) ?? 'image/webp',
       width: numberOrNull(raw.width),
       height: numberOrNull(raw.height),

@@ -36,6 +36,7 @@ const DEFAULT_MEDIA_SETTINGS = {
   download_cleanup_hours: 1,
   public_base_url: '',
   local_only: false,
+  prevent_hotlinking: false,
   orphan_cleanup_enabled: false,
   orphan_cleanup_days: 30,
   orphan_cleanup_cron: '0 4 * * *'

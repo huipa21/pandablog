@@ -1,16 +1,18 @@
 <template>
   <section
+    ref="heatmapRoot"
     class="publish-heatmap min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)] md:p-6"
+    :style="heatmapStyle"
   >
     <header class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('public.heatmap.eyebrow') }}</p>
         <h2 class="mt-1 font-[var(--pb-font-display)] text-xl font-semibold tracking-normal text-[var(--pb-text)] md:text-2xl">
-          {{ yearTitle }}
+          {{ rangeTitle }}
         </h2>
       </div>
       <div class="flex w-full min-w-0 flex-col items-start gap-2 sm:w-auto sm:items-end">
-        <USelect v-model="selectedYear" :items="yearOptions" size="sm" class="w-full sm:w-32" :aria-label="t('public.heatmap.yearAria')" />
+        <USelect v-model="selectedYear" :items="yearOptions" size="sm" class="hidden w-full sm:w-32 md:block" :aria-label="t('public.heatmap.yearAria')" />
         <p v-if="!pending && !error" class="text-sm text-[var(--pb-text-subtle)]">
           {{ totalPublishedLabel }}
         </p>
@@ -28,7 +30,7 @@
       :title="t('public.heatmap.loadFailed')"
     />
 
-    <div v-else class="publish-heatmap-scroll overflow-x-auto">
+    <div v-else ref="heatmapScroll" class="publish-heatmap-scroll overflow-x-auto">
       <div class="publish-heatmap-board">
         <div class="publish-heatmap-frame">
           <div
@@ -38,7 +40,7 @@
             <span
               v-for="label in monthLabels"
               :key="`${label.label}-${label.column}`"
-              :style="{ gridColumn: String(label.column) }"
+              :style="{ gridColumn: `${label.column} / span 4` }"
             >
               {{ label.label }}
             </span>
@@ -105,7 +107,18 @@ interface MonthLabel {
 type PublicFetch = <T>(url: string) => Promise<T>
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+const MOBILE_CELL_GAP = 2
+const MOBILE_MIN_CELL_SIZE = 8
+const MOBILE_MAX_CELL_SIZE = 11
+const MOBILE_WEEKDAY_COLUMN_WIDTH = 18
+const MOBILE_FRAME_COLUMN_GAP = 6
 const { t, locale } = useI18n()
+const isMobileViewport = ref(false)
+const heatmapRoot = ref<HTMLElement | null>(null)
+const heatmapScroll = ref<HTMLElement | null>(null)
+const mobileGridWidth = ref(0)
+let mobileViewportQuery: MediaQueryList | null = null
+let heatmapResizeObserver: ResizeObserver | null = null
 
 const fetchWithSession: PublicFetch = (url) => {
   if (import.meta.server) {
@@ -117,6 +130,7 @@ const fetchWithSession: PublicFetch = (url) => {
 }
 
 const currentYear = new Date().getFullYear()
+const currentMonth = new Date().getMonth()
 const selectedYear = ref(String(currentYear))
 
 const { data, pending, error } = await useAsyncData('public-publish-frequency', () =>
@@ -149,20 +163,58 @@ watch(yearOptions, (options) => {
 }, { immediate: true })
 
 const activeYear = computed(() => Number(selectedYear.value) || currentYear)
-const yearTitle = computed(() => String(activeYear.value))
-const yearPosts = computed(() => (data.value?.posts ?? []).filter((post) => yearFor(post.published_at) === activeYear.value))
-const totalPosts = computed(() => yearPosts.value.length)
+const mobileMaxWeeks = computed(() => {
+  if (!mobileGridWidth.value) return 22
+
+  const gridWidth = mobileGridWidth.value - MOBILE_WEEKDAY_COLUMN_WIDTH - MOBILE_FRAME_COLUMN_GAP
+  return Math.max(14, Math.floor((gridWidth + MOBILE_CELL_GAP) / (MOBILE_MIN_CELL_SIZE + MOBILE_CELL_GAP)))
+})
+const rangeTitle = computed(() => {
+  if (!isMobileViewport.value) return String(activeYear.value)
+
+  const formatter = new Intl.DateTimeFormat(locale.value, { month: 'short', year: 'numeric' })
+  return `${formatter.format(gridRange.value.visibleStart)} - ${formatter.format(gridRange.value.visibleEnd)}`
+})
+const rangePosts = computed(() => {
+  const start = dayNumber(gridRange.value.visibleStart)
+  const end = dayNumber(gridRange.value.visibleEnd)
+
+  return (data.value?.posts ?? []).filter((post) => {
+    if (!post.published_at) return false
+
+    const publishedAt = new Date(post.published_at)
+    if (Number.isNaN(publishedAt.getTime())) return false
+
+    const publishedDay = dayNumber(publishedAt)
+    return publishedDay >= start && publishedDay <= end
+  })
+})
+const totalPosts = computed(() => rangePosts.value.length)
 const totalPublishedLabel = computed(() => t(totalPosts.value === 1 ? 'public.heatmap.publishedOne' : 'public.heatmap.published', { count: totalPosts.value }))
+const mobileCellSize = computed(() => {
+  if (!mobileGridWidth.value) return MOBILE_MIN_CELL_SIZE
+
+  const gridWidth = mobileGridWidth.value - MOBILE_WEEKDAY_COLUMN_WIDTH - MOBILE_FRAME_COLUMN_GAP
+  const gapWidth = Math.max(0, weeks.value - 1) * MOBILE_CELL_GAP
+  const size = (gridWidth - gapWidth) / weeks.value
+  return Math.min(MOBILE_MAX_CELL_SIZE, Math.max(MOBILE_MIN_CELL_SIZE, size))
+})
+const heatmapStyle = computed(() => isMobileViewport.value
+  ? { '--mobile-cell-size': `${mobileCellSize.value}px` }
+  : undefined)
 
 const gridRange = computed(() => {
-  const startOfYear = new Date(activeYear.value, 0, 1)
-  const endOfYear = new Date(activeYear.value, 11, 31)
-  const start = addDays(startOfYear, -startOfYear.getDay())
-  const end = addDays(endOfYear, 6 - endOfYear.getDay())
+  const mobileRange = mobileVisibleRange(mobileMaxWeeks.value)
+  const visibleStart = isMobileViewport.value ? mobileRange.visibleStart : new Date(activeYear.value, 0, 1)
+  const visibleEnd = isMobileViewport.value ? mobileRange.visibleEnd : new Date(activeYear.value, 11, 31)
+  const start = addDays(visibleStart, -visibleStart.getDay())
+  const end = addDays(visibleEnd, 6 - visibleEnd.getDay())
   const days = dayNumber(end) - dayNumber(start) + 1
 
   return {
     start,
+    visibleStart: startOfDay(visibleStart),
+    visibleEnd: startOfDay(visibleEnd),
     weeks: Math.ceil(days / 7)
   }
 })
@@ -171,7 +223,7 @@ const weeks = computed(() => gridRange.value.weeks)
 
 const buckets = computed(() => {
   const map = new Map<string, number>()
-  for (const post of yearPosts.value) {
+  for (const post of rangePosts.value) {
     if (!post.published_at) continue
     const d = new Date(post.published_at)
     if (Number.isNaN(d.getTime())) continue
@@ -184,11 +236,14 @@ const buckets = computed(() => {
 const cells = computed<HeatmapCell[]>(() => {
   const totalDays = weeks.value * 7
   const startDate = gridRange.value.start
+  const visibleStart = dayNumber(gridRange.value.visibleStart)
+  const visibleEnd = dayNumber(gridRange.value.visibleEnd)
 
   const result: HeatmapCell[] = []
   for (let i = 0; i < totalDays; i++) {
     const date = addDays(startDate, i)
-    const placeholder = date.getFullYear() !== activeYear.value
+    const dateNumber = dayNumber(date)
+    const placeholder = dateNumber < visibleStart || dateNumber > visibleEnd
     const iso = isoDay(date)
     const count = buckets.value.get(iso) ?? 0
     result.push({
@@ -204,12 +259,76 @@ const cells = computed<HeatmapCell[]>(() => {
 })
 
 const monthLabels = computed<MonthLabel[]>(() => {
-  return monthShort.value.map((label, month) => {
-    const firstDay = new Date(activeYear.value, month, 1)
+  const labels: MonthLabel[] = []
+  const start = gridRange.value.visibleStart
+  const end = gridRange.value.visibleEnd
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+
+  while (cursor <= end) {
+    const label = monthShort.value[cursor.getMonth()] ?? ''
+    const firstDay = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
     const column = Math.floor((dayNumber(firstDay) - dayNumber(gridRange.value.start)) / 7) + 1
-    return { label, column }
-  })
+    labels.push({ label, column })
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+
+  return labels
 })
+
+onMounted(() => {
+  mobileViewportQuery = window.matchMedia('(max-width: 767px)')
+  syncMobileViewport()
+  mobileViewportQuery.addEventListener('change', syncMobileViewport)
+  heatmapResizeObserver = new ResizeObserver(syncMobileGridWidth)
+  syncHeatmapResizeObserver()
+})
+
+onBeforeUnmount(() => {
+  mobileViewportQuery?.removeEventListener('change', syncMobileViewport)
+  heatmapResizeObserver?.disconnect()
+})
+
+watch(heatmapScroll, syncHeatmapResizeObserver, { flush: 'post' })
+
+function syncMobileViewport() {
+  isMobileViewport.value = mobileViewportQuery?.matches ?? false
+  syncMobileGridWidth()
+}
+
+function syncHeatmapResizeObserver() {
+  heatmapResizeObserver?.disconnect()
+  if (heatmapScroll.value) {
+    heatmapResizeObserver?.observe(heatmapScroll.value)
+  }
+  else if (heatmapRoot.value) {
+    heatmapResizeObserver?.observe(heatmapRoot.value)
+  }
+  syncMobileGridWidth()
+}
+
+function syncMobileGridWidth() {
+  mobileGridWidth.value = heatmapScroll.value?.clientWidth ?? heatmapRoot.value?.clientWidth ?? 0
+}
+
+function mobileVisibleRange(maxWeeks: number) {
+  const visibleEnd = startOfDay(new Date(currentYear, currentMonth + 1, 0))
+  let visibleStart = startOfDay(new Date(currentYear, currentMonth, 1))
+
+  for (let offset = 1; offset < 12; offset++) {
+    const candidate = startOfDay(new Date(currentYear, currentMonth - offset, 1))
+    if (weeksForRange(candidate, visibleEnd) > maxWeeks) break
+    visibleStart = candidate
+  }
+
+  return { visibleStart, visibleEnd }
+}
+
+function weeksForRange(visibleStart: Date, visibleEnd: Date) {
+  const start = addDays(visibleStart, -visibleStart.getDay())
+  const end = addDays(visibleEnd, 6 - visibleEnd.getDay())
+  const days = dayNumber(end) - dayNumber(start) + 1
+  return Math.ceil(days / 7)
+}
 
 function yearFor(value: string) {
   const date = new Date(value)
@@ -407,5 +526,52 @@ function cellColor(level: number) {
 .publish-heatmap-legend > span:first-child,
 .publish-heatmap-legend > span:last-child {
   margin-inline: 4px;
+}
+
+@media (max-width: 767px) {
+  .publish-heatmap {
+    --cell-size: var(--mobile-cell-size, 0.55rem);
+    --cell-gap: 2px;
+
+    padding: 1rem;
+  }
+
+  .publish-heatmap-scroll {
+    overflow-x: hidden;
+    padding-top: 0.75rem;
+  }
+
+  .publish-heatmap-scroll::after {
+    display: none;
+  }
+
+  .publish-heatmap-board {
+    width: 100%;
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .publish-heatmap-frame {
+    max-width: 100%;
+    column-gap: 6px;
+  }
+
+  .publish-heatmap-months {
+    font-size: 0.65rem;
+  }
+
+  .publish-heatmap-weekdays {
+    font-size: 0.6rem;
+    letter-spacing: 0;
+  }
+
+  .publish-heatmap-legend {
+    justify-content: flex-start;
+    margin-top: 0.75rem;
+  }
+
+  .publish-heatmap-cell[data-tooltip]::after {
+    display: none;
+  }
 }
 </style>

@@ -42,7 +42,7 @@ const props = defineProps<{
   node: JsonContent
 }>()
 
-const { resolveMediaUrl } = useMediaUrl()
+const { resolveMediaUrl, toPublicMediaVariantUrl } = useMediaUrl()
 
 const mediaItems = computed(() => mediaFilesFromAttrs(props.node.attrs))
 const primaryMediaItem = computed(() => mediaItems.value[0] ?? null)
@@ -97,15 +97,14 @@ const resolvedMediaSrc = computed(() => {
     return resolved
   }
 
-  const encoded = encodeURIComponent(hash)
   if (mediaSourceSize.value === 'thumbnail') {
-    return `/api/media/variant/thumbnail/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'thumbnail')
   }
   if (mediaSourceSize.value === 'medium') {
-    return `/api/media/variant/medium/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'medium')
   }
   if (mediaSourceSize.value === 'large') {
-    return `/api/media/variant/large/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'large')
   }
 
   return resolved

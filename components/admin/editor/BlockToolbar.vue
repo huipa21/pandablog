@@ -1073,19 +1073,40 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
     left: 0.5rem !important;
     top: auto !important;
+    justify-content: center;
+    align-content: center;
+    flex-wrap: wrap;
     max-width: calc(100vw - 1rem);
-    overflow-x: auto;
+    max-height: min(34vh, 11rem);
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: var(--pb-radius-card-outer);
     padding: 0.375rem;
   }
 
   .block-toolbar .bt-btn:first-child,
-  .block-toolbar .bt-separator:first-of-type {
+  .block-toolbar .bt-separator {
     display: none;
   }
 
+  .bt-btn {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    justify-content: center;
+    padding: 0.375rem;
+  }
+
   .bt-highlight-popover {
+    position: fixed;
+    right: 0.75rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 3.75rem);
+    left: auto;
+    top: auto;
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .bt-annotate-popover {
     position: fixed;
     right: 0.75rem;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 3.75rem);

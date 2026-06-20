@@ -1013,6 +1013,7 @@
       },
       "inserter": {
         "addBlock": "添加区块",
+        "open": "打开区块插入器",
         "description": "选择接下来要插入的内容。",
         "searchBlocks": "搜索区块",
         "searchResults": "搜索结果",
@@ -1378,6 +1379,8 @@
         "publicBaseUrlHint": "留空则通过当前应用提供媒体文件。",
         "localOnly": "仅本地媒体访问",
         "localOnlyHelp": "只允许 localhost 直接请求媒体文件。",
+        "preventHotlinking": "防止媒体外链",
+        "preventHotlinkingHelp": "要求公开媒体请求来自本站。已登录用户仍可直接打开媒体。",
         "orphanCleanup": "计划清理孤立文件",
         "enableCleanup": "启用计划清理",
         "enableCleanupHelp": "按计划删除未引用文件。",

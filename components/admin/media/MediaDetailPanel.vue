@@ -2,15 +2,15 @@
   <Teleport to="body">
     <Transition name="media-panel">
       <div v-if="file" class="fixed inset-0 z-50 flex">
-        <button type="button" class="absolute inset-0 bg-black/40" :aria-label="t('admin.common.close')" @click="emit('close')" />
-        <aside class="relative ml-auto flex h-full w-full max-w-xl flex-col bg-white shadow-xl">
-          <header class="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
+        <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @click="emit('close')" />
+        <aside class="relative ml-auto flex h-full w-full max-w-xl flex-col bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]">
+          <header class="flex items-start justify-between gap-3 border-b border-[var(--pb-divider)] p-4">
             <div class="min-w-0 flex-1">
               <UInput
                 v-model="displayName"
                 class="text-lg font-semibold"
                 variant="none"
-                :ui="{ base: 'text-lg font-semibold text-stone-950 px-0' }"
+                :ui="{ base: 'text-lg font-semibold text-[var(--pb-text)] px-0' }"
                 :placeholder="t('admin.media.fileName')"
               />
             </div>
@@ -18,7 +18,7 @@
           </header>
 
           <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-            <div class="rounded-lg bg-stone-100 p-3">
+            <div class="rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] p-3">
               <img v-if="file.is_image" :src="file.url" :alt="file.original_name" class="max-h-80 w-full object-contain">
               <div v-else class="flex h-44 items-center justify-center">
                 <FileIcon :filename="file.original_name || file.extension" size="48" />
@@ -48,34 +48,34 @@
               </UButton>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 rounded-lg border border-stone-200 p-3 text-sm">
+            <div class="grid grid-cols-2 gap-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-3 text-sm">
               <div>
-                <div class="text-xs text-stone-500">{{ t('admin.media.type') }}</div>
-                <div class="font-medium text-stone-900">{{ file.mime_type || file.extension }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.type') }}</div>
+                <div class="font-medium text-[var(--pb-text)]">{{ file.mime_type || file.extension }}</div>
               </div>
               <div>
-                <div class="text-xs text-stone-500">{{ t('admin.media.size') }}</div>
-                <div class="font-medium text-stone-900">{{ formatFileSize(file.size) }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.size') }}</div>
+                <div class="font-medium text-[var(--pb-text)]">{{ formatFileSize(file.size) }}</div>
               </div>
               <div v-if="file.width && file.height">
-                <div class="text-xs text-stone-500">{{ t('admin.media.dimensions') }}</div>
-                <div class="font-medium text-stone-900">{{ file.width }} × {{ file.height }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.dimensions') }}</div>
+                <div class="font-medium text-[var(--pb-text)]">{{ file.width }} × {{ file.height }}</div>
               </div>
               <div>
-                <div class="text-xs text-stone-500">{{ t('admin.media.uploaded') }}</div>
-                <div class="font-medium text-stone-900">{{ formatDate(file.uploaded_at || file.created_at) }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.uploaded') }}</div>
+                <div class="font-medium text-[var(--pb-text)]">{{ formatDate(file.uploaded_at || file.created_at) }}</div>
               </div>
               <div>
-                <div class="text-xs text-stone-500">{{ t('admin.media.references') }}</div>
-                <div class="font-medium text-stone-900">{{ file.reference_count || 0 }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.references') }}</div>
+                <div class="font-medium text-[var(--pb-text)]">{{ file.reference_count || 0 }}</div>
               </div>
               <div class="col-span-2">
-                <div class="text-xs text-stone-500">{{ t('admin.media.hashId') }}</div>
-                <div class="break-all font-mono text-xs text-stone-900">{{ file.hash }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.hashId') }}</div>
+                <div class="break-all font-mono text-xs text-[var(--pb-text)]">{{ file.hash }}</div>
               </div>
               <div v-if="file.image_meta?.format">
-                <div class="text-xs text-stone-500">{{ t('admin.media.imageFormat') }}</div>
-                <div class="font-medium text-stone-900">{{ file.image_meta.format }}</div>
+                <div class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.media.imageFormat') }}</div>
+                <div class="font-medium text-[var(--pb-text)]">{{ file.image_meta.format }}</div>
               </div>
             </div>
 
@@ -85,14 +85,14 @@
               </UFormField>
 
               <UFormField :label="t('admin.media.tags')">
-                <div class="rounded-md border border-stone-300 px-2 py-1.5">
+                <div class="rounded-md border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-2 py-1.5">
                   <MediaTagInput v-model="tags" />
                 </div>
               </UFormField>
             </div>
           </div>
 
-          <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 p-4">
+          <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--pb-divider)] p-4">
             <UButton type="button" icon="i-lucide-trash-2" color="error" variant="soft" :loading="deleting" @click="deleteFile">
               {{ t('admin.media.delete') }}
             </UButton>

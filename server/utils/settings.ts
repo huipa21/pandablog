@@ -546,6 +546,7 @@ export interface MediaSettings {
   download_cleanup_hours: number
   public_base_url: string
   local_only: boolean
+  prevent_hotlinking: boolean
   orphan_cleanup_enabled: boolean
   orphan_cleanup_days: number
   orphan_cleanup_cron: string
@@ -561,6 +562,7 @@ const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
   download_cleanup_hours: 1,
   public_base_url: '',
   local_only: false,
+  prevent_hotlinking: false,
   orphan_cleanup_enabled: false,
   orphan_cleanup_days: 30,
   orphan_cleanup_cron: '0 4 * * *'
@@ -591,6 +593,7 @@ export async function getMediaSettings(): Promise<MediaSettings> {
     download_cleanup_hours: typeof settings.download_cleanup_hours === 'number' ? settings.download_cleanup_hours : DEFAULT_MEDIA_SETTINGS.download_cleanup_hours,
     public_base_url: stringValue(settings.public_base_url).replace(/\/+$/, ''),
     local_only: settings.local_only === true,
+    prevent_hotlinking: settings.prevent_hotlinking === true,
     orphan_cleanup_enabled: settings.orphan_cleanup_enabled === true,
     orphan_cleanup_days: typeof settings.orphan_cleanup_days === 'number' ? settings.orphan_cleanup_days : DEFAULT_MEDIA_SETTINGS.orphan_cleanup_days,
     orphan_cleanup_cron: stringValue(settings.orphan_cleanup_cron) || DEFAULT_MEDIA_SETTINGS.orphan_cleanup_cron

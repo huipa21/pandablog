@@ -59,7 +59,7 @@ import { extractMediaHash, useMediaUrl } from '~/composables/useMediaUrl'
 
 const props = defineProps(nodeViewProps)
 const { t } = useI18n()
-const { resolveMediaUrl } = useMediaUrl()
+const { resolveMediaUrl, toPublicMediaVariantUrl } = useMediaUrl()
 
 const mediaSourceSize = computed(() => String(props.node.attrs.mediaSourceSize ?? 'full'))
 const mediaItems = computed(() => mediaFilesFromAttrs(props.node.attrs))
@@ -75,18 +75,15 @@ const mediaSrc = computed(() => {
   }
 
   if (showImagePreview.value && mediaSourceSize.value === 'thumbnail') {
-    const encoded = encodeURIComponent(hash)
-    return `/api/media/variant/thumbnail/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'thumbnail')
   }
 
   if (showImagePreview.value && mediaSourceSize.value === 'medium') {
-    const encoded = encodeURIComponent(hash)
-    return `/api/media/variant/medium/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'medium')
   }
 
   if (showImagePreview.value && mediaSourceSize.value === 'large') {
-    const encoded = encodeURIComponent(hash)
-    return `/api/media/variant/large/${encoded}`
+    return toPublicMediaVariantUrl(hash, 'large')
   }
 
   return resolved

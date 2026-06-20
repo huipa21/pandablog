@@ -26,7 +26,7 @@
         <div :class="mediaClasses">
           <img
             v-if="post.cover_image"
-            :src="post.cover_image"
+            :src="postCoverImage(post)"
             :alt="post.title"
             :class="imageClasses"
           >
@@ -35,7 +35,7 @@
           </div>
         </div>
         <div :class="contentClasses">
-          <div v-if="post.categories?.length" class="relative z-20 mb-4 flex flex-wrap gap-2">
+          <div v-if="post.categories?.length" :class="categoryClasses">
             <NuxtLink
               v-for="category in post.categories"
               :key="category.slug"
@@ -49,7 +49,7 @@
             {{ post.title }}
           </h2>
           <p v-if="postExcerpt(post)" :class="summaryClasses">{{ postExcerpt(post) }}</p>
-          <div class="mt-auto pt-5">
+          <div :class="metaWrapClasses">
             <div class="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--pb-text-subtle)]">
               <time v-if="post.published_at" :datetime="post.published_at">{{ formatDate(post.published_at) }}</time>
               <span v-if="hasViewCount(post)" class="inline-flex items-center gap-1.5">
@@ -77,6 +77,8 @@
 import type { PostListItem } from '~/types/content'
 
 type PostCardViewMode = 'grid' | 'list'
+
+const { resolveMediaUrl } = useMediaUrl()
 
 const props = withDefaults(defineProps<{
   posts: PostListItem[]
@@ -126,14 +128,22 @@ const placeholderClasses = computed(() => [
 ])
 const contentClasses = computed(() => [
   'flex min-w-0 flex-1 flex-col',
-  isListView.value ? 'p-4 sm:p-5 md:p-6' : 'min-h-0 overflow-hidden p-5'
+  isListView.value ? 'p-3 sm:p-5 md:p-6' : 'min-h-0 overflow-hidden p-4 sm:p-5'
+])
+const categoryClasses = computed(() => [
+  'relative z-20 flex flex-wrap gap-2',
+  isListView.value ? 'mb-2 sm:mb-4' : 'mb-3 sm:mb-4'
+])
+const metaWrapClasses = computed(() => [
+  'mt-auto',
+  isListView.value ? 'pt-3 sm:pt-5' : 'pt-4 sm:pt-5'
 ])
 const titleClasses = computed(() => [
   'font-[var(--pb-font-display)] font-semibold leading-tight text-[var(--pb-text)] transition group-hover:text-[var(--pb-link-hover)]',
-  isListView.value ? 'text-xl sm:text-2xl' : 'text-xl'
+  isListView.value ? 'text-lg sm:text-2xl' : 'text-xl'
 ])
 const summaryClasses = computed(() => [
-  'mt-3 text-sm leading-relaxed text-[var(--pb-text-muted)]',
+  'mt-2 text-sm leading-relaxed text-[var(--pb-text-muted)] sm:mt-3',
   isListView.value ? 'line-clamp-3' : 'line-clamp-2'
 ])
 
@@ -157,6 +167,10 @@ function formatDate(value: string) {
 
 function hasViewCount(post: PostListItem) {
   return post.view_count !== undefined && post.view_count !== null
+}
+
+function postCoverImage(post: PostListItem) {
+  return resolveMediaUrl(post.cover_image ?? '')
 }
 
 function formatViews(value: number | null | undefined) {

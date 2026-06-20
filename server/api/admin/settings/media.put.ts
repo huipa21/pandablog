@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
       : 1,
     public_base_url: typeof body.public_base_url === 'string' ? body.public_base_url.trim().replace(/\/+$/, '') : '',
     local_only: body.local_only === true,
+    prevent_hotlinking: body.prevent_hotlinking === true,
     orphan_cleanup_enabled: body.orphan_cleanup_enabled === true,
     orphan_cleanup_days: typeof body.orphan_cleanup_days === 'number'
       ? Math.max(1, Math.min(3650, body.orphan_cleanup_days))

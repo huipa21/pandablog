@@ -1013,6 +1013,7 @@
       },
       "inserter": {
         "addBlock": "Add Block",
+        "open": "Open block inserter",
         "description": "Choose what to insert next.",
         "searchBlocks": "Search blocks",
         "searchResults": "Search Results",
@@ -1378,6 +1379,8 @@
         "publicBaseUrlHint": "Leave blank to serve media through this app.",
         "localOnly": "Local-only media access",
         "localOnlyHelp": "Allow direct media file requests only from localhost.",
+        "preventHotlinking": "Prevent media hotlinking",
+        "preventHotlinkingHelp": "Require public media requests to come from this site. Signed-in users can still open media directly.",
         "orphanCleanup": "Scheduled orphan cleanup",
         "enableCleanup": "Enable scheduled cleanup",
         "enableCleanupHelp": "Delete unreferenced files on a schedule.",

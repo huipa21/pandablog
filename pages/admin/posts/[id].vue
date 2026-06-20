@@ -1,63 +1,64 @@
 <template>
-  <section class="h-[calc(100vh-3.5rem)] overflow-hidden bg-[var(--pb-app-bg)]">
-    <div class="z-20 flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-3 py-2 md:gap-3 md:px-4">
-      <div class="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
-        <UButton to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
+  <section class="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden bg-[var(--pb-app-bg)]">
+    <div class="pb-editor-topbar z-20 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-3 py-2 md:px-4">
+      <div class="pb-editor-primary-row">
+        <UButton class="pb-editor-back" to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
           {{ t('admin.editor.backToPosts') }}
         </UButton>
-        <div class="min-w-0">
-          <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ form.title || t('admin.editor.noTitle') }}</div>
-          <div class="flex items-center gap-2 text-xs text-[var(--pb-text-subtle)]">
-            <span>{{ statusLabel(currentStatus) }}</span>
-            <span v-if="saveStatus" :class="saveStatusClass">· {{ saveStatus }}</span>
-            <span v-else-if="post?.updated_at">· {{ t('admin.editor.savedAt', { date: formatDate(post.updated_at) }) }}</span>
-          </div>
+
+        <div class="pb-editor-actions">
+          <UButton
+            type="button"
+            icon="i-lucide-save"
+            variant="soft"
+            size="sm"
+            :loading="savingAction === 'save-local'"
+            :disabled="savingAction !== null"
+            :aria-label="t('admin.editor.save')"
+            @click="saveLocal()"
+          >
+            <span class="hidden sm:inline">{{ t('admin.editor.save') }}</span>
+          </UButton>
+          <UButton
+            type="button"
+            icon="i-lucide-send"
+            color="primary"
+            size="sm"
+            :loading="savingAction === 'publish'"
+            :disabled="savingAction !== null"
+            :aria-label="currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish')"
+            @click="publishOrUpdate()"
+          >
+            <span class="hidden sm:inline">{{ currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish') }}</span>
+          </UButton>
+          <UButton
+            type="button"
+            icon="i-lucide-external-link"
+            variant="soft"
+            color="neutral"
+            size="sm"
+            :to="viewLink || undefined"
+            target="_blank"
+            :disabled="!viewLink"
+            :aria-label="t('admin.editor.view')"
+          >
+            <span class="hidden sm:inline">{{ t('admin.editor.view') }}</span>
+          </UButton>
+          <UButton type="button" icon="i-lucide-plus" color="neutral" variant="soft" size="sm" class="md:hidden" :aria-label="t('admin.editor.inserter.open')" data-testid="mobile-open-inserter" @click="editorStore.openInserter()" />
+          <UButton type="button" icon="i-lucide-panel-right-open" color="neutral" variant="soft" size="sm" class="md:hidden" :aria-label="t('admin.editor.sidebar.post')" data-testid="mobile-open-editor-sidebar" @click="rightPaneCollapsed = false" />
+          <UDropdownMenu :items="moreMenuItems">
+            <UButton type="button" icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
+          </UDropdownMenu>
         </div>
       </div>
 
-      <div class="flex shrink-0 items-center gap-1.5 md:gap-2">
-        <UButton
-          type="button"
-          icon="i-lucide-save"
-          variant="soft"
-          size="sm"
-          :loading="savingAction === 'save-local'"
-          :disabled="savingAction !== null"
-          :aria-label="t('admin.editor.save')"
-          @click="saveLocal()"
-        >
-          <span class="hidden sm:inline">{{ t('admin.editor.save') }}</span>
-        </UButton>
-        <UButton
-          type="button"
-          icon="i-lucide-send"
-          color="primary"
-          size="sm"
-          :loading="savingAction === 'publish'"
-          :disabled="savingAction !== null"
-          :aria-label="currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish')"
-          @click="publishOrUpdate()"
-        >
-          <span class="hidden sm:inline">{{ currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish') }}</span>
-        </UButton>
-        <UButton
-          type="button"
-          icon="i-lucide-external-link"
-          variant="soft"
-          color="neutral"
-          size="sm"
-          :to="viewLink || undefined"
-          target="_blank"
-          :disabled="!viewLink"
-          :aria-label="t('admin.editor.view')"
-        >
-          <span class="hidden sm:inline">{{ t('admin.editor.view') }}</span>
-        </UButton>
-        <UButton type="button" icon="i-lucide-plus" color="neutral" variant="soft" size="sm" class="md:hidden" :aria-label="t('admin.editor.inserter.open')" data-testid="mobile-open-inserter" @click="editorStore.openInserter()" />
-        <UButton type="button" icon="i-lucide-panel-right-open" color="neutral" variant="soft" size="sm" class="md:hidden" :aria-label="t('admin.editor.sidebar.post')" data-testid="mobile-open-editor-sidebar" @click="rightPaneCollapsed = false" />
-        <UDropdownMenu :items="moreMenuItems">
-          <UButton type="button" icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
-        </UDropdownMenu>
+      <div class="pb-editor-summary-row">
+        <div class="truncate text-sm font-medium text-[var(--pb-text)]">{{ form.title || t('admin.editor.noTitle') }}</div>
+        <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--pb-text-subtle)]">
+          <span>{{ statusLabel(currentStatus) }}</span>
+          <span v-if="saveStatus" :class="saveStatusClass">· {{ saveStatus }}</span>
+          <span v-else-if="post?.updated_at">· {{ t('admin.editor.savedAt', { date: formatDate(post.updated_at) }) }}</span>
+        </div>
       </div>
     </div>
 
@@ -66,7 +67,12 @@
       <USkeleton class="h-96" />
     </div>
 
-    <div v-else class="relative flex h-[calc(100vh-7rem)] overflow-hidden">
+    <div
+      v-else
+      class="relative flex min-h-0 flex-1 overflow-hidden"
+      @touchstart.passive="onEditorTouchStart"
+      @touchend.passive="onEditorTouchEnd"
+    >
       <BlockInserterPanel
         :open="editorStore.inserterOpen"
         inline
@@ -100,7 +106,7 @@
         </div>
       </main>
 
-      <div class="fixed inset-0 z-50 h-full shrink-0 border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width] md:relative md:z-auto" :class="rightPaneCollapsed ? 'hidden md:block md:w-11' : 'w-full md:w-[340px]'">
+      <div data-editor-right-pane class="fixed inset-0 z-50 h-full shrink-0 border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width] md:relative md:z-auto" :class="rightPaneCollapsed ? 'hidden md:block md:w-11' : 'w-full md:w-[340px]'">
         <button
           type="button"
           class="absolute left-3 top-3 z-20 inline-flex size-8 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)] md:left-1 md:top-2 md:size-7"
@@ -178,6 +184,7 @@ const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
 const rightPaneCollapsed = ref(true)
 const leaveDialogOpen = ref(false)
+const editorTouchStart = ref<{ x: number, y: number } | null>(null)
 const pendingLeavePath = ref<string | null>(null)
 const bypassLeaveGuard = ref(false)
 const hasLoadedDbSnapshot = ref(false)
@@ -610,9 +617,86 @@ function fetchAdmin<T>(url: string, options: Record<string, unknown> = {}) {
 function statusLabel(status: PostStatus) {
   return t(`admin.posts.status.${status}`)
 }
+
+function onEditorTouchStart(event: TouchEvent) {
+  if (!isMobileEditorSwipe()) return
+
+  const touch = event.changedTouches[0]
+  if (!touch) return
+
+  editorTouchStart.value = { x: touch.clientX, y: touch.clientY }
+}
+
+function onEditorTouchEnd(event: TouchEvent) {
+  const start = editorTouchStart.value
+  editorTouchStart.value = null
+  if (!start || !isMobileEditorSwipe()) return
+
+  const touch = event.changedTouches[0]
+  if (!touch) return
+
+  const deltaX = touch.clientX - start.x
+  const deltaY = touch.clientY - start.y
+  if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return
+
+  const edgeSize = 56
+  const fromLeftEdge = start.x <= edgeSize
+  const fromRightEdge = start.x >= window.innerWidth - edgeSize
+
+  if (deltaX > 0) {
+    if (!rightPaneCollapsed.value) {
+      rightPaneCollapsed.value = true
+    }
+    else if (fromLeftEdge) {
+      editorStore.openInserter()
+    }
+    return
+  }
+
+  if (editorStore.inserterOpen) {
+    editorStore.closeInserter()
+  }
+  else if (fromRightEdge) {
+    rightPaneCollapsed.value = false
+  }
+}
+
+function isMobileEditorSwipe() {
+  return import.meta.client && window.matchMedia('(max-width: 767px)').matches
+}
 </script>
 
 <style scoped>
+.pb-editor-topbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.pb-editor-primary-row {
+  display: contents;
+}
+
+.pb-editor-back {
+  grid-column: 1;
+}
+
+.pb-editor-summary-row {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.pb-editor-actions {
+  grid-column: 3;
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
 .pb-content-frame {
   max-width: var(--pb-post-content-max-width);
 }
@@ -623,6 +707,35 @@ function statusLabel(status: PostStatus) {
 }
 
 @media (max-width: 767px) {
+  .pb-editor-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .pb-editor-primary-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .pb-editor-back,
+  .pb-editor-summary-row,
+  .pb-editor-actions {
+    grid-column: 1;
+  }
+
+  .pb-editor-summary-row {
+    border-top: 1px solid var(--pb-divider);
+    padding-top: 0.5rem;
+  }
+
+  .pb-editor-actions {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
   .pb-editor-grid-shell {
     --pb-editor-gutter: 0px;
     --pb-editor-gap: 0px;
