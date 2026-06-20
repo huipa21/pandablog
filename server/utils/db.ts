@@ -50,7 +50,11 @@ function startKeepAlive() {
     }
 
     try {
-      await withTimeout(client.query('RETURN 1'), 5_000, 'keep-alive timed out')
+      // Probe with an auth-gated statement instead of `RETURN 1` (which any
+      // anonymous session can answer). If SurrealDB has silently dropped our
+      // auth, `INFO FOR DB` fails here and we reconnect in the background,
+      // instead of letting the next real request pay the reconnect cost.
+      await withTimeout(client.query('INFO FOR DB'), 5_000, 'keep-alive timed out')
     } catch (error: any) {
       if (import.meta.dev) {
         console.warn('[db] keep-alive failed, resetting connection:', error?.message)

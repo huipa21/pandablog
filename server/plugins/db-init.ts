@@ -64,9 +64,12 @@ export default defineNitroPlugin(async () => {
     await initializeRuntimeSettings(true)
     await initializeAnalyticsSettings(true)
     await ensureDefaultFolder(db)
-    await backfillPostStats(db)
-    await backfillBlockText(db)
     await initializeLoggingSettings()
+
+    // One-time, marker-guarded backfills do a full-table scan + FTS reindex.
+    // Run them in the background so a fresh deploy starts serving requests
+    // immediately instead of blocking boot (and the first request) on them.
+    void runDeferredBackfills(db)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[db-init] FATAL: database initialization failed:', message)
@@ -313,6 +316,15 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
     },
     { label: 'media storage version create', timeoutMs: 10_000 }
   )
+}
+
+async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
+  try {
+    await backfillPostStats(db)
+    await backfillBlockText(db)
+  } catch (error) {
+    console.warn('[db-init] deferred backfills failed', error)
+  }
 }
 
 async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {

@@ -26,6 +26,24 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.analytics.loadFailed')" />
 
+    <div
+      v-if="analyticsDisabled"
+      class="flex items-start gap-3 rounded-[var(--pb-radius-card-inner)] border border-amber-300/70 bg-amber-50 p-3 text-sm dark:border-amber-500/40 dark:bg-amber-500/10"
+    >
+      <UIcon name="i-lucide-circle-pause" class="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+      <div class="min-w-0">
+        <p class="font-semibold text-amber-800 dark:text-amber-200">{{ t('admin.analytics.disabledTitle') }}</p>
+        <p class="mt-0.5 text-amber-700 dark:text-amber-300">{{ t('admin.analytics.disabledBody') }}</p>
+        <NuxtLink
+          to="/admin/settings/analytics"
+          class="mt-1 inline-flex items-center gap-1 font-medium text-amber-800 underline underline-offset-2 dark:text-amber-200"
+        >
+          {{ t('admin.analytics.disabledAction') }}
+          <UIcon name="i-lucide-arrow-right" class="size-3.5" />
+        </NuxtLink>
+      </div>
+    </div>
+
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <div v-for="card in scorecards" :key="card.label" class="pb-admin-surface p-5">
         <div class="flex items-start justify-between gap-3">
@@ -163,6 +181,7 @@ interface TopPagesResponse {
 interface GeoResponse {
   locations: Array<{ country: string, region: string, city: string, views: number }>
   databaseAvailable: boolean
+  analyticsEnabled: boolean
 }
 
 const { t, locale } = useI18n()
@@ -246,6 +265,7 @@ const locations = computed(() => (geoData.value?.locations ?? []).map((location)
 }))
 const topLocations = computed(() => locations.value.slice(0, 10))
 const geoDatabaseMissing = computed(() => geoData.value?.databaseAvailable === false)
+const analyticsDisabled = computed(() => geoData.value?.analyticsEnabled === false)
 
 function formatNumber(value: number) {
   return numberFormatter.value.format(value)

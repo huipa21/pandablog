@@ -1070,7 +1070,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   .block-toolbar {
     position: fixed !important;
     right: 0.5rem !important;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-editor-keyboard-inset, 0px) + 0.5rem) !important;
     left: 0.5rem !important;
     top: auto !important;
     justify-content: center;
@@ -1100,7 +1100,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   .bt-highlight-popover {
     position: fixed;
     right: 0.75rem;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 3.75rem);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-editor-keyboard-inset, 0px) + 3.75rem);
     left: auto;
     top: auto;
     max-width: calc(100vw - 1.5rem);
@@ -1109,7 +1109,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   .bt-annotate-popover {
     position: fixed;
     right: 0.75rem;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 3.75rem);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-editor-keyboard-inset, 0px) + 3.75rem);
     left: auto;
     top: auto;
     max-width: calc(100vw - 1.5rem);

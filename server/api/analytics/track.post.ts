@@ -40,6 +40,13 @@ export default defineEventHandler(async (event) => {
       return emptyTrackingResponse(event)
     }
 
+    // Don't record admin/staff page views as public analytics; their internal
+    // navigation would otherwise skew traffic, geo and session metrics.
+    const sessionUser = await getSessionUser(event).catch(() => null)
+    if (isAdminTier(sessionUser)) {
+      return emptyTrackingResponse(event)
+    }
+
     const ip = getRequestIP(event, { xForwardedFor: getRuntimeFlags().trust_proxy_headers })
       || event.node.req.socket.remoteAddress
       || ''

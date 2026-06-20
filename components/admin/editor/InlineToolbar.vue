@@ -148,7 +148,7 @@ function unsetHighlight() {
   .inline-formatting-toolbar {
     position: fixed;
     right: 0.5rem;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-editor-keyboard-inset, 0px) + 0.5rem);
     left: 0.5rem;
     max-width: calc(100vw - 1rem);
     overflow-x: auto;

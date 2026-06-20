@@ -1,5 +1,5 @@
 <template>
-  <section class="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden bg-[var(--pb-app-bg)]">
+  <section class="flex flex-col overflow-hidden bg-[var(--pb-app-bg)]" :style="editorShellStyle">
     <div class="pb-editor-topbar z-20 border-b border-[var(--pb-divider)] bg-[var(--pb-card-bg)] px-3 py-2 md:px-4">
       <div class="pb-editor-primary-row">
         <UButton class="pb-editor-back" to="/admin/posts" type="button" variant="ghost" color="neutral" icon="i-lucide-arrow-left" size="sm">
@@ -190,16 +190,41 @@ const bypassLeaveGuard = ref(false)
 const hasLoadedDbSnapshot = ref(false)
 const savedDbSnapshot = ref('')
 const keepNewDraftShell = ref(false)
+const editorVisualViewportHeight = ref('100dvh')
 
 const saveStatusClass = computed(() =>
   saveStatusType.value === 'error' ? 'text-red-600' : 'text-[var(--pb-text-subtle)]'
 )
 
+const editorShellStyle = computed(() => ({
+  height: `calc(${editorVisualViewportHeight.value} - 3.5rem)`
+}))
+
 onMounted(() => {
   if (window.innerWidth >= 768) {
     rightPaneCollapsed.value = false
   }
+
+  syncEditorVisualViewportHeight()
+  window.visualViewport?.addEventListener('resize', syncEditorVisualViewportHeight)
+  window.visualViewport?.addEventListener('scroll', syncEditorVisualViewportHeight)
+  window.addEventListener('resize', syncEditorVisualViewportHeight)
 })
+
+onBeforeUnmount(() => {
+  window.visualViewport?.removeEventListener('resize', syncEditorVisualViewportHeight)
+  window.visualViewport?.removeEventListener('scroll', syncEditorVisualViewportHeight)
+  window.removeEventListener('resize', syncEditorVisualViewportHeight)
+  document.documentElement.style.removeProperty('--pb-editor-keyboard-inset')
+})
+
+function syncEditorVisualViewportHeight() {
+  const viewport = window.visualViewport
+  const height = viewport?.height ?? window.innerHeight
+  const keyboardInset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0
+  editorVisualViewportHeight.value = `${Math.round(height)}px`
+  document.documentElement.style.setProperty('--pb-editor-keyboard-inset', `${Math.round(keyboardInset)}px`)
+}
 
 function onInserterPick(name: string) {
   blockEditorRef.value?.pickBlock?.(name)
@@ -708,6 +733,8 @@ function isMobileEditorSwipe() {
 
 @media (max-width: 767px) {
   .pb-editor-topbar {
+    display: flex;
+    flex-direction: column;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
   }
@@ -727,13 +754,16 @@ function isMobileEditorSwipe() {
   }
 
   .pb-editor-summary-row {
-    border-top: 1px solid var(--pb-divider);
-    padding-top: 0.5rem;
+    order: 1;
   }
 
   .pb-editor-actions {
     flex-wrap: wrap;
     gap: 0.25rem;
+  }
+
+  .pb-editor-primary-row {
+    order: 2;
   }
 
   .pb-editor-grid-shell {
