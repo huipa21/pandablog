@@ -96,7 +96,7 @@ async function loadMermaid() {
   if (!mermaidInitialized) {
     mermaid.initialize({
       startOnLoad: false,
-      securityLevel: 'loose',
+      securityLevel: 'strict',
       theme: 'default'
     })
     mermaidInitialized = true

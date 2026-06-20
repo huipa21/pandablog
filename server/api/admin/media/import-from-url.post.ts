@@ -1,4 +1,6 @@
 import { lookup as dnsLookup } from 'node:dns/promises'
+import { request as httpRequest, type IncomingMessage } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 import { isIP } from 'node:net'
 import { requireContentManager } from '../../../utils/auth'
 import { useDb } from '../../../utils/db'
@@ -16,8 +18,7 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/png': 'png',
   'image/gif': 'gif',
   'image/webp': 'webp',
-  'image/avif': 'avif',
-  'image/svg+xml': 'svg'
+  'image/avif': 'avif'
 }
 
 export default defineEventHandler(async (event) => {
@@ -33,6 +34,11 @@ export default defineEventHandler(async (event) => {
 
   if (!downloaded.mimeType.startsWith('image/')) {
     throw createError({ statusCode: 400, message: 'URL does not point to an image' })
+  }
+
+  // SVG is an active content type (can carry scripts); never import it.
+  if (downloaded.mimeType === 'image/svg+xml' || downloaded.mimeType === 'image/svg') {
+    throw createError({ statusCode: 400, message: 'SVG images cannot be imported' })
   }
 
   const settings = await getMediaSettings()
@@ -60,30 +66,23 @@ async function fetchSafeImage(rawUrl: string): Promise<{ buffer: Buffer, mimeTyp
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const parsed = parseAndValidateUrl(currentUrl)
-    await assertHostIsPublic(parsed.hostname)
+    // Pin the connection to the exact IP we just validated. A second DNS lookup
+    // (which plain `fetch` would perform) could be rebound to a private address
+    // between the check and the connect; pinning closes that TOCTOU window.
+    const pinnedIp = await assertHostIsPublic(parsed.hostname)
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-    let response: Response
-
+    let response: IncomingMessage
     try {
-      response = await fetch(parsed.href, {
-        method: 'GET',
-        redirect: 'manual',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'pandablog-image-import/1.0',
-          'Accept': 'image/*'
-        }
-      })
+      response = await requestImage(parsed, pinnedIp)
     } catch {
       throw createError({ statusCode: 400, message: 'Could not fetch URL' })
-    } finally {
-      clearTimeout(timeoutId)
     }
 
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location')
+    const status = response.statusCode ?? 0
+
+    if (status >= 300 && status < 400) {
+      const location = response.headers.location
+      response.resume()
       if (!location) {
         throw createError({ statusCode: 400, message: 'Redirect without location header' })
       }
@@ -91,44 +90,80 @@ async function fetchSafeImage(rawUrl: string): Promise<{ buffer: Buffer, mimeTyp
       continue
     }
 
-    if (!response.ok) {
-      throw createError({ statusCode: 400, message: `Could not fetch URL (status ${response.status})` })
+    if (status < 200 || status >= 300) {
+      response.resume()
+      throw createError({ statusCode: 400, message: `Could not fetch URL (status ${status})` })
     }
 
-    const contentLength = Number(response.headers.get('content-length') ?? 0)
+    const contentLength = Number(response.headers['content-length'] ?? 0)
     if (contentLength && contentLength > MAX_BYTES) {
+      response.destroy()
       throw createError({ statusCode: 400, message: 'File is larger than 10 MB' })
     }
 
-    const reader = response.body?.getReader()
-    if (!reader) {
-      throw createError({ statusCode: 400, message: 'Empty response body' })
-    }
-
-    const chunks: Uint8Array[] = []
+    const chunks: Buffer[] = []
     let total = 0
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (!value) continue
-
-      total += value.byteLength
-      if (total > MAX_BYTES) {
-        await reader.cancel().catch(() => undefined)
-        throw createError({ statusCode: 400, message: 'File is larger than 10 MB' })
+    try {
+      for await (const chunk of response) {
+        const buf = chunk as Buffer
+        total += buf.byteLength
+        if (total > MAX_BYTES) {
+          response.destroy()
+          throw createError({ statusCode: 400, message: 'File is larger than 10 MB' })
+        }
+        chunks.push(buf)
       }
-      chunks.push(value)
+    } catch (error) {
+      if (isApiError(error)) throw error
+      throw createError({ statusCode: 400, message: 'Could not read response body' })
     }
 
-    const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
-    const contentTypeHeader = response.headers.get('content-type') ?? ''
+    const buffer = Buffer.concat(chunks)
+    const contentTypeHeader = String(response.headers['content-type'] ?? '')
     const mimeType = (contentTypeHeader.split(';')[0] ?? '').trim().toLowerCase()
     const filename = filenameFromUrl(parsed, mimeType)
     return { buffer, mimeType, filename }
   }
 
   throw createError({ statusCode: 400, message: 'Too many redirects' })
+}
+
+/**
+ * Issue a single GET to the already-validated IP while preserving the original
+ * Host header and TLS SNI, so virtual hosting and certificate checks still work.
+ */
+function requestImage(parsed: URL, ip: string): Promise<IncomingMessage> {
+  const isHttps = parsed.protocol === 'https:'
+  const requestFn = isHttps ? httpsRequest : httpRequest
+  const port = parsed.port ? Number(parsed.port) : (isHttps ? 443 : 80)
+  const cleanHost = parsed.hostname.replace(/^\[|\]$/g, '')
+  const hostIsIp = isIP(cleanHost) !== 0
+
+  return new Promise<IncomingMessage>((resolve, reject) => {
+    const req = requestFn({
+      host: ip,
+      port,
+      path: `${parsed.pathname}${parsed.search}`,
+      method: 'GET',
+      servername: isHttps && !hostIsIp ? cleanHost : undefined,
+      headers: {
+        Host: parsed.host,
+        'User-Agent': 'pandablog-image-import/1.0',
+        Accept: 'image/*'
+      }
+    }, resolve)
+
+    req.setTimeout(FETCH_TIMEOUT_MS, () => {
+      req.destroy(new Error('Request timed out'))
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+function isApiError(error: unknown): error is { statusCode: number } {
+  return Boolean(error && typeof error === 'object' && 'statusCode' in error)
 }
 
 function parseAndValidateUrl(value: string): URL {
@@ -146,7 +181,7 @@ function parseAndValidateUrl(value: string): URL {
   return parsed
 }
 
-async function assertHostIsPublic(hostname: string): Promise<void> {
+async function assertHostIsPublic(hostname: string): Promise<string> {
   const cleanHostname = hostname.replace(/^\[|\]$/g, '').toLowerCase()
 
   if (
@@ -162,7 +197,7 @@ async function assertHostIsPublic(hostname: string): Promise<void> {
     if (isPrivateIp(cleanHostname)) {
       throw createError({ statusCode: 400, message: 'URL host is not allowed' })
     }
-    return
+    return cleanHostname
   }
 
   let addresses: Array<{ address: string }>
@@ -181,6 +216,9 @@ async function assertHostIsPublic(hostname: string): Promise<void> {
       throw createError({ statusCode: 400, message: 'URL host resolves to a private address' })
     }
   }
+
+  // Return the first validated address so the caller connects to exactly this IP.
+  return addresses[0]!.address
 }
 
 function isPrivateIp(ip: string): boolean {

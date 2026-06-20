@@ -17,8 +17,10 @@ const KEEP_ALIVE_INTERVAL_MS = 30_000
 async function connectDb(generation: number) {
   const config = useRuntimeConfig()
   const db = new Surreal()
+  const startedAt = Date.now()
 
   await withTimeout(db.connect(config.surrealUrl), 10_000, `Could not connect to SurrealDB at ${config.surrealUrl}`)
+  const socketAt = Date.now()
   await withTimeout(db.signin({
     username: config.surrealRoot,
     password: config.surrealRootPassword
@@ -27,6 +29,7 @@ async function connectDb(generation: number) {
     namespace: config.surrealNamespace,
     database: config.surrealDatabase
   }), 10_000, 'Could not select SurrealDB namespace/database')
+  const readyAt = Date.now()
 
   if (generation !== connectionGeneration) {
     await closeDbClient(db)
@@ -35,6 +38,12 @@ async function connectDb(generation: number) {
 
   client = db
   startKeepAlive()
+
+  // (Re)connects are infrequent, so always surface how long the handshake took.
+  // A large value on the first request after idle is the signature of a stale
+  // socket being re-established on the request path (the slow-cold-load cause).
+  console.info(`[db] connected in ${readyAt - startedAt}ms (socket ${socketAt - startedAt}ms, auth+use ${readyAt - socketAt}ms)`)
+
   return db
 }
 

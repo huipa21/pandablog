@@ -56,11 +56,21 @@ async function completeSetup() {
         confirm_password: confirmPassword.value
       }
     })
-    await navigateTo(String(route.query.redirect ?? '/admin/dashboard'))
+    await navigateTo(safeInternalPath(route.query.redirect, '/admin/dashboard'))
   } catch (err: any) {
     errorMessage.value = err?.data?.message ?? err?.statusMessage ?? err?.message ?? t('admin.setup.failed')
   } finally {
     loading.value = false
   }
+}
+
+function safeInternalPath(value: unknown, fallback: string) {
+  const raw = String(value ?? '')
+  // Same-origin paths only: reject '//' (protocol relative) and '/\' (backslash
+  // trick) so a crafted ?redirect= cannot bounce the user to an external site.
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) {
+    return fallback
+  }
+  return raw
 }
 </script>

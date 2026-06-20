@@ -91,7 +91,17 @@ async function login() {
 }
 
 function redirectTarget() {
-  return String(route.query.redirect ?? '/')
+  return safeInternalPath(route.query.redirect, '/')
+}
+
+function safeInternalPath(value: unknown, fallback: string) {
+  const raw = String(value ?? '')
+  // Same-origin paths only: must start with a single '/', never '//' (protocol
+  // relative) or '/\' (backslash trick), to prevent open redirects.
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) {
+    return fallback
+  }
+  return raw
 }
 
 function targetForRole(role: Role) {

@@ -9,6 +9,32 @@ import type { MediaVariantSize } from '~/types/content'
 
 const allowedVariantSizes = new Set<MediaVariantSize>(['thumbnail', 'medium', 'large'])
 
+// Content types that can carry active content (scripts) when rendered inline.
+// These are always served as downloads with a neutralizing CSP so a stored file
+// can never execute script in the site's origin.
+const ACTIVE_CONTENT_TYPES = new Set([
+  'image/svg+xml',
+  'image/svg',
+  'text/html',
+  'application/xhtml+xml',
+  'text/xml',
+  'application/xml'
+])
+
+function applyContentTypeGuards(event: H3Event, mimeType: string, originalName: string, isDownload: boolean) {
+  const normalized = (mimeType || 'application/octet-stream').toLowerCase()
+  const forceAttachment = isDownload || ACTIVE_CONTENT_TYPES.has(normalized)
+
+  setResponseHeader(event, 'Content-Type', mimeType || 'application/octet-stream')
+  setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
+  if (ACTIVE_CONTENT_TYPES.has(normalized)) {
+    // Belt-and-suspenders: even if forced to download, deny any execution.
+    setResponseHeader(event, 'Content-Security-Policy', "default-src 'none'; sandbox")
+  }
+  setResponseHeader(event, 'Content-Disposition', `${forceAttachment ? 'attachment' : 'inline'}; filename="${encodeHeaderValue(originalName)}"`)
+}
+
+
 export async function serveOriginalMedia(event: H3Event, id: string, options: { localOnly?: boolean } = {}) {
   if (options.localOnly) {
     await assertLocalMediaRequest(event)
@@ -32,10 +58,9 @@ export async function serveOriginalMedia(event: H3Event, id: string, options: { 
   try {
     const stats = await mediaStatOriginal(file.original_path || '')
     const isDownload = getQuery(event).download === 'true'
-    setResponseHeader(event, 'Content-Type', file.mime_type || 'application/octet-stream')
     setResponseHeader(event, 'Content-Length', stats.size)
     setResponseHeader(event, 'Cache-Control', isDownload ? 'no-cache' : 'public, max-age=31536000, immutable')
-    setResponseHeader(event, 'Content-Disposition', `${isDownload ? 'attachment' : 'inline'}; filename="${encodeHeaderValue(file.original_name)}"`)
+    applyContentTypeGuards(event, file.mime_type || 'application/octet-stream', file.original_name, isDownload)
     return sendStream(event, mediaCreateOriginalStream(file.original_path || ''))
   } catch {
     throw createError({ statusCode: 404, message: 'File not found on disk' })

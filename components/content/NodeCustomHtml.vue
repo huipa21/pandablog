@@ -4,7 +4,7 @@
       <iframe
         class="customhtml-iframe"
         :srcdoc="iframeDoc"
-        sandbox="allow-scripts allow-forms allow-popups allow-modals"
+        sandbox="allow-scripts"
         referrerpolicy="no-referrer"
         loading="lazy"
         @load="autoResize"

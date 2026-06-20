@@ -21,6 +21,8 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
   const db = await useDb()
 
   // FTS the block table, walking back to owning posts via the has_blocks edge.
+  // Highlights use private-use sentinel characters (not literal <mark>) so the
+  // raw indexed text can be HTML-escaped before we re-insert the trusted tags.
   const ftsResponse = await queryDb(
     db,
     `SELECT
@@ -28,13 +30,13 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
       type,
       text,
       search::score(0) AS score,
-      search::highlight('<mark>', '</mark>', 0) AS snippet,
+      search::highlight($hlOpen, $hlClose, 0) AS snippet,
       <-has_blocks<-post AS owners
      FROM block
      WHERE text @0@ $needle
      ORDER BY score DESC
      LIMIT 500;`,
-    { needle: q }
+    { needle: q, hlOpen: HIGHLIGHT_OPEN, hlClose: HIGHLIGHT_CLOSE }
   )
   const matches = queryRows<{
     id: unknown
@@ -55,14 +57,14 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
       summary,
       search::score(0) AS title_score,
       search::score(1) AS summary_score,
-      search::highlight('<mark>', '</mark>', 0) AS title_snippet,
-      search::highlight('<mark>', '</mark>', 1) AS summary_snippet
+      search::highlight($hlOpen, $hlClose, 0) AS title_snippet,
+      search::highlight($hlOpen, $hlClose, 1) AS summary_snippet
      FROM post
      WHERE status = 'published'
        AND (visibility = 'public' OR visibility IS NONE)
        AND (title @0@ $needle OR summary @1@ $needle)
      LIMIT 500;`,
-    { needle: q }
+    { needle: q, hlOpen: HIGHLIGHT_OPEN, hlClose: HIGHLIGHT_CLOSE }
   )
   const postMatches = queryRows<{
     id: unknown
@@ -97,8 +99,8 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
     postFtsById.set(postId, {
       titleScore: Number(match.title_score ?? 0),
       summaryScore: Number(match.summary_score ?? 0),
-      titleSnippet: String(match.title_snippet ?? match.title ?? ''),
-      summarySnippet: String(match.summary_snippet ?? match.summary ?? '')
+      titleSnippet: toSafeSnippet(String(match.title_snippet ?? match.title ?? '')),
+      summarySnippet: toSafeSnippet(String(match.summary_snippet ?? match.summary ?? ''))
     })
   }
   if (!referencedPostIds.size) {
@@ -179,7 +181,7 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
   for (const match of matches) {
     const blockId = stringifyRecordId(match.id)
     const matchScore = Number(match.score ?? 0)
-    const snippet = String(match.snippet ?? match.text ?? '')
+    const snippet = toSafeSnippet(String(match.snippet ?? match.text ?? ''))
     const type = String(match.type ?? 'paragraph')
 
     for (const owner of match.owners ?? []) {
@@ -254,6 +256,33 @@ function normalizeSort(value: unknown): SearchSort {
     return value
   }
   return 'relevance'
+}
+
+// Private-use sentinel characters used as highlight markers. They are not HTML
+// special characters, so they survive escaping and are swapped for <mark> after.
+const HIGHLIGHT_OPEN = '\uE000'
+const HIGHLIGHT_CLOSE = '\uE001'
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * SurrealDB's `search::highlight` wraps matches with the given markers but does
+ * NOT HTML-escape the surrounding indexed text. Since `block.text` can contain
+ * literal HTML (code blocks, custom-html source), rendering the snippet via
+ * `v-html` is a stored-XSS sink. We escape the whole string, then restore only
+ * the trusted `<mark>` tags from the sentinel markers.
+ */
+function toSafeSnippet(raw: string): string {
+  return escapeHtml(raw)
+    .split(HIGHLIGHT_OPEN).join('<mark>')
+    .split(HIGHLIGHT_CLOSE).join('</mark>')
 }
 
 // Keep type import referenced for downstream consumers.

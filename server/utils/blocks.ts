@@ -86,7 +86,10 @@ export function flattenNodeText(node: JsonContent | null | undefined): string {
   }
 
   if (node.type === 'customHtml') {
-    return stringAttr(node.attrs?.html)
+    // Index only the visible text of custom HTML, never the raw markup. This
+    // keeps tag/attribute noise out of the FTS index and avoids storing author
+    // HTML that could later be surfaced (unescaped) through a search snippet.
+    return stringAttr(node.attrs?.html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   }
 
   // Inline textblocks (paragraph/heading) hold a run of inline nodes where the
