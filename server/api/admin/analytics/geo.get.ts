@@ -1,9 +1,14 @@
 import { getQuery } from 'h3'
 import { requireSuperadmin } from '../../../utils/auth'
+import { analyticsGeoDatabaseAvailable } from '../../../utils/analytics/geo'
 import { getAnalyticsGeo, parseAnalyticsLimit, parseAnalyticsRange } from '../../../utils/analytics/read'
 
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)
   const query = getQuery(event)
-  return await getAnalyticsGeo(parseAnalyticsRange(event), parseAnalyticsLimit(query.limit, 10, 50))
+  const [geo, databaseAvailable] = await Promise.all([
+    getAnalyticsGeo(parseAnalyticsRange(event), parseAnalyticsLimit(query.limit, 10, 50)),
+    analyticsGeoDatabaseAvailable()
+  ])
+  return { ...geo, databaseAvailable }
 })

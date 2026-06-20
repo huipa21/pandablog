@@ -20,6 +20,7 @@ storage/variants/*
 storage/downloads/*
 storage/geoip/*
 storage/backups/*
+storage/logs/*
 !storage/uploads/.gitkeep
 !storage/downloads/.gitkeep
 pandablog.code-workspace

@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { queryDb, useDb } from './db'
+import { flushAccessBuffer } from './logging-access-buffer'
 import { firstRow, queryRows } from './surrealResult'
 
 export type LogType = 'access' | 'activity' | 'errors'
@@ -107,6 +108,10 @@ export function sanitizeSearchText(value: unknown) {
 
 export async function listLogs(event: H3Event, type: LogType, options: ListLogsOptions = {}): Promise<ListLogsResult> {
   const spec = logListSpecs[type]
+  // Drain buffered access entries into the DB so this read sees the latest.
+  if (type === 'access') {
+    await flushAccessBuffer()
+  }
   const query = getQuery(event)
   const limit = parseLimit(query.limit)
   const offset = parseOffset(query.offset)

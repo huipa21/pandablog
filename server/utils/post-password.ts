@@ -3,7 +3,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 import type { Surreal } from 'surrealdb'
 import { queryDbRecord } from './db'
-import { getRuntimeFlags } from './settings'
 import { recordIdPart, stringifyRecordId } from './surrealResult'
 
 const COOKIE_NAME = 'pb_unlocked'
@@ -82,7 +81,7 @@ export function addUnlockedId(event: H3Event, postId: string): void {
   setCookie(event, COOKIE_NAME, sign(payload), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: getRuntimeFlags().trust_proxy_headers,
+    secure: process.env.NODE_ENV === 'production',
     maxAge: COOKIE_MAX_AGE,
     path: '/'
   })

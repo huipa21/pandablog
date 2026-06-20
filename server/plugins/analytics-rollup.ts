@@ -1,10 +1,12 @@
 import { cleanupAnalyticsRetention, rollupCompletedAnalyticsDays } from '../utils/analytics/rollup'
+import { ensureAnalyticsGeoDir } from '../utils/analytics/geo'
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000
 let running = false
 let lastAttemptDate = ''
 
 export default defineNitroPlugin(() => {
+  void ensureAnalyticsGeoDir()
   void runIfDue()
 
   const timer = setInterval(() => {

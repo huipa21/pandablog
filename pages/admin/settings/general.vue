@@ -97,21 +97,6 @@
                 @update:model-value="form.site_favicon = $event"
                 @browse="openMediaPicker('site_favicon')"
               />
-
-              <fieldset class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
-                <legend class="px-1 text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.settings.general.network') }}</legend>
-                <label class="flex cursor-pointer items-start gap-3 text-sm">
-                  <input
-                    v-model="form.trust_proxy_headers"
-                    type="checkbox"
-                    class="mt-1 rounded border-[var(--pb-border-strong)]"
-                  >
-                  <span class="grid gap-1">
-                    <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.trustProxyHeaders') }}</span>
-                    <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.general.trustProxyHelp') }}</span>
-                  </span>
-                </label>
-              </fieldset>
             </div>
           </div>
         </section>
@@ -256,7 +241,6 @@ interface GeneralSettingsForm {
   site_banner_zoom: number
   site_hero_height_vh: number
   site_favicon: string
-  trust_proxy_headers: boolean
   footer_copyright: string
   footer_links: FooterLink[]
   footer_social: FooterLink[]
@@ -295,7 +279,6 @@ const form = reactive<GeneralSettingsForm>({
   site_banner_zoom: 100,
   site_hero_height_vh: 34,
   site_favicon: '',
-  trust_proxy_headers: false,
   footer_copyright: '',
   footer_links: [],
   footer_social: [],
@@ -321,7 +304,6 @@ watch(data, (value) => {
   form.site_banner_zoom = numberValue(settings.site_banner_zoom, 100, 100, 200)
   form.site_hero_height_vh = numberValue(settings.site_hero_height_vh, 34, 18, 58)
   form.site_favicon = textValue(settings.site_favicon)
-  form.trust_proxy_headers = settings.trust_proxy_headers === true
   form.footer_copyright = textValue(settings.footer_copyright)
   form.footer_links = linksValue(settings.footer_links)
   form.footer_social = linksValue(settings.footer_social)
@@ -368,7 +350,6 @@ async function save() {
       site_banner_zoom: form.site_banner_zoom,
       site_hero_height_vh: form.site_hero_height_vh,
       site_favicon: form.site_favicon,
-      trust_proxy_headers: form.trust_proxy_headers,
       footer_copyright: form.footer_copyright,
       footer_links: cleanLinks(form.footer_links),
       footer_social: cleanLinks(form.footer_social),

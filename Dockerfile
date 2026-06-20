@@ -74,7 +74,12 @@ WORKDIR /app
 COPY --from=builder --chown=nuxt:nodejs /app/runtime/ ./
 
 # Storage + data dirs (volumes mount over these)
-RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip .data/rate-limit \
+# NOTE: in production the whole ./app-storage host dir is bind-mounted over
+# /app/storage, which SHADOWS these baked-in dirs. The optional GeoIP database
+# is therefore NOT shipped in the image — place dbip-city-lite.mmdb at
+# ./app-storage/geoip/ on the host (the app also creates storage/geoip/ on
+# boot so the drop location is visible) and restart the container.
+RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip storage/logs .data/rate-limit \
  && chown -R nuxt:nodejs storage .data
 
 USER nuxt

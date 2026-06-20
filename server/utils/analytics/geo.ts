@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import maxmind, { type CityResponse, type Reader } from 'maxmind'
 import type { AnalyticsGeo } from './types'
 
@@ -31,6 +32,28 @@ export async function lookupAnalyticsGeo(ip: string): Promise<AnalyticsGeo> {
 export function analyticsGeoDbPath() {
   const config = useRuntimeConfig()
   return resolve(String(config.geoipDbPath || 'storage/geoip/dbip-city-lite.mmdb'))
+}
+
+/**
+ * Returns whether the GeoIP database is loaded and usable. When this is false,
+ * every visit is recorded without country/region/city, so the world map stays
+ * empty. Surfaced in the admin analytics UI so the cause is visible.
+ */
+export async function analyticsGeoDatabaseAvailable() {
+  return (await getGeoReader()) !== null
+}
+
+/**
+ * Ensures the directory that holds the GeoIP database exists. Creating it at
+ * boot makes the expected drop location visible on the host bind mount even
+ * before the operator has placed the .mmdb file there.
+ */
+export async function ensureAnalyticsGeoDir() {
+  try {
+    await mkdir(dirname(analyticsGeoDbPath()), { recursive: true })
+  } catch {
+    // Non-fatal: geo lookups already degrade gracefully when the dir is absent.
+  }
 }
 
 async function getGeoReader() {

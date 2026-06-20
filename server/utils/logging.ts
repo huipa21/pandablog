@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
+import { bufferAccessLog, flushAccessBuffer } from './logging-access-buffer'
 import { applySettingsPatch, redactDeep, shouldAllowDebug, shouldRecordAccessLog, trimByMaxSize } from './logging-logic'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
@@ -204,15 +205,10 @@ export function logAccess(entry: AccessLogEntry) {
   const dbPayload = compactLogPayload(payload)
 
   mirrorConsole('info', 'access_log', payload)
-  fireAndForgetDbWrite(async () => {
-    const db = await useDb()
-    await queryDb(
-      db,
-      'CREATE access_logs CONTENT $entry;',
-      { entry: dbPayload },
-      { label: 'log access write', timeoutMs: 5_000, retryOnReconnect: false }
-    )
-  })
+  // Access logs are the highest-volume stream; buffer to a local file and
+  // bulk-insert into the DB on view / size cap / timer instead of one write
+  // per request.
+  bufferAccessLog(dbPayload)
 }
 
 export function logActivity(entry: ActivityLogEntry) {
@@ -273,6 +269,10 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
 
 export async function runManualLogCleanup(options: { type: LogCleanupType, mode: LogCleanupMode, value: number }) {
   const table = typeToTable(options.type)
+  // Drain buffered access entries first so cleanup operates on the full set.
+  if (options.type === 'access') {
+    await flushAccessBuffer()
+  }
   const db = await useDb()
   const deleted = options.mode === 'older_than_days'
     ? await deleteOlderThan(db, table, new Date(Date.now() - options.value * 86_400_000))
@@ -299,6 +299,8 @@ export async function runManualLogCleanup(options: { type: LogCleanupType, mode:
 }
 
 export async function gatherLogStats() {
+  // Ensure buffered access entries are reflected in the counts.
+  await flushAccessBuffer()
   const db = await useDb()
   const response = await queryDb(
     db,
@@ -339,6 +341,9 @@ export async function gatherLogStats() {
 
 export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
   const table = typeToTable(type)
+  if (type === 'access') {
+    await flushAccessBuffer()
+  }
   const db = await useDb()
   const response = await queryDb(db, `DELETE ${table} RETURN BEFORE;`, undefined, {
     label: `purge ${type} logs`,
@@ -350,6 +355,9 @@ export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
 
 export async function readLogById(type: 'access' | 'activity' | 'errors', id: string) {
   const table = typeToTable(type)
+  if (type === 'access') {
+    await flushAccessBuffer()
+  }
   const db = await useDb()
   return await queryDbRecord(db, table, id.includes(':') ? stringifyRecordId(id) : id, {
     label: `read ${type} log detail`,

@@ -102,7 +102,7 @@ export interface AdminCredentials {
 
 const APP_SETTINGS_TABLE = 'app_settings'
 const DEFAULT_RUNTIME_FLAGS: RuntimeFlags = {
-  trust_proxy_headers: process.env.NODE_ENV === 'production'
+  trust_proxy_headers: true
 }
 const DEFAULT_ANALYTICS_SETTINGS: AnalyticsSettings = {
   analytics_enabled: false,
@@ -414,9 +414,12 @@ export async function isSetupCompleted(): Promise<boolean> {
   return (await readAdminCredentials()).setupCompleted
 }
 
-function normalizeRuntimeFlags(values: Record<string, unknown>): RuntimeFlags {
+function normalizeRuntimeFlags(_values: Record<string, unknown>): RuntimeFlags {
+  // Trusting reverse-proxy headers is always required: the app is designed to
+  // run behind an HTTPS reverse proxy that sets X-Forwarded-For, so this is
+  // pinned on and is no longer operator-configurable.
   return {
-    trust_proxy_headers: booleanValue(values.trust_proxy_headers, DEFAULT_RUNTIME_FLAGS.trust_proxy_headers)
+    trust_proxy_headers: true
   }
 }
 

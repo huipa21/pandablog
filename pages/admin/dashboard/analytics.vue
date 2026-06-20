@@ -87,6 +87,18 @@
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.analytics.geoDescription') }}</p>
       </div>
 
+      <div
+        v-if="!geoPending && geoDatabaseMissing"
+        class="mb-4 flex items-start gap-3 rounded-[var(--pb-radius-card-inner)] border border-amber-300/70 bg-amber-50 p-3 text-sm dark:border-amber-500/40 dark:bg-amber-500/10"
+      >
+        <UIcon name="i-lucide-database-zap" class="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div class="min-w-0">
+          <p class="font-semibold text-amber-800 dark:text-amber-200">{{ t('admin.analytics.geoDbMissingTitle') }}</p>
+          <p class="mt-0.5 text-amber-700 dark:text-amber-300">{{ t('admin.analytics.geoDbMissingBody') }}</p>
+          <code class="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 font-mono text-xs text-amber-900 dark:bg-amber-500/20 dark:text-amber-100">storage/geoip/dbip-city-lite.mmdb</code>
+        </div>
+      </div>
+
       <div v-if="geoPending" class="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
         <USkeleton class="h-80" />
         <div class="grid gap-3">
@@ -150,6 +162,7 @@ interface TopPagesResponse {
 
 interface GeoResponse {
   locations: Array<{ country: string, region: string, city: string, views: number }>
+  databaseAvailable: boolean
 }
 
 const { t, locale } = useI18n()
@@ -232,6 +245,7 @@ const locations = computed(() => (geoData.value?.locations ?? []).map((location)
   }
 }))
 const topLocations = computed(() => locations.value.slice(0, 10))
+const geoDatabaseMissing = computed(() => geoData.value?.databaseAvailable === false)
 
 function formatNumber(value: number) {
   return numberFormatter.value.format(value)

@@ -27,6 +27,7 @@ storage/variants
 storage/downloads
 storage/geoip
 storage/backups
+storage/logs
 Dockerfile
 .dockerignore
 docker-compose*.yml
