@@ -16,6 +16,7 @@ import {
   type AdminTimezone
 } from '~/utils/systemSettings'
 import { ADMIN_COLOR_MODE_KEY, normalizeThemeMode, type ThemeMode } from '~/utils/themeMode'
+import { ADMIN_POST_DISPLAY_MODE_KEY, normalizeAdminPostDisplayMode, type AdminPostDisplayMode } from './posts'
 
 export const PUBLIC_SETTING_KEYS = [
   'site_title',
@@ -47,7 +48,8 @@ const ADMIN_ONLY_SETTING_KEYS = [
   ADMIN_LOCALE_KEY,
   ADMIN_DATE_FORMAT_KEY,
   ADMIN_TIMEZONE_KEY,
-  ADMIN_FORMAT_LOCALE_KEY
+  ADMIN_FORMAT_LOCALE_KEY,
+  ADMIN_POST_DISPLAY_MODE_KEY
 ] as const
 
 export const ANALYTICS_SETTING_KEYS = [
@@ -92,6 +94,7 @@ export type AdminLocaleSetting = SupportedLocale
 export type AdminDateFormatSetting = AdminDateFormat
 export type AdminTimezoneSetting = AdminTimezone
 export type AdminFormatLocaleSetting = AdminFormatLocale
+export type AdminPostDisplayModeSetting = AdminPostDisplayMode
 export type AnalyticsSettingKey = typeof ANALYTICS_SETTING_KEYS[number]
 export type SecuritySettingKey = typeof SECURITY_SETTING_KEYS[number]
 
@@ -313,6 +316,10 @@ export function filterAdminSettings(values: Record<string, unknown>) {
     } else {
       filtered = withoutSetting(filtered, ADMIN_FORMAT_LOCALE_KEY)
     }
+  }
+
+  if (ADMIN_POST_DISPLAY_MODE_KEY in filtered) {
+    filtered[ADMIN_POST_DISPLAY_MODE_KEY] = normalizeAdminPostDisplayMode(filtered[ADMIN_POST_DISPLAY_MODE_KEY])
   }
 
   if ('analytics_enabled' in filtered) {

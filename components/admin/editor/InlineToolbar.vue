@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
 import { BubbleMenu } from '@tiptap/vue-3'
-import { HIGHLIGHT_COLORS } from '~/utils/highlightColors'
+import { DARK_HIGHLIGHT_COLORS, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
 
 const props = defineProps<{
   editor: Editor | null
@@ -81,9 +81,11 @@ const bubbleTippyOptions = {
   placement: 'top' as const,
   maxWidth: 'calc(100vw - 1rem)'
 }
-const highlightColors = HIGHLIGHT_COLORS
+const prefersDarkToolbar = ref(false)
+const highlightColors = computed(() => prefersDarkToolbar.value ? DARK_HIGHLIGHT_COLORS : HIGHLIGHT_COLORS)
 const linkDialogOpen = ref(false)
 const linkInitialHref = ref('')
+let themeObserver: MutationObserver | null = null
 
 function shouldShow({ editor }: { editor: Editor }) {
   const { empty } = editor.state.selection
@@ -141,6 +143,18 @@ function setHighlight(color: string) {
 function unsetHighlight() {
   ;(props.editor?.chain().focus() as any)?.unsetHighlight().run()
 }
+
+onMounted(() => {
+  prefersDarkToolbar.value = document.documentElement.dataset.theme === 'dark'
+  themeObserver = new MutationObserver(() => {
+    prefersDarkToolbar.value = document.documentElement.dataset.theme === 'dark'
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+})
+
+onBeforeUnmount(() => {
+  themeObserver?.disconnect()
+})
 </script>
 
 <style scoped>

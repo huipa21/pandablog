@@ -191,6 +191,8 @@ const hasLoadedDbSnapshot = ref(false)
 const savedDbSnapshot = ref('')
 const keepNewDraftShell = ref(false)
 const editorVisualViewportHeight = ref('100dvh')
+const slugManuallyEdited = ref(false)
+const adminPostBreadcrumb = useState<{ id: string, slug: string } | null>('admin-post-breadcrumb', () => null)
 
 const saveStatusClass = computed(() =>
   saveStatusType.value === 'error' ? 'text-red-600' : 'text-[var(--pb-text-subtle)]'
@@ -289,6 +291,7 @@ watch(post, (value) => {
 
   form.title = value.title
   form.slug = value.slug
+  slugManuallyEdited.value = false
   form.summary = value.summary ?? ''
   form.cover_image = value.cover_image ?? ''
   form.category_ids = [...(value.category_ids ?? [])]
@@ -303,7 +306,24 @@ watch(post, (value) => {
   form.content = value.content_json
   savedDbSnapshot.value = serializeDbPayload()
   hasLoadedDbSnapshot.value = true
+  adminPostBreadcrumb.value = { id: value.id, slug: value.slug }
 }, { immediate: true })
+
+watch(() => form.title, (title) => {
+  if (!slugManuallyEdited.value) {
+    form.slug = slugifyTitle(title)
+  }
+})
+
+watch(() => form.slug, (slug, previousSlug) => {
+  if (!hasLoadedDbSnapshot.value || slug === previousSlug) {
+    return
+  }
+
+  if (slug !== slugifyTitle(form.title)) {
+    slugManuallyEdited.value = true
+  }
+})
 
 const hasUnsavedDbChanges = computed(() => {
   if (!hasLoadedDbSnapshot.value) {
@@ -405,6 +425,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     })
 
     form.slug = saved.slug
+    slugManuallyEdited.value = saved.slug !== slugifyTitle(form.title)
     currentStatus.value = saved.status === 'archived' ? 'draft' : saved.status
     form.category_ids = [...(saved.category_ids ?? form.category_ids)]
     form.tag_ids = [...(saved.tag_ids ?? form.tag_ids)]
@@ -414,6 +435,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     form.password_hint = saved.password_hint ?? ''
     form.password_source = saved.password_source ?? form.password_source
     post.value = saved
+    adminPostBreadcrumb.value = { id: saved.id, slug: saved.slug }
     savedDbSnapshot.value = serializeDbPayload()
     hasLoadedDbSnapshot.value = true
     clearLocalSave()
@@ -497,6 +519,7 @@ onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)
 })
 onBeforeUnmount(() => {
+  adminPostBreadcrumb.value = null
   if (autoSaveTimer) {
     clearInterval(autoSaveTimer)
     autoSaveTimer = null
@@ -598,6 +621,16 @@ function serializeDbPayload() {
 
 function effectivePasswordSource() {
   return form.visibility === 'password' && form.password.length > 0 ? 'custom' : 'user'
+}
+
+function slugifyTitle(value: string) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
+    .slice(0, 96) || 'untitled'
 }
 
 function emptyDoc(): JsonContent {

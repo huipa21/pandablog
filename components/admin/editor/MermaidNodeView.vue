@@ -97,7 +97,7 @@ async function loadMermaid() {
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
-      theme: 'default'
+      theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default'
     })
     mermaidInitialized = true
   }
@@ -239,6 +239,31 @@ onBeforeUnmount(() => {
 .mermaid-preview :deep(svg) {
   max-width: 100%;
   height: auto;
+}
+
+:global([data-theme="dark"]) .mermaid-preview :deep(svg) {
+  color: var(--pb-text);
+}
+
+:global([data-theme="dark"]) .mermaid-preview :deep(.edgePath .path),
+:global([data-theme="dark"]) .mermaid-preview :deep(.flowchart-link),
+:global([data-theme="dark"]) .mermaid-preview :deep(.relationshipLine),
+:global([data-theme="dark"]) .mermaid-preview :deep(.er.relationshipLabelBox) {
+  stroke: color-mix(in srgb, var(--pb-text) 58%, var(--pb-card-bg)) !important;
+}
+
+:global([data-theme="dark"]) .mermaid-preview :deep(.edgeLabel),
+:global([data-theme="dark"]) .mermaid-preview :deep(.edgeLabel rect),
+:global([data-theme="dark"]) .mermaid-preview :deep(.labelBkg) {
+  background-color: var(--pb-card-bg) !important;
+  fill: var(--pb-card-bg) !important;
+  color: var(--pb-text-muted) !important;
+}
+
+:global([data-theme="dark"]) .mermaid-preview :deep(.edgeLabel),
+:global([data-theme="dark"]) .mermaid-preview :deep(.edgeLabel span),
+:global([data-theme="dark"]) .mermaid-preview :deep(.relationshipLabel) {
+  color: var(--pb-text-muted) !important;
 }
 
 .mermaid-error {

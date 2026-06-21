@@ -703,6 +703,8 @@
         "highlightColor": "Highlight {label}",
         "custom": "Custom",
         "customHighlightColor": "Custom highlight color",
+        "highlightHexCode": "Highlight HEX code",
+        "hex": "HEX",
         "removeHighlight": "Remove highlight",
         "transparent": "Transparent",
         "moreFormatting": "More formatting",
@@ -1521,6 +1523,12 @@
         "publicDescription": "Anyone can browse the site. Per-post visibility still applies.",
         "private": "Private",
         "privateDescription": "Only logged-in admins can browse. Anonymous visitors are sent to login.",
+        "adminDisplayTitle": "Admin post display",
+        "adminDisplayDescription": "Choose how posts are labeled in admin navigation.",
+        "displayPostSlug": "Show slug",
+        "displayPostSlugDescription": "Use the readable post slug in the editor breadcrumb.",
+        "displayPostId": "Show post ID",
+        "displayPostIdDescription": "Use the database post ID without the redundant post: prefix.",
         "saved": "Settings saved",
         "saveFailed": "Could not save settings"
       }

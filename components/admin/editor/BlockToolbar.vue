@@ -28,7 +28,7 @@
       <div class="bt-separator" />
 
       <!-- Block-level actions (always visible when toolbar is shown) -->
-      <UDropdownMenu :items="transformItems">
+      <UDropdownMenu :items="transformItems" :open="openDropdownMenu === 'transform'" @update:open="setDropdownOpen('transform', $event)">
         <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.transformTo')">
           <UIcon :name="currentIcon" class="size-4" />
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
@@ -42,7 +42,7 @@
         <UIcon name="i-lucide-arrow-down" class="size-4" />
       </button>
 
-      <UDropdownMenu :items="alignItems">
+      <UDropdownMenu :items="alignItems" :open="openDropdownMenu === 'align'" @update:open="setDropdownOpen('align', $event)">
         <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.align')">
           <UIcon :name="alignIcon" class="size-4" />
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
@@ -138,8 +138,22 @@
           <div class="bt-highlight-actions">
             <label class="bt-highlight-picker" :title="t('admin.editor.toolbar.customHighlightColor')">
               <UIcon name="i-lucide-palette" class="size-3.5" />
-              <span>{{ t('admin.editor.toolbar.custom') }}</span>
+              <span class="sr-only">{{ t('admin.editor.toolbar.custom') }}</span>
               <input type="color" :value="customHighlightColor" @input="setCustomHighlightColor">
+            </label>
+
+            <label class="bt-highlight-hex" :title="t('admin.editor.toolbar.highlightHexCode')">
+              <span>{{ t('admin.editor.toolbar.hex') }}</span>
+              <input
+                v-model="customHighlightHex"
+                type="text"
+                inputmode="text"
+                pattern="#[0-9a-fA-F]{6}"
+                placeholder="#RRGGBB"
+                :aria-label="t('admin.editor.toolbar.highlightHexCode')"
+                @keydown.enter.prevent="applyCustomHighlightHex"
+                @blur="applyCustomHighlightHex"
+              >
             </label>
 
             <button
@@ -155,7 +169,7 @@
         </div>
       </div>
 
-      <UDropdownMenu :items="inlineMoreItems">
+      <UDropdownMenu :items="inlineMoreItems" :open="openDropdownMenu === 'inlineMore'" @update:open="setDropdownOpen('inlineMore', $event)">
         <button
           type="button"
           class="bt-btn"
@@ -184,7 +198,7 @@
           class="bt-btn bt-btn-suffix"
           :title="t('admin.editor.toolbar.chooseAnnotationLanguage')"
           :disabled="annotateBusy"
-          @mousedown.prevent="annotateLangPickerOpen = !annotateLangPickerOpen"
+          @mousedown.prevent="toggleAnnotateLangPicker"
         >
           <UIcon name="i-lucide-chevron-down" class="size-3 opacity-60" />
         </button>
@@ -211,7 +225,7 @@
       </div>
 
       <!-- 3-dot More menu -->
-      <UDropdownMenu :items="moreItems">
+      <UDropdownMenu :items="moreItems" :open="openDropdownMenu === 'more'" @update:open="setDropdownOpen('more', $event)">
         <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.moreOptions')">
           <UIcon name="i-lucide-more-vertical" class="size-4" />
         </button>
@@ -298,7 +312,7 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { Fragment } from '@tiptap/pm/model'
 import type { CSSProperties } from 'vue'
 import { hasAnyDropdownInlineActive, inlineMenuLabel } from './inlineFormatting'
-import { DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
+import { DARK_HIGHLIGHT_COLORS, DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
 import { DEFAULT_ANNOT_LANG, isAnnotLang, type AnnotLang } from '~/extensions/rubyUnit'
 import { useReadings } from '~/composables/editor/useReadings'
 import { renderLatex } from '~/utils/renderLatex'
@@ -336,8 +350,13 @@ const inlineMathDialogOpen = ref(false)
 const inlineMathDialogRange = ref<{ from: number; to: number } | null>(null)
 const highlightPaletteOpen = ref(false)
 const customHighlightColor = ref(DEFAULT_HIGHLIGHT_COLOR)
-const highlightColors = HIGHLIGHT_COLORS
+const customHighlightHex = ref(DEFAULT_HIGHLIGHT_COLOR)
+const prefersDarkToolbar = ref(false)
+const highlightColors = computed(() => prefersDarkToolbar.value ? DARK_HIGHLIGHT_COLORS : HIGHLIGHT_COLORS)
+type ToolbarDropdownMenu = 'transform' | 'align' | 'inlineMore' | 'more'
+const openDropdownMenu = ref<ToolbarDropdownMenu | null>(null)
 let pendingHighlightRange: { from: number; to: number } | null = null
+let themeObserver: MutationObserver | null = null
 
 // ─── FREE DRAG ────────────────────────────────────────────────────────────────
 const dragging = ref(false)
@@ -386,6 +405,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', onDragMouseUp)
   window.removeEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
   window.removeEventListener('pointerdown', closeAnnotatePopoverOnOutsideClick)
+  themeObserver?.disconnect()
 })
 const linkForm = reactive({
   href: 'https://',
@@ -416,6 +436,27 @@ const annotateLangOptions = computed<Array<{ value: AnnotLang, label: string, hi
   { value: 'jpn', label: t('admin.editor.toolbar.japanese'), hint: t('admin.editor.toolbar.furiganaHiragana') }
 ])
 const { annotate } = useReadings()
+
+function closeCustomPopovers() {
+  highlightPaletteOpen.value = false
+  annotateLangPickerOpen.value = false
+}
+
+function closeDropdownMenus() {
+  openDropdownMenu.value = null
+}
+
+function setDropdownOpen(menu: ToolbarDropdownMenu, open: boolean) {
+  if (open) {
+    closeCustomPopovers()
+    openDropdownMenu.value = menu
+    return
+  }
+
+  if (openDropdownMenu.value === menu) {
+    openDropdownMenu.value = null
+  }
+}
 
 const { floatingStyles } = useFloating(refEl, toolbarEl, {
   placement: 'top-start',
@@ -556,17 +597,12 @@ function openLinkDialog() {
   if (!editor) return
 
   if (editor.state.selection.empty) {
-    if (!selectionHasMark(editor, 'link')) {
-      return
+    if (selectionHasMark(editor, 'link')) {
+      editor.chain().focus().extendMarkRange('link').run()
     }
-
-    editor.chain().focus().extendMarkRange('link').run()
   }
 
   const { from, to, empty } = editor.state.selection
-  if (from === to) {
-    return
-  }
 
   const previousHref = editor.getAttributes('link').href as string | undefined
   const previousTarget = editor.getAttributes('link').target as string | null | undefined
@@ -634,8 +670,8 @@ function applyLinkDialog() {
     return
   }
 
-  const range = linkDialogRange.value ?? (editor.state.selection.empty ? null : { from: editor.state.selection.from, to: editor.state.selection.to })
-  if (!range || range.from === range.to) {
+  const range = linkDialogRange.value ?? { from: editor.state.selection.from, to: editor.state.selection.to }
+  if (!range) {
     linkDialogOpen.value = false
     linkDialogRange.value = null
     return
@@ -726,7 +762,10 @@ function setHighlightColor(color: string) {
   }
 
   chain.run()
-  customHighlightColor.value = color
+  if (isHexColor(color)) {
+    customHighlightColor.value = color
+    customHighlightHex.value = color
+  }
 
   pendingHighlightRange = null
   highlightPaletteOpen.value = false
@@ -761,6 +800,9 @@ function unsetHighlightColor() {
 }
 
 function toggleHighlightPalette() {
+  closeDropdownMenus()
+  annotateLangPickerOpen.value = false
+
   const ed = props.editor
   if (!ed) {
     highlightPaletteOpen.value = !highlightPaletteOpen.value
@@ -797,7 +839,23 @@ function toggleHighlightPalette() {
 function setCustomHighlightColor(event: Event) {
   const value = (event.target as HTMLInputElement).value
   customHighlightColor.value = value
+  customHighlightHex.value = value
   setHighlightColor(value)
+}
+
+function applyCustomHighlightHex() {
+  const value = customHighlightHex.value.trim()
+  if (!isHexColor(value)) {
+    customHighlightHex.value = customHighlightColor.value.startsWith('#') ? customHighlightColor.value : DEFAULT_HIGHLIGHT_COLOR
+    return
+  }
+
+  customHighlightColor.value = value
+  setHighlightColor(value)
+}
+
+function isHexColor(value: string) {
+  return /^#(?:[\da-fA-F]{3}|[\da-fA-F]{6})$/.test(value.trim())
 }
 
 function closeHighlightPaletteOnOutsideClick(event: PointerEvent) {
@@ -866,6 +924,11 @@ watch(() => props.visible, (visible) => {
 onMounted(() => {
   window.addEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
   window.addEventListener('pointerdown', closeAnnotatePopoverOnOutsideClick)
+  prefersDarkToolbar.value = document.documentElement.dataset.theme === 'dark'
+  themeObserver = new MutationObserver(() => {
+    prefersDarkToolbar.value = document.documentElement.dataset.theme === 'dark'
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
 })
 
 function selectionHasMark(editor: Editor, markName: string) {
@@ -973,6 +1036,12 @@ function selectAnnotateLang(value: AnnotLang) {
   annotateLang.value = value
   persistAnnotateLang(value)
   annotateLangPickerOpen.value = false
+}
+
+function toggleAnnotateLangPicker() {
+  closeDropdownMenus()
+  highlightPaletteOpen.value = false
+  annotateLangPickerOpen.value = !annotateLangPickerOpen.value
 }
 
 function resolveAnnotateLang(): AnnotLang {
@@ -1152,6 +1221,22 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   box-shadow: inset 0 0 0 1px var(--pb-selected-border);
 }
 
+.bt-btn-active:hover {
+  background: color-mix(in srgb, var(--pb-selected-bg) 76%, var(--pb-primary) 24%);
+  color: var(--pb-text);
+}
+
+:global([data-theme="dark"]) .bt-btn-active {
+  background: color-mix(in srgb, var(--pb-primary) 34%, var(--pb-card-bg));
+  color: var(--pb-primary-contrast);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pb-primary) 72%, var(--pb-text));
+}
+
+:global([data-theme="dark"]) .bt-btn-active:hover {
+  background: color-mix(in srgb, var(--pb-primary) 48%, var(--pb-card-bg));
+  color: var(--pb-primary-contrast);
+}
+
 .bt-separator {
   width: 1px;
   height: 20px;
@@ -1164,7 +1249,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   top: calc(100% + 6px);
   left: 0;
   z-index: 20;
-  min-width: 188px;
+  min-width: 248px;
   border: 1px solid var(--pb-divider-strong);
   border-radius: var(--pb-radius-card-inner);
   background: var(--pb-card-bg);
@@ -1183,18 +1268,21 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   height: 22px;
   border-radius: 0.375rem;
   border: 1px solid var(--pb-border-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pb-text) 12%, transparent);
 }
 
 .bt-highlight-actions {
   margin-top: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .bt-highlight-picker,
-.bt-highlight-clear {
+.bt-highlight-clear,
+.bt-highlight-hex {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1210,6 +1298,8 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
 .bt-highlight-picker {
   position: relative;
   overflow: hidden;
+  width: 1.875rem;
+  justify-content: center;
 }
 
 .bt-highlight-picker input {
@@ -1219,7 +1309,37 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   cursor: pointer;
 }
 
+.bt-highlight-hex {
+  flex: 1 1 7.5rem;
+  min-width: 7.5rem;
+}
+
+.bt-highlight-hex span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--pb-text-subtle);
+}
+
+.bt-highlight-hex input {
+  min-width: 0;
+  width: 5.75rem;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--pb-text);
+  font-family: var(--font-mono, 'Courier New', Courier, monospace);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.bt-highlight-hex:focus-within {
+  border-color: var(--pb-selected-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pb-primary) 18%, transparent);
+}
+
 .bt-highlight-picker:hover,
+.bt-highlight-hex:hover,
 .bt-highlight-clear:hover {
   border-color: var(--pb-selected-border);
   color: var(--pb-link-hover);

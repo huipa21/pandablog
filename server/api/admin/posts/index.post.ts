@@ -2,7 +2,7 @@ import { queryDb, useDb } from '../../../utils/db'
 import { buildPostPayload, normalizePost, stringOrNull } from '../../../utils/content'
 import { firstRow, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
 import { requireContentManager } from '../../../utils/auth'
-import { uniquePostSlug } from '../../../utils/posts'
+import { assertPostSlugAvailable, uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
@@ -34,7 +34,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = await useDb()
-  payload.slug = await uniquePostSlug(db, String(payload.slug))
+  payload.slug = payload.status === 'published'
+    ? await assertPostSlugAvailable(db, String(payload.slug))
+    : await uniquePostSlug(db, String(payload.slug))
 
   const response = await queryDb(
     db,

@@ -155,6 +155,8 @@
 import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE, normalizeAdminLocale } from '~/utils/adminLocale'
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
+const ADMIN_POST_DISPLAY_MODE_KEY = 'admin_post_display_mode'
+
 type AdminRole = 'superadmin' | 'admin' | 'author' | 'viewer'
 
 interface AdminSessionUser {
@@ -173,7 +175,7 @@ const { data: authSession } = await useAsyncData('admin-layout-session', () => s
 })
 const adminRole = computed(() => authSession.value?.user?.role ?? null)
 const isSuperadmin = computed(() => adminRole.value === 'superadmin')
-const defaultAdminSettings = () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE, [ADMIN_LOCALE_KEY]: DEFAULT_ADMIN_LOCALE } })
+const defaultAdminSettings = () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE, [ADMIN_LOCALE_KEY]: DEFAULT_ADMIN_LOCALE, [ADMIN_POST_DISPLAY_MODE_KEY]: 'slug' } })
 const { data: adminSettings } = await useAsyncData('admin-layout-settings', () => {
   if (!isSuperadmin.value) {
     return Promise.resolve(defaultAdminSettings())
@@ -350,6 +352,11 @@ const breadcrumbLabels = computed<Record<string, string>>(() => ({
   login: t('admin.nav.login')
 }))
 
+type AdminPostDisplayMode = 'slug' | 'id'
+
+const adminPostBreadcrumb = useState<{ id: string, slug: string } | null>('admin-post-breadcrumb', () => null)
+const adminPostDisplayMode = computed<AdminPostDisplayMode>(() => adminSettings.value?.settings?.[ADMIN_POST_DISPLAY_MODE_KEY] === 'id' ? 'id' : 'slug')
+
 interface AdminBreadcrumb {
   to?: string
   label: string
@@ -393,12 +400,28 @@ const breadcrumbs = computed<AdminBreadcrumb[]>(() => {
     }
     crumbs.push({
       to: `/${parts.slice(0, visiblePartsStart + index + 1).join('/')}`,
-      label: breadcrumbLabels.value[part] ?? decodeURIComponent(part).replace(/[-_]/g, ' ')
+      label: breadcrumbLabel(part)
     })
   }
 
   return crumbs
 })
+
+function breadcrumbLabel(part: string) {
+  const decoded = decodeURIComponent(part)
+  if (decoded.startsWith('post:')) {
+    const postLabel = adminPostDisplayMode.value === 'slug'
+      ? adminPostBreadcrumb.value?.slug
+      : adminPostBreadcrumb.value?.id
+    return stripPostRecordPrefix(postLabel || decoded)
+  }
+
+  return breadcrumbLabels.value[part] ?? decoded.replace(/[-_]/g, ' ')
+}
+
+function stripPostRecordPrefix(value: string) {
+  return value.startsWith('post:') ? value.slice(5) : value
+}
 
 function breadcrumbSection(part: string) {
   if (['posts', 'categories', 'tags', 'media'].includes(part)) return t('admin.nav.posts')

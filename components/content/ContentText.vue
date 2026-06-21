@@ -107,6 +107,11 @@ const markStyle = computed(() => {
   if (currentMark.value?.type === 'highlight') {
     const color = safeCssValue(attrs.color)
     style.backgroundColor = color || DEFAULT_HIGHLIGHT_COLOR
+
+    const foreground = readableTextColor(style.backgroundColor)
+    if (foreground) {
+      style.color = foreground
+    }
   }
 
   return style
@@ -128,6 +133,43 @@ function safeCssValue(value: unknown) {
   }
 
   return /^[#a-zA-Z0-9(),.%\s-]+$/.test(value) ? value : ''
+}
+
+function readableTextColor(backgroundColor: string) {
+  const rgb = parseColor(backgroundColor)
+  if (!rgb) {
+    return ''
+  }
+
+  const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255
+  return luminance < 0.46 ? 'rgb(248, 250, 252)' : 'rgb(31, 41, 55)'
+}
+
+function parseColor(color: string) {
+  const hex = color.match(/^#([\da-f]{3}|[\da-f]{6})$/i)
+  const value = hex?.[1]
+  if (value) {
+    const full = value.length === 3 ? value.split('').map((char) => char + char).join('') : value
+    return {
+      r: Number.parseInt(full.slice(0, 2), 16),
+      g: Number.parseInt(full.slice(2, 4), 16),
+      b: Number.parseInt(full.slice(4, 6), 16)
+    }
+  }
+
+  const rgb = color.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i)
+  const red = rgb?.[1]
+  const green = rgb?.[2]
+  const blue = rgb?.[3]
+  if (!red || !green || !blue) {
+    return null
+  }
+
+  return {
+    r: Math.min(255, Number(red)),
+    g: Math.min(255, Number(green)),
+    b: Math.min(255, Number(blue))
+  }
 }
 
 function handleLinkClick(event: MouseEvent) {

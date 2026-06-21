@@ -703,6 +703,8 @@
         "highlightColor": "高亮 {label}",
         "custom": "自定义",
         "customHighlightColor": "自定义高亮颜色",
+        "highlightHexCode": "高亮 HEX 色值",
+        "hex": "HEX",
         "removeHighlight": "移除高亮",
         "transparent": "透明",
         "moreFormatting": "更多格式",
@@ -1521,6 +1523,12 @@
         "publicDescription": "所有人都可以浏览站点。单篇文章可见性仍然生效。",
         "private": "私密",
         "privateDescription": "只有已登录管理员可以浏览。匿名访客会被发送到登录页。",
+        "adminDisplayTitle": "后台文章显示",
+        "adminDisplayDescription": "选择后台导航中如何显示文章。",
+        "displayPostSlug": "显示 Slug",
+        "displayPostSlugDescription": "在编辑器面包屑中使用可读的文章 slug。",
+        "displayPostId": "显示文章 ID",
+        "displayPostIdDescription": "使用去掉多余 post: 前缀后的数据库文章 ID。",
         "saved": "设置已保存",
         "saveFailed": "无法保存设置"
       }

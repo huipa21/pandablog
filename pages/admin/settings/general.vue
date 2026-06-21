@@ -190,6 +190,31 @@
           </fieldset>
         </section>
 
+        <section class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
+          <div>
+            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.adminDisplayTitle') }}</h2>
+            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.adminDisplayDescription') }}</p>
+          </div>
+
+          <fieldset class="grid gap-3 md:grid-cols-2">
+            <label class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3" :class="form.admin_post_display_mode === 'slug' ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-divider)]'">
+              <input v-model="form.admin_post_display_mode" type="radio" value="slug" class="mt-1">
+              <span class="grid gap-1">
+                <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.displayPostSlug') }}</span>
+                <span class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.displayPostSlugDescription') }}</span>
+              </span>
+            </label>
+
+            <label class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3" :class="form.admin_post_display_mode === 'id' ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-divider)]'">
+              <input v-model="form.admin_post_display_mode" type="radio" value="id" class="mt-1">
+              <span class="grid gap-1">
+                <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.displayPostId') }}</span>
+                <span class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.displayPostIdDescription') }}</span>
+              </span>
+            </label>
+          </fieldset>
+        </section>
+
         <div class="flex justify-end">
           <UButton type="submit" icon="i-lucide-save" :loading="saving">{{ t('admin.settings.common.saveSettings') }}</UButton>
         </div>
@@ -217,6 +242,7 @@ const { t } = useI18n()
 type SiteAssetKey = 'site_logo' | 'site_banner' | 'site_favicon'
 type SiteVisibility = 'public' | 'private'
 type FilingIconPreset = 'none' | 'emblem' | 'shield' | 'custom'
+type PostDisplayMode = 'slug' | 'id'
 
 interface FooterLink {
   label: string
@@ -245,6 +271,7 @@ interface GeneralSettingsForm {
   footer_links: FooterLink[]
   footer_social: FooterLink[]
   footer_filings: FilingLink[]
+  admin_post_display_mode: PostDisplayMode
   mode: SiteVisibility
 }
 
@@ -283,6 +310,7 @@ const form = reactive<GeneralSettingsForm>({
   footer_links: [],
   footer_social: [],
   footer_filings: [],
+  admin_post_display_mode: 'slug',
   mode: 'public'
 })
 const mediaPickerOpen = ref(false)
@@ -308,6 +336,7 @@ watch(data, (value) => {
   form.footer_links = linksValue(settings.footer_links)
   form.footer_social = linksValue(settings.footer_social)
   form.footer_filings = filingsValue(settings.footer_filings)
+  form.admin_post_display_mode = postDisplayModeValue(settings.admin_post_display_mode)
   form.mode = value?.mode === 'private' ? 'private' : 'public'
   initialMode.value = form.mode
 }, { immediate: true })
@@ -357,7 +386,8 @@ async function save() {
         label: filing.label,
         url: filing.url,
         icon: iconValueForFiling(filing)
-      })))
+      }))),
+      admin_post_display_mode: form.admin_post_display_mode
     }
     const [settingsResponse, visibilityResponse] = await Promise.all([
       $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings', {
@@ -376,6 +406,7 @@ async function save() {
       settings: settingsResponse.settings,
       mode: visibilityResponse.mode
     }
+    await refreshNuxtData('admin-layout-settings')
     await refreshNuxtData('public-bootstrap')
     adminToast.success(t('admin.settings.general.saved'))
   } catch (err: any) {
@@ -472,6 +503,10 @@ function filingIconState(icon: string | undefined): Pick<FilingLink, 'iconPreset
 
 function textValue(value: unknown) {
   return typeof value === 'string' ? value : ''
+}
+
+function postDisplayModeValue(value: unknown): PostDisplayMode {
+  return value === 'id' ? 'id' : 'slug'
 }
 
 function numberValue(value: unknown, fallback: number, min: number, max: number) {

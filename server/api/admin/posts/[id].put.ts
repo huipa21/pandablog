@@ -3,7 +3,7 @@ import { buildPostPayload, normalizePost, stringOrNull } from '../../../utils/co
 import { firstRow, recordIdPart } from '../../../utils/surrealResult'
 import { requireContentManager } from '../../../utils/auth'
 import { assertCanManagePostRecord } from '../../../utils/permissions'
-import { uniquePostSlug } from '../../../utils/posts'
+import { assertPostSlugAvailable, uniquePostSlug } from '../../../utils/posts'
 import { hashPostPassword } from '../../../utils/post-password'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
@@ -41,9 +41,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const desiredSlug = String(payload.slug)
-  payload.slug = desiredSlug === previousPost.slug
-    ? previousPost.slug
-    : await uniquePostSlug(db, desiredSlug, `post:${id}`)
+  payload.slug = payload.status === 'published'
+    ? await assertPostSlugAvailable(db, desiredSlug, `post:${id}`)
+    : desiredSlug === previousPost.slug
+      ? previousPost.slug
+      : await uniquePostSlug(db, desiredSlug, `post:${id}`)
   const { updates: visibilityUpdate, ownerAction } = await resolveVisibilityUpdate(body, existing, user.id)
   const clears = cleanOptionalFieldClears(body)
 
