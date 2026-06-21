@@ -2,10 +2,11 @@ import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFolderId, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
-import { queryRows, stringifyRecordId } from '../../utils/surrealResult'
+import { mediaRecordManageableByUser } from '../../utils/mediaPermissions'
+import { queryRows } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireContentManager(event)
+  const user = await requireContentManager(event)
   const body = await readBody<{
     action: 'delete' | 'update'
     hashes: string[]
@@ -28,7 +29,7 @@ export default defineEventHandler(async (event) => {
   if (body.action === 'delete') {
     const response = await queryDb(
       db,
-      `SELECT id, hash, original_path, variants
+      `SELECT *
        FROM files
        WHERE hash IN $hashes;`,
       { hashes }
@@ -42,9 +43,11 @@ export default defineEventHandler(async (event) => {
     for (const hash of hashes) {
       try {
         const file = filesByHash.get(hash)
-        if (file) {
-          await mediaDeleteStoredObjects(file)
+        if (!file || !mediaRecordManageableByUser(file, user) || ((file.reference_count ?? 0) > 0)) {
+          failed++
+          continue
         }
+        await mediaDeleteStoredObjects(file)
         deleteHashes.push(hash)
         success++
       } catch {
@@ -81,20 +84,25 @@ export default defineEventHandler(async (event) => {
       const folderIds = normalizeBulkFolderIds(data.folders)
 
       if (data.folderMode === 'add' && folderIds.length) {
-        const existingResponse = await queryDb(db, 'SELECT id, hash, folders FROM files WHERE hash IN $hashes;', { hashes })
-        const existingFoldersByHash = new Map(queryRows<Record<string, unknown>>(existingResponse).map((record) => [
-          String(record.hash ?? recordIdPartFromFileId(record.id)),
-          normalizeExistingFolderIds(record.folders)
-        ]))
+        const existingResponse = await queryDb(db, 'SELECT * FROM files WHERE hash IN $hashes;', { hashes })
+        const filesByHash = new Map(queryRows<Record<string, unknown>>(existingResponse).map((record) => {
+          const file = mediaNormalizeFileRecord(record)
+          return [file.hash, file]
+        }))
 
         for (const hash of hashes) {
           try {
+            const file = filesByHash.get(hash)
+            if (!file || !mediaRecordManageableByUser(file, user)) {
+              failed++
+              continue
+            }
             const perFileAssignments = [...assignments]
             const perFileParams: Record<string, unknown> = { ...params, table: 'files', id: hash }
             addFolderAssignment(
               perFileAssignments,
               perFileParams,
-              Array.from(new Set([...(existingFoldersByHash.get(hash) ?? []), ...folderIds]))
+              Array.from(new Set([...(file.folders?.map((folder) => mediaNormalizeFolderId(folder)) ?? []), ...folderIds]))
             )
             await queryDb(db, `UPDATE type::record($table, $id) SET ${perFileAssignments.join(', ')};`, perFileParams)
             success++
@@ -105,20 +113,24 @@ export default defineEventHandler(async (event) => {
       } else {
         addFolderAssignment(assignments, params, folderIds)
         try {
-          if (hashes.length) {
-            await queryDb(db, `UPDATE files SET ${assignments.join(', ')} WHERE hash IN $hashes;`, params)
+          const manageableHashes = await filterManageableHashes(db, hashes, user)
+          if (manageableHashes.length) {
+            await queryDb(db, `UPDATE files SET ${assignments.join(', ')} WHERE hash IN $hashes;`, { ...params, hashes: manageableHashes })
           }
-          success += hashes.length
+          success += manageableHashes.length
+          failed += hashes.length - manageableHashes.length
         } catch {
           failed += hashes.length
         }
       }
     } else {
       try {
-        if (hashes.length) {
-          await queryDb(db, `UPDATE files SET ${assignments.join(', ')} WHERE hash IN $hashes;`, params)
+        const manageableHashes = await filterManageableHashes(db, hashes, user)
+        if (manageableHashes.length) {
+          await queryDb(db, `UPDATE files SET ${assignments.join(', ')} WHERE hash IN $hashes;`, { ...params, hashes: manageableHashes })
         }
-        success += hashes.length
+        success += manageableHashes.length
+        failed += hashes.length - manageableHashes.length
       } catch {
         failed += hashes.length
       }
@@ -129,14 +141,6 @@ export default defineEventHandler(async (event) => {
 
   return { success, failed }
 })
-
-function normalizeExistingFolderIds(value: unknown) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return value.map((folder) => mediaNormalizeFolderId(stringifyRecordId(folder))).filter(Boolean)
-}
 
 function normalizeBulkTags(value: unknown) {
   if (!Array.isArray(value)) {
@@ -174,7 +178,16 @@ function addFolderAssignment(assignments: string[], params: Record<string, unkno
   assignments.push(`folders = [${folderExpressions.join(', ')}]`)
 }
 
-function recordIdPartFromFileId(value: unknown) {
-  const id = stringifyRecordId(value)
-  return id.startsWith('files:') ? id.slice('files:'.length) : id
+async function filterManageableHashes(db: Awaited<ReturnType<typeof useDb>>, hashes: string[], user: Awaited<ReturnType<typeof requireContentManager>>) {
+  if (!hashes.length) {
+    return []
+  }
+
+  const response = await queryDb(db, 'SELECT * FROM files WHERE hash IN $hashes;', { hashes })
+  const manageable = new Set(queryRows<Record<string, unknown>>(response)
+    .map(mediaNormalizeFileRecord)
+    .filter((file) => mediaRecordManageableByUser(file, user))
+    .map((file) => file.hash))
+
+  return hashes.filter((hash) => manageable.has(hash))
 }

@@ -8,6 +8,7 @@ import type { PostRecord, PostStatus, PostVisibility } from '~/types/content'
 const statuses: Array<PostStatus | 'all'> = ['all', 'draft', 'published', 'archived']
 const postStatuses: PostStatus[] = ['draft', 'published', 'archived']
 const postVisibilities: PostVisibility[] = ['public', 'private', 'password']
+const MAX_TITLE_REGEX_LENGTH = 200
 const sortOrders = {
   updated_desc: 'updated_at DESC',
   updated_asc: 'updated_at ASC',
@@ -182,6 +183,10 @@ function normalizeEnumList<T extends string>(value: unknown, allowed: T[]): T[] 
 function normalizeTitleRegex(value: unknown): string | null {
   const pattern = String(value ?? '').trim()
   if (!pattern) {
+    return null
+  }
+
+  if (pattern.length > MAX_TITLE_REGEX_LENGTH) {
     return null
   }
 

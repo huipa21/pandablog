@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { createWriteStream } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -6,6 +7,7 @@ import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaResolveOriginalPath } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
+import { mediaRecordVisibleToUser } from '../../utils/mediaPermissions'
 import { queryRows } from '../../utils/surrealResult'
 
 const require = createRequire(import.meta.url)
@@ -14,7 +16,7 @@ const archiver: typeof import('archiver') = require('archiver')
 const downloadsRoot = resolve(process.cwd(), 'storage/downloads')
 
 export default defineEventHandler(async (event) => {
-  await requireContentManager(event)
+  const user = await requireContentManager(event)
   const body = await readBody<{ hashes: string[] }>(event)
 
   if (!Array.isArray(body.hashes) || !body.hashes.length) {
@@ -37,7 +39,7 @@ export default defineEventHandler(async (event) => {
   // Multiple files: create a zip
   await mkdir(downloadsRoot, { recursive: true })
 
-  const zipName = `media-${Date.now()}.zip`
+  const zipName = `media-${Date.now()}-${randomBytes(12).toString('hex')}.zip`
   const zipPath = resolve(downloadsRoot, zipName)
 
   const archive = archiver('zip', { zlib: { level: 5 } })
@@ -51,8 +53,11 @@ export default defineEventHandler(async (event) => {
   )
   const filesByHash = new Map(queryRows<Record<string, unknown>>(fileResponse).map((record) => {
     const file = mediaNormalizeFileRecord(record)
+    if (!mediaRecordVisibleToUser(file, user)) {
+      return null
+    }
     return [file.hash, file]
-  }))
+  }).filter((entry): entry is [string, ReturnType<typeof mediaNormalizeFileRecord>] => entry !== null))
 
   await new Promise<void>((resolvePromise, reject) => {
     output.on('close', resolvePromise)

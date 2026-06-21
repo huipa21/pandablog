@@ -2,15 +2,18 @@ import type { Surreal } from 'surrealdb'
 import { queryDb } from './db'
 import { mediaDeleteStoredObjects } from './fileStorage'
 import { mediaNormalizeFileRecord } from './mediaLibrary'
+import { mediaRecordManageableByUser, mediaRecordVisibleToUser } from './mediaPermissions'
 import { queryRows } from './surrealResult'
 import type { MediaRecord } from '~/types/content'
+import type { SessionUser } from './users'
 
 export interface MediaCleanupOptions {
   olderThanDays?: number
   hashes?: string[]
+  user?: SessionUser
 }
 
-export async function mediaListOrphanFiles(db: Surreal, olderThanDays?: number) {
+export async function mediaListOrphanFiles(db: Surreal, olderThanDays?: number, user?: SessionUser) {
   const params: Record<string, unknown> = {}
   const conditions = ['reference_count = 0', 'referenced_by = []']
 
@@ -26,12 +29,14 @@ export async function mediaListOrphanFiles(db: Surreal, olderThanDays?: number) 
     { timeoutMs: 30_000 }
   )
 
-  return queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
+  return queryRows<Record<string, unknown>>(response)
+    .map(mediaNormalizeFileRecord)
+    .filter((file) => mediaRecordVisibleToUser(file, user))
 }
 
 export async function mediaCleanupOrphanFiles(db: Surreal, options: MediaCleanupOptions = {}) {
   const wantedHashes = normalizeHashSet(options.hashes)
-  const orphans = await mediaListOrphanFiles(db, options.olderThanDays)
+  const orphans = await mediaListOrphanFiles(db, options.olderThanDays, options.user)
   const selected = wantedHashes.size
     ? orphans.filter((file) => wantedHashes.has(file.hash))
     : orphans
@@ -40,6 +45,10 @@ export async function mediaCleanupOrphanFiles(db: Surreal, options: MediaCleanup
 
   for (const file of selected) {
     try {
+      if (options.user && !mediaRecordManageableByUser(file, options.user)) {
+        failed.push({ hash: file.hash, reason: 'Insufficient permissions' })
+        continue
+      }
       await mediaDeleteStoredObjects(file)
       await queryDb(db, 'DELETE FROM type::record($table, $id);', {
         table: 'files',

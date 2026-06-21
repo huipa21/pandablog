@@ -21,9 +21,10 @@ export default defineEventHandler(async (event) => {
   try {
     await deliverTestAlert(url, alertDetailsFromEvent(event, { reason: 'Manual test from admin settings' }))
   } catch (error) {
+    console.warn('[security-alert] test webhook delivery failed:', error instanceof Error ? error.message : error)
     throw createError({
       statusCode: 400,
-      message: error instanceof Error ? error.message : 'Webhook delivery failed'
+      message: 'Webhook delivery failed'
     })
   }
 
