@@ -209,11 +209,6 @@
     "#ffffff": 1
   },
   "utils/highlightColors.ts": {
-    "#bbf7d0": 1,
-    "#bfdbfe": 1,
-    "#ddd6fe": 1,
-    "#fde68a": 1,
-    "#fecdd3": 1,
-    "#fef08a": 2
+    "#fde047": 1
   }
 }

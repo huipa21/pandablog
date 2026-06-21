@@ -212,7 +212,6 @@ import Color from '@tiptap/extension-color'
 import Dropcursor from '@tiptap/extension-dropcursor'
 import FontFamily from '@tiptap/extension-font-family'
 import GapCursor from '@tiptap/extension-gapcursor'
-import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import Table from '@tiptap/extension-table'
 import TableCell from '@tiptap/extension-table-cell'
@@ -228,6 +227,7 @@ import latexLanguage from 'highlight.js/lib/languages/latex'
 import { Footnote } from '~/extensions/footnote'
 import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
+import { HighlightEnhanced } from '~/extensions/highlightEnhanced'
 import { LinkEnhanced } from '~/extensions/linkEnhanced'
 import { ListItemEnhanced } from '~/extensions/listItemEnhanced'
 import { SeparatorNode } from '~/extensions/separator'
@@ -426,7 +426,7 @@ const editor = useEditor({
     GapCursor,
     TextStyle,
     Color,
-    Highlight.configure({ multicolor: true }),
+    HighlightEnhanced,
     FontFamily,
     SeparatorNode,
     Dropcursor.configure({ color: 'var(--pb-primary)', width: 2 }),

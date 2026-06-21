@@ -144,10 +144,6 @@
   background: color-mix(in srgb, var(--color-card-bg) 86%, var(--color-warm-soft));
 }
 
-.theme-scope[data-theme-variant="clay-magazine"] .post-card-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
-}
-
 .theme-scope[data-theme-variant="clay-magazine"] .post-card-grid > article:nth-child(4n + 1) {
   transform: rotate(-0.25deg);
 }

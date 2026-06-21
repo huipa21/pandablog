@@ -133,10 +133,6 @@
   justify-content: center;
 }
 
-.theme-scope[data-theme-variant="notion-paper"] .post-card-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-}
-
 .theme-scope[data-theme-variant="notion-paper"] .post-reading-frame {
   border-color: color-mix(in srgb, var(--color-card-border) 72%, transparent);
 }

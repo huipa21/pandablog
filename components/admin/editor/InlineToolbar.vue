@@ -36,7 +36,7 @@
           :key="color.value"
           type="button"
           class="size-5 rounded border border-stone-300"
-          :style="{ backgroundColor: color.value }"
+          :style="{ backgroundColor: prefersDarkToolbar ? color.dark : color.light }"
           :aria-label="t('admin.editor.toolbar.highlightColor', { label: color.label })"
           :title="t('admin.editor.toolbar.highlightColor', { label: color.label })"
           @mousedown.prevent="setHighlight(color.value)"
@@ -66,8 +66,9 @@
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import { BubbleMenu } from '@tiptap/vue-3'
-import { DARK_HIGHLIGHT_COLORS, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
+import { curatedHighlightOptions } from '~/utils/highlightColors'
 
 const props = defineProps<{
   editor: Editor | null
@@ -82,7 +83,7 @@ const bubbleTippyOptions = {
   maxWidth: 'calc(100vw - 1rem)'
 }
 const prefersDarkToolbar = ref(false)
-const highlightColors = computed(() => prefersDarkToolbar.value ? DARK_HIGHLIGHT_COLORS : HIGHLIGHT_COLORS)
+const highlightColors = curatedHighlightOptions()
 const linkDialogOpen = ref(false)
 const linkInitialHref = ref('')
 let themeObserver: MutationObserver | null = null
@@ -129,6 +130,18 @@ function confirmLink(href: string) {
   }
 
   editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+  collapseToNormalText(editor, editor.state.selection.to)
+}
+
+function collapseToNormalText(editor: Editor, position: number) {
+  const docSize = editor.state.doc.content.size
+  const safePosition = Math.max(0, Math.min(position, docSize))
+  const transaction = editor.state.tr
+    .setSelection(TextSelection.create(editor.state.doc, safePosition))
+    .setStoredMarks([])
+
+  editor.view.dispatch(transaction)
+  editor.view.focus()
 }
 
 function setTextColor(event: Event) {

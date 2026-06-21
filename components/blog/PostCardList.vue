@@ -196,9 +196,13 @@ function postExcerpt(post: PostListItem) {
 
 <style scoped>
 .post-card-grid {
+  --post-card-grid-min: 18rem;
+  --post-card-grid-max: 24rem;
+
   gap: clamp(1rem, 1.5vw, 2rem);
   display: grid;
   align-items: start;
+  justify-content: start;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -220,7 +224,13 @@ function postExcerpt(post: PostListItem) {
 
 @media (min-width: 640px) {
   .post-card-grid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--post-card-grid-min), 1fr));
+  }
+
+  .post-card-grid-item {
+    justify-self: start;
+    width: 100%;
+    max-width: var(--post-card-grid-max);
   }
 }
 

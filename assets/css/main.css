@@ -77,9 +77,9 @@
   --pb-prose-heading-margin-y: 1.25rem 0 0.75rem;
   --pb-prose-link-color: var(--pb-link);
   --pb-prose-link-underline-offset: 0.18em;
-  --pb-inline-code-bg: color-mix(in srgb, var(--pb-primary) 10%, var(--pb-surface-subtle));
-  --pb-inline-code-color: var(--pb-text);
-  --pb-inline-code-border: color-mix(in srgb, var(--pb-primary) 24%, var(--pb-divider));
+  --pb-inline-code-bg: color-mix(in srgb, var(--pb-text) 6%, var(--pb-surface));
+  --pb-inline-code-color: var(--pb-text-muted);
+  --pb-inline-code-border: color-mix(in srgb, var(--pb-text) 12%, transparent);
   --pb-inline-code-shadow: transparent;
   --pb-math-error: var(--color-danger, crimson);
   --pb-table-border: var(--pb-border);
@@ -139,10 +139,10 @@
   --ui-text-highlighted: var(--pb-text);
   --ui-bg-inverted: var(--pb-text);
   --ui-border-inverted: var(--pb-text);
-  --pb-inline-code-bg: color-mix(in srgb, var(--pb-primary) 28%, var(--pb-card-bg));
-  --pb-inline-code-color: var(--pb-primary-contrast);
-  --pb-inline-code-border: color-mix(in srgb, var(--pb-primary) 52%, var(--pb-divider-strong));
-  --pb-inline-code-shadow: color-mix(in srgb, var(--pb-primary) 18%, transparent);
+  --pb-inline-code-bg: color-mix(in srgb, var(--pb-text) 12%, var(--pb-card-bg));
+  --pb-inline-code-color: var(--pb-text-muted);
+  --pb-inline-code-border: color-mix(in srgb, var(--pb-text) 20%, transparent);
+  --pb-inline-code-shadow: transparent;
 }
 
 body {
@@ -318,19 +318,24 @@ html {
   box-shadow: 0 0 0 2px var(--pb-inline-code-shadow);
 }
 
-.pb-prose mark[data-color],
-.pb-prose mark[style*="background-color"] {
-  color: rgb(31, 41, 55);
+/* Highlight colours are theme-adaptive and contrast-guaranteed. Both the admin
+   editor (extensions/highlightEnhanced.ts) and the public renderer
+   (components/content/ContentText.vue) emit the same four CSS variables from a
+   single seed colour, so the highlight flips correctly between light and dark
+   mode while staying readable. See utils/highlightColors.ts. */
+.pb-prose mark {
+  border-radius: 0.18em;
+  padding: 0.04em 0.12em;
 }
 
-:where([data-theme="dark"]) .pb-prose mark[data-color],
-:where([data-theme="dark"]) .pb-prose mark[style*="rgb(133, 91, 16)"],
-:where([data-theme="dark"]) .pb-prose mark[style*="rgb(42, 104, 74)"],
-:where([data-theme="dark"]) .pb-prose mark[style*="rgb(37, 99, 145)"],
-:where([data-theme="dark"]) .pb-prose mark[style*="rgb(92, 72, 153)"],
-:where([data-theme="dark"]) .pb-prose mark[style*="rgb(139, 52, 86)"],
-:where([data-theme="dark"]) .pb-prose mark[style*="rgb(139, 74, 34)"] {
-  color: rgb(248, 250, 252);
+.pb-prose mark[style*="--hl-bg"] {
+  background-color: var(--hl-bg);
+  color: var(--hl-text);
+}
+
+:where([data-theme="dark"]) .pb-prose mark[style*="--hl-bg"] {
+  background-color: var(--hl-bg-dark);
+  color: var(--hl-text-dark);
 }
 
 .pb-prose pre code,

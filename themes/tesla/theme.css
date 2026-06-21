@@ -142,10 +142,6 @@
   border-color: var(--color-border-strong);
 }
 
-.theme-scope[data-theme-variant="tesla"] .post-card-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
-}
-
 @media (min-width: 1024px) {
   .theme-scope[data-theme-variant="tesla"] .home-hero {
     grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.78fr);

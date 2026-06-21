@@ -128,7 +128,7 @@
               :key="color.value"
               type="button"
               class="bt-highlight-swatch"
-              :style="{ backgroundColor: color.value }"
+              :style="{ backgroundColor: prefersDarkToolbar ? color.dark : color.light }"
               :title="t('admin.editor.toolbar.highlightColor', { label: color.label })"
               :aria-label="t('admin.editor.toolbar.highlightColor', { label: color.label })"
               @mousedown.prevent="setHighlightColor(color.value)"
@@ -312,7 +312,7 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { Fragment } from '@tiptap/pm/model'
 import type { CSSProperties } from 'vue'
 import { hasAnyDropdownInlineActive, inlineMenuLabel } from './inlineFormatting'
-import { DARK_HIGHLIGHT_COLORS, DEFAULT_HIGHLIGHT_COLOR, HIGHLIGHT_COLORS } from '~/utils/highlightColors'
+import { curatedHighlightOptions, DEFAULT_HIGHLIGHT_COLOR, DEFAULT_HIGHLIGHT_PICKER_HEX } from '~/utils/highlightColors'
 import { DEFAULT_ANNOT_LANG, isAnnotLang, type AnnotLang } from '~/extensions/rubyUnit'
 import { useReadings } from '~/composables/editor/useReadings'
 import { renderLatex } from '~/utils/renderLatex'
@@ -349,10 +349,10 @@ const linkDialogRange = ref<{ from: number; to: number } | null>(null)
 const inlineMathDialogOpen = ref(false)
 const inlineMathDialogRange = ref<{ from: number; to: number } | null>(null)
 const highlightPaletteOpen = ref(false)
-const customHighlightColor = ref(DEFAULT_HIGHLIGHT_COLOR)
-const customHighlightHex = ref(DEFAULT_HIGHLIGHT_COLOR)
+const customHighlightColor = ref(DEFAULT_HIGHLIGHT_PICKER_HEX)
+const customHighlightHex = ref(DEFAULT_HIGHLIGHT_PICKER_HEX)
 const prefersDarkToolbar = ref(false)
-const highlightColors = computed(() => prefersDarkToolbar.value ? DARK_HIGHLIGHT_COLORS : HIGHLIGHT_COLORS)
+const highlightColors = curatedHighlightOptions()
 type ToolbarDropdownMenu = 'transform' | 'align' | 'inlineMore' | 'more'
 const openDropdownMenu = ref<ToolbarDropdownMenu | null>(null)
 let pendingHighlightRange: { from: number; to: number } | null = null
@@ -832,7 +832,7 @@ function toggleHighlightPalette() {
     collapseToTextPosition(ed, selectionEnd, { clearStoredMarks: false })
   }
 
-  customHighlightColor.value = DEFAULT_HIGHLIGHT_COLOR
+  customHighlightColor.value = DEFAULT_HIGHLIGHT_PICKER_HEX
   highlightPaletteOpen.value = true
 }
 
@@ -846,7 +846,7 @@ function setCustomHighlightColor(event: Event) {
 function applyCustomHighlightHex() {
   const value = customHighlightHex.value.trim()
   if (!isHexColor(value)) {
-    customHighlightHex.value = customHighlightColor.value.startsWith('#') ? customHighlightColor.value : DEFAULT_HIGHLIGHT_COLOR
+    customHighlightHex.value = customHighlightColor.value.startsWith('#') ? customHighlightColor.value : DEFAULT_HIGHLIGHT_PICKER_HEX
     return
   }
 
