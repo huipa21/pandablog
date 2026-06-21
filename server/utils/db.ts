@@ -14,17 +14,53 @@ let keepAliveTimer: ReturnType<typeof globalThis.setInterval> | null = null
 
 const KEEP_ALIVE_INTERVAL_MS = 30_000
 
+interface RuntimeCredentials {
+  scope: 'database' | 'root'
+  signin: Parameters<Surreal['signin']>[0]
+}
+
+/**
+ * Resolve which identity the runtime connection pool should authenticate as.
+ *
+ * When `SURREAL_APP_USER` + `SURREAL_APP_PASSWORD` are both configured, normal
+ * request traffic signs in as that least-privilege, DATABASE-scoped EDITOR
+ * user. Otherwise it falls back to root for backward compatibility.
+ */
+function resolveRuntimeCredentials(): RuntimeCredentials {
+  const config = useRuntimeConfig()
+  const appUser = String(config.surrealAppUser ?? '').trim()
+  const appPassword = String(config.surrealAppPassword ?? '')
+
+  if (appUser && appPassword) {
+    return {
+      scope: 'database',
+      signin: {
+        namespace: config.surrealNamespace,
+        database: config.surrealDatabase,
+        username: appUser,
+        password: appPassword
+      }
+    }
+  }
+
+  return {
+    scope: 'root',
+    signin: {
+      username: config.surrealRoot,
+      password: config.surrealRootPassword
+    }
+  }
+}
+
 async function connectDb(generation: number) {
   const config = useRuntimeConfig()
+  const credentials = resolveRuntimeCredentials()
   const db = new Surreal()
   const startedAt = Date.now()
 
   await withTimeout(db.connect(config.surrealUrl), 10_000, `Could not connect to SurrealDB at ${config.surrealUrl}`)
   const socketAt = Date.now()
-  await withTimeout(db.signin({
-    username: config.surrealRoot,
-    password: config.surrealRootPassword
-  }), 10_000, 'Could not authenticate with SurrealDB')
+  await withTimeout(db.signin(credentials.signin), 10_000, 'Could not authenticate with SurrealDB')
   await withTimeout(db.use({
     namespace: config.surrealNamespace,
     database: config.surrealDatabase
@@ -42,7 +78,7 @@ async function connectDb(generation: number) {
   // (Re)connects are infrequent, so always surface how long the handshake took.
   // A large value on the first request after idle is the signature of a stale
   // socket being re-established on the request path (the slow-cold-load cause).
-  console.info(`[db] connected in ${readyAt - startedAt}ms (socket ${socketAt - startedAt}ms, auth+use ${readyAt - socketAt}ms)`)
+  console.info(`[db] connected as ${credentials.scope} in ${readyAt - startedAt}ms (socket ${socketAt - startedAt}ms, auth+use ${readyAt - socketAt}ms)`)
 
   return db
 }
@@ -198,6 +234,79 @@ async function closeDbClient(db: Surreal | null | undefined) {
     // Ignore close failures while discarding a broken connection.
   }
 }
+
+/**
+ * Open a short-lived, ROOT-authenticated client that is NOT registered in the
+ * shared connection pool. Used at boot for privileged operations (provisioning
+ * the scoped runtime user, schema/migrations) that the EDITOR-scoped runtime
+ * user is not allowed to perform. The caller MUST close it with
+ * `closeRootClient` when finished.
+ */
+export async function connectRootClient(): Promise<Surreal> {
+  const config = useRuntimeConfig()
+  const db = new Surreal()
+
+  await withTimeout(db.connect(config.surrealUrl), 10_000, `Could not connect to SurrealDB at ${config.surrealUrl}`)
+  await withTimeout(db.signin({
+    username: config.surrealRoot,
+    password: config.surrealRootPassword
+  }), 10_000, 'Could not authenticate with SurrealDB (root)')
+  await withTimeout(db.use({
+    namespace: config.surrealNamespace,
+    database: config.surrealDatabase
+  }), 10_000, 'Could not select SurrealDB namespace/database')
+
+  return db
+}
+
+/** Close a client created by `connectRootClient` (ignores failures). */
+export async function closeRootClient(db: Surreal | null | undefined) {
+  await closeDbClient(db)
+}
+
+/**
+ * Provision (or update) the least-privilege DATABASE-scoped runtime user using
+ * a root-authenticated client. Idempotent via `OVERWRITE`, so rotating
+ * `SURREAL_APP_PASSWORD` simply takes effect on the next boot. No-op when the
+ * scoped runtime user is not configured (root fallback mode).
+ *
+ * SurrealDB's `DEFINE USER ... PASSWORD` requires a string literal and rejects
+ * bound parameters, so the password is embedded as an escaped SurrealQL strand
+ * (backslashes and double quotes escaped) and the username is restricted to a
+ * plain identifier. Any failure is rethrown with the password redacted so a
+ * SurrealDB parse/permission error (which can echo the statement) never leaks
+ * the secret into logs.
+ */
+export async function provisionAppDatabaseUser(rootDb: Surreal): Promise<boolean> {
+  const config = useRuntimeConfig()
+  const appUser = String(config.surrealAppUser ?? '').trim()
+  const appPassword = String(config.surrealAppPassword ?? '')
+
+  if (!appUser || !appPassword) {
+    return false
+  }
+
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(appUser)) {
+    throw new Error('SURREAL_APP_USER must be a simple identifier (letters, digits, underscore; not starting with a digit)')
+  }
+
+  const passwordLiteral = `"${appPassword.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+
+  try {
+    await withTimeout(
+      rootDb.query(`DEFINE USER OVERWRITE ${appUser} ON DATABASE PASSWORD ${passwordLiteral} ROLES EDITOR;`),
+      10_000,
+      'Could not provision the scoped SurrealDB runtime user'
+    )
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error)
+    const redacted = raw.split(appPassword).join('***')
+    throw new Error(`Could not provision the scoped SurrealDB runtime user: ${redacted}`)
+  }
+
+  return true
+}
+
 
 function isReadOnlyQuery(sql: string) {
   return /^\s*(SELECT|INFO|RETURN)\b/i.test(sql)

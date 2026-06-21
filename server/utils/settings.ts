@@ -58,11 +58,21 @@ export const ANALYTICS_SETTING_KEYS = [
 
 export const ANALYTICS_HASH_SALT_KEY = 'analytics_hash_salt'
 
+export const SECURITY_SETTING_KEYS = [
+  'security_alerts_enabled',
+  'security_alert_webhook_url',
+  'security_alert_on_failed_login',
+  'security_alert_on_lockout',
+  'security_alert_on_new_login',
+  'security_mfa_required_for_admins'
+] as const
+
 export const ADMIN_SETTING_KEYS = [
   ...PUBLIC_SETTING_KEYS,
   ...RUNTIME_SETTING_KEYS,
   ...ADMIN_ONLY_SETTING_KEYS,
-  ...ANALYTICS_SETTING_KEYS
+  ...ANALYTICS_SETTING_KEYS,
+  ...SECURITY_SETTING_KEYS
 ] as const
 
 const SECRET_SETTING_KEYS = [
@@ -83,6 +93,7 @@ export type AdminDateFormatSetting = AdminDateFormat
 export type AdminTimezoneSetting = AdminTimezone
 export type AdminFormatLocaleSetting = AdminFormatLocale
 export type AnalyticsSettingKey = typeof ANALYTICS_SETTING_KEYS[number]
+export type SecuritySettingKey = typeof SECURITY_SETTING_KEYS[number]
 
 export interface RuntimeFlags {
   trust_proxy_headers: boolean
@@ -94,6 +105,15 @@ export interface AnalyticsSettings {
   analytics_retention_days: number
 }
 
+export interface SecuritySettings {
+  security_alerts_enabled: boolean
+  security_alert_webhook_url: string
+  security_alert_on_failed_login: boolean
+  security_alert_on_lockout: boolean
+  security_alert_on_new_login: boolean
+  security_mfa_required_for_admins: boolean
+}
+
 export interface AdminCredentials {
   username: typeof ADMIN_USERNAME
   passwordHash: string
@@ -101,6 +121,11 @@ export interface AdminCredentials {
 }
 
 const APP_SETTINGS_TABLE = 'app_settings'
+// SECURITY: when true, the client IP is read from X-Forwarded-For. That IP
+// drives login lockout and the public rate limiters, so only keep this enabled
+// behind a trusted proxy that overwrites X-Forwarded-For. Set false if the app
+// is directly internet-exposed, or clients can spoof their IP. See README
+// "Security And Reverse Proxy".
 const DEFAULT_RUNTIME_FLAGS: RuntimeFlags = {
   trust_proxy_headers: true
 }
@@ -108,6 +133,14 @@ const DEFAULT_ANALYTICS_SETTINGS: AnalyticsSettings = {
   analytics_enabled: false,
   analytics_session_window_minutes: 30,
   analytics_retention_days: 90
+}
+const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
+  security_alerts_enabled: false,
+  security_alert_webhook_url: '',
+  security_alert_on_failed_login: false,
+  security_alert_on_lockout: true,
+  security_alert_on_new_login: false,
+  security_mfa_required_for_admins: false
 }
 
 export interface SettingsLink {
@@ -140,10 +173,12 @@ export interface PublicSiteSettings {
 const publicSettingKeySet = new Set<string>(PUBLIC_SETTING_KEYS)
 const runtimeSettingKeySet = new Set<string>(RUNTIME_SETTING_KEYS)
 const analyticsSettingKeySet = new Set<string>(ANALYTICS_SETTING_KEYS)
+const securitySettingKeySet = new Set<string>(SECURITY_SETTING_KEYS)
 const secretSettingKeySet = new Set<string>(SECRET_SETTING_KEYS)
 
 let runtimeFlagsCache: RuntimeFlags = { ...DEFAULT_RUNTIME_FLAGS }
 let analyticsSettingsCache: AnalyticsSettings = { ...DEFAULT_ANALYTICS_SETTINGS }
+let securitySettingsCache: SecuritySettings = { ...DEFAULT_SECURITY_SETTINGS }
 
 async function readRawAppSettings(keys: readonly string[]): Promise<Record<string, unknown>> {
   const db = await useDb()
@@ -187,6 +222,10 @@ export async function writeAppSettings(values: Record<string, unknown>, keys: re
 
   if (entries.some(([key]) => analyticsSettingKeySet.has(key))) {
     await initializeAnalyticsSettings()
+  }
+
+  if (entries.some(([key]) => securitySettingKeySet.has(key))) {
+    await initializeSecuritySettings()
   }
 }
 
@@ -298,6 +337,35 @@ export function filterAdminSettings(values: Record<string, unknown>) {
     )
   }
 
+  if ('security_alerts_enabled' in filtered) {
+    filtered.security_alerts_enabled = booleanValue(filtered.security_alerts_enabled, DEFAULT_SECURITY_SETTINGS.security_alerts_enabled)
+  }
+
+  if ('security_alert_on_failed_login' in filtered) {
+    filtered.security_alert_on_failed_login = booleanValue(filtered.security_alert_on_failed_login, DEFAULT_SECURITY_SETTINGS.security_alert_on_failed_login)
+  }
+
+  if ('security_alert_on_lockout' in filtered) {
+    filtered.security_alert_on_lockout = booleanValue(filtered.security_alert_on_lockout, DEFAULT_SECURITY_SETTINGS.security_alert_on_lockout)
+  }
+
+  if ('security_alert_on_new_login' in filtered) {
+    filtered.security_alert_on_new_login = booleanValue(filtered.security_alert_on_new_login, DEFAULT_SECURITY_SETTINGS.security_alert_on_new_login)
+  }
+
+  if ('security_mfa_required_for_admins' in filtered) {
+    filtered.security_mfa_required_for_admins = booleanValue(filtered.security_mfa_required_for_admins, DEFAULT_SECURITY_SETTINGS.security_mfa_required_for_admins)
+  }
+
+  if ('security_alert_webhook_url' in filtered) {
+    const url = normalizeWebhookUrl(filtered.security_alert_webhook_url)
+    if (url === null) {
+      filtered = withoutSetting(filtered, 'security_alert_webhook_url')
+    } else {
+      filtered.security_alert_webhook_url = url
+    }
+  }
+
   return filtered
 }
 
@@ -349,6 +417,28 @@ export async function initializeAnalyticsSettings(seedDefaults = false): Promise
 
   analyticsSettingsCache = normalizeAnalyticsSettings(settings)
   return analyticsSettingsCache
+}
+
+export function getSecuritySettings(): SecuritySettings {
+  return securitySettingsCache
+}
+
+export async function initializeSecuritySettings(seedDefaults = false): Promise<SecuritySettings> {
+  const settings = await readRawAppSettings(SECURITY_SETTING_KEYS)
+
+  if (seedDefaults) {
+    const missingEntries = Object.entries(DEFAULT_SECURITY_SETTINGS).filter(([key]) => !(key in settings))
+    if (missingEntries.length) {
+      const db = await useDb()
+      for (const [key, value] of missingEntries) {
+        await upsertAppSetting(db, key, value)
+        settings[key] = value
+      }
+    }
+  }
+
+  securitySettingsCache = normalizeSecuritySettings(settings)
+  return securitySettingsCache
 }
 
 export async function getAnalyticsHashSalt(): Promise<string> {
@@ -443,6 +533,41 @@ function normalizeAnalyticsSettings(values: Record<string, unknown>): AnalyticsS
 
 function booleanValue(value: unknown, fallback: boolean) {
   return typeof value === 'boolean' ? value : fallback
+}
+
+function normalizeSecuritySettings(values: Record<string, unknown>): SecuritySettings {
+  return {
+    security_alerts_enabled: booleanValue(values.security_alerts_enabled, DEFAULT_SECURITY_SETTINGS.security_alerts_enabled),
+    security_alert_webhook_url: normalizeWebhookUrl(values.security_alert_webhook_url) ?? DEFAULT_SECURITY_SETTINGS.security_alert_webhook_url,
+    security_alert_on_failed_login: booleanValue(values.security_alert_on_failed_login, DEFAULT_SECURITY_SETTINGS.security_alert_on_failed_login),
+    security_alert_on_lockout: booleanValue(values.security_alert_on_lockout, DEFAULT_SECURITY_SETTINGS.security_alert_on_lockout),
+    security_alert_on_new_login: booleanValue(values.security_alert_on_new_login, DEFAULT_SECURITY_SETTINGS.security_alert_on_new_login),
+    security_mfa_required_for_admins: booleanValue(values.security_mfa_required_for_admins, DEFAULT_SECURITY_SETTINGS.security_mfa_required_for_admins)
+  }
+}
+
+/**
+ * Returns a normalized http(s) webhook URL, an empty string when cleared, or
+ * `null` when the value is invalid (so the caller can reject the update).
+ */
+function normalizeWebhookUrl(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return null
+  }
+  return parsed.toString()
 }
 
 function normalizeAdminColorMode(value: unknown): ThemeModeSetting | null {

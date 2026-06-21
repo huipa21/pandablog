@@ -7,6 +7,7 @@ import { normalizeAnalyticsPath, normalizeAnalyticsReferrer } from '../../utils/
 import { resolveAnalyticsSession } from '../../utils/analytics/session'
 import { getSessionUser, isAdminTier } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
+import { consumeRateLimit } from '../../utils/rate-limit'
 import { getAnalyticsSettings, getRuntimeFlags } from '../../utils/settings'
 import { evaluatePostAccess, type PostVisibility } from '../../utils/visibility'
 import { firstRow, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
@@ -28,6 +29,19 @@ export default defineEventHandler(async (event) => {
     const userAgent = getRequestHeader(event, 'user-agent') ?? ''
     if (isAnalyticsBot(userAgent)) {
       return emptyTrackingResponse(event)
+    }
+
+    // Silently drop floods of tracking beacons from a single IP so they can't
+    // inflate view counts or balloon the pageview table. Analytics is
+    // fire-and-forget, so over-limit requests get an empty 204, not a 429.
+    const rateLimitIp = getRequestIP(event, { xForwardedFor: getRuntimeFlags().trust_proxy_headers })
+      || event.node.req.socket.remoteAddress
+      || ''
+    if (rateLimitIp) {
+      const rate = await consumeRateLimit('analytics', rateLimitIp, { limit: 120, windowMs: 60_000 })
+      if (!rate.allowed) {
+        return emptyTrackingResponse(event)
+      }
     }
 
     const db = await useDb()

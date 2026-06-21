@@ -40,6 +40,14 @@ SURREAL_ROOT_PASSWORD="your-db-password"
 NUXT_SESSION_PASSWORD="at-least-32-random-characters"
 ```
 
+Optional (recommended) least-privilege runtime user — see
+[Scoped database user](#scoped-database-user):
+
+```env
+SURREAL_APP_USER="pandablog_app"
+SURREAL_APP_PASSWORD="another-strong-password"
+```
+
 On first deployment, visit `/admin` and complete the setup wizard. Admin username is fixed as `admin`; the wizard stores the password hash in SurrealDB `app_settings`.
 
 ### Optional Analytics Geo Database
@@ -182,6 +190,103 @@ Notes:
 - Keep real secrets in runtime `.env`; do not bake secrets into the image.
 - `docker-compose.prod.yml` expects `NUXT_*` variables (for example `NUXT_SURREAL_URL`, `NUXT_SESSION_PASSWORD`) in `.env`.
 - First deployment still requires opening `/admin` once to complete setup if `app_settings` is empty.
+
+## Security And Reverse Proxy
+
+PandaBlog is designed to run behind a TLS-terminating reverse proxy (nginx,
+Caddy, Traefik, or Cloudflare). The provided run commands bind the app to
+`127.0.0.1:3000` so only the proxy can reach it. The proxy should terminate
+HTTPS; in production the app emits HSTS and other security headers (see
+[server/middleware/security-headers.ts](server/middleware/security-headers.ts)).
+
+### Client IP And The `trust_proxy_headers` Setting
+
+The app derives each request's client IP from the `X-Forwarded-For` header when
+the runtime setting `trust_proxy_headers` is enabled. This client IP drives
+security-sensitive controls:
+
+- Login rate limiting and temporary lockout after repeated failures
+- Public rate limiting on search and analytics tracking
+- Password-protected post unlock throttling
+- Access logs, activity records, and geo lookups
+
+`trust_proxy_headers` defaults to `true` and is stored in the `app_settings`
+table under the `trust_proxy_headers` key (an admin-tier setting).
+
+> [!IMPORTANT]
+> Only keep `trust_proxy_headers` enabled when a **trusted** reverse proxy sits
+> in front of the app and **overwrites** `X-Forwarded-For` with the real client
+> IP (stripping any client-supplied value). If the app is exposed directly to
+> the internet with no such proxy, set `trust_proxy_headers` to `false` —
+> otherwise any client can spoof `X-Forwarded-For` to forge their IP, bypassing
+> rate limits and login lockout and poisoning access logs and analytics.
+
+Example proxy configuration that sets a trustworthy forwarded IP:
+
+```nginx
+# nginx
+proxy_set_header X-Forwarded-For $remote_addr;   # overwrite, do not append
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header Host $host;
+```
+
+```caddy
+# Caddy automatically sets X-Forwarded-For/Proto when used as a reverse_proxy
+reverse_proxy 127.0.0.1:3000
+```
+
+### Scoped database user
+
+By default the app authenticates to SurrealDB as the root user for everything.
+For defence in depth you can run normal request traffic as a least-privilege,
+**database-scoped** `EDITOR` user, reserving root for the few operations that
+actually need it.
+
+Set both of these (plus `NUXT_`-prefixed variants in Docker):
+
+```env
+SURREAL_APP_USER="pandablog_app"        # a simple identifier (letters/digits/_)
+SURREAL_APP_PASSWORD="another-strong-password"
+```
+
+When both are set:
+
+- At boot the app uses **root** once to provision/update this user via
+  `DEFINE USER ... ON DATABASE ... ROLES EDITOR` (idempotent — rotating
+  `SURREAL_APP_PASSWORD` simply takes effect on the next restart), then runs the
+  schema and migrations.
+- All normal request queries then sign in as the scoped `EDITOR` user, which can
+  read and write data but **cannot** manage database users/accesses or other
+  databases.
+- **Root is still required** and is used only at boot (provisioning + schema) and
+  for backup/restore (which stages and exports via the SurrealDB HTTP endpoint).
+  Keep `SURREAL_ROOT` / `SURREAL_ROOT_PASSWORD` set.
+
+If either variable is unset, the app falls back to using root for runtime
+queries (the previous behaviour), so this feature is fully opt-in.
+
+### Two-factor authentication (TOTP)
+
+Each account can enable time-based one-time password (TOTP) two-factor
+authentication from **Admin → Settings → Security**. Superadmins can also turn
+on **Require MFA for administrators**, which forces every superadmin/admin
+without MFA to enrol an authenticator app the next time they sign in.
+
+TOTP secrets are stored encrypted at rest (AES-256-GCM). The encryption key is
+derived from `NUXT_MFA_SECRET` when set, otherwise it falls back to
+`NUXT_SESSION_PASSWORD`:
+
+```env
+NUXT_MFA_SECRET="a-separate-strong-random-secret"   # optional but recommended
+```
+
+- Setting a dedicated `NUXT_MFA_SECRET` decouples MFA secrets from the session
+  cookie key so you can rotate one without the other.
+- **Rotating this key (or `NUXT_SESSION_PASSWORD` when no MFA secret is set)
+  invalidates all stored TOTP secrets** — affected users must re-enrol. Backup
+  codes are unaffected (they are hashed, not encrypted).
+- Database backups include the encrypted `totp_secret`, so a restore only works
+  with the matching key. Keep the secret with your backups' threat model in mind.
 
 ## Project Layout
 
@@ -453,9 +558,12 @@ On a fresh deployment, open `/admin` and complete the first-run setup wizard. Th
 | `SURREAL_URL` | SurrealDB RPC endpoint | Yes |
 | `SURREAL_NAMESPACE` | DB namespace | Yes |
 | `SURREAL_DATABASE` | DB name | Yes |
-| `SURREAL_ROOT` | Root user | Yes |
+| `SURREAL_ROOT` | Root user (boot provisioning + schema + backups) | Yes |
 | `SURREAL_ROOT_PASSWORD` | Root password | Yes |
+| `SURREAL_APP_USER` | Optional least-privilege DB-scoped runtime user (see [Scoped database user](#scoped-database-user)) | No |
+| `SURREAL_APP_PASSWORD` | Password for `SURREAL_APP_USER` (required if it is set) | No |
 | `NUXT_SESSION_PASSWORD` | 32+ char random string for session cookie encryption | Yes (prod hard-fails without it) |
+| `NUXT_MFA_SECRET` | Optional key for encrypting TOTP secrets at rest; falls back to `NUXT_SESSION_PASSWORD`. Rotating it forces MFA re-enrolment (see [Two-factor authentication](#two-factor-authentication-totp)) | No |
 
 ### Rate limiting
 

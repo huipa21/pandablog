@@ -33,7 +33,8 @@
       "login": "登录",
       "backups": "备份",
       "analytics": "分析",
-      "analyticsSettings": "分析"
+      "analyticsSettings": "分析",
+      "security": "安全"
     },
     "layout": {
       "openNavigation": "打开导航",
@@ -1438,6 +1439,43 @@
         "saved": "分析设置已保存",
         "saveFailed": "无法保存分析设置"
       },
+      "security": {
+        "eyebrow": "设置",
+        "title": "安全",
+        "description": "将后台登录活动的告警发送到外部 Webhook（Slack、Discord 或自定义 URL）。",
+        "alertsTitle": "告警",
+        "enableAlerts": "启用安全告警",
+        "enableAlertsHelp": "总开关。关闭后，无论下方触发条件如何都不会发送告警。",
+        "webhookUrl": "Webhook 地址",
+        "webhookUrlHelp": "接收 JSON POST 的 https 端点。私有和回环地址会被拒绝。",
+        "webhookPlaceholder": "https://hooks.example.com/...",
+        "test": "发送测试告警",
+        "testSent": "测试告警已发送",
+        "testFailed": "无法发送测试告警",
+        "triggersTitle": "触发条件",
+        "onFailedLogin": "登录失败",
+        "onFailedLoginHelp": "每次后台登录失败时告警。在撞库攻击时可能较为频繁。",
+        "onLockout": "账户锁定",
+        "onLockoutHelp": "当某个 IP 因多次失败被锁定时告警。",
+        "onNewLogin": "登录成功",
+        "onNewLoginHelp": "每次后台登录成功时告警。",
+        "mfaTitle": "强制多因素认证",
+        "requireMfa": "要求管理员启用 MFA",
+        "requireMfaHelp": "开启后，未启用 MFA 的超级管理员和管理员需在下次登录完成前绑定身份验证器应用。",
+        "personalMfaTitle": "两步验证",
+        "personalMfaHelp": "使用身份验证器应用中的基于时间的一次性密码（TOTP）保护你的账户。",
+        "mfaOnTitle": "两步验证已开启",
+        "mfaOnDesc": "你的账户已受保护。剩余 {count} 个备用码。",
+        "mfaOffTitle": "两步验证已关闭",
+        "mfaOffDesc": "添加身份验证器应用以增强账户安全。",
+        "mfaEnable": "启用",
+        "mfaDisable": "关闭",
+        "mfaDisableHelp": "确认你的密码和当前验证码以关闭两步验证。",
+        "mfaDisabled": "两步验证已关闭",
+        "mfaError": "无法更新两步验证",
+        "saved": "安全设置已保存",
+        "saveFailed": "无法保存安全设置"
+      },
       "general": {
         "title": "通用",
         "description": "配置站点身份、页脚和公开访问模式。",
@@ -1723,7 +1761,20 @@
       "username": "用户名",
       "password": "密码",
       "submit": "登录",
-      "invalid": "用户名或密码无效"
+      "invalid": "用户名或密码无效",
+      "mfa": {
+        "prompt": "请输入身份验证器应用中的 6 位验证码。",
+        "code": "验证码",
+        "verify": "验证",
+        "back": "返回登录",
+        "invalid": "验证码无效",
+        "enrollPrompt": "需要启用两步验证。请用身份验证器应用扫描此二维码，然后输入验证码完成绑定。",
+        "qrAlt": "身份验证器应用二维码",
+        "secret": "密钥",
+        "enable": "启用",
+        "codesPrompt": "请妥善保存这些备用码。当你无法使用身份验证器时，每个备用码可使用一次。",
+        "codesContinue": "我已保存备用码"
+      }
     },
     "profile": {
       "eyebrow": "账户",

@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
-import { queryDb, useDb } from '../utils/db'
+import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, useDb } from '../utils/db'
 import { initializeLoggingSettings } from '../utils/logging'
-import { initializeAnalyticsSettings, initializeRuntimeSettings } from '../utils/settings'
+import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE } from '~/utils/adminLocale'
 import { computeContentStats } from '~/utils/contentStats'
@@ -43,8 +43,17 @@ const DEFAULT_MEDIA_SETTINGS = {
 }
 
 export default defineNitroPlugin(async () => {
+  let rootDb: Awaited<ReturnType<typeof connectRootClient>> | null = null
   try {
-    const db = await useDb()
+    // Boot-time privileged work (provisioning the scoped runtime user, schema
+    // and migrations) runs on a dedicated short-lived ROOT client so the shared
+    // runtime pool can authenticate as the least-privilege EDITOR user. Provision
+    // the runtime user FIRST so the pool's first scoped sign-in (deferred
+    // backfills and real requests) succeeds on a fresh install.
+    rootDb = await connectRootClient()
+    await provisionAppDatabaseUser(rootDb)
+    const db = rootDb
+
     await migrateLegacyAppSettingsTable(db)
     const schema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
     const schemaHash = createHash('sha256').update(schema).digest('hex')
@@ -63,13 +72,15 @@ export default defineNitroPlugin(async () => {
     await ensureDefaultAdminRegionalSettings(db)
     await initializeRuntimeSettings(true)
     await initializeAnalyticsSettings(true)
+    await initializeSecuritySettings(true)
     await ensureDefaultFolder(db)
     await initializeLoggingSettings()
 
     // One-time, marker-guarded backfills do a full-table scan + FTS reindex.
-    // Run them in the background so a fresh deploy starts serving requests
-    // immediately instead of blocking boot (and the first request) on them.
-    void runDeferredBackfills(db)
+    // Run them in the background via the runtime pool (scoped user) so a fresh
+    // deploy starts serving requests immediately instead of blocking boot (and
+    // the first request) on them.
+    void runDeferredBackfillsViaPool()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[db-init] FATAL: database initialization failed:', message)
@@ -77,8 +88,21 @@ export default defineNitroPlugin(async () => {
       console.error(error.stack)
     }
     throw error
+  } finally {
+    // Release the privileged boot connection; all subsequent traffic uses the
+    // least-privilege runtime pool.
+    await closeRootClient(rootDb)
   }
 })
+
+async function runDeferredBackfillsViaPool() {
+  try {
+    const db = await useDb()
+    await runDeferredBackfills(db)
+  } catch (error) {
+    console.warn('[db-init] deferred backfills could not start', error)
+  }
+}
 
 async function hasCurrentSchemaHash(db: Awaited<ReturnType<typeof useDb>>, schemaHash: string) {
   try {

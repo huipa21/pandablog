@@ -1,7 +1,15 @@
 import { recordActivity } from '../../utils/activity'
 import { checkLoginRateLimit, recordLoginAttempt } from '../../utils/rate-limit'
-import { getRuntimeFlags, isSetupCompleted } from '../../utils/settings'
+import { alertDetailsFromEvent, dispatchSecurityAlert } from '../../utils/notify/security-alert'
+import { setMfaPending } from '../../utils/mfa/session'
+import { getUserMfaState } from '../../utils/mfa/store'
+import { getSecuritySettings, getRuntimeFlags, isSetupCompleted } from '../../utils/settings'
 import { findUserByUsername, toSessionUser, touchUserLogin, verifyUserPassword } from '../../utils/users'
+import type { UserRole } from '../../utils/users'
+
+// Roles for which the `mfa_required_for_admins` enforcement applies.
+const MFA_ENFORCED_ROLES: readonly UserRole[] = ['superadmin', 'admin']
+
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ username?: string, password?: string }>(event)
@@ -53,11 +61,59 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!isValid) {
+    recordActivity(event, {
+      action: 'auth.login.failed',
+      resource_type: 'session',
+      resource_id: null,
+      metadata: { username: username || null },
+      description: 'Failed login attempt'
+    })
+    dispatchSecurityAlert('login.failed', alertDetailsFromEvent(event, {
+      username: username || null,
+      reason: 'Invalid username or password'
+    }))
+
+    // If this failure just pushed the IP over the lockout threshold, surface a
+    // distinct lockout alert/audit entry (only fires once, on the locking hit).
+    if (ip) {
+      const afterAttempt = await checkLoginRateLimit(ip)
+      if (!afterAttempt.allowed) {
+        recordActivity(event, {
+          action: 'auth.login.locked',
+          resource_type: 'session',
+          resource_id: null,
+          metadata: { username: username || null, retry_after_sec: afterAttempt.retryAfterSec },
+          description: 'Login locked after repeated failures'
+        })
+        dispatchSecurityAlert('login.locked', alertDetailsFromEvent(event, {
+          username: username || null,
+          reason: `Locked for ${afterAttempt.retryAfterSec}s after repeated failures`
+        }))
+      }
+    }
+
     throw createError({ statusCode: 401, message: 'Invalid username or password' })
   }
 
   // ---- Issue session -------------------------------------------------------
   const user = toSessionUser(account!)
+
+  // ---- Second factor (TOTP) ------------------------------------------------
+  // A valid password is not enough when the account has MFA enabled, or when
+  // enforcement requires an admin-tier account to enrol. In both cases we hold
+  // a short-lived pending state in the session cookie and DO NOT issue a full
+  // `user` session until the second step completes.
+  const mfaState = await getUserMfaState(user.id)
+  if (mfaState?.enabled) {
+    await setMfaPending(event, user.id, 'verify')
+    return { mfa_required: true }
+  }
+
+  const security = getSecuritySettings()
+  if (security.security_mfa_required_for_admins && MFA_ENFORCED_ROLES.includes(user.role)) {
+    await setMfaPending(event, user.id, 'enroll')
+    return { mfa_enrollment_required: true }
+  }
 
   await setUserSession(event, {
     user,
@@ -72,6 +128,10 @@ export default defineEventHandler(async (event) => {
     metadata: { username: user.username, role: user.role },
     description: 'User signed in'
   })
+  dispatchSecurityAlert('login.success', alertDetailsFromEvent(event, {
+    username: user.username,
+    reason: `Role: ${user.role}`
+  }))
 
   return { user }
 })

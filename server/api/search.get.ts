@@ -1,5 +1,7 @@
 import { queryDb, useDb } from '../utils/db'
 import { queryRows, recordIdPart, stringifyRecordId } from '../utils/surrealResult'
+import { consumeRateLimit } from '../utils/rate-limit'
+import { getRuntimeFlags } from '../utils/settings'
 import type { JsonContent, SearchBlockMatch, SearchPostResult, SearchResponse, SearchSort } from '~/types/content'
 
 /**
@@ -16,6 +18,20 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
 
   if (!q) {
     return { query: '', sort, limit, total: 0, maxPerPost, results: [] }
+  }
+
+  // Throttle unauthenticated search to deter scraping / FTS abuse. Generous
+  // enough that a human submitting queries is never affected.
+  const ip = getRequestIP(event, { xForwardedFor: getRuntimeFlags().trust_proxy_headers })
+  if (ip) {
+    const rate = await consumeRateLimit('search', ip, { limit: 30, windowMs: 60_000 })
+    if (!rate.allowed) {
+      setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
+      throw createError({
+        statusCode: 429,
+        message: `Too many search requests. Try again in ${rate.retryAfterSec}s.`,
+      })
+    }
   }
 
   const db = await useDb()

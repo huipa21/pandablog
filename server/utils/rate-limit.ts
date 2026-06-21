@@ -86,3 +86,45 @@ export async function recordLoginAttempt(ip: string, success: boolean): Promise<
   // TTL slightly longer than lockout to ensure cleanup
   await store.setItem(k, record, { ttl: Math.ceil((LOCKOUT_MS + WINDOW_MS) / 1000) })
 }
+
+interface WindowRecord {
+  count: number
+  windowStart: number
+}
+
+/**
+ * Generic fixed-window IP rate limiter for public endpoints (search, analytics,
+ * etc.). Atomically counts and checks in a single call. Keys are namespaced by
+ * `bucket` so each endpoint has its own independent budget.
+ *
+ * Returns `allowed: false` once the request count within the window exceeds
+ * `limit`, along with the seconds until the window resets.
+ */
+export async function consumeRateLimit(
+  bucket: string,
+  ip: string,
+  options: { limit: number, windowMs: number }
+): Promise<RateLimitResult> {
+  const safeIp = ip.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const k = `${bucket}:${safeIp}`
+  const store = storage()
+  const now = Date.now()
+
+  const existing = await store.getItem<WindowRecord>(k)
+  const record: WindowRecord = existing && now - existing.windowStart < options.windowMs
+    ? existing
+    : { count: 0, windowStart: now }
+
+  record.count += 1
+
+  // TTL one second past the window so stale buckets self-evict.
+  await store.setItem(k, record, { ttl: Math.ceil(options.windowMs / 1000) + 1 })
+
+  if (record.count > options.limit) {
+    const retryAfterSec = Math.max(1, Math.ceil((record.windowStart + options.windowMs - now) / 1000))
+    return { allowed: false, retryAfterSec }
+  }
+
+  return { allowed: true, retryAfterSec: 0 }
+}
+

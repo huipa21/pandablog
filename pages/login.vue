@@ -6,7 +6,7 @@
     <section class="login-panel" aria-labelledby="login-title">
       <h1 id="login-title" class="login-panel__title">{{ t('admin.nav.login') }}</h1>
 
-      <form class="login-form" @submit.prevent="login">
+      <form v-if="step === 'credentials'" class="login-form" @submit.prevent="login">
         <label class="login-field">
           <span>{{ t('public.login.username') }}</span>
           <input
@@ -36,6 +36,76 @@
           {{ t('public.login.submit') }}
         </button>
       </form>
+
+      <form v-else-if="step === 'mfa'" class="login-form" @submit.prevent="verifyMfa">
+        <p class="login-hint">{{ t('public.login.mfa.prompt') }}</p>
+
+        <label class="login-field">
+          <span>{{ t('public.login.mfa.code') }}</span>
+          <input
+            v-model="mfaCode"
+            class="login-input"
+            type="text"
+            inputmode="text"
+            autocomplete="one-time-code"
+            autocapitalize="characters"
+            required
+            autofocus
+          >
+        </label>
+
+        <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
+
+        <button class="login-submit" type="submit" :disabled="loading" :aria-busy="loading">
+          {{ t('public.login.mfa.verify') }}
+        </button>
+        <button class="login-link" type="button" @click="resetToCredentials">
+          {{ t('public.login.mfa.back') }}
+        </button>
+      </form>
+
+      <form v-else-if="step === 'enroll'" class="login-form" @submit.prevent="activateEnroll">
+        <p class="login-hint">{{ t('public.login.mfa.enrollPrompt') }}</p>
+
+        <img v-if="enrollQr" :src="enrollQr" :alt="t('public.login.mfa.qrAlt')" class="login-qr">
+        <p v-if="enrollSecret" class="login-secret">
+          <span>{{ t('public.login.mfa.secret') }}</span>
+          <code>{{ enrollSecret }}</code>
+        </p>
+
+        <label class="login-field">
+          <span>{{ t('public.login.mfa.code') }}</span>
+          <input
+            v-model="mfaCode"
+            class="login-input"
+            type="text"
+            inputmode="text"
+            autocomplete="one-time-code"
+            autocapitalize="characters"
+            required
+            autofocus
+          >
+        </label>
+
+        <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
+
+        <button class="login-submit" type="submit" :disabled="loading || !enrollSecret" :aria-busy="loading">
+          {{ t('public.login.mfa.enable') }}
+        </button>
+        <button class="login-link" type="button" @click="resetToCredentials">
+          {{ t('public.login.mfa.back') }}
+        </button>
+      </form>
+
+      <div v-else-if="step === 'enroll-codes'" class="login-form">
+        <p class="login-hint">{{ t('public.login.mfa.codesPrompt') }}</p>
+        <ul class="login-codes">
+          <li v-for="code in backupCodes" :key="code"><code>{{ code }}</code></li>
+        </ul>
+        <button class="login-submit" type="button" @click="finishEnrollment">
+          {{ t('public.login.mfa.codesContinue') }}
+        </button>
+      </div>
     </section>
   </main>
 </template>
@@ -57,6 +127,14 @@ const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 
+type LoginStep = 'credentials' | 'mfa' | 'enroll' | 'enroll-codes'
+const step = ref<LoginStep>('credentials')
+const mfaCode = ref('')
+const enrollQr = ref('')
+const enrollSecret = ref('')
+const backupCodes = ref<string[]>([])
+const pendingUser = ref<LoginUser | null>(null)
+
 onMounted(async () => {
   const setup = await $fetch<{ completed: boolean }>('/api/auth/setup-status').catch(() => null)
   if (setup && !setup.completed) {
@@ -75,19 +153,108 @@ async function login() {
   errorMessage.value = ''
 
   try {
-    const response = await $fetch<{ user: LoginUser }>('/api/auth/login', {
+    const response = await $fetch<{
+      user?: LoginUser
+      mfa_required?: boolean
+      mfa_enrollment_required?: boolean
+    }>('/api/auth/login', {
       method: 'POST',
       body: {
         username: username.value,
         password: password.value
       }
     })
-    await navigateTo(targetForRole(response.user.role))
+
+    if (response.mfa_required) {
+      mfaCode.value = ''
+      step.value = 'mfa'
+      return
+    }
+    if (response.mfa_enrollment_required) {
+      await startEnrollment()
+      return
+    }
+    if (response.user) {
+      await navigateTo(targetForRole(response.user.role))
+    }
   } catch (error: any) {
     errorMessage.value = error?.data?.message ?? error?.statusMessage ?? t('public.login.invalid')
   } finally {
     loading.value = false
   }
+}
+
+async function verifyMfa() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const response = await $fetch<{ user: LoginUser }>('/api/auth/login/mfa', {
+      method: 'POST',
+      body: { code: mfaCode.value }
+    })
+    await navigateTo(targetForRole(response.user.role))
+  } catch (error: any) {
+    errorMessage.value = error?.data?.message ?? error?.statusMessage ?? t('public.login.mfa.invalid')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function startEnrollment() {
+  mfaCode.value = ''
+  enrollQr.value = ''
+  enrollSecret.value = ''
+  step.value = 'enroll'
+  try {
+    const response = await $fetch<{ secret: string, otpauth: string, qr: string }>('/api/admin/auth/mfa/setup', {
+      method: 'POST'
+    })
+    enrollSecret.value = response.secret
+    enrollQr.value = response.qr
+  } catch (error: any) {
+    errorMessage.value = error?.data?.message ?? error?.statusMessage ?? t('public.login.mfa.invalid')
+  }
+}
+
+async function activateEnroll() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const response = await $fetch<{ enabled: boolean, backup_codes: string[], user?: LoginUser }>(
+      '/api/admin/auth/mfa/activate',
+      {
+        method: 'POST',
+        body: { code: mfaCode.value }
+      }
+    )
+    backupCodes.value = response.backup_codes ?? []
+    pendingUser.value = response.user ?? null
+    step.value = 'enroll-codes'
+  } catch (error: any) {
+    errorMessage.value = error?.data?.message ?? error?.statusMessage ?? t('public.login.mfa.invalid')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function finishEnrollment() {
+  if (pendingUser.value) {
+    await navigateTo(targetForRole(pendingUser.value.role))
+    return
+  }
+  resetToCredentials()
+}
+
+function resetToCredentials() {
+  step.value = 'credentials'
+  mfaCode.value = ''
+  enrollQr.value = ''
+  enrollSecret.value = ''
+  backupCodes.value = []
+  pendingUser.value = null
+  errorMessage.value = ''
 }
 
 function redirectTarget() {
@@ -174,6 +341,66 @@ function targetForRole(role: Role) {
 .login-form {
   display: grid;
   gap: 1.75rem;
+}
+
+.login-hint {
+  margin: 0;
+  color: color-mix(in srgb, var(--pb-text) 86%, transparent);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.login-qr {
+  width: min(13rem, 60vw);
+  justify-self: center;
+  border-radius: var(--pb-radius-card-inner, 0.75rem);
+  background: #fff;
+  padding: 0.5rem;
+}
+
+.login-secret {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.login-secret code,
+.login-codes code {
+  font-family: var(--pb-font-mono, monospace);
+  letter-spacing: 0.08em;
+  word-break: break-all;
+}
+
+.login-codes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 1rem;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--pb-border-strong) 60%, transparent);
+  border-radius: var(--pb-radius-card-inner, 0.75rem);
+  background: color-mix(in srgb, var(--pb-surface) 40%, transparent);
+  text-align: center;
+}
+
+.login-link {
+  margin-top: -0.75rem;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--pb-text) 80%, transparent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+}
+
+.login-link:hover,
+.login-link:focus-visible {
+  color: var(--pb-text);
 }
 
 .login-field {

@@ -308,6 +308,7 @@ const navSections = computed(() => {
           { to: '/admin/settings/profile', label: t('admin.nav.profile'), icon: 'i-lucide-user' },
           { to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' },
           { to: '/admin/settings/analytics', label: t('admin.nav.analyticsSettings'), icon: 'i-lucide-chart-no-axes-combined' },
+          { to: '/admin/settings/security', label: t('admin.nav.security'), icon: 'i-lucide-shield-check' },
           { to: '/admin/settings/system', label: t('admin.nav.system'), icon: 'i-lucide-monitor-cog' }
         ]
       },

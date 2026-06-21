@@ -84,6 +84,17 @@ export default defineNuxtConfig({
     surrealDatabase: env('SURREAL_DATABASE', 'main'),
     surrealRoot: env('SURREAL_ROOT', 'root'),
     surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
+    // Optional least-privilege runtime user. When both are set, normal request
+    // queries sign in as this DATABASE-scoped EDITOR user; root creds are then
+    // used only at boot (provisioning + schema) and for backups/restore. When
+    // unset, the app falls back to signing in as root (back-compatible).
+    surrealAppUser: env('SURREAL_APP_USER', ''),
+    surrealAppPassword: env('SURREAL_APP_PASSWORD', ''),
+    // Optional dedicated key for encrypting stored TOTP/MFA secrets at rest.
+    // When unset, the session cookie password is used as the key source.
+    // Rotating this value (or the session password fallback) invalidates all
+    // stored MFA secrets and requires affected users to re-enroll.
+    mfaSecret: env('MFA_SECRET', ''),
     geoipDbPath: env('GEOIP_DB_PATH', 'storage/geoip/dbip-city-lite.mmdb'),
     session: {
       password: sessionPassword,
