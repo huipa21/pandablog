@@ -52,3 +52,7 @@ test-results
 .github/*
 tools/*
 scripts/*
+!scripts/configure-modules.ts
+!scripts/print-modules.ts
+!scripts/configure/
+!scripts/configure/index.html

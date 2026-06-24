@@ -67,10 +67,19 @@ const logListSpecs: Record<LogType, LogListSpec> = {
 
 export function parseLogType(value: string): LogType {
   if (value === 'access' || value === 'activity' || value === 'errors') {
+    assertLogTypeEnabled(value)
     return value
   }
 
   throw createError({ statusCode: 400, message: 'Invalid log type' })
+}
+
+export function assertLogTypeEnabled(type: LogType) {
+  if (isLogTypeEnabled(type)) {
+    return
+  }
+
+  throw createError({ statusCode: 404, message: `${type} logs module is disabled` })
 }
 
 export function parseLimit(value: unknown, fallback = 50, max = 200) {
@@ -107,6 +116,8 @@ export function sanitizeSearchText(value: unknown) {
 }
 
 export async function listLogs(event: H3Event, type: LogType, options: ListLogsOptions = {}): Promise<ListLogsResult> {
+  assertLogTypeEnabled(type)
+
   const spec = logListSpecs[type]
   // Drain buffered access entries into the DB so this read sees the latest.
   if (type === 'access') {
@@ -223,4 +234,15 @@ function setDateWhere(where: string[], params: Record<string, unknown>, from: un
 function isValidDate(value: string) {
   const parsed = Date.parse(value)
   return Number.isFinite(parsed)
+}
+
+function isLogTypeEnabled(type: LogType) {
+  const modules = useRuntimeConfig().public.modules as { logs?: { enabled?: boolean, accessLogs?: boolean, activityLogs?: boolean, errorLogs?: boolean } } | undefined
+  if (modules?.logs?.enabled === false) {
+    return false
+  }
+
+  if (type === 'access') return modules?.logs?.accessLogs !== false
+  if (type === 'activity') return modules?.logs?.activityLogs !== false
+  return modules?.logs?.errorLogs !== false
 }

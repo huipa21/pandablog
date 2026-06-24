@@ -37,11 +37,13 @@ export async function requireUser(event: H3Event, options: { roles?: readonly Us
     throw createError({ statusCode: 401, message: 'Authentication required' })
   }
 
-  if (options.roles?.length && !options.roles.includes(user.role)) {
+  const effectiveUser = effectiveUserForModuleMode(user)
+
+  if (options.roles?.length && !options.roles.includes(effectiveUser.role)) {
     throw createError({ statusCode: 403, message: 'Insufficient permissions' })
   }
 
-  return user
+  return effectiveUser
 }
 
 export async function requireSuperadmin(event: H3Event): Promise<SessionUser & { role: 'superadmin' }> {
@@ -67,6 +69,9 @@ export async function requireAuthenticatedUser(event: H3Event): Promise<SessionU
 export async function isAdminAuthenticated(event: H3Event): Promise<boolean> {
   try {
     const user = await getSessionUser(event)
+    if (!isMultiUserModeEnabled()) {
+      return Boolean(user)
+    }
     return Boolean(user && (user.role === 'superadmin' || user.role === 'admin'))
   } catch {
     return false
@@ -82,7 +87,27 @@ export async function isAuthenticated(event: H3Event): Promise<boolean> {
 }
 
 export function isAdminTier(user: SessionUser | null | undefined): user is SessionUser & { role: 'superadmin' | 'admin' } {
+  if (!isMultiUserModeEnabled()) {
+    return Boolean(user)
+  }
+
   return Boolean(user && (user.role === 'superadmin' || user.role === 'admin'))
+}
+
+function effectiveUserForModuleMode(user: SessionUser): SessionUser {
+  if (isMultiUserModeEnabled()) {
+    return user
+  }
+
+  return {
+    ...user,
+    role: 'superadmin'
+  }
+}
+
+function isMultiUserModeEnabled() {
+  const modules = useRuntimeConfig().public.modules as { users?: { enabled?: boolean, multiUser?: boolean } } | undefined
+  return modules?.users?.enabled !== false && modules?.users?.multiUser !== false
 }
 
 function isRole(value: unknown): value is UserRole {

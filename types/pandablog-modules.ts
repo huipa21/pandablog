@@ -1,0 +1,55 @@
+export interface PandablogModulesManifest {
+  $schema?: string
+  version: 1
+  modules: PandablogModulesConfig
+}
+
+export interface PandablogModulesConfig {
+  editor: EditorModuleConfig
+  logs: LogsModuleConfig
+  analytics: AnalyticsModuleConfig
+  users: UsersModuleConfig
+}
+
+export interface EditorModuleConfig {
+  enabled: boolean
+  blocks: Record<EditorBlockKey, boolean>
+}
+
+export interface LogsModuleConfig {
+  enabled: boolean
+  accessLogs: boolean
+  activityLogs: boolean
+  errorLogs: boolean
+}
+
+export interface AnalyticsModuleConfig {
+  enabled: boolean
+  geoip: boolean
+}
+
+export interface UsersModuleConfig {
+  enabled: boolean
+  multiUser: boolean
+}
+
+export type EditorBlockKey =
+  | 'accordionBlock'
+  | 'annotationBlock'
+  | 'blockMath'
+  | 'blockquote'
+  | 'codeBlock'
+  | 'columnsBlock'
+  | 'customHtml'
+  | 'diffBlock'
+  | 'filesBlock'
+  | 'footnotesBlock'
+  | 'horizontalRule'
+  | 'image'
+  | 'inlineMath'
+  | 'mediaText'
+  | 'mermaid'
+  | 'relatedPost'
+  | 'table'
+  | 'tabsBlock'
+  | 'videoEmbed'

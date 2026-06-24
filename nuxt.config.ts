@@ -106,6 +106,7 @@ export default defineNuxtConfig({
       }
     },
     public: {
+      modules: {}
     }
   },
   nitro: {

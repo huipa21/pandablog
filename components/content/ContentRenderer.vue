@@ -4,25 +4,25 @@
   </div>
   <ContentText v-else-if="node.type === 'text'" :text="node.text ?? ''" :marks="node.marks" />
   <br v-else-if="node.type === 'hardBreak'">
-  <hr v-else-if="node.type === 'horizontalRule'" class="w-full" :style="separatorStyle">
-  <NodeImage v-else-if="node.type === 'image'" :node="node" />
-  <NodeCodeBlock v-else-if="node.type === 'codeBlock'" :node="node" />
-  <NodeDiffBlock v-else-if="node.type === 'diffBlock'" :node="node" />
-  <NodeMermaid v-else-if="node.type === 'mermaid'" :node="node" />
-  <NodeBlockMath v-else-if="node.type === 'blockMath'" :node="node" />
-  <NodeRelatedPost v-else-if="node.type === 'relatedPost'" :node="node" />
-  <NodeRubyUnit v-else-if="node.type === 'rubyUnit'" :node="node" />
-  <NodeInlineMath v-else-if="node.type === 'inlineMath'" :node="node" />
-  <NodeAnnotationBlock v-else-if="node.type === 'annotationBlock'" :node="node" />
-  <NodeCustomHtml v-else-if="node.type === 'customHtml'" :node="node" />
-  <NodeVideoEmbed v-else-if="node.type === 'videoEmbed'" :node="node" />
-  <NodeMediaText v-else-if="node.type === 'mediaText'" :node="node" />
-  <NodeFilesBlock v-else-if="node.type === 'filesBlock'" :node="node" />
-  <NodeColumnsBlock v-else-if="node.type === 'columnsBlock'" :node="node" />
-  <NodeTabsBlock v-else-if="node.type === 'tabsBlock'" :node="node" />
-  <NodeAccordionBlock v-else-if="node.type === 'accordionBlock'" :node="node" />
-  <NodeQuoteBlock v-else-if="node.type === 'blockquote'" :node="node" />
-  <NodeFootnotesBlock v-else-if="node.type === 'footnotesBlock'" :node="node" />
+    <hr v-else-if="horizontalRuleEnabled && node.type === 'horizontalRule'" class="w-full" :style="separatorStyle">
+    <NodeImage v-else-if="NodeImage && node.type === 'image'" :node="node" />
+    <NodeCodeBlock v-else-if="NodeCodeBlock && node.type === 'codeBlock'" :node="node" />
+    <NodeDiffBlock v-else-if="NodeDiffBlock && node.type === 'diffBlock'" :node="node" />
+    <NodeMermaid v-else-if="NodeMermaid && node.type === 'mermaid'" :node="node" />
+    <NodeBlockMath v-else-if="NodeBlockMath && node.type === 'blockMath'" :node="node" />
+    <NodeRelatedPost v-else-if="NodeRelatedPost && node.type === 'relatedPost'" :node="node" />
+    <NodeRubyUnit v-else-if="NodeRubyUnit && node.type === 'rubyUnit'" :node="node" />
+    <NodeInlineMath v-else-if="NodeInlineMath && node.type === 'inlineMath'" :node="node" />
+    <NodeAnnotationBlock v-else-if="NodeAnnotationBlock && node.type === 'annotationBlock'" :node="node" />
+    <NodeCustomHtml v-else-if="NodeCustomHtml && node.type === 'customHtml'" :node="node" />
+    <NodeVideoEmbed v-else-if="NodeVideoEmbed && node.type === 'videoEmbed'" :node="node" />
+    <NodeMediaText v-else-if="NodeMediaText && node.type === 'mediaText'" :node="node" />
+    <NodeFilesBlock v-else-if="NodeFilesBlock && node.type === 'filesBlock'" :node="node" />
+    <NodeColumnsBlock v-else-if="NodeColumnsBlock && node.type === 'columnsBlock'" :node="node" />
+    <NodeTabsBlock v-else-if="NodeTabsBlock && node.type === 'tabsBlock'" :node="node" />
+    <NodeAccordionBlock v-else-if="NodeAccordionBlock && node.type === 'accordionBlock'" :node="node" />
+    <NodeQuoteBlock v-else-if="NodeQuoteBlock && node.type === 'blockquote'" :node="node" />
+    <NodeFootnotesBlock v-else-if="NodeFootnotesBlock && node.type === 'footnotesBlock'" :node="node" />
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
     <ContentRenderer v-for="(child, index) in node.content ?? []" :key="index" :node="child" />
   </component>
@@ -31,25 +31,26 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
-import NodeCustomHtml from './NodeCustomHtml.vue'
-import NodeVideoEmbed from './NodeVideoEmbed.vue'
-import NodeDiffBlock from './NodeDiffBlock.vue'
-import NodeImage from './NodeImage.vue'
-import NodeFootnotesBlock from './NodeFootnotesBlock.vue'
-import NodeColumnsBlock from './NodeColumnsBlock.vue'
-import NodeFilesBlock from './NodeFilesBlock.vue'
-import NodeMediaText from './NodeMediaText.vue'
-import NodeMermaid from './NodeMermaid.vue'
-import NodeQuoteBlock from './NodeQuoteBlock.vue'
-import NodeRelatedPost from './NodeRelatedPost.vue'
-import NodeRubyUnit from './NodeRubyUnit.vue'
-import NodeAnnotationBlock from './NodeAnnotationBlock.vue'
-import NodeTabsBlock from './NodeTabsBlock.vue'
-import NodeAccordionBlock from './NodeAccordionBlock.vue'
 
-const NodeCodeBlock = defineAsyncComponent(() => import('./NodeCodeBlock.vue'))
-const NodeBlockMath = defineAsyncComponent(() => import('./NodeBlockMath.vue'))
-const NodeInlineMath = defineAsyncComponent(() => import('./NodeInlineMath.vue'))
+const horizontalRuleEnabled = __PB_BLOCK_HORIZONTAL_RULE__
+const NodeImage = __PB_BLOCK_IMAGE__ ? defineAsyncComponent(() => import('./NodeImage.vue')) : null
+const NodeCodeBlock = __PB_BLOCK_CODE_BLOCK__ ? defineAsyncComponent(() => import('./NodeCodeBlock.vue')) : null
+const NodeDiffBlock = __PB_BLOCK_DIFF_BLOCK__ ? defineAsyncComponent(() => import('./NodeDiffBlock.vue')) : null
+const NodeMermaid = __PB_BLOCK_MERMAID__ ? defineAsyncComponent(() => import('./NodeMermaid.vue')) : null
+const NodeBlockMath = __PB_BLOCK_BLOCK_MATH__ ? defineAsyncComponent(() => import('./NodeBlockMath.vue')) : null
+const NodeRelatedPost = __PB_BLOCK_RELATED_POST__ ? defineAsyncComponent(() => import('./NodeRelatedPost.vue')) : null
+const NodeRubyUnit = __PB_BLOCK_ANNOTATION_BLOCK__ ? defineAsyncComponent(() => import('./NodeRubyUnit.vue')) : null
+const NodeInlineMath = __PB_BLOCK_INLINE_MATH__ ? defineAsyncComponent(() => import('./NodeInlineMath.vue')) : null
+const NodeAnnotationBlock = __PB_BLOCK_ANNOTATION_BLOCK__ ? defineAsyncComponent(() => import('./NodeAnnotationBlock.vue')) : null
+const NodeCustomHtml = __PB_BLOCK_CUSTOM_HTML__ ? defineAsyncComponent(() => import('./NodeCustomHtml.vue')) : null
+const NodeVideoEmbed = __PB_BLOCK_VIDEO_EMBED__ ? defineAsyncComponent(() => import('./NodeVideoEmbed.vue')) : null
+const NodeMediaText = __PB_BLOCK_MEDIA_TEXT__ ? defineAsyncComponent(() => import('./NodeMediaText.vue')) : null
+const NodeFilesBlock = __PB_BLOCK_FILES_BLOCK__ ? defineAsyncComponent(() => import('./NodeFilesBlock.vue')) : null
+const NodeColumnsBlock = __PB_BLOCK_COLUMNS_BLOCK__ ? defineAsyncComponent(() => import('./NodeColumnsBlock.vue')) : null
+const NodeTabsBlock = __PB_BLOCK_TABS_BLOCK__ ? defineAsyncComponent(() => import('./NodeTabsBlock.vue')) : null
+const NodeAccordionBlock = __PB_BLOCK_ACCORDION_BLOCK__ ? defineAsyncComponent(() => import('./NodeAccordionBlock.vue')) : null
+const NodeQuoteBlock = __PB_BLOCK_BLOCKQUOTE__ ? defineAsyncComponent(() => import('./NodeQuoteBlock.vue')) : null
+const NodeFootnotesBlock = __PB_BLOCK_FOOTNOTES_BLOCK__ ? defineAsyncComponent(() => import('./NodeFootnotesBlock.vue')) : null
 
 const props = defineProps<{
   node: JsonContent

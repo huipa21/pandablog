@@ -221,9 +221,8 @@ import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
-import type { Editor } from '@tiptap/core'
+import type { Editor, Extensions } from '@tiptap/core'
 import type { MarkType, Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
-import latexLanguage from 'highlight.js/lib/languages/latex'
 import { Footnote } from '~/extensions/footnote'
 import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
@@ -235,17 +234,9 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import '~/assets/css/editor-craft.css'
 import '~/assets/css/code-themes.css'
 import type { EditorView } from '@tiptap/pm/view'
-// Use `common` (~36 popular languages) instead of `all` (180+). `all` pulls in
-// every Highlight.js grammar; in dev mode Vite serves each as its own ESM
-// request, ballooning the editor page to >1k requests. Every language exposed
-// by `CODE_BLOCK_LANGUAGES` is part of `common`, so this is functionally
-// equivalent for our UI.
-import { common, createLowlight } from 'lowlight'
 import type { JsonContent, MediaRecord } from '~/types/content'
-import { MermaidNode } from '~/extensions/mermaid'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
 import { RelatedPostNode } from '~/extensions/relatedPost'
-import { CodeBlockEnhanced } from '~/extensions/codeBlockEnhanced'
 import { DiffBlockNode } from '~/extensions/diffBlock'
 import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
@@ -256,14 +247,7 @@ import { FilesBlockNode } from '~/extensions/filesBlock'
 import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlock'
-import { RubyUnit } from '~/extensions/rubyUnit'
-import { InlineMath } from '~/extensions/inlineMath'
-import { BlockMath } from '~/extensions/blockMath'
-import { AnnotationBlockNode } from '~/extensions/annotationBlock'
-import { RubyEditExtension } from '~/extensions/rubyEditState'
-import MermaidNodeView from '~/components/admin/editor/MermaidNodeView.vue'
 import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.vue'
-import CodeBlockNodeView from '~/components/admin/editor/CodeBlockNodeView.vue'
 import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import VideoEmbedNodeView from '~/components/admin/editor/VideoEmbedNodeView.vue'
@@ -277,9 +261,6 @@ import TabPanelNodeView from '~/components/admin/editor/TabPanelNodeView.vue'
 import AccordionBlockNodeView from '~/components/admin/editor/AccordionBlockNodeView.vue'
 import AccordionPaneNodeView from '~/components/admin/editor/AccordionPaneNodeView.vue'
 import QuoteBlockNodeView from '~/components/admin/editor/QuoteBlockNodeView.vue'
-import RubyUnitNodeView from '~/components/admin/editor/RubyUnitNodeView.vue'
-import MathNodeView from '~/components/admin/editor/MathNodeView.vue'
-import AnnotationBlockNodeView from '~/components/admin/editor/AnnotationBlockNodeView.vue'
 // Explicit imports: Nuxt registers nested components with a path prefix
 // (e.g. `AdminEditorBlockInserterPanel`), so the short tag names used below
 // would not auto-resolve. Importing them directly guarantees they render.
@@ -313,8 +294,112 @@ const emit = defineEmits<{
   'update:modelValue': [value: JsonContent]
 }>()
 
-const lowlight = createLowlight(common)
-lowlight.register('latex', latexLanguage)
+async function loadCodeBlockExtensions(): Promise<Extensions> {
+  if (!__PB_BLOCK_CODE_BLOCK__) return []
+
+  const [latexLanguage, lowlightModule, codeBlockModule, nodeViewModule] = await Promise.all([
+    import('highlight.js/lib/languages/latex'),
+    import('lowlight'),
+    import('~/extensions/codeBlockEnhanced'),
+    import('~/components/admin/editor/CodeBlockNodeView.vue')
+  ])
+  const lowlight = lowlightModule.createLowlight(lowlightModule.common)
+  lowlight.register('latex', latexLanguage.default)
+
+  return [
+    codeBlockModule.CodeBlockEnhanced.configure({
+      lowlight,
+      defaultLanguage: 'text'
+    }).extend({
+      addNodeView() {
+        return VueNodeViewRenderer(nodeViewModule.default)
+      }
+    })
+  ]
+}
+
+async function loadMermaidExtensions(): Promise<Extensions> {
+  if (!__PB_BLOCK_MERMAID__) return []
+
+  const [mermaidModule, nodeViewModule] = await Promise.all([
+    import('~/extensions/mermaid'),
+    import('~/components/admin/editor/MermaidNodeView.vue')
+  ])
+
+  return [
+    mermaidModule.MermaidNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(nodeViewModule.default)
+      }
+    })
+  ]
+}
+
+async function loadBlockMathExtensions(): Promise<Extensions> {
+  if (!__PB_BLOCK_BLOCK_MATH__) return []
+
+  const [mathModule, nodeViewModule] = await Promise.all([
+    import('~/extensions/blockMath'),
+    import('~/components/admin/editor/MathNodeView.vue')
+  ])
+
+  return [
+    mathModule.BlockMath.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(nodeViewModule.default)
+      }
+    })
+  ]
+}
+
+async function loadInlineMathExtensions(): Promise<Extensions> {
+  if (!__PB_BLOCK_INLINE_MATH__) return []
+
+  const [mathModule, nodeViewModule] = await Promise.all([
+    import('~/extensions/inlineMath'),
+    import('~/components/admin/editor/MathNodeView.vue')
+  ])
+
+  return [
+    mathModule.InlineMath.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(nodeViewModule.default)
+      }
+    })
+  ]
+}
+
+async function loadAnnotationExtensions(): Promise<Extensions> {
+  if (!__PB_BLOCK_ANNOTATION_BLOCK__) return []
+
+  const [rubyModule, annotationModule, rubyEditModule, rubyNodeViewModule, annotationNodeViewModule] = await Promise.all([
+    import('~/extensions/rubyUnit'),
+    import('~/extensions/annotationBlock'),
+    import('~/extensions/rubyEditState'),
+    import('~/components/admin/editor/RubyUnitNodeView.vue'),
+    import('~/components/admin/editor/AnnotationBlockNodeView.vue')
+  ])
+
+  return [
+    rubyModule.RubyUnit.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(rubyNodeViewModule.default)
+      }
+    }),
+    annotationModule.AnnotationBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(annotationNodeViewModule.default)
+      }
+    }),
+    rubyEditModule.RubyEditExtension
+  ]
+}
+
+const codeBlockExtensions = await loadCodeBlockExtensions()
+const mermaidExtensions = await loadMermaidExtensions()
+const blockMathExtensions = await loadBlockMathExtensions()
+const inlineMathExtensions = await loadInlineMathExtensions()
+const annotationExtensions = await loadAnnotationExtensions()
 const editorStore = useEditorStore()
 const blockRegistry = useBlockRegistry()
 const editorContainer = ref<HTMLElement | null>(null)
@@ -428,76 +513,93 @@ const editor = useEditor({
     Color,
     HighlightEnhanced,
     FontFamily,
-    SeparatorNode,
+    ...(__PB_BLOCK_HORIZONTAL_RULE__ ? [SeparatorNode] : []),
     Dropcursor.configure({ color: 'var(--pb-primary)', width: 2 }),
-    CodeBlockEnhanced.configure({
-      lowlight,
-      defaultLanguage: 'text'
-    }).extend({
-      addNodeView() {
-        return VueNodeViewRenderer(CodeBlockNodeView)
-      }
-    }),
-    DiffBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(DiffBlockNodeView)
-      }
-    }),
-    CustomHtmlNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(CustomHtmlNodeView)
-      }
-    }),
-    VideoEmbedNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(VideoEmbedNodeView)
-      }
-    }),
-    ImageBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(ImageBlockNodeView)
-      }
-    }),
-    MediaTextNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(MediaTextNodeView)
-      }
-    }),
-    FilesBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(FilesBlockNodeView)
-      }
-    }),
-    ColumnsBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(ColumnsBlockNodeView)
-      }
-    }),
-    ColumnItemNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(ColumnItemNodeView)
-      }
-    }),
-    TabsBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(TabsBlockNodeView)
-      }
-    }),
-    TabPanelNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(TabPanelNodeView)
-      }
-    }),
-    AccordionBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(AccordionBlockNodeView)
-      }
-    }),
-    AccordionPaneNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(AccordionPaneNodeView)
-      }
-    }),
+    ...codeBlockExtensions,
+    ...(__PB_BLOCK_DIFF_BLOCK__
+      ? [DiffBlockNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(DiffBlockNodeView)
+          }
+        })]
+      : []),
+    ...(__PB_BLOCK_CUSTOM_HTML__
+      ? [CustomHtmlNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(CustomHtmlNodeView)
+          }
+        })]
+      : []),
+    ...(__PB_BLOCK_VIDEO_EMBED__
+      ? [VideoEmbedNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(VideoEmbedNodeView)
+          }
+        })]
+      : []),
+    ...(__PB_BLOCK_IMAGE__
+      ? [ImageBlockNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(ImageBlockNodeView)
+          }
+        })]
+      : []),
+    ...(__PB_BLOCK_MEDIA_TEXT__
+      ? [MediaTextNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(MediaTextNodeView)
+          }
+        })]
+      : []),
+    ...(__PB_BLOCK_FILES_BLOCK__
+      ? [FilesBlockNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(FilesBlockNodeView)
+          }
+        })]
+      : []),
+    ...(__PB_BLOCK_COLUMNS_BLOCK__
+      ? [
+          ColumnsBlockNode.extend({
+            addNodeView() {
+              return VueNodeViewRenderer(ColumnsBlockNodeView)
+            }
+          }),
+          ColumnItemNode.extend({
+            addNodeView() {
+              return VueNodeViewRenderer(ColumnItemNodeView)
+            }
+          })
+        ]
+      : []),
+    ...(__PB_BLOCK_TABS_BLOCK__
+      ? [
+          TabsBlockNode.extend({
+            addNodeView() {
+              return VueNodeViewRenderer(TabsBlockNodeView)
+            }
+          }),
+          TabPanelNode.extend({
+            addNodeView() {
+              return VueNodeViewRenderer(TabPanelNodeView)
+            }
+          })
+        ]
+      : []),
+    ...(__PB_BLOCK_ACCORDION_BLOCK__
+      ? [
+          AccordionBlockNode.extend({
+            addNodeView() {
+              return VueNodeViewRenderer(AccordionBlockNodeView)
+            }
+          }),
+          AccordionPaneNode.extend({
+            addNodeView() {
+              return VueNodeViewRenderer(AccordionPaneNodeView)
+            }
+          })
+        ]
+      : []),
     LinkEnhanced.configure({
       autolink: true,
       linkOnPaste: true,
@@ -528,55 +630,41 @@ const editor = useEditor({
     TextAlign.configure({
       types: ['heading', 'paragraph']
     }),
-    Table.configure({
-      resizable: true
-    }),
-    TableRow,
-    TableHeader,
-    TableCell,
-    MermaidNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(MermaidNodeView)
-      }
-    }),
-    BlockMath.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(MathNodeView)
-      }
-    }),
+    ...(__PB_BLOCK_TABLE__
+      ? [
+          Table.configure({
+            resizable: true
+          }),
+          TableRow,
+          TableHeader,
+          TableCell
+        ]
+      : []),
+    ...mermaidExtensions,
+    ...blockMathExtensions,
     // RelatedPost: same shape as the removed wikiLink node, but with a Vue NodeView and no input rule.
-    RelatedPostNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(RelatedPostNodeView)
-      }
-    }),
+    ...(__PB_BLOCK_RELATED_POST__
+      ? [RelatedPostNode.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(RelatedPostNodeView)
+          }
+        })]
+      : []),
     BlockReorderCommands,
-    BlockquoteEnhanced.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(QuoteBlockNodeView)
-      }
-    }),
+    ...(__PB_BLOCK_BLOCKQUOTE__
+      ? [BlockquoteEnhanced.extend({
+          addNodeView() {
+            return VueNodeViewRenderer(QuoteBlockNodeView)
+          }
+        })]
+      : []),
     Subscript,
     Superscript,
-    Footnote,
+    ...(__PB_BLOCK_FOOTNOTES_BLOCK__ ? [Footnote] : []),
     ListItemEnhanced,
-    FootnotesBlockNode,
-    RubyUnit.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(RubyUnitNodeView)
-      }
-    }),
-    InlineMath.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(MathNodeView)
-      }
-    }),
-    AnnotationBlockNode.extend({
-      addNodeView() {
-        return VueNodeViewRenderer(AnnotationBlockNodeView)
-      }
-    }),
-    RubyEditExtension
+    ...(__PB_BLOCK_FOOTNOTES_BLOCK__ ? [FootnotesBlockNode] : []),
+    ...annotationExtensions,
+    ...inlineMathExtensions
   ],
   editorProps: {
     attributes: {

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pandablog.local/pandablog-modules.schema.json",
+  "title": "Pandablog Modules Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "modules"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["editor", "logs", "analytics", "users"],
+      "properties": {
+        "editor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "blocks"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "blocks": {
+              "type": "object",
+              "additionalProperties": { "type": "boolean" }
+            }
+          }
+        },
+        "logs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "accessLogs", "activityLogs", "errorLogs"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "accessLogs": { "type": "boolean" },
+            "activityLogs": { "type": "boolean" },
+            "errorLogs": { "type": "boolean" }
+          }
+        },
+        "analytics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "geoip"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "geoip": { "type": "boolean" }
+          }
+        },
+        "users": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "multiUser"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "multiUser": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

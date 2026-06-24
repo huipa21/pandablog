@@ -10,6 +10,11 @@ const requestSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  const modules = useRuntimeConfig().public.modules as { editor?: { blocks?: { annotationBlock?: boolean } } } | undefined
+  if (modules?.editor?.blocks?.annotationBlock === false) {
+    throw createError({ statusCode: 404, message: 'Annotation module is disabled' })
+  }
+
   await requireContentManager(event)
 
   const body = await readBody<unknown>(event)

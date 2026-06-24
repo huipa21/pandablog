@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pandablog Modules</title>
+  <style>
+    :root { color-scheme: light; font-family: Avenir, Montserrat, Verdana, sans-serif; background: #f7f4ed; color: #20201d; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 10% 0%, #e9f1e6 0, transparent 34rem), linear-gradient(135deg, #f7f4ed, #edf3f4); }
+    main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 56px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+    h1 { margin: 0 0 8px; font-family: Georgia, serif; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; }
+    p { margin: 0; color: #5b5b54; line-height: 1.55; }
+    .status { min-width: 220px; padding: 12px 14px; border: 1px solid #d8d1c4; border-radius: 8px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 18px 50px rgba(82, 70, 46, 0.1); color: #405044; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr); gap: 18px; align-items: start; }
+    section { padding: 18px; border: 1px solid #d8d1c4; border-radius: 8px; background: rgba(255, 255, 255, 0.82); box-shadow: 0 24px 70px rgba(82, 70, 46, 0.12); }
+    h2 { margin: 0 0 12px; font-size: 1rem; letter-spacing: 0; }
+    .items { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    label { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; padding: 11px 12px; border: 1px solid #ded8ce; border-radius: 7px; background: #fffcf7; cursor: pointer; }
+    label:has(input:checked) { border-color: #45735a; background: #edf5ee; }
+    input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: #3f7a57; flex: 0 0 auto; }
+    label span { line-height: 1.32; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    button { min-height: 42px; border: 0; border-radius: 7px; padding: 0 16px; background: #274235; color: white; font: inherit; cursor: pointer; }
+    button.secondary { border: 1px solid #c8c0b2; background: transparent; color: #20201d; }
+    code { padding: 2px 5px; border-radius: 5px; background: #ece6da; }
+    @media (max-width: 760px) { header, .grid { grid-template-columns: 1fr; display: grid; } main { width: min(100% - 24px, 1120px); padding-top: 24px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Pandablog Modules</h1>
+        <p>Select what should be compiled into this app. Save, then run <code>npm run build</code>.</p>
+      </div>
+      <div id="status" class="status">Loading manifest...</div>
+    </header>
+    <form id="form" class="grid">
+      <section>
+        <h2>Editor Blocks</h2>
+        <div class="items">
+          %PB_EDITOR_MODULE_INPUT%
+          %PB_EDITOR_BLOCK_INPUTS%
+        </div>
+      </section>
+      <div class="grid-side">
+        <section>
+          <h2>System Modules</h2>
+          <div class="items">
+            <label><input type="checkbox" data-path="logs.enabled"><span>Logs</span></label>
+            <label><input type="checkbox" data-path="logs.accessLogs"><span>Access logs</span></label>
+            <label><input type="checkbox" data-path="logs.activityLogs"><span>Activity logs</span></label>
+            <label><input type="checkbox" data-path="logs.errorLogs"><span>Error logs</span></label>
+            <label><input type="checkbox" data-path="analytics.enabled"><span>Analytics</span></label>
+            <label><input type="checkbox" data-path="analytics.geoip"><span>GeoIP analytics</span></label>
+            <label><input type="checkbox" data-path="users.enabled"><span>User management</span></label>
+            <label><input type="checkbox" data-path="users.multiUser"><span>Multi-user roles</span></label>
+          </div>
+        </section>
+        <section style="margin-top:18px">
+          <h2>Save</h2>
+          <p>This writes <code>%PB_MANIFEST_NAME%</code>. Disabled modules are removed at build time where the app already has a clean boundary.</p>
+          <div class="actions">
+            <button type="submit">Save Manifest</button>
+            <button type="button" id="reset" class="secondary">Enable Everything</button>
+          </div>
+        </section>
+      </div>
+    </form>
+  </main>
+  <script>
+    const form = document.querySelector('#form')
+    const status = document.querySelector('#status')
+    const reset = document.querySelector('#reset')
+    const inputs = [...document.querySelectorAll('input[type="checkbox"]')]
+
+    fetch('/api/modules').then((res) => res.json()).then(applyManifest)
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault()
+      status.textContent = 'Saving...'
+      const manifest = collectManifest()
+      const res = await fetch('/api/modules', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(manifest) })
+      applyManifest(await res.json())
+      status.textContent = 'Saved. Rebuild the app to apply changes.'
+    })
+
+    reset.addEventListener('click', () => {
+      inputs.forEach((input) => { input.checked = true })
+      status.textContent = 'All modules selected. Save to write the manifest.'
+    })
+
+    function applyManifest(manifest) {
+      for (const input of inputs) input.checked = getPath(manifest.modules, input.dataset.path) === true
+      status.textContent = 'Loaded ' + Object.values(manifest.modules.editor.blocks).filter(Boolean).length + ' editor blocks.'
+    }
+
+    function collectManifest() {
+      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {} }
+      for (const input of inputs) setPath(modules, input.dataset.path, input.checked)
+      return { version: 1, modules }
+    }
+
+    function getPath(source, path) {
+      return path.split('.').reduce((value, key) => value?.[key], source)
+    }
+
+    function setPath(target, path, value) {
+      const parts = path.split('.')
+      const key = parts.pop()
+      const parent = parts.reduce((object, part) => object[part] ??= {}, target)
+      parent[key] = value
+    }
+  </script>
+</body>
+</html>

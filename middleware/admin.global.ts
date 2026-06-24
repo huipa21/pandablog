@@ -37,6 +37,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
   }
 
+  const modules = useRuntimeConfig().public.modules as { users?: { enabled?: boolean, multiUser?: boolean } } | undefined
+  const multiUserModeEnabled = modules?.users?.enabled !== false && modules?.users?.multiUser !== false
+  if (!multiUserModeEnabled) {
+    return
+  }
+
   const role = session.user?.role
   if (role === 'viewer') {
     return navigateTo('/')

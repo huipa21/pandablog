@@ -1,13 +1,17 @@
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import maxmind, { type CityResponse, type Reader } from 'maxmind'
+import type { CityResponse, Reader } from 'maxmind'
 import type { AnalyticsGeo } from './types'
 
+type MaxmindModule = typeof import('maxmind')
+
 let readerPromise: Promise<Reader<CityResponse> | null> | null = null
+let maxmindPromise: Promise<MaxmindModule | null> | null = null
 
 export async function lookupAnalyticsGeo(ip: string): Promise<AnalyticsGeo> {
-  if (!maxmind.validate(ip)) {
+  const maxmind = await loadMaxmind()
+  if (!maxmind?.default.validate(ip)) {
     return {}
   }
 
@@ -40,6 +44,10 @@ export function analyticsGeoDbPath() {
  * empty. Surfaced in the admin analytics UI so the cause is visible.
  */
 export async function analyticsGeoDatabaseAvailable() {
+  if (!isGeoipEnabled()) {
+    return false
+  }
+
   return (await getGeoReader()) !== null
 }
 
@@ -49,6 +57,10 @@ export async function analyticsGeoDatabaseAvailable() {
  * before the operator has placed the .mmdb file there.
  */
 export async function ensureAnalyticsGeoDir() {
+  if (!isGeoipEnabled()) {
+    return
+  }
+
   try {
     await mkdir(dirname(analyticsGeoDbPath()), { recursive: true })
   } catch {
@@ -57,6 +69,10 @@ export async function ensureAnalyticsGeoDir() {
 }
 
 async function getGeoReader() {
+  if (!isGeoipEnabled()) {
+    return null
+  }
+
   if (!readerPromise) {
     readerPromise = openGeoReader()
   }
@@ -65,6 +81,11 @@ async function getGeoReader() {
 }
 
 async function openGeoReader() {
+  const maxmind = await loadMaxmind()
+  if (!maxmind) {
+    return null
+  }
+
   const filePath = analyticsGeoDbPath()
   if (!existsSync(filePath)) {
     if (import.meta.dev) {
@@ -74,11 +95,32 @@ async function openGeoReader() {
   }
 
   try {
-    return await maxmind.open<CityResponse>(filePath, { cache: { max: 10_000 } })
+    return await maxmind.default.open<CityResponse>(filePath, { cache: { max: 10_000 } })
   } catch (error) {
     console.warn('[analytics] failed to open geo database:', error instanceof Error ? error.message : error)
     return null
   }
+}
+
+async function loadMaxmind() {
+  if (!isGeoipEnabled()) {
+    return null
+  }
+
+  if (!maxmindPromise) {
+    maxmindPromise = import('maxmind')
+  }
+
+  return await maxmindPromise
+}
+
+function isGeoipEnabled() {
+  if (!__PB_MODULE_ANALYTICS_GEOIP__) {
+    return false
+  }
+
+  const modules = useRuntimeConfig().public.modules as { analytics?: { enabled?: boolean, geoip?: boolean } } | undefined
+  return modules?.analytics?.enabled !== false && modules?.analytics?.geoip !== false
 }
 
 function preferredName(names: { en?: string } | undefined) {
