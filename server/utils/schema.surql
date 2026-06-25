@@ -66,7 +66,13 @@ UPDATE post SET word_count = 0 WHERE word_count IS NONE;
 UPDATE post SET cjk_char_count = 0 WHERE cjk_char_count IS NONE;
 DEFINE INDEX IF NOT EXISTS post_slug_unique ON TABLE post COLUMNS slug UNIQUE;
 DEFINE INDEX IF NOT EXISTS post_status ON TABLE post COLUMNS status;
+DEFINE INDEX IF NOT EXISTS post_author ON TABLE post FIELDS author;
 DEFINE INDEX IF NOT EXISTS post_published_at ON TABLE post COLUMNS published_at;
+DEFINE INDEX IF NOT EXISTS post_created_at ON TABLE post FIELDS created_at;
+DEFINE INDEX IF NOT EXISTS post_updated_at ON TABLE post FIELDS updated_at;
+DEFINE INDEX IF NOT EXISTS post_view_count ON TABLE post FIELDS view_count;
+DEFINE INDEX IF NOT EXISTS post_word_count ON TABLE post FIELDS word_count;
+DEFINE INDEX IF NOT EXISTS post_cjk_char_count ON TABLE post FIELDS cjk_char_count;
 DEFINE INDEX IF NOT EXISTS post_title_fts ON TABLE post COLUMNS title FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 DEFINE INDEX IF NOT EXISTS post_summary_fts ON TABLE post COLUMNS summary FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 
@@ -88,7 +94,11 @@ DEFINE INDEX IF NOT EXISTS category_parent ON TABLE category FIELDS parent;
 DEFINE INDEX IF NOT EXISTS category_created_by ON TABLE category FIELDS created_by;
 
 DEFINE TABLE OVERWRITE tagged TYPE RELATION FROM post TO tag PERMISSIONS NONE;
+DEFINE INDEX IF NOT EXISTS tagged_in ON TABLE tagged FIELDS in;
+DEFINE INDEX IF NOT EXISTS tagged_out ON TABLE tagged FIELDS out;
 DEFINE TABLE OVERWRITE categorized_as TYPE RELATION FROM post TO category PERMISSIONS NONE;
+DEFINE INDEX IF NOT EXISTS categorized_as_in ON TABLE categorized_as FIELDS in;
+DEFINE INDEX IF NOT EXISTS categorized_as_out ON TABLE categorized_as FIELDS out;
 
 -- ============ BLOCK (top-level Tiptap node, one row per block) ============
 DEFINE TABLE OVERWRITE block SCHEMAFULL PERMISSIONS NONE;

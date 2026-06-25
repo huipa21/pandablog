@@ -3,7 +3,8 @@ import { getQuery } from 'h3'
 import type { Surreal } from 'surrealdb'
 import { queryDb, useDb } from '../db'
 import { queryRows } from '../surrealResult'
-import { addUtcDays, startOfUtcDay, utcDateString } from './date'
+import { getAnalyticsSettings } from '../settings'
+import { addUtcDays, resolveGeoQueryWindows, startOfUtcDay, utcDateString } from './date'
 import { isMissingAnalyticsTableError } from './tables'
 
 export interface AnalyticsOverviewResponse {
@@ -194,7 +195,14 @@ export async function getAnalyticsGeo(range: AnalyticsRange, limit: number): Pro
   const db = await useDb()
   const counts = new Map<string, AnalyticsGeoRow>()
 
-  if (range.rollupStart < range.rollupEnd) {
+  // Geo can be backfilled after the fact (e.g. the GeoIP database is added
+  // later), so daily geo rollups built before it existed are stale. Read every
+  // in-retention day straight from the raw pageviews — which already carry the
+  // geo resolved at insert time — and only fall back to the rollup table for
+  // older days whose raw pageviews have already been pruned.
+  const windows = resolveGeoQueryWindows(range, getAnalyticsSettings().analytics_retention_days)
+
+  if (windows.rollup) {
     const rows = await queryAnalyticsRows<DailyGeoRow>(
       db,
       `SELECT country, region, city, math::sum(views) AS views
@@ -202,7 +210,7 @@ export async function getAnalyticsGeo(range: AnalyticsRange, limit: number): Pro
        WHERE date >= $fromDate AND date < $toDate
          AND country != NONE
        GROUP BY country, region, city;`,
-      { fromDate: utcDateString(range.rollupStart), toDate: utcDateString(range.rollupEnd) },
+      { fromDate: utcDateString(windows.rollup.from), toDate: utcDateString(windows.rollup.to) },
       { label: 'analytics geo rollup', timeoutMs: 10_000 },
       ['analytics_daily_geo']
     )
@@ -211,7 +219,7 @@ export async function getAnalyticsGeo(range: AnalyticsRange, limit: number): Pro
     }
   }
 
-  if (range.liveStart < range.to) {
+  if (windows.raw) {
     const rows = await queryAnalyticsRows<DailyGeoRow>(
       db,
       `SELECT country, region, city, count() AS views
@@ -219,7 +227,7 @@ export async function getAnalyticsGeo(range: AnalyticsRange, limit: number): Pro
        WHERE created_at >= $from AND created_at < $to
          AND country != NONE
        GROUP BY country, region, city;`,
-      { from: range.liveStart, to: range.to },
+      { from: windows.raw.from, to: windows.raw.to },
       { label: 'analytics geo live', timeoutMs: 10_000 },
       ['pageview']
     )

@@ -96,7 +96,7 @@ async function openGeoReader() {
   }
 
   try {
-    return await maxmind.default.open<CityResponse>(filePath, { cache: { max: 10_000 } })
+    return await maxmind.default.open<CityResponse>(filePath, { cache: { max: 1_000 } })
   } catch (error) {
     console.warn('[analytics] failed to open geo database:', error instanceof Error ? error.message : error)
     return null

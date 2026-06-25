@@ -128,31 +128,24 @@ export default defineEventHandler(async (event) => {
       published_at, created_at, updated_at, view_count, word_count, cjk_char_count,
       visibility, password_hint, password_source, password_owner
      FROM post WHERE ${where} ORDER BY ${orderBy} LIMIT $limit START $start;
-     SELECT count() AS total FROM post WHERE ${where} GROUP ALL;
-     SELECT * FROM tag ORDER BY name ASC;
-     SELECT * FROM category ORDER BY name ASC;
-    SELECT in, out FROM tagged;
-    SELECT in, out FROM categorized_as;`,
+     SELECT count() AS total FROM post WHERE ${where} GROUP ALL;`,
     params
   )
 
-  const posts = queryRows<Record<string, unknown>>(response, 0).map(normalizePost)
+  const postRows = queryRows<Record<string, unknown>>(response, 0)
+  const posts = postRows.map(normalizePost)
   const count = firstRow<{ total?: number }>(response, 1)
-  const tags = new Map(queryRows<Record<string, unknown>>(response, 2).map((tag) => [stringifyRecordId(tag.id), normalizeTag(tag)]))
-  const categories = new Map(queryRows<Record<string, unknown>>(response, 3).map((category) => [stringifyRecordId(category.id), normalizeCategory(category)]))
-  const postIds = new Set(posts.map((post) => post.id))
-  const tagIdsByPost = relationMap(queryRows<Record<string, unknown>>(response, 4), postIds)
-  const categoryIdsByPost = relationMap(queryRows<Record<string, unknown>>(response, 5), postIds)
+  const taxonomyByPost = await loadTaxonomyForPosts(db, postRows.map((post) => post.id).filter(Boolean))
   const postsWithTaxonomy = posts.map((post) => {
-    const tagIds = tagIdsByPost.get(post.id) ?? []
-    const categoryIds = categoryIdsByPost.get(post.id) ?? []
+    const tagIds = taxonomyByPost.tagIdsByPost.get(post.id) ?? []
+    const categoryIds = taxonomyByPost.categoryIdsByPost.get(post.id) ?? []
 
     return {
       ...post,
       tag_ids: tagIds,
       category_ids: categoryIds,
-      tags: tagIds.map((tagId) => tags.get(tagId)).filter(isDefined),
-      categories: categoryIds.map((categoryId) => categories.get(categoryId)).filter(isDefined)
+      tags: taxonomyByPost.tagsByPost.get(post.id) ?? [],
+      categories: taxonomyByPost.categoriesByPost.get(post.id) ?? []
     }
   })
 
@@ -323,22 +316,63 @@ async function relationPostIds(
   return postIds
 }
 
-function relationMap(rows: Array<Record<string, unknown>>, postIds: Set<string>) {
-  const map = new Map<string, string[]>()
+async function loadTaxonomyForPosts(db: Awaited<ReturnType<typeof useDb>>, postIds: unknown[]) {
+  const tagIdsByPost = new Map<string, string[]>()
+  const categoryIdsByPost = new Map<string, string[]>()
+  const tagsByPost = new Map<string, ReturnType<typeof normalizeTag>[]>()
+  const categoriesByPost = new Map<string, ReturnType<typeof normalizeCategory>[]>()
 
-  for (const row of rows) {
-    const postId = stringifyRecordId(row.in)
-    if (!postIds.has(postId)) {
+  if (!postIds.length) {
+    return { tagIdsByPost, categoryIdsByPost, tagsByPost, categoriesByPost }
+  }
+
+  const response = await queryDb(
+    db,
+    `SELECT in AS post_id, out.id AS tag_id, out.name AS tag_name, out.slug AS tag_slug
+     FROM tagged
+     WHERE in IN $postIds
+     FETCH out;
+     SELECT in AS post_id, out.id AS category_id, out.name AS category_name,
+       out.slug AS category_slug, out.description AS category_description, out.parent AS category_parent
+     FROM categorized_as
+     WHERE in IN $postIds
+     FETCH out;`,
+    { postIds }
+  )
+
+  for (const row of queryRows<Record<string, unknown>>(response, 0)) {
+    const postId = stringifyRecordId(row.post_id)
+    const tag = normalizeTag({
+      id: row.tag_id,
+      name: row.tag_name,
+      slug: row.tag_slug
+    })
+
+    if (!postId || !tag.id || !tag.name) {
       continue
     }
 
-    const targetId = stringifyRecordId(row.out)
-    map.set(postId, [...(map.get(postId) ?? []), targetId])
+    tagIdsByPost.set(postId, [...(tagIdsByPost.get(postId) ?? []), tag.id])
+    tagsByPost.set(postId, [...(tagsByPost.get(postId) ?? []), tag])
   }
 
-  return map
-}
+  for (const row of queryRows<Record<string, unknown>>(response, 1)) {
+    const postId = stringifyRecordId(row.post_id)
+    const category = normalizeCategory({
+      id: row.category_id,
+      name: row.category_name,
+      slug: row.category_slug,
+      description: row.category_description,
+      parent: row.category_parent
+    })
 
-function isDefined<T>(value: T | undefined): value is T {
-  return value !== undefined
+    if (!postId || !category.id || !category.name) {
+      continue
+    }
+
+    categoryIdsByPost.set(postId, [...(categoryIdsByPost.get(postId) ?? []), category.id])
+    categoriesByPost.set(postId, [...(categoriesByPost.get(postId) ?? []), category])
+  }
+
+  return { tagIdsByPost, categoryIdsByPost, tagsByPost, categoriesByPost }
 }

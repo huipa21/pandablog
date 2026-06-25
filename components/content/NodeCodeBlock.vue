@@ -87,14 +87,9 @@
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
-// `common` covers every language exposed by `CODE_BLOCK_LANGUAGES` and avoids
-// pulling in 150+ unused Highlight.js grammars (each a separate request in
-// dev mode, and dead weight in the production bundle).
-import { common, createLowlight } from 'lowlight'
+import { codeBlockHtmlCache, codeBlockLowlight } from './codeBlockHighlighter'
 
-const htmlCache = new Map<string, string>()
 const COLLAPSE_THRESHOLD = 300
-const lowlight = createLowlight(common)
 
 const props = defineProps<{
   node: JsonContent
@@ -126,7 +121,7 @@ const zoom = ref(clampZoom(props.node.attrs?.zoom))
 const copied = ref(false)
 const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${lineNumbers.value ? '1' : '0'}\u0000${lineHighlights.value}\u0000${code.value}`
 const initialRendered = renderLowlightHtml(code.value, language.value)
-htmlCache.set(initialCacheKey, initialRendered)
+codeBlockHtmlCache.set(initialCacheKey, initialRendered)
 const highlightedHtml = ref(initialRendered)
 const fallbackHtml = computed(() => `<pre class="codeblock-pre hljs"><code>${escapeHtml(code.value)}</code></pre>`)
 
@@ -164,7 +159,7 @@ const fileIcon = computed(() => {
 
 async function renderCode() {
   const cacheKey = `${theme.value}\u0000${language.value}\u0000${lineNumbers.value ? '1' : '0'}\u0000${lineHighlights.value}\u0000${code.value}`
-  const cached = htmlCache.get(cacheKey)
+  const cached = codeBlockHtmlCache.get(cacheKey)
   if (cached) {
     // Only update the DOM if the cached HTML differs from what's already rendered.
     if (highlightedHtml.value !== cached) {
@@ -177,7 +172,7 @@ async function renderCode() {
 
   const rendered = renderLowlightHtml(code.value, language.value)
 
-  htmlCache.set(cacheKey, rendered)
+  codeBlockHtmlCache.set(cacheKey, rendered)
   highlightedHtml.value = rendered
   await nextTick()
   measure()
@@ -231,10 +226,10 @@ function toggleCollapsed() {
 }
 
 function renderLowlightHtml(source: string, lang: string) {
-  const normalizedLang = lowlight.registered(lang) ? lang : 'plaintext'
+  const normalizedLang = codeBlockLowlight.registered(lang) ? lang : 'plaintext'
 
   try {
-    const tree = lowlight.highlight(normalizedLang, source)
+    const tree = codeBlockLowlight.highlight(normalizedLang, source)
     const highlightedLines = serializeNodesToLines((tree.children ?? []) as HighlightNode[])
     const lines = highlightedLines
       .map((line, index) => {
