@@ -48,6 +48,11 @@ RUN mkdir -p /app/runtime \
  && mkdir -p /app/runtime/.output/server/node_modules \
  && cp -r node_modules/node-cron   /app/runtime/.output/server/node_modules/node-cron
 
+RUN node -e "const { readFileSync, rmSync } = require('node:fs'); \
+let themesEnabled = true; \
+try { const manifest = JSON.parse(readFileSync('/app/pandablog.modules.json', 'utf8')); themesEnabled = manifest.modules?.themes?.enabled !== false; } catch {} \
+if (!themesEnabled) { for (const theme of ['clay', 'notion', 'tesla']) rmSync('/app/runtime/themes/' + theme, { recursive: true, force: true }); }"
+
 
 # ---------- Stage 2: runtime ----------
 FROM ${NODE_IMAGE} AS runtime

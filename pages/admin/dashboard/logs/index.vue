@@ -14,15 +14,15 @@
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
 
     <div class="grid gap-4 md:grid-cols-4">
-      <NuxtLink to="/admin/dashboard/logs/access" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
+      <NuxtLink v-if="moduleFlags.accessLogs" to="/admin/dashboard/logs/access" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.accessLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.access.count ?? 0 }}</p>
       </NuxtLink>
-      <NuxtLink to="/admin/dashboard/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
+      <NuxtLink v-if="moduleFlags.activityLogs" to="/admin/dashboard/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.activityLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? 0 }}</p>
       </NuxtLink>
-      <NuxtLink to="/admin/dashboard/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
+      <NuxtLink v-if="moduleFlags.errorLogs" to="/admin/dashboard/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.errorLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.count ?? 0 }}</p>
       </NuxtLink>
@@ -78,6 +78,7 @@ definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
 const sessionFetch = useSessionFetch()
+const moduleFlags = useModuleFlags()
 
 const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 

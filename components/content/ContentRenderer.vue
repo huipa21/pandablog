@@ -23,6 +23,9 @@
     <NodeAccordionBlock v-else-if="NodeAccordionBlock && node.type === 'accordionBlock'" :node="node" />
     <NodeQuoteBlock v-else-if="NodeQuoteBlock && node.type === 'blockquote'" :node="node" />
     <NodeFootnotesBlock v-else-if="NodeFootnotesBlock && node.type === 'footnotesBlock'" :node="node" />
+  <div v-else-if="isDisabledKnownBlock" class="disabled-content-block" role="note">
+    {{ disabledBlockLabel }}
+  </div>
   <component :is="tag" v-else :id="nodeId" :class="nodeClass">
     <ContentRenderer v-for="(child, index) in node.content ?? []" :key="index" :node="child" />
   </component>
@@ -51,6 +54,26 @@ const NodeTabsBlock = __PB_BLOCK_TABS_BLOCK__ ? defineAsyncComponent(() => impor
 const NodeAccordionBlock = __PB_BLOCK_ACCORDION_BLOCK__ ? defineAsyncComponent(() => import('./NodeAccordionBlock.vue')) : null
 const NodeQuoteBlock = __PB_BLOCK_BLOCKQUOTE__ ? defineAsyncComponent(() => import('./NodeQuoteBlock.vue')) : null
 const NodeFootnotesBlock = __PB_BLOCK_FOOTNOTES_BLOCK__ ? defineAsyncComponent(() => import('./NodeFootnotesBlock.vue')) : null
+const disabledBlockTypes = new Set([
+  !__PB_BLOCK_IMAGE__ ? 'image' : '',
+  !__PB_BLOCK_CODE_BLOCK__ ? 'codeBlock' : '',
+  !__PB_BLOCK_DIFF_BLOCK__ ? 'diffBlock' : '',
+  !__PB_BLOCK_MERMAID__ ? 'mermaid' : '',
+  !__PB_BLOCK_BLOCK_MATH__ ? 'blockMath' : '',
+  !__PB_BLOCK_RELATED_POST__ ? 'relatedPost' : '',
+  !__PB_BLOCK_INLINE_MATH__ ? 'inlineMath' : '',
+  !__PB_BLOCK_ANNOTATION_BLOCK__ ? 'annotationBlock' : '',
+  !__PB_BLOCK_CUSTOM_HTML__ ? 'customHtml' : '',
+  !__PB_BLOCK_VIDEO_EMBED__ ? 'videoEmbed' : '',
+  !__PB_BLOCK_MEDIA_TEXT__ ? 'mediaText' : '',
+  !__PB_BLOCK_FILES_BLOCK__ ? 'filesBlock' : '',
+  !__PB_BLOCK_COLUMNS_BLOCK__ ? 'columnsBlock' : '',
+  !__PB_BLOCK_TABS_BLOCK__ ? 'tabsBlock' : '',
+  !__PB_BLOCK_ACCORDION_BLOCK__ ? 'accordionBlock' : '',
+  !__PB_BLOCK_BLOCKQUOTE__ ? 'blockquote' : '',
+  !__PB_BLOCK_FOOTNOTES_BLOCK__ ? 'footnotesBlock' : '',
+  !__PB_BLOCK_HORIZONTAL_RULE__ ? 'horizontalRule' : ''
+].filter(Boolean))
 
 const props = defineProps<{
   node: JsonContent
@@ -137,6 +160,9 @@ const separatorStyle = computed(() => {
   }
 })
 
+const isDisabledKnownBlock = computed(() => disabledBlockTypes.has(props.node.type ?? ''))
+const disabledBlockLabel = computed(() => `Disabled content block: ${props.node.type ?? 'unknown'}`)
+
 
 function headingTag(level: unknown) {
   const safeLevel = Number(level)
@@ -163,3 +189,15 @@ function slugifyHeading(value: string) {
     .replace(/(^-|-$)+/g, '') || 'section'
 }
 </script>
+
+<style scoped>
+.disabled-content-block {
+  margin: 1rem 0;
+  border: 1px dashed var(--pb-divider-strong);
+  border-radius: var(--pb-radius-card-inner);
+  background: var(--pb-surface-subtle);
+  padding: 0.875rem 1rem;
+  color: var(--pb-text-muted);
+  font-size: 0.875rem;
+}
+</style>

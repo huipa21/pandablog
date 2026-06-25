@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import type { CityResponse, Reader } from 'maxmind'
 import type { AnalyticsGeo } from './types'
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 type MaxmindModule = typeof import('maxmind')
 
@@ -119,8 +120,7 @@ function isGeoipEnabled() {
     return false
   }
 
-  const modules = useRuntimeConfig().public.modules as { analytics?: { enabled?: boolean, geoip?: boolean } } | undefined
-  return modules?.analytics?.enabled !== false && modules?.analytics?.geoip !== false
+  return resolveModuleFlags(getRuntimeModuleConfig()).geoip
 }
 
 function preferredName(names: { en?: string } | undefined) {

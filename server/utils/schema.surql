@@ -182,6 +182,7 @@ DEFINE FIELD IF NOT EXISTS filters ON media_smart_folder TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS created_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 
+-- #module logs start
 -- ============ ACCESS LOGS ============
 DEFINE TABLE OVERWRITE access_logs SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS timestamp ON access_logs TYPE datetime DEFAULT time::now();
@@ -197,7 +198,9 @@ DEFINE FIELD IF NOT EXISTS referrer ON access_logs TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS access_logs_timestamp_desc ON access_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS access_logs_path ON access_logs FIELDS path;
 DEFINE INDEX IF NOT EXISTS access_logs_status_code ON access_logs FIELDS status_code;
+-- #module logs end
 
+-- #module analytics start
 -- ============ ANALYTICS ============
 DEFINE TABLE OVERWRITE analytics_session SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS visitor_hash ON analytics_session TYPE string;
@@ -254,7 +257,9 @@ DEFINE FIELD IF NOT EXISTS views ON analytics_daily_geo TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS rolled_up_at ON analytics_daily_geo TYPE datetime DEFAULT time::now();
 DEFINE INDEX IF NOT EXISTS analytics_daily_geo_date ON analytics_daily_geo FIELDS date;
 DEFINE INDEX IF NOT EXISTS analytics_daily_geo_country ON analytics_daily_geo FIELDS country;
+-- #module analytics end
 
+-- #module logs start
 -- ============ ACTIVITY LOGS ============
 DEFINE TABLE OVERWRITE activity_logs SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS timestamp ON activity_logs TYPE datetime DEFAULT time::now();
@@ -267,7 +272,9 @@ DEFINE FIELD IF NOT EXISTS request_id ON activity_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS description ON activity_logs TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS activity_logs_timestamp_desc ON activity_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS activity_logs_action ON activity_logs FIELDS action;
+-- #module logs end
 
+-- #module logs start
 -- ============ ERROR LOGS ============
 DEFINE TABLE OVERWRITE error_logs SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS timestamp ON error_logs TYPE datetime DEFAULT time::now();
@@ -281,8 +288,11 @@ DEFINE FIELD IF NOT EXISTS method ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS read_at ON error_logs TYPE option<datetime>;
 DEFINE INDEX IF NOT EXISTS error_logs_timestamp_desc ON error_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS error_logs_level ON error_logs FIELDS level;
+-- #module logs end
 
+-- #module backups start
 -- ============ BACKUP SNAPSHOTS ============
 DEFINE TABLE OVERWRITE backups SCHEMALESS PERMISSIONS NONE;
 DEFINE INDEX IF NOT EXISTS backups_created_at ON backups FIELDS created_at;
 DEFINE INDEX IF NOT EXISTS backups_parent ON backups FIELDS parent;
+-- #module backups end

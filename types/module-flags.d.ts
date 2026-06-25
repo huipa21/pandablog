@@ -7,6 +7,10 @@ declare const __PB_MODULE_ANALYTICS__: boolean
 declare const __PB_MODULE_ANALYTICS_GEOIP__: boolean
 declare const __PB_MODULE_USERS__: boolean
 declare const __PB_MODULE_USERS_MULTI_USER__: boolean
+declare const __PB_MODULE_THEMES__: boolean
+declare const __PB_MODULE_MFA__: boolean
+declare const __PB_MODULE_SECURITY_ALERTS__: boolean
+declare const __PB_MODULE_BACKUPS__: boolean
 
 declare const __PB_BLOCK_ACCORDION_BLOCK__: boolean
 declare const __PB_BLOCK_ANNOTATION_BLOCK__: boolean

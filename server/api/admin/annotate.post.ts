@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { annotate, ANNOT_LANGS } from '../../utils/annotate'
 import { requireContentManager } from '../../utils/auth'
+import { getRuntimeModuleConfig, isRuntimeEditorBlockEnabled } from '~/utils/moduleFlags'
 
 const MAX_ANNOTATION_TEXT_LENGTH = 5000
 
@@ -10,8 +11,7 @@ const requestSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const modules = useRuntimeConfig().public.modules as { editor?: { blocks?: { annotationBlock?: boolean } } } | undefined
-  if (modules?.editor?.blocks?.annotationBlock === false) {
+  if (!isRuntimeEditorBlockEnabled(getRuntimeModuleConfig(), 'annotationBlock')) {
     throw createError({ statusCode: 404, message: 'Annotation module is disabled' })
   }
 

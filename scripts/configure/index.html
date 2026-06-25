@@ -57,6 +57,10 @@
             <label><input type="checkbox" data-path="analytics.geoip"><span>GeoIP analytics</span></label>
             <label><input type="checkbox" data-path="users.enabled"><span>User management</span></label>
             <label><input type="checkbox" data-path="users.multiUser"><span>Multi-user roles</span></label>
+            <label><input type="checkbox" data-path="themes.enabled"><span>Theme management</span></label>
+            <label><input type="checkbox" data-path="mfa.enabled"><span>MFA / two-factor login</span></label>
+            <label><input type="checkbox" data-path="securityAlerts.enabled"><span>Security alerts (login webhooks)</span></label>
+            <label><input type="checkbox" data-path="backups.enabled"><span>Backups and restore</span></label>
           </div>
         </section>
         <section style="margin-top:18px">
@@ -98,7 +102,7 @@
     }
 
     function collectManifest() {
-      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {} }
+      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {}, themes: {}, mfa: {}, securityAlerts: {}, backups: {} }
       for (const input of inputs) setPath(modules, input.dataset.path, input.checked)
       return { version: 1, modules }
     }

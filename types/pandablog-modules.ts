@@ -9,6 +9,10 @@ export interface PandablogModulesConfig {
   logs: LogsModuleConfig
   analytics: AnalyticsModuleConfig
   users: UsersModuleConfig
+  themes: ThemesModuleConfig
+  mfa: MfaModuleConfig
+  securityAlerts: SecurityAlertsModuleConfig
+  backups: BackupsModuleConfig
 }
 
 export interface EditorModuleConfig {
@@ -31,6 +35,22 @@ export interface AnalyticsModuleConfig {
 export interface UsersModuleConfig {
   enabled: boolean
   multiUser: boolean
+}
+
+export interface ThemesModuleConfig {
+  enabled: boolean
+}
+
+export interface MfaModuleConfig {
+  enabled: boolean
+}
+
+export interface SecurityAlertsModuleConfig {
+  enabled: boolean
+}
+
+export interface BackupsModuleConfig {
+  enabled: boolean
 }
 
 export type EditorBlockKey =

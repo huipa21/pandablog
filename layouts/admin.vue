@@ -170,12 +170,9 @@ interface AdminSessionUser {
 const { t, locale, setLocale } = useI18n()
 const { siteName, siteLogo } = useSiteSettings()
 const sessionFetch = useSessionFetch()
-const modulesConfig = useRuntimeConfig().public.modules as {
-  analytics?: { enabled?: boolean }
-  users?: { enabled?: boolean, multiUser?: boolean }
-}
-const analyticsModuleEnabled = modulesConfig.analytics?.enabled !== false
-const multiUserModeEnabled = modulesConfig.users?.enabled !== false && modulesConfig.users?.multiUser !== false
+const moduleFlags = useModuleFlags()
+const analyticsModuleEnabled = moduleFlags.analytics
+const multiUserModeEnabled = moduleFlags.multiUser
 const userManagementEnabled = multiUserModeEnabled
 const { data: authSession } = await useAsyncData('admin-layout-session', () => sessionFetch<{ loggedIn: boolean, user: AdminSessionUser | null }>('/api/auth/session'), {
   default: () => ({ loggedIn: false, user: null })
@@ -318,26 +315,31 @@ const navSections = computed(() => {
     const settingsItems = [
       { to: '/admin/settings/general', label: t('admin.nav.general'), icon: 'i-lucide-sliders-horizontal' },
       { to: '/admin/settings/profile', label: t('admin.nav.profile'), icon: 'i-lucide-user' },
-      { to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' },
+      ...(moduleFlags.themes
+        ? [{ to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' }]
+        : []),
       ...(analyticsModuleEnabled
         ? [{ to: '/admin/settings/analytics', label: t('admin.nav.analyticsSettings'), icon: 'i-lucide-chart-no-axes-combined' }]
         : []),
-      { to: '/admin/settings/security', label: t('admin.nav.security'), icon: 'i-lucide-shield-check' },
+      ...(moduleFlags.securityAlerts || moduleFlags.mfa
+        ? [{ to: '/admin/settings/security', label: t('admin.nav.security'), icon: 'i-lucide-shield-check' }]
+        : []),
       { to: '/admin/settings/system', label: t('admin.nav.system'), icon: 'i-lucide-monitor-cog' }
     ]
 
-    sections.push(
-      {
-        label: t('admin.nav.settings'),
-        items: settingsItems
-      },
-      {
+    sections.push({
+      label: t('admin.nav.settings'),
+      items: settingsItems
+    })
+
+    if (moduleFlags.backups) {
+      sections.push({
         label: t('admin.nav.tools'),
         items: [
           { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' }
         ]
-      }
-    )
+      })
+    }
   }
 
   return sections

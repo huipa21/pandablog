@@ -16,7 +16,7 @@
       </div>
 
       <template v-else>
-        <fieldset class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+        <fieldset v-if="securityAlertsModuleEnabled" class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
           <legend class="text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.settings.security.alertsTitle') }}</legend>
           <label class="flex items-start gap-3">
             <input v-model="form.security_alerts_enabled" type="checkbox" class="mt-1 rounded border-[var(--pb-border-strong)]">
@@ -51,7 +51,7 @@
           </UFormField>
         </fieldset>
 
-        <fieldset class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+        <fieldset v-if="securityAlertsModuleEnabled" class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
           <legend class="text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.settings.security.triggersTitle') }}</legend>
 
           <label class="flex items-start gap-3">
@@ -79,7 +79,7 @@
           </label>
         </fieldset>
 
-        <fieldset class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+        <fieldset v-if="mfaModuleEnabled" class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
           <legend class="text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.settings.security.mfaTitle') }}</legend>
           <label class="flex items-start gap-3">
             <input v-model="form.security_mfa_required_for_admins" type="checkbox" class="mt-1 rounded border-[var(--pb-border-strong)]">
@@ -91,13 +91,13 @@
         </fieldset>
 
         <div class="flex justify-end">
-          <UButton type="submit" icon="i-lucide-save" :loading="saving">{{ t('common.save') }}</UButton>
+          <UButton v-if="securityAlertsModuleEnabled || mfaModuleEnabled" type="submit" icon="i-lucide-save" :loading="saving">{{ t('common.save') }}</UButton>
         </div>
       </template>
     </form>
 
     <!-- Personal multi-factor authentication -->
-    <section class="grid gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
+    <section v-if="mfaModuleEnabled" class="grid gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
       <header class="grid gap-1">
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.settings.security.personalMfaTitle') }}</h2>
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.security.personalMfaHelp') }}</p>
@@ -195,6 +195,8 @@ const { data, pending, error } = await useAsyncData('admin-settings-security', (
 const adminToast = useAdminToast()
 const saving = ref(false)
 const testing = ref(false)
+const mfaModuleEnabled = __PB_MODULE_MFA__
+const securityAlertsModuleEnabled = __PB_MODULE_SECURITY_ALERTS__
 const form = reactive({
   security_alerts_enabled: false,
   security_alert_webhook_url: '',
@@ -221,12 +223,16 @@ async function save() {
     const response = await $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings', {
       method: 'POST',
       body: {
-        security_alerts_enabled: form.security_alerts_enabled,
-        security_alert_webhook_url: form.security_alert_webhook_url.trim(),
-        security_alert_on_failed_login: form.security_alert_on_failed_login,
-        security_alert_on_lockout: form.security_alert_on_lockout,
-        security_alert_on_new_login: form.security_alert_on_new_login,
-        security_mfa_required_for_admins: form.security_mfa_required_for_admins
+        ...(securityAlertsModuleEnabled
+          ? {
+              security_alerts_enabled: form.security_alerts_enabled,
+              security_alert_webhook_url: form.security_alert_webhook_url.trim(),
+              security_alert_on_failed_login: form.security_alert_on_failed_login,
+              security_alert_on_lockout: form.security_alert_on_lockout,
+              security_alert_on_new_login: form.security_alert_on_new_login
+            }
+          : {}),
+        ...(mfaModuleEnabled ? { security_mfa_required_for_admins: form.security_mfa_required_for_admins } : {})
       }
     })
     data.value = response
@@ -279,7 +285,11 @@ async function loadMfaStatus() {
   }
 }
 
-onMounted(loadMfaStatus)
+onMounted(() => {
+  if (mfaModuleEnabled) {
+    void loadMfaStatus()
+  }
+})
 
 function resetMfaInputs() {
   mfaCode.value = ''

@@ -55,7 +55,12 @@ export default defineNitroPlugin(async () => {
     const db = rootDb
 
     await migrateLegacyAppSettingsTable(db)
-    const schema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
+    const rawSchema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
+    const schema = stripModuleSchemaSections(rawSchema, {
+      logs: __PB_MODULE_LOGS__,
+      analytics: __PB_MODULE_ANALYTICS__,
+      backups: __PB_MODULE_BACKUPS__
+    })
     const schemaHash = createHash('sha256').update(schema).digest('hex')
 
     if (!await hasCurrentSchemaHash(db, schemaHash)) {
@@ -71,10 +76,14 @@ export default defineNitroPlugin(async () => {
     await ensureDefaultAdminLocale(db)
     await ensureDefaultAdminRegionalSettings(db)
     await initializeRuntimeSettings(true)
-    await initializeAnalyticsSettings(true)
+    if (__PB_MODULE_ANALYTICS__) {
+      await initializeAnalyticsSettings(true)
+    }
     await initializeSecuritySettings(true)
     await ensureDefaultFolder(db)
-    await initializeLoggingSettings()
+    if (__PB_MODULE_LOGS__) {
+      await initializeLoggingSettings()
+    }
 
     // One-time, marker-guarded backfills do a full-table scan + FTS reindex.
     // Run them in the background via the runtime pool (scoped user) so a fresh
@@ -94,6 +103,19 @@ export default defineNitroPlugin(async () => {
     await closeRootClient(rootDb)
   }
 })
+
+function stripModuleSchemaSections(schema: string, enabledModules: Record<string, boolean>) {
+  let result = schema
+  for (const [moduleName, enabled] of Object.entries(enabledModules)) {
+    if (enabled) {
+      continue
+    }
+
+    result = result.replace(new RegExp(`-- #module ${moduleName} start\\r?\\n[\\s\\S]*?-- #module ${moduleName} end\\r?\\n?`, 'g'), '')
+  }
+
+  return result
+}
 
 async function runDeferredBackfillsViaPool() {
   try {

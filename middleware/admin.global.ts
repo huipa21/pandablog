@@ -1,3 +1,5 @@
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
+
 export default defineNuxtRouteMiddleware(async (to) => {
   if (!to.path.startsWith('/admin')) {
     return
@@ -37,8 +39,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
   }
 
-  const modules = useRuntimeConfig().public.modules as { users?: { enabled?: boolean, multiUser?: boolean } } | undefined
-  const multiUserModeEnabled = modules?.users?.enabled !== false && modules?.users?.multiUser !== false
+  const multiUserModeEnabled = resolveModuleFlags(getRuntimeModuleConfig()).multiUser
   if (!multiUserModeEnabled) {
     return
   }

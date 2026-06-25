@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { queryDb, useDb } from './db'
 import { flushAccessBuffer } from './logging-access-buffer'
 import { firstRow, queryRows } from './surrealResult'
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 export type LogType = 'access' | 'activity' | 'errors'
 
@@ -237,12 +238,12 @@ function isValidDate(value: string) {
 }
 
 function isLogTypeEnabled(type: LogType) {
-  const modules = useRuntimeConfig().public.modules as { logs?: { enabled?: boolean, accessLogs?: boolean, activityLogs?: boolean, errorLogs?: boolean } } | undefined
-  if (modules?.logs?.enabled === false) {
+  const moduleFlags = resolveModuleFlags(getRuntimeModuleConfig())
+  if (!moduleFlags.logs) {
     return false
   }
 
-  if (type === 'access') return modules?.logs?.accessLogs !== false
-  if (type === 'activity') return modules?.logs?.activityLogs !== false
-  return modules?.logs?.errorLogs !== false
+  if (type === 'access') return moduleFlags.accessLogs
+  if (type === 'activity') return moduleFlags.activityLogs
+  return moduleFlags.errorLogs
 }

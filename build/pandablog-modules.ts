@@ -44,6 +44,18 @@ export const DEFAULT_PANDABLOG_MODULES: PandablogModulesConfig = {
   users: {
     enabled: true,
     multiUser: true
+  },
+  themes: {
+    enabled: true
+  },
+  mfa: {
+    enabled: true
+  },
+  securityAlerts: {
+    enabled: true
+  },
+  backups: {
+    enabled: true
   }
 }
 
@@ -67,6 +79,10 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
   const logsEnabled = modules.logs?.enabled ?? DEFAULT_PANDABLOG_MODULES.logs.enabled
   const analyticsEnabled = modules.analytics?.enabled ?? DEFAULT_PANDABLOG_MODULES.analytics.enabled
   const usersEnabled = modules.users?.enabled ?? DEFAULT_PANDABLOG_MODULES.users.enabled
+  const themesEnabled = modules.themes?.enabled ?? DEFAULT_PANDABLOG_MODULES.themes.enabled
+  const mfaEnabled = modules.mfa?.enabled ?? DEFAULT_PANDABLOG_MODULES.mfa.enabled
+  const securityAlertsEnabled = modules.securityAlerts?.enabled ?? DEFAULT_PANDABLOG_MODULES.securityAlerts.enabled
+  const backupsEnabled = modules.backups?.enabled ?? DEFAULT_PANDABLOG_MODULES.backups.enabled
 
   return {
     $schema: raw.$schema,
@@ -91,6 +107,18 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
       users: {
         enabled: usersEnabled,
         multiUser: usersEnabled && (modules.users?.multiUser ?? true)
+      },
+      themes: {
+        enabled: themesEnabled
+      },
+      mfa: {
+        enabled: mfaEnabled
+      },
+      securityAlerts: {
+        enabled: securityAlertsEnabled
+      },
+      backups: {
+        enabled: backupsEnabled
       }
     }
   }
@@ -107,7 +135,11 @@ export function getPandablogModuleDefines(manifest: PandablogModulesManifest): R
     __PB_MODULE_ANALYTICS__: asDefine(modules.analytics.enabled),
     __PB_MODULE_ANALYTICS_GEOIP__: asDefine(modules.analytics.geoip),
     __PB_MODULE_USERS__: asDefine(modules.users.enabled),
-    __PB_MODULE_USERS_MULTI_USER__: asDefine(modules.users.multiUser)
+    __PB_MODULE_USERS_MULTI_USER__: asDefine(modules.users.multiUser),
+    __PB_MODULE_THEMES__: asDefine(modules.themes.enabled),
+    __PB_MODULE_MFA__: asDefine(modules.mfa.enabled),
+    __PB_MODULE_SECURITY_ALERTS__: asDefine(modules.securityAlerts.enabled),
+    __PB_MODULE_BACKUPS__: asDefine(modules.backups.enabled)
   }
 
   for (const block of EDITOR_BLOCK_KEYS) {

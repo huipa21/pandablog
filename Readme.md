@@ -108,6 +108,36 @@ npm run test:e2e
 
 The e2e suite starts the Nuxt dev server when `PLAYWRIGHT_BASE_URL` is not set. Set `PLAYWRIGHT_BASE_URL` to test an already-running local or staging instance.
 
+## Modules And Feature Flags
+
+PandaBlog can compile optional features in or out from [pandablog.modules.json](pandablog.modules.json). Edit the manifest directly, or use the local configurator:
+
+```bash
+npm run configure
+```
+
+To print the normalized manifest for CI or deployment checks:
+
+```bash
+npm run modules:print
+```
+
+The manifest currently controls:
+
+- `editor`: the admin editor and individual block types.
+- `logs`: access, activity, and error logging surfaces.
+- `analytics`: pageview/session analytics and optional GeoIP lookup data.
+- `users`: multi-user roles and user management.
+- `themes`: admin theme management and bundled non-default themes. The default theme always remains available.
+- `mfa`: TOTP setup, challenge, and admin MFA enforcement.
+- `backups`: backup and restore APIs, admin UI, storage, and maintenance middleware.
+
+At Nuxt startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the manifest, exposes the normalized settings at `runtimeConfig.public.modules`, and injects build constants such as `__PB_MODULE_ANALYTICS__` and `__PB_BLOCK_CODE_BLOCK__`. Disabled modules are also added to Nuxt/Nitro ignore rules where the app has a clean boundary, so their routes, pages, plugins, and storage payloads are not included in the build.
+
+SurrealDB 3 schema initialization is module-aware. [server/plugins/db-init.ts](server/plugins/db-init.ts) strips marked optional sections from [server/utils/schema.surql](server/utils/schema.surql) before hashing and applying the schema, so disabled `logs`, `analytics`, and `backups` modules do not create their optional tables on fresh installs.
+
+When `mfa.enabled` is `false`, MFA is silently bypassed for login: previously enrolled users and admins that would otherwise be required to enrol sign in with password-only authentication. This avoids lockouts but lowers authentication strength, so only disable MFA when that trade-off is intentional.
+
 ## Build Docker Image
 
 Build the production image from `Dockerfile`:
@@ -122,6 +152,12 @@ To test a smaller Alpine-based image, build both stages from Alpine:
 ```bash
 docker build --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine .
 ```
+
+Module selections are baked into the image during `npm run build` in the Docker
+builder stage. Update [pandablog.modules.json](pandablog.modules.json) or run
+`npm run configure` **before** `docker build`, then rebuild the image whenever
+the module selection changes. Runtime `.env` values cannot turn modules back on
+or off after the image is built.
 
 Only promote the Alpine image after a smoke test of login, image upload/variant
 generation, backups, and public post rendering. Native modules such as `sharp`

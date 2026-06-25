@@ -103,16 +103,18 @@ export default defineEventHandler(async (event) => {
   // enforcement requires an admin-tier account to enrol. In both cases we hold
   // a short-lived pending state in the session cookie and DO NOT issue a full
   // `user` session until the second step completes.
-  const mfaState = await getUserMfaState(user.id)
-  if (mfaState?.enabled) {
-    await setMfaPending(event, user.id, 'verify')
-    return { mfa_required: true }
-  }
+  if (__PB_MODULE_MFA__) {
+    const mfaState = await getUserMfaState(user.id)
+    if (mfaState?.enabled) {
+      await setMfaPending(event, user.id, 'verify')
+      return { mfa_required: true }
+    }
 
-  const security = getSecuritySettings()
-  if (security.security_mfa_required_for_admins && MFA_ENFORCED_ROLES.includes(user.role)) {
-    await setMfaPending(event, user.id, 'enroll')
-    return { mfa_enrollment_required: true }
+    const security = getSecuritySettings()
+    if (security.security_mfa_required_for_admins && MFA_ENFORCED_ROLES.includes(user.role)) {
+      await setMfaPending(event, user.id, 'enroll')
+      return { mfa_enrollment_required: true }
+    }
   }
 
   await setUserSession(event, {

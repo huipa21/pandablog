@@ -1,44 +1,55 @@
 {
-  "$schema": "./types/pandablog-modules.schema.json",
   "version": 1,
   "modules": {
     "editor": {
       "enabled": true,
       "blocks": {
         "accordionBlock": true,
-        "annotationBlock": true,
-        "blockMath": true,
+        "annotationBlock": false,
+        "blockMath": false,
         "blockquote": true,
-        "codeBlock": true,
+        "codeBlock": false,
         "columnsBlock": true,
         "customHtml": true,
         "diffBlock": true,
         "filesBlock": true,
         "footnotesBlock": true,
+        "horizontalRule": true,
         "image": true,
-        "inlineMath": true,
+        "inlineMath": false,
         "mediaText": true,
         "mermaid": true,
-        "relatedPost": true,
-        "horizontalRule": true,
+        "relatedPost": false,
         "table": true,
         "tabsBlock": true,
         "videoEmbed": true
       }
     },
     "logs": {
-      "enabled": true,
-      "accessLogs": true,
-      "activityLogs": true,
-      "errorLogs": true
+      "enabled": false,
+      "accessLogs": false,
+      "activityLogs": false,
+      "errorLogs": false
     },
     "analytics": {
-      "enabled": true,
-      "geoip": true
+      "enabled": false,
+      "geoip": false
     },
     "users": {
-      "enabled": true,
-      "multiUser": true
+      "enabled": false,
+      "multiUser": false
+    },
+    "themes": {
+      "enabled": false
+    },
+    "mfa": {
+      "enabled": false
+    },
+    "securityAlerts": {
+      "enabled": false
+    },
+    "backups": {
+      "enabled": false
     }
   }
 }

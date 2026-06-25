@@ -11,7 +11,7 @@
     "modules": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["editor", "logs", "analytics", "users"],
+      "required": ["editor", "logs", "analytics", "users", "themes", "mfa", "securityAlerts", "backups"],
       "properties": {
         "editor": {
           "type": "object",
@@ -52,6 +52,38 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "multiUser": { "type": "boolean" }
+          }
+        },
+        "themes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "mfa": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "securityAlerts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "backups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" }
           }
         }
       }

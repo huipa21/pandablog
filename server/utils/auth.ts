@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { isSetupCompleted } from './settings'
 import { hasAuthSessionCookie } from './session-cookie'
 import type { SessionUser, UserRole } from './users'
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 export interface AdminUser {
   id: string
@@ -106,8 +107,7 @@ function effectiveUserForModuleMode(user: SessionUser): SessionUser {
 }
 
 function isMultiUserModeEnabled() {
-  const modules = useRuntimeConfig().public.modules as { users?: { enabled?: boolean, multiUser?: boolean } } | undefined
-  return modules?.users?.enabled !== false && modules?.users?.multiUser !== false
+  return resolveModuleFlags(getRuntimeModuleConfig()).multiUser
 }
 
 function isRole(value: unknown): value is UserRole {
