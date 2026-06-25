@@ -5,10 +5,10 @@
       "enabled": true,
       "blocks": {
         "accordionBlock": true,
-        "annotationBlock": false,
-        "blockMath": false,
+        "annotationBlock": true,
+        "blockMath": true,
         "blockquote": true,
-        "codeBlock": false,
+        "codeBlock": true,
         "columnsBlock": true,
         "customHtml": true,
         "diffBlock": true,
@@ -16,40 +16,40 @@
         "footnotesBlock": true,
         "horizontalRule": true,
         "image": true,
-        "inlineMath": false,
+        "inlineMath": true,
         "mediaText": true,
         "mermaid": true,
-        "relatedPost": false,
+        "relatedPost": true,
         "table": true,
         "tabsBlock": true,
         "videoEmbed": true
       }
     },
     "logs": {
-      "enabled": false,
-      "accessLogs": false,
-      "activityLogs": false,
-      "errorLogs": false
+      "enabled": true,
+      "accessLogs": true,
+      "activityLogs": true,
+      "errorLogs": true
     },
     "analytics": {
-      "enabled": false,
-      "geoip": false
+      "enabled": true,
+      "geoip": true
     },
     "users": {
-      "enabled": false,
-      "multiUser": false
+      "enabled": true,
+      "multiUser": true
     },
     "themes": {
-      "enabled": false
+      "enabled": true
     },
     "mfa": {
-      "enabled": false
+      "enabled": true
     },
     "securityAlerts": {
-      "enabled": false
+      "enabled": true
     },
     "backups": {
-      "enabled": false
+      "enabled": true
     }
   }
 }

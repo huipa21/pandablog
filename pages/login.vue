@@ -4,6 +4,7 @@
     <div class="login-page__overlay" aria-hidden="true" />
 
     <section class="login-panel" aria-labelledby="login-title">
+      <PandaLogo :size="64" class="login-panel__logo" />
       <h1 id="login-title" class="login-panel__title">{{ t('admin.nav.login') }}</h1>
 
       <form v-if="step === 'credentials'" class="login-form" @submit.prevent="login">
@@ -329,6 +330,11 @@ function targetForRole(role: Role) {
   backdrop-filter: blur(22px) saturate(120%);
 }
 
+.login-panel__logo {
+  margin: 0 auto -1.25rem;
+  color: var(--pb-primary);
+}
+
 .login-panel__title {
   margin: 0;
   color: var(--pb-text);
@@ -356,7 +362,7 @@ function targetForRole(role: Role) {
   width: min(13rem, 60vw);
   justify-self: center;
   border-radius: var(--pb-radius-card-inner, 0.75rem);
-  background: #fff;
+  background: white;
   padding: 0.5rem;
 }
 
