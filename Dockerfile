@@ -84,8 +84,8 @@ COPY --from=builder --chown=nuxt:nodejs /app/runtime/ ./
 # is therefore NOT shipped in the image — place dbip-city-lite.mmdb at
 # ./app-storage/geoip/ on the host (the app also creates storage/geoip/ on
 # boot so the drop location is visible) and restart the container.
-RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip storage/logs .data/rate-limit \
- && chown -R nuxt:nodejs storage .data
+RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip storage/logs storage/rate-limit \
+ && chown -R nuxt:nodejs storage
 
 USER nuxt
 

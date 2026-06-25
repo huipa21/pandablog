@@ -198,7 +198,6 @@ docker run -d \
   -p 127.0.0.1:3000:3000 \
   --env-file .env \
   -v pandablog-storage:/app/storage \
-  -v pandablog-data:/app/.data \
   pandablog:latest
 ```
 
@@ -603,7 +602,7 @@ On a fresh deployment, open `/admin` and complete the first-run setup wizard. Th
 
 ### Rate limiting
 
-Failed login attempts are tracked per IP. After 5 failed attempts within 15 minutes, that IP is locked for 15 minutes. Storage lives at `./.data/rate-limit/` (gitignored).
+Failed login attempts are tracked per IP. After 5 failed attempts within 15 minutes, that IP is locked for 15 minutes. Storage lives at `./storage/rate-limit/` (gitignored).
 
 ### Rotating the admin password
 

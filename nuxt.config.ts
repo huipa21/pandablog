@@ -113,7 +113,7 @@ export default defineNuxtConfig({
     storage: {
       'rate-limit': {
         driver: 'fs',
-        base: './.data/rate-limit'
+        base: './storage/rate-limit'
       }
     }
   },

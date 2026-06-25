@@ -1,8 +1,8 @@
 services:
   app:
     image: ${PANDABLOG_IMAGE:-localhost/pandablog:latest}
-    # Match the UID:GID that OWNS the bind-mounted ./app-storage and ./app-data
-    # directories on the host. This is important to ensure that the container can read/write to these volumes
+    # Match the UID:GID that OWNS the bind-mounted ./app-storage directory on
+    # the host. This is important to ensure that the container can read/write to this volume.
     # the deploy user is most likely 1000. Adjust if different.
     user: "1000:1000"
     pull_policy: never
@@ -14,7 +14,6 @@ services:
       - 3000
     volumes:
       - ./app-storage:/app/storage
-      - ./app-data:/app/.data
       # GeoIP analytics database (optional). Place the DB-IP City Lite MMDB at
       # ./app-storage/geoip/dbip-city-lite.mmdb on the host. Because the whole
       # storage dir is bind-mounted, it will be visible inside the container at

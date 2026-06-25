@@ -21,6 +21,7 @@ storage/downloads/*
 storage/geoip/*
 storage/backups/*
 storage/logs/*
+storage/rate-limit/*
 !storage/uploads/.gitkeep
 !storage/downloads/.gitkeep
 pandablog.code-workspace
