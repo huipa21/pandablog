@@ -56,6 +56,9 @@ export const DEFAULT_PANDABLOG_MODULES: PandablogModulesConfig = {
   },
   backups: {
     enabled: true
+  },
+  publishActivityHeatmap: {
+    enabled: true
   }
 }
 
@@ -83,6 +86,7 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
   const mfaEnabled = modules.mfa?.enabled ?? DEFAULT_PANDABLOG_MODULES.mfa.enabled
   const securityAlertsEnabled = modules.securityAlerts?.enabled ?? DEFAULT_PANDABLOG_MODULES.securityAlerts.enabled
   const backupsEnabled = modules.backups?.enabled ?? DEFAULT_PANDABLOG_MODULES.backups.enabled
+  const publishActivityHeatmapEnabled = modules.publishActivityHeatmap?.enabled ?? DEFAULT_PANDABLOG_MODULES.publishActivityHeatmap.enabled
 
   return {
     $schema: raw.$schema,
@@ -119,6 +123,9 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
       },
       backups: {
         enabled: backupsEnabled
+      },
+      publishActivityHeatmap: {
+        enabled: publishActivityHeatmapEnabled
       }
     }
   }
@@ -139,7 +146,8 @@ export function getPandablogModuleDefines(manifest: PandablogModulesManifest): R
     __PB_MODULE_THEMES__: asDefine(modules.themes.enabled),
     __PB_MODULE_MFA__: asDefine(modules.mfa.enabled),
     __PB_MODULE_SECURITY_ALERTS__: asDefine(modules.securityAlerts.enabled),
-    __PB_MODULE_BACKUPS__: asDefine(modules.backups.enabled)
+    __PB_MODULE_BACKUPS__: asDefine(modules.backups.enabled),
+    __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__: asDefine(modules.publishActivityHeatmap.enabled)
   }
 
   for (const block of EDITOR_BLOCK_KEYS) {

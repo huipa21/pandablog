@@ -37,6 +37,17 @@
 
           <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <UButton
+              v-if="showPostViewToggle"
+              data-testid="post-view-toggle"
+              variant="ghost"
+              color="neutral"
+              :icon="postViewIcon"
+              :aria-label="postViewLabel"
+              :title="postViewLabel"
+              size="sm"
+              @click="toggleViewMode"
+            />
+            <UButton
               variant="ghost"
               color="neutral"
               :icon="themeModeIcon"
@@ -98,6 +109,17 @@
             icon="i-lucide-search"
             :aria-label="t('public.nav.search')"
             size="sm"
+          />
+          <UButton
+            v-if="showPostViewToggle"
+            data-testid="post-view-toggle"
+            variant="ghost"
+            color="neutral"
+            :icon="postViewIcon"
+            :aria-label="postViewLabel"
+            :title="postViewLabel"
+            size="sm"
+            @click="toggleViewMode"
           />
           <UButton
             variant="ghost"
@@ -255,12 +277,21 @@ const {
   toggleLabel: themeModeLabel,
   toggleThemeMode
 } = useThemeMode({ storageKey: 'pb-public-color-mode' })
+const {
+  toggleIcon: postViewIcon,
+  toggleLabel: postViewLabel,
+  toggleViewMode
+} = usePostViewMode()
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const authRole = computed(() => authSession.value?.user?.role ?? null)
 const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
 const isHome = computed(() => route.path === '/')
+const showPostViewToggle = computed(() => {
+  const path = route.path
+  return path === '/' || /^\/category\/.+/.test(path) || /^\/tag\/.+/.test(path)
+})
 const hasLayoutSidebar = computed(() => !isHome.value || hasPageSidebar.value)
 const hasMobileSidebarDrawer = computed(() => hasLayoutSidebar.value && !isHome.value)
 const publicSiteBanner = computed(() => resolveMediaUrl(siteBanner.value))

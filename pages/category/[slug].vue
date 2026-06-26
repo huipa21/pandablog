@@ -5,15 +5,12 @@
       <h1 class="mt-1 font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ title }}</h1>
     </header>
 
-    <div v-if="!error && (pending || totalPosts > 0)" class="hidden min-w-0 flex-wrap items-center justify-end gap-2 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-3 shadow-[var(--pb-shadow-sm)] md:flex">
-      <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28 max-w-full shrink-0" :aria-label="t('public.home.postsPerPage')" />
-    </div>
-
     <BlogPostCardList
       :posts="posts"
       :pending="pending && (!isMobileViewport || !posts.length)"
       :error="error"
       :view-mode="effectiveViewMode"
+      :grid-columns="gridColumns"
       :empty-title="t('public.category.emptyTitle')"
       :empty-description="t('public.category.emptyDescription')"
     />
@@ -53,38 +50,28 @@ interface PostsResponse {
   start: number
 }
 
-type PerPageOption = '10' | '25' | '50' | '100'
 type PostViewMode = 'grid' | 'list'
-const MOBILE_POSTS_PER_PAGE: PerPageOption = '10'
 
 const route = useRoute()
 const { t } = useI18n()
+const { viewMode, isMobileViewport, gridColumns } = usePostViewMode()
 const slug = computed(() => String(route.params.slug))
 const title = computed(() => slug.value.replace(/-/g, ' '))
 const page = ref(1)
-const perPage = ref<PerPageOption>('10')
-const isMobileViewport = ref(false)
 const loadMoreTrigger = ref<HTMLElement | null>(null)
 const mobilePosts = ref<PostListItem[]>([])
-let mobileViewportQuery: MediaQueryList | null = null
 let loadMoreObserver: IntersectionObserver | null = null
-const perPageOptions = computed(() => [
-  { label: t('public.home.perPage', { count: 10 }), value: '10' },
-  { label: t('public.home.perPage', { count: 25 }), value: '25' },
-  { label: t('public.home.perPage', { count: 50 }), value: '50' },
-  { label: t('public.home.perPage', { count: 100 }), value: '100' }
-])
 
-const perPageNumber = computed(() => Number(perPage.value))
+const effectiveViewMode = computed<PostViewMode>(() => isMobileViewport.value ? 'list' : viewMode.value)
+const perPageNumber = computed(() => effectiveViewMode.value === 'list' ? 15 : 15 * Math.max(1, gridColumns.value))
 const pageStart = computed(() => (page.value - 1) * perPageNumber.value)
-const dataKey = computed(() => `category-posts:${slug.value}:${page.value}:${perPage.value}`)
+const dataKey = computed(() => `category-posts:${slug.value}:${page.value}:${perPageNumber.value}`)
 const { data, pending, error } = await useAsyncData(dataKey, () => $fetch<PostsResponse>('/api/posts', {
   query: { category: slug.value, limit: perPageNumber.value, start: pageStart.value }
-}), { watch: [slug, page, perPage] })
+}), { watch: [slug, page, perPageNumber] })
 const posts = computed(() => isMobileViewport.value ? mobilePosts.value : data.value?.posts ?? [])
 const totalPosts = computed(() => data.value?.total ?? posts.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / perPageNumber.value)))
-const effectiveViewMode = computed<PostViewMode>(() => isMobileViewport.value ? 'list' : 'grid')
 const canLoadMore = computed(() => isMobileViewport.value && !pending.value && page.value < totalPages.value)
 
 watch(data, (nextData) => {
@@ -104,16 +91,13 @@ watch(totalPages, (nextTotalPages) => {
   }
 })
 
-watch(perPage, () => {
+watch(perPageNumber, () => {
   page.value = 1
 }, { flush: 'sync' })
 
-watch([slug, isMobileViewport], ([, isMobile]) => {
+watch([slug, isMobileViewport], () => {
   mobilePosts.value = data.value?.posts ?? []
-  if (isMobile) {
-    perPage.value = MOBILE_POSTS_PER_PAGE
-    page.value = 1
-  }
+  page.value = 1
 })
 
 watch(page, () => {
@@ -125,9 +109,6 @@ watch(page, () => {
 watch([loadMoreTrigger, canLoadMore], syncLoadMoreObserver, { flush: 'post' })
 
 onMounted(() => {
-  mobileViewportQuery = window.matchMedia('(max-width: 767px)')
-  syncMobileViewport()
-  mobileViewportQuery.addEventListener('change', syncMobileViewport)
   loadMoreObserver = new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting)) {
       loadNextMobilePage()
@@ -137,7 +118,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  mobileViewportQuery?.removeEventListener('change', syncMobileViewport)
   loadMoreObserver?.disconnect()
 })
 
@@ -151,10 +131,6 @@ function goToPage(nextPage: number) {
 function loadNextMobilePage() {
   if (!canLoadMore.value) return
   page.value += 1
-}
-
-function syncMobileViewport() {
-  isMobileViewport.value = mobileViewportQuery?.matches ?? false
 }
 
 function syncLoadMoreObserver() {

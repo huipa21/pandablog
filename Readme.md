@@ -131,6 +131,7 @@ The manifest currently controls:
 - `themes`: admin theme management and bundled non-default themes. The default theme always remains available.
 - `mfa`: TOTP setup, challenge, and admin MFA enforcement.
 - `backups`: backup and restore APIs, admin UI, storage, and maintenance middleware.
+- `publishActivityHeatmap`: the public publish-activity heatmap widget and its `/api/posts/publish-frequency` endpoint.
 
 At Nuxt startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the manifest, exposes the normalized settings at `runtimeConfig.public.modules`, and injects build constants such as `__PB_MODULE_ANALYTICS__` and `__PB_BLOCK_CODE_BLOCK__`. Disabled modules are also added to Nuxt/Nitro ignore rules where the app has a clean boundary, so their routes, pages, plugins, and storage payloads are not included in the build.
 

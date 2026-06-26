@@ -1,6 +1,6 @@
 <template>
   <div class="min-w-0">
-    <div v-if="pending" :class="layoutClasses">
+    <div v-if="pending" :class="layoutClasses" :style="gridStyle">
       <USkeleton v-for="index in skeletonCount" :key="index" :class="skeletonClasses" />
     </div>
 
@@ -12,7 +12,7 @@
       :description="isSitePrivateError ? t('public.postList.sitePrivateDescription') : undefined"
     />
 
-    <div v-else-if="posts.length" :class="layoutClasses" :data-post-card-layout="isListView ? 'list' : 'grid'">
+    <div v-else-if="posts.length" :class="layoutClasses" :style="gridStyle" :data-post-card-layout="isListView ? 'list' : 'grid'">
       <article
         v-for="post in posts"
         :key="post.id"
@@ -87,6 +87,7 @@ const props = withDefaults(defineProps<{
   emptyTitle?: string
   emptyDescription?: string
   fixedColumns?: boolean
+  gridColumns?: number
   viewMode?: PostCardViewMode
 }>(), {
   pending: false,
@@ -94,6 +95,7 @@ const props = withDefaults(defineProps<{
   emptyTitle: '',
   emptyDescription: '',
   fixedColumns: false,
+  gridColumns: 0,
   viewMode: 'grid'
 })
 
@@ -104,8 +106,12 @@ const resolvedEmptyDescription = computed(() => props.emptyDescription || t('pub
 const layoutClasses = computed(() => [
   'min-w-0 w-full',
   isListView.value ? 'post-card-list' : 'post-card-grid',
+  !isListView.value && props.gridColumns >= 1 ? 'post-card-grid-explicit' : undefined,
   !isListView.value && props.fixedColumns ? 'post-card-grid-fixed' : undefined
 ])
+const gridStyle = computed(() => (!isListView.value && props.gridColumns >= 1)
+  ? { '--post-card-grid-cols': String(Math.min(4, Math.max(1, props.gridColumns))) }
+  : undefined)
 const skeletonCount = computed(() => isListView.value ? 4 : 6)
 const skeletonClasses = computed(() => [
   'rounded-[var(--pb-radius-card-outer)]',
@@ -225,6 +231,10 @@ function postExcerpt(post: PostListItem) {
 @media (min-width: 640px) {
   .post-card-grid {
     grid-template-columns: repeat(auto-fill, minmax(var(--post-card-grid-min), 1fr));
+  }
+
+  .post-card-grid-explicit {
+    grid-template-columns: repeat(var(--post-card-grid-cols, 2), minmax(0, 1fr));
   }
 
   .post-card-grid-item {

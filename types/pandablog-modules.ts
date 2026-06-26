@@ -13,6 +13,7 @@ export interface PandablogModulesConfig {
   mfa: MfaModuleConfig
   securityAlerts: SecurityAlertsModuleConfig
   backups: BackupsModuleConfig
+  publishActivityHeatmap: PublishActivityHeatmapModuleConfig
 }
 
 export interface EditorModuleConfig {
@@ -50,6 +51,10 @@ export interface SecurityAlertsModuleConfig {
 }
 
 export interface BackupsModuleConfig {
+  enabled: boolean
+}
+
+export interface PublishActivityHeatmapModuleConfig {
   enabled: boolean
 }
 

@@ -7,7 +7,7 @@
     </template>
 
     <section class="grid min-w-0 gap-10 md:gap-12">
-      <BlogPublishFrequencyHeatmap class="order-1" />
+      <BlogPublishFrequencyHeatmap v-if="heatmapEnabled" class="order-1" />
 
       <section id="posts" class="order-2 grid min-w-0 gap-6">
         <header class="md:hidden">
@@ -15,35 +15,12 @@
           <h1 class="mt-1 font-[var(--pb-font-display)] text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ siteName }}</h1>
         </header>
 
-        <div v-if="!error && (pending || totalPosts > 0)" class="hidden min-w-0 flex-wrap items-center justify-end gap-2 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-3 shadow-[var(--pb-shadow-sm)] md:flex">
-          <USelect v-model="perPage" :items="perPageOptions" size="sm" class="w-28 max-w-full shrink-0" :aria-label="t('public.home.postsPerPage')" />
-          <div class="inline-flex rounded-[var(--pb-radius-md)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] p-1">
-            <UButton
-              data-testid="post-view-grid-toggle"
-              size="sm"
-              :variant="viewMode === 'grid' ? 'solid' : 'ghost'"
-              :color="viewMode === 'grid' ? 'primary' : 'neutral'"
-              icon="i-lucide-layout-grid"
-              :aria-label="t('public.home.gridView')"
-              @click="viewMode = 'grid'"
-            />
-            <UButton
-              data-testid="post-view-list-toggle"
-              size="sm"
-              :variant="viewMode === 'list' ? 'solid' : 'ghost'"
-              :color="viewMode === 'list' ? 'primary' : 'neutral'"
-              icon="i-lucide-list"
-              :aria-label="t('public.home.listView')"
-              @click="viewMode = 'list'"
-            />
-          </div>
-        </div>
-
         <BlogPostCardList
           :posts="posts"
           :pending="pending && (!isMobileViewport || !posts.length)"
           :error="error"
           :view-mode="effectiveViewMode"
+          :grid-columns="gridColumns"
           :empty-title="t('public.home.emptyTitle')"
           :empty-description="t('public.home.emptyDescription')"
         />
@@ -89,25 +66,15 @@ interface PostsResponse {
 }
 
 type PostViewMode = 'grid' | 'list'
-type PerPageOption = '10' | '25' | '50' | '100'
-const MOBILE_POSTS_PER_PAGE: PerPageOption = '10'
 
 const { t } = useI18n()
 const { siteName } = useSiteSettings()
+const heatmapEnabled = __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__
+const { viewMode, isMobileViewport, gridColumns } = usePostViewMode()
 const page = ref(1)
-const viewMode = ref<PostViewMode>('grid')
-const perPage = ref<PerPageOption>('10')
-const isMobileViewport = ref(false)
 const loadMoreTrigger = ref<HTMLElement | null>(null)
 const mobilePosts = ref<PostListItem[]>([])
-let mobileViewportQuery: MediaQueryList | null = null
 let loadMoreObserver: IntersectionObserver | null = null
-const perPageOptions = computed(() => [
-  { label: t('public.home.perPage', { count: 10 }), value: '10' },
-  { label: t('public.home.perPage', { count: 25 }), value: '25' },
-  { label: t('public.home.perPage', { count: 50 }), value: '50' },
-  { label: t('public.home.perPage', { count: 100 }), value: '100' }
-])
 
 const fetchWithSession: PublicFetch = (url) => {
   if (import.meta.server) {
@@ -119,16 +86,16 @@ const fetchWithSession: PublicFetch = (url) => {
   return clientFetch(url)
 }
 
-const perPageNumber = computed(() => Number(perPage.value))
+const effectiveViewMode = computed<PostViewMode>(() => isMobileViewport.value ? 'list' : viewMode.value)
+const perPageNumber = computed(() => effectiveViewMode.value === 'list' ? 15 : 15 * Math.max(1, gridColumns.value))
 const pageStart = computed(() => (page.value - 1) * perPageNumber.value)
-const dataKey = computed(() => `public-posts:${page.value}:${perPage.value}`)
+const dataKey = computed(() => `public-posts:${page.value}:${perPageNumber.value}`)
 const postsPath = computed(() => `/api/posts?limit=${perPageNumber.value}&start=${pageStart.value}`)
 
-const { data, pending, error } = await useAsyncData(dataKey, () => fetchWithSession<PostsResponse>(postsPath.value), { watch: [page, perPage] })
+const { data, pending, error } = await useAsyncData(dataKey, () => fetchWithSession<PostsResponse>(postsPath.value), { watch: [page, perPageNumber] })
 const posts = computed(() => isMobileViewport.value ? mobilePosts.value : data.value?.posts ?? [])
 const totalPosts = computed(() => data.value?.total ?? posts.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / perPageNumber.value)))
-const effectiveViewMode = computed<PostViewMode>(() => isMobileViewport.value ? 'list' : viewMode.value)
 const canLoadMore = computed(() => isMobileViewport.value && !pending.value && page.value < totalPages.value)
 
 watch(data, (nextData) => {
@@ -148,16 +115,13 @@ watch(totalPages, (nextTotalPages) => {
   }
 })
 
-watch(perPage, () => {
+watch(perPageNumber, () => {
   page.value = 1
 }, { flush: 'sync' })
 
-watch(isMobileViewport, (isMobile) => {
+watch(isMobileViewport, () => {
   mobilePosts.value = data.value?.posts ?? []
-  if (isMobile) {
-    perPage.value = MOBILE_POSTS_PER_PAGE
-    page.value = 1
-  }
+  page.value = 1
 })
 
 watch(page, () => {
@@ -169,9 +133,6 @@ watch(page, () => {
 watch([loadMoreTrigger, canLoadMore], syncLoadMoreObserver, { flush: 'post' })
 
 onMounted(() => {
-  mobileViewportQuery = window.matchMedia('(max-width: 767px)')
-  syncMobileViewport()
-  mobileViewportQuery.addEventListener('change', syncMobileViewport)
   loadMoreObserver = new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting)) {
       loadNextMobilePage()
@@ -181,7 +142,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  mobileViewportQuery?.removeEventListener('change', syncMobileViewport)
   loadMoreObserver?.disconnect()
 })
 
@@ -195,10 +155,6 @@ function goToPage(nextPage: number) {
 function loadNextMobilePage() {
   if (!canLoadMore.value) return
   page.value += 1
-}
-
-function syncMobileViewport() {
-  isMobileViewport.value = mobileViewportQuery?.matches ?? false
 }
 
 function syncLoadMoreObserver() {

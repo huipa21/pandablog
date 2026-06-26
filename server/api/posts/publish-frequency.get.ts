@@ -13,6 +13,10 @@ interface PublishFrequencyResponse {
 }
 
 export default defineEventHandler(async (event): Promise<PublishFrequencyResponse> => {
+  if (!__PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__) {
+    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+  }
+
   const isAdmin = await isAdminAuthenticated(event)
   const visibilityFilter = isAdmin
     ? ''

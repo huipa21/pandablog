@@ -1,6 +1,12 @@
 <template>
   <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-    <h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('public.tag.listTitle') }}</h3>
+    <NuxtLink
+      to="/tag"
+      class="mb-3 flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)] transition hover:text-[var(--pb-link-hover)]"
+    >
+      <span>{{ t('public.tag.allTitle') }}</span>
+      <UIcon name="i-lucide-arrow-right" class="size-3.5" />
+    </NuxtLink>
     <div v-if="pending" class="flex flex-wrap gap-2">
       <USkeleton v-for="index in 5" :key="index" class="h-7 w-16 rounded-full" />
     </div>

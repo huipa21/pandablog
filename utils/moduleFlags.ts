@@ -7,6 +7,7 @@ export interface RuntimeModulesConfig {
   mfa?: { enabled?: boolean }
   securityAlerts?: { enabled?: boolean }
   backups?: { enabled?: boolean }
+  publishActivityHeatmap?: { enabled?: boolean }
 }
 
 export function getRuntimeModuleConfig() {
@@ -32,7 +33,8 @@ export function resolveModuleFlags(modules?: RuntimeModulesConfig | null) {
     themes: modules?.themes?.enabled !== false,
     mfa: modules?.mfa?.enabled !== false,
     securityAlerts: modules?.securityAlerts?.enabled !== false,
-    backups: modules?.backups?.enabled !== false
+    backups: modules?.backups?.enabled !== false,
+    publishActivityHeatmap: modules?.publishActivityHeatmap?.enabled !== false
   }
 }
 

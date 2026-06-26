@@ -11,7 +11,7 @@
     "modules": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["editor", "logs", "analytics", "users", "themes", "mfa", "securityAlerts", "backups"],
+      "required": ["editor", "logs", "analytics", "users", "themes", "mfa", "securityAlerts", "backups", "publishActivityHeatmap"],
       "properties": {
         "editor": {
           "type": "object",
@@ -79,6 +79,14 @@
           }
         },
         "backups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "publishActivityHeatmap": {
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled"],

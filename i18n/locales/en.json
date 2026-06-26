@@ -1735,6 +1735,13 @@
       "emptyDescription": "Published posts assigned to this category will appear here.",
       "uncategorized": "Uncategorized",
       "listTitle": "Categories",
+      "allTitle": "All Categories",
+      "indexEyebrow": "Categories",
+      "indexTitle": "All Categories",
+      "indexDescription": "Browse every category with published posts.",
+      "indexEmpty": "No categories yet.",
+      "postCount": "{count} posts",
+      "postCountOne": "1 post",
       "emptyList": "No categories yet."
     },
     "tag": {
@@ -1742,6 +1749,13 @@
       "emptyTitle": "No posts with this tag",
       "emptyDescription": "Published posts assigned to this tag will appear here.",
       "listTitle": "Tags",
+      "allTitle": "All Tags",
+      "indexEyebrow": "Tags",
+      "indexTitle": "All Tags",
+      "indexDescription": "Browse every tag with published posts.",
+      "indexEmpty": "No tags yet.",
+      "postCount": "{count} posts",
+      "postCountOne": "1 post",
       "emptyList": "No tags yet."
     },
     "sidebar": {

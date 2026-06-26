@@ -125,6 +125,11 @@ export default defineNuxtModule({
       nitroIgnore.add('storage/backups/**')
     }
 
+    if (!modules.publishActivityHeatmap.enabled) {
+      ignore.add('server/api/posts/publish-frequency.get.ts')
+      ignore.add('components/blog/PublishFrequencyHeatmap.vue')
+    }
+
     nuxt.options.ignore = [...ignore]
     nuxt.options.nitro.ignore = [...nitroIgnore]
   }

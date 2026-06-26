@@ -61,6 +61,7 @@
             <label><input type="checkbox" data-path="mfa.enabled"><span>MFA / two-factor login</span></label>
             <label><input type="checkbox" data-path="securityAlerts.enabled"><span>Security alerts (login webhooks)</span></label>
             <label><input type="checkbox" data-path="backups.enabled"><span>Backups and restore</span></label>
+            <label><input type="checkbox" data-path="publishActivityHeatmap.enabled"><span>Publish activity heatmap</span></label>
           </div>
         </section>
         <section style="margin-top:18px">
@@ -102,7 +103,7 @@
     }
 
     function collectManifest() {
-      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {}, themes: {}, mfa: {}, securityAlerts: {}, backups: {} }
+      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {}, themes: {}, mfa: {}, securityAlerts: {}, backups: {}, publishActivityHeatmap: {} }
       for (const input of inputs) setPath(modules, input.dataset.path, input.checked)
       return { version: 1, modules }
     }

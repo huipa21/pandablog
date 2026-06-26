@@ -50,6 +50,9 @@
     },
     "backups": {
       "enabled": true
+    },
+    "publishActivityHeatmap": {
+      "enabled": true
     }
   }
 }
