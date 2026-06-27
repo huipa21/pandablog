@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { Surreal } from 'surrealdb'
-import type { BlockRecord, JsonContent } from '~/types/content'
+import type { BlockRecord, JsonContent, RelatedPostSummary } from '~/types/content'
 import { computeContentStats } from '../../utils/contentStats'
 import { queryDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
@@ -49,7 +49,7 @@ export function flattenNodeText(node: JsonContent | null | undefined): string {
     return stringAttr(node.attrs?.base)
   }
 
-  if (node.type === 'relatedPost' || node.type === 'wikiLink') {
+  if (node.type === 'wikiLink') {
     return stringAttr(node.attrs?.label) || stringAttr(node.attrs?.target)
   }
 
@@ -527,76 +527,85 @@ export async function swapBlockSeq(db: Surreal, postRecordId: string, blockIdA: 
 
 /* ---------- Inter-post links ---------- */
 
-/**
- * Sync the bidirectional `links` edge for a post from the `relatedPost`
- * blocks present in its content. Each target slug becomes both
- * postA -> links -> postB and postB -> links -> postA.
- */
-export async function syncPostLinks(db: Surreal, postRecordId: string, blocks: BlockInput[] | BlockRecord[]) {
+export async function readPostRelated(db: Surreal, postRecordId: string): Promise<RelatedPostSummary[]> {
   const postId = recordIdPart(postRecordId, 'post')
-  const targetSlugs = extractRelatedPostSlugsFromBlocks(blocks)
-
-  // Clear edges originating from this post (both directions).
-  await queryDb(
+  const response = await queryDb(
     db,
-    `DELETE links WHERE in = type::record('post', $postId) OR out = type::record('post', $postId);`,
+    `SELECT out.id AS id, out.slug AS slug, out.title AS title
+     FROM links
+     WHERE in = type::record('post', $postId)
+       AND out.status != 'archived'
+     ORDER BY out.title ASC;`,
     { postId }
   )
 
-  if (!targetSlugs.length) {
-    return [] as string[]
-  }
-
-  const resolved = await queryDb(
-    db,
-    'SELECT id, slug FROM post WHERE slug IN $slugs;',
-    { slugs: targetSlugs }
-  )
-  const matches = queryRows<{ id: unknown, slug?: unknown }>(resolved, 0)
-
-  const targets = matches
-    .map((match) => recordIdPart(stringifyRecordId(match.id), 'post'))
-    .filter((targetId) => targetId !== postId)
-
-  if (targets.length) {
-    const stmts: string[] = []
-    const params: Record<string, unknown> = { postId }
-    for (let i = 0; i < targets.length; i++) {
-      params[`tid_${i}`] = targets[i]
-      stmts.push(
-        `RELATE (type::record('post', $postId)) -> links -> (type::record('post', $tid_${i}));`
-      )
-      stmts.push(
-        `RELATE (type::record('post', $tid_${i})) -> links -> (type::record('post', $postId));`
-      )
-    }
-    await queryDb(db, stmts.join('\n'), params, { label: `batch-relate ${targets.length} links` })
-  }
-
-  return matches.map((m) => String(m.slug ?? '')).filter(Boolean)
+  return queryRows<Record<string, unknown>>(response).map((row) => ({
+    id: stringifyRecordId(row.id),
+    slug: String(row.slug ?? ''),
+    title: String(row.title ?? '')
+  })).filter((post) => post.id && post.slug && post.title)
 }
 
-export function extractRelatedPostSlugsFromBlocks(blocks: BlockInput[] | BlockRecord[]) {
-  const slugs: string[] = []
+export async function syncPostRelatedLinks(db: Surreal, postRecordId: string, relatedPostIds: unknown) {
+  const postId = recordIdPart(postRecordId, 'post')
+  const desiredIds = normalizeRelatedPostIds(relatedPostIds, postId)
+  const currentIds = await readPostRelatedIds(db, postRecordId)
+
+  const desiredSet = new Set(desiredIds)
+  const currentSet = new Set(currentIds)
+  const removedIds = currentIds.filter(id => !desiredSet.has(id))
+  const addedIds = desiredIds.filter(id => !currentSet.has(id))
+
+  const statements: string[] = []
+  const params: Record<string, unknown> = { postId }
+
+  for (let i = 0; i < removedIds.length; i++) {
+    params[`rid_${i}`] = removedIds[i]
+    statements.push(`DELETE links WHERE in = type::record('post', $postId) AND out = type::record('post', $rid_${i});`)
+    statements.push(`DELETE links WHERE in = type::record('post', $rid_${i}) AND out = type::record('post', $postId);`)
+  }
+
+  for (let i = 0; i < addedIds.length; i++) {
+    params[`aid_${i}`] = addedIds[i]
+    statements.push(`RELATE (type::record('post', $postId)) -> links -> (type::record('post', $aid_${i}));`)
+    statements.push(`RELATE (type::record('post', $aid_${i})) -> links -> (type::record('post', $postId));`)
+  }
+
+  if (statements.length) {
+    await queryDb(db, statements.join('\n'), params, { label: `sync ${addedIds.length}/${removedIds.length} related links` })
+  }
+
+  return await readPostRelated(db, postRecordId)
+}
+
+async function readPostRelatedIds(db: Surreal, postRecordId: string) {
+  const postId = recordIdPart(postRecordId, 'post')
+  const response = await queryDb(
+    db,
+    `SELECT out FROM links
+     WHERE in = type::record('post', $postId);`,
+    { postId }
+  )
+
+  return queryRows<{ out?: unknown }>(response)
+    .map((row) => recordIdPart(stringifyRecordId(row.out), 'post'))
+    .filter(Boolean)
+}
+
+function normalizeRelatedPostIds(value: unknown, postId: string) {
+  const items = Array.isArray(value) ? value : []
+  const ids: string[] = []
   const seen = new Set<string>()
 
-  for (const block of blocks) {
-    collectRelatedSlugs(('node' in block ? block.node : null) as JsonContent | null, slugs, seen)
-  }
-
-  return slugs
-}
-
-function collectRelatedSlugs(node: JsonContent | null | undefined, out: string[], seen: Set<string>) {
-  if (!node) {
-    return
-  }
-  if (node.type === 'relatedPost') {
-    const target = typeof node.attrs?.target === 'string' ? node.attrs.target.trim() : ''
-    if (target && !seen.has(target)) {
-      seen.add(target)
-      out.push(target)
+  for (const item of items) {
+    const id = recordIdPart(String(item ?? ''), 'post')
+    if (!id || id === postId || seen.has(id)) {
+      continue
     }
+    seen.add(id)
+    ids.push(id)
   }
-  node.content?.forEach((child) => collectRelatedSlugs(child, out, seen))
+
+  return ids
 }
+

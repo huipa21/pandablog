@@ -12,8 +12,9 @@ import {
   computeStatsFromBlocks,
   extractBlocksFromDoc,
   loadBlocksForPost,
+  readPostRelated,
   syncPostBlocks,
-  syncPostLinks
+  syncPostRelatedLinks
 } from '../../../utils/blocks'
 import type { JsonContent, PostVisibility } from '~/types/content'
 
@@ -85,13 +86,11 @@ export default defineEventHandler(async (event) => {
   const normalizedPost = normalizePost(post)
   let blocks = previousBlocks
   let reassembledDoc = previousDoc
-  let linkedSlugs: string[] = []
 
   if (Object.prototype.hasOwnProperty.call(body, 'content_json')) {
     const incomingDoc = parseDoc(body.content_json)
     const incomingBlocks = extractBlocksFromDoc(incomingDoc)
     blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks, previousBlocks)
-    linkedSlugs = await syncPostLinks(db, normalizedPost.id, blocks)
     reassembledDoc = buildDocFromBlocks(blocks)
   }
 
@@ -115,6 +114,9 @@ export default defineEventHandler(async (event) => {
     body.tag_names,
     body.category_names
   )
+  const relatedPosts = Object.prototype.hasOwnProperty.call(body, 'related_post_ids')
+    ? await syncPostRelatedLinks(db, normalizedPost.id, body.related_post_ids)
+    : await readPostRelated(db, normalizedPost.id)
   const mediaReferences = await mediaSyncRecordReferences(
     db,
     normalizedPost.id,
@@ -129,7 +131,8 @@ export default defineEventHandler(async (event) => {
     ...normalizedPost,
     content_json: reassembledDoc,
     blocks,
-    linked_post_slugs: linkedSlugs,
+    related_post_ids: relatedPosts.map(post => post.id),
+    related_posts: relatedPosts,
     ...await readPostTaxonomy(db, id)
   }
 })

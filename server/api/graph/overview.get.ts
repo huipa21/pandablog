@@ -1,6 +1,6 @@
 import type { GraphClusterAggregate, GraphEdge, GraphNode, GraphOverviewResponse } from '~/types/graph'
 import { queryDb, useDb } from '../../utils/db'
-import { addUndirectedLinkEdge, graphDegreeMap, graphRecordId, graphVisibilityFilterForEvent } from '../../utils/graph'
+import { addUndirectedLinkEdge, graphDegreeMap, graphRecordId, graphVisibilityFilterForEvent, isSyntheticGraphCategory, isSyntheticGraphTag } from '../../utils/graph'
 import { normalizeGraphPostRow, toGraphPostNode } from '../../utils/graphQuery'
 import { queryRows } from '../../utils/surrealResult'
 
@@ -129,6 +129,18 @@ export default defineEventHandler(async (event): Promise<GraphOverviewResponse> 
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
     .sort((a, b) => b.heatWeight - a.heatWeight || b.postCount - a.postCount || a.name.localeCompare(b.name))
+
+  if (!clusters.length) {
+    return {
+      clusters,
+      nodes: posts.map((post) => toGraphPostNode(post, degrees.get(post.id) ?? 0, null)),
+      edges: [...linkEdges.values()],
+      totalPosts: posts.length,
+      viewerScope: visibility.viewerScope,
+      generatedAt: new Date().toISOString()
+    }
+  }
+
   const visibleTaxonomyIds = new Set(clusters.map((cluster) => cluster.id))
   const taxonomyNodes: GraphNode[] = clusters.map((cluster) => ({
     id: cluster.id,
@@ -173,11 +185,9 @@ function addCooccurrenceEdge(edges: Map<string, GraphEdge>, source: string, targ
 }
 
 function isSyntheticCategory(slug: string, name: string) {
-  const normalizedSlug = slug.trim().toLowerCase()
-  const normalizedName = name.trim().toLowerCase()
-  return normalizedSlug === 'default' || normalizedSlug === 'uncategorized' || normalizedName === 'default' || normalizedName === 'uncategorized'
+  return isSyntheticGraphCategory(slug, name)
 }
 
 function isSyntheticTag(slug: string, name: string) {
-  return slug.trim().toLowerCase() === 'null' || name.trim().toLowerCase() === 'null'
+  return isSyntheticGraphTag(slug, name)
 }

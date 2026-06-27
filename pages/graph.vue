@@ -26,7 +26,7 @@
         <UAlert v-else-if="overviewError || detailError" color="error" icon="i-lucide-circle-alert" :title="t('public.graph.loadFailed')" />
         <ClientOnly v-else>
           <BlogGraphSurface
-            :mode="mode"
+            :mode="surfaceMode"
             height="min(68vh, 720px)"
             :nodes="detailNodes"
             :edges="detailEdges"
@@ -76,6 +76,7 @@ const { data: overview, pending: overviewPending, error: overviewError } = await
 
 const detailNodes = computed(() => mode.value === 'overview' ? overview.value?.nodes ?? [] : detail.value?.nodes ?? [])
 const detailEdges = computed(() => mode.value === 'overview' ? overview.value?.edges ?? [] : detail.value?.edges ?? [])
+const surfaceMode = computed(() => mode.value === 'overview' && overview.value && overview.value.clusters.length === 0 ? 'detail' : mode.value)
 const detailFocus = computed(() => detail.value && 'focus' in detail.value ? detail.value.focus : null)
 const focusedDetailNode = computed(() => {
   if (mode.value !== 'detail' || !detailFocus.value) {

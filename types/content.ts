@@ -55,6 +55,14 @@ export interface PostRecord {
   categories?: CategoryRecord[]
   /** Slugs of posts linked from this post (via the `links` edge). */
   linked_post_slugs?: string[]
+  related_post_ids?: string[]
+  related_posts?: RelatedPostSummary[]
+}
+
+export interface RelatedPostSummary {
+  id: string
+  slug: string
+  title: string
 }
 
 export interface PostListItem {

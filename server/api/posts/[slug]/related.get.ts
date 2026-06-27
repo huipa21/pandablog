@@ -1,9 +1,8 @@
 import type { H3Event } from 'h3'
 import { queryDb, useDb } from '../../../utils/db'
 import { isAdminAuthenticated } from '../../../utils/auth'
-import { firstRow, queryRows, stringifyRecordId } from '../../../utils/surrealResult'
+import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
 import { PUBLIC_LIST_CACHE_SECONDS, shouldBypassPublicCache } from '../../../utils/public-cache'
-import { extractRelatedPostSlugsFromBlocks, loadBlocksForPost } from '../../../utils/blocks'
 import type { PostListItem, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -51,24 +50,19 @@ async function handleRelatedPosts(event: H3Event) {
     throw createError({ statusCode: 404, message: 'Post not found' })
   }
 
-  const sourceId = stringifyRecordId(source.id)
-  const relatedSlugs = extractRelatedPostSlugsFromBlocks(await loadBlocksForPost(db, sourceId))
-
-  if (!relatedSlugs.length) {
-    return { posts: [] }
-  }
-
+  const sourceId = recordIdPart(stringifyRecordId(source.id), 'post')
   const relatedResponse = await queryDb(
     db,
-    `SELECT id, slug, title, published_at, visibility
-     FROM post
-     WHERE slug IN $relatedSlugs
-       AND status = "published"
-       ${visibilityFilter};`,
-    { relatedSlugs }
+    `SELECT out.id AS id, out.slug AS slug, out.title AS title, out.published_at AS published_at, out.visibility AS visibility
+     FROM links
+     WHERE in = type::record('post', $sourceId)
+       AND out.status = "published"
+       ${visibilityFilter}
+     ORDER BY out.published_at DESC;`,
+    { sourceId }
   )
 
-  const postsBySlug = new Map(queryRows<Record<string, unknown>>(relatedResponse)
+  const posts = queryRows<Record<string, unknown>>(relatedResponse)
     .map<PostListItem>((post) => ({
       id: stringifyRecordId(post.id),
       slug: String(post.slug ?? ''),
@@ -80,10 +74,6 @@ async function handleRelatedPosts(event: H3Event) {
       visibility: normalizeVisibility(post.visibility)
     }))
     .filter((post) => post.id && post.slug && post.title)
-    .map((post) => [post.slug, post]))
-  const posts = relatedSlugs
-    .map((relatedSlug) => postsBySlug.get(relatedSlug))
-    .filter((post): post is PostListItem => Boolean(post))
 
   return { posts }
 }

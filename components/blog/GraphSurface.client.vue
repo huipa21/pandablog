@@ -199,8 +199,8 @@ function cytoscapeStyles(): CytoscapeStyleRule[] {
     {
       selector: 'node',
       style: {
-        width: props.mode === 'overview' ? 'mapData(weight, 1, 24, 20, 76)' : 'mapData(weight, 1, 12, 20, 54)',
-        height: props.mode === 'overview' ? 'mapData(weight, 1, 24, 20, 76)' : 'mapData(weight, 1, 12, 20, 54)',
+        width: props.mode === 'overview' ? 'mapData(weight, 1, 24, 10, 38)' : 'mapData(weight, 1, 12, 10, 27)',
+        height: props.mode === 'overview' ? 'mapData(weight, 1, 24, 10, 38)' : 'mapData(weight, 1, 12, 10, 27)',
         label: 'data(label)',
         'font-size': props.compact ? 8 : 11,
         'font-weight': props.mode === 'overview' ? 600 : 500,
@@ -220,8 +220,8 @@ function cytoscapeStyles(): CytoscapeStyleRule[] {
     {
       selector: 'node[type = "category"]',
       style: {
-        width: 'mapData(weight, 1, 30, 32, 92)',
-        height: 'mapData(weight, 1, 30, 32, 92)',
+        width: 'mapData(weight, 1, 30, 16, 46)',
+        height: 'mapData(weight, 1, 30, 16, 46)',
         shape: 'ellipse',
         'background-color': palette.category,
         opacity: 0.96
@@ -230,8 +230,8 @@ function cytoscapeStyles(): CytoscapeStyleRule[] {
     {
       selector: 'node[type = "tag"]',
       style: {
-        width: 'mapData(weight, 1, 30, 18, 48)',
-        height: 'mapData(weight, 1, 30, 18, 48)',
+        width: 'mapData(weight, 1, 30, 9, 24)',
+        height: 'mapData(weight, 1, 30, 9, 24)',
         shape: 'ellipse',
         'background-color': palette.tag,
         opacity: 0.9

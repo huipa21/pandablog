@@ -1,9 +1,9 @@
 <template>
   <Teleport to="body">
     <Transition name="media-picker">
-      <div v-if="open" class="fixed inset-0 z-[1200] flex items-center justify-center p-4" @wheel.self.prevent @touchmove.self.prevent>
-        <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @wheel.prevent @touchmove.prevent @click="close" />
-        <section class="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)]">
+      <div v-if="open" class="fixed inset-0 z-[1200] flex items-center justify-center p-2 sm:p-4" @wheel.self.prevent @touchmove.self.prevent>
+        <button type="button" class="absolute inset-0 bg-black/50" :aria-label="t('admin.common.close')" @wheel.prevent @touchmove.prevent @click="dismissible && close()" />
+        <section class="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-lg)] sm:max-h-[90vh]">
           <header class="flex items-center justify-between border-b border-[var(--pb-divider)] px-4 py-3">
             <div>
               <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.media.title') }}</h2>
@@ -120,11 +120,13 @@ const props = withDefaults(defineProps<{
   multiple?: boolean
   returnValue?: ReturnValue
   typeFilter?: string
+  dismissible?: boolean
 }>(), {
   modelValue: null,
   multiple: false,
   returnValue: 'hash',
-  typeFilter: 'all'
+  typeFilter: 'all',
+  dismissible: true
 })
 
 const emit = defineEmits<{

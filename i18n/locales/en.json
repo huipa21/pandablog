@@ -50,6 +50,7 @@
       "edit": "Edit",
       "delete": "Delete",
       "add": "Add",
+      "remove": "Remove",
       "save": "Save",
       "saving": "Saving...",
       "cancel": "Cancel",
@@ -686,6 +687,15 @@
       "actions": {
         "unpublish": "Unpublish",
         "archive": "Archive"
+      },
+      "postSettings": {
+        "title": "Post settings",
+        "description": "Review publishing, visibility, taxonomy, featured image, and related posts before saving.",
+        "open": "Open post settings",
+        "chooseFromPostImages": "Choose from post images",
+        "noPostImages": "No images are used in this post yet.",
+        "relatedPosts": "Related posts",
+        "noRelatedPosts": "No related posts selected."
       },
       "toolbar": {
         "dragToolbar": "Drag toolbar",

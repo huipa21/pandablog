@@ -50,6 +50,7 @@
       "edit": "编辑",
       "delete": "删除",
       "add": "添加",
+      "remove": "移除",
       "save": "保存",
       "saving": "保存中...",
       "cancel": "取消",
@@ -686,6 +687,15 @@
       "actions": {
         "unpublish": "取消发布",
         "archive": "归档"
+      },
+      "postSettings": {
+        "title": "文章设置",
+        "description": "保存前检查发布状态、可见性、分类标签、特色图和相关文章。",
+        "open": "打开文章设置",
+        "chooseFromPostImages": "从文章图片中选择",
+        "noPostImages": "这篇文章还没有使用图片。",
+        "relatedPosts": "相关文章",
+        "noRelatedPosts": "尚未选择相关文章。"
       },
       "toolbar": {
         "dragToolbar": "拖动工具栏",

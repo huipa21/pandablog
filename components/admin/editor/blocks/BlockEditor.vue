@@ -136,11 +136,6 @@
           @select="handleMediaTextPicked"
         />
 
-        <RelatedPostPicker
-          v-model="relatedPostPickerOpen"
-          @confirm="onRelatedPostSelect"
-        />
-
         <AdminPromptDialog
           :open="editHtmlDialogOpen"
           :title="t('admin.editor.blocks.editHtmlTitle')"
@@ -236,7 +231,6 @@ import '~/assets/css/code-themes.css'
 import type { EditorView } from '@tiptap/pm/view'
 import type { JsonContent, MediaRecord } from '~/types/content'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
-import { RelatedPostNode } from '~/extensions/relatedPost'
 import { DiffBlockNode } from '~/extensions/diffBlock'
 import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
@@ -247,7 +241,6 @@ import { FilesBlockNode } from '~/extensions/filesBlock'
 import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlock'
-import RelatedPostNodeView from '~/components/admin/editor/RelatedPostNodeView.vue'
 import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import VideoEmbedNodeView from '~/components/admin/editor/VideoEmbedNodeView.vue'
@@ -268,7 +261,6 @@ import SlashCommandMenu from '~/components/admin/editor/SlashCommandMenu.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import BlockToolbar from '~/components/admin/editor/BlockToolbar.vue'
 import MediaPicker from '~/components/admin/media/MediaPicker.vue'
-import RelatedPostPicker from '~/components/admin/editor/RelatedPostPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 import { useMediaUrl } from '~/composables/useMediaUrl'
 import { mediaRecordToFileItem } from '~/utils/mediaFiles'
@@ -406,10 +398,6 @@ const editorContainer = ref<HTMLElement | null>(null)
 const mediaPickerOpen = ref(false)
 const mediaTextPickerOpen = ref(false)
 const mediaTextTargetPos = ref<number | null>(null)
-const relatedPostPickerOpen = ref(false)
-const relatedPostMode = ref<'inline' | 'at' | 'replace'>('inline')
-const relatedPostPendingPos = ref<number | null>(null)
-const relatedPostPendingRange = ref<{ from: number; to: number } | null>(null)
 const editHtmlDialogOpen = ref(false)
 const editHtmlInitialValue = ref('')
 const pendingEditHtml = ref<{ from: number; to: number; html: string } | null>(null)
@@ -642,14 +630,6 @@ const editor = useEditor({
       : []),
     ...mermaidExtensions,
     ...blockMathExtensions,
-    // RelatedPost: same shape as the removed wikiLink node, but with a Vue NodeView and no input rule.
-    ...(__PB_BLOCK_RELATED_POST__
-      ? [RelatedPostNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(RelatedPostNodeView)
-          }
-        })]
-      : []),
     BlockReorderCommands,
     ...(__PB_BLOCK_BLOCKQUOTE__
       ? [BlockquoteEnhanced.extend({
@@ -2128,11 +2108,6 @@ function insertBlockAtPosition(name: string, pos: number) {
     return
   }
 
-  if (name === 'relatedPost') {
-    insertRelatedPostAtPosition(safePos)
-    return
-  }
-
   const definition = blockRegistry.getBlockDefinition(name)
   const content = definition?.createContent?.()
   if (!content) {
@@ -2188,11 +2163,6 @@ function insertBlockReplacingRange(name: string, range: { from: number; to: numb
 
   if (name === 'table') {
     ed.chain().focus().insertContentAt(range, createTableContent()).run()
-    return
-  }
-
-  if (name === 'relatedPost') {
-    insertRelatedPostReplacingRange(range)
     return
   }
 
@@ -2355,59 +2325,6 @@ function animateDroppedBlock(index: number) {
 }
 
 // ─── UTILITY ─────────────────────────────────────────────────────────────────
-
-function insertRelatedPost() {
-  relatedPostMode.value = 'inline'
-  relatedPostPendingPos.value = null
-  relatedPostPendingRange.value = null
-  relatedPostPickerOpen.value = true
-}
-
-function insertRelatedPostAtPosition(pos: number) {
-  relatedPostMode.value = 'at'
-  relatedPostPendingPos.value = pos
-  relatedPostPendingRange.value = null
-  relatedPostPickerOpen.value = true
-}
-
-function insertRelatedPostReplacingRange(range: { from: number; to: number }) {
-  relatedPostMode.value = 'replace'
-  relatedPostPendingPos.value = null
-  relatedPostPendingRange.value = range
-  relatedPostPickerOpen.value = true
-}
-
-function onRelatedPostSelect(item: { label: string; target: string }) {
-  const ed = editor.value
-  if (!ed) return
-  const target = (item.target || '').trim()
-  const label = (item.label || '').trim() || target
-  if (!target) return
-  if (relatedPostMode.value === 'inline') {
-    ed.chain().focus().insertContent({
-      type: 'relatedPost',
-      attrs: { target, label }
-    }).insertContent(' ').run()
-  } else if (relatedPostMode.value === 'at' && relatedPostPendingPos.value !== null) {
-    ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, relatedPostPendingPos.value, 'relatedPost'), {
-      type: 'paragraph',
-      content: [
-        { type: 'relatedPost', attrs: { target, label } },
-        { type: 'text', text: ' ' }
-      ]
-    }).run()
-  } else if (relatedPostMode.value === 'replace' && relatedPostPendingRange.value) {
-    ed.chain().focus().insertContentAt(relatedPostPendingRange.value, {
-      type: 'paragraph',
-      content: [
-        { type: 'relatedPost', attrs: { target, label } },
-        { type: 'text', text: ' ' }
-      ]
-    }).run()
-  }
-  relatedPostPendingPos.value = null
-  relatedPostPendingRange.value = null
-}
 
 function createTableContent(): JsonContent {
   const tableText = [

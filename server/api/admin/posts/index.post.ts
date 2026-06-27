@@ -6,7 +6,7 @@ import { assertPostSlugAvailable, uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
-import { buildDocFromBlocks, computeStatsFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostLinks } from '../../../utils/blocks'
+import { buildDocFromBlocks, computeStatsFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostRelatedLinks } from '../../../utils/blocks'
 import type { JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
   const incomingDoc = parseDoc(body.content_json)
   const incomingBlocks = extractBlocksFromDoc(incomingDoc)
   const blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks)
-  const linkedSlugs = await syncPostLinks(db, normalizedPost.id, blocks)
+  const relatedPosts = await syncPostRelatedLinks(db, normalizedPost.id, body.related_post_ids)
   const reassembledDoc = buildDocFromBlocks(blocks)
   const stats = computeStatsFromBlocks(blocks)
 
@@ -102,7 +102,8 @@ export default defineEventHandler(async (event) => {
     ...normalizedPost,
     content_json: reassembledDoc,
     blocks,
-    linked_post_slugs: linkedSlugs,
+    related_post_ids: relatedPosts.map(post => post.id),
+    related_posts: relatedPosts,
     ...await readPostTaxonomy(db, normalizedPost.id)
   }
 })

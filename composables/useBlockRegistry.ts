@@ -371,16 +371,6 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
-    name: 'relatedPost',
-    title: 'Related Post',
-    description: 'Insert a link to another post (bidirectional).',
-    icon: 'i-lucide-link',
-    category: 'advanced',
-    keywords: ['related', 'link', 'post', 'wiki'],
-    implemented: true,
-    supports: {}
-  },
-  {
     name: 'annotationBlock',
     title: 'Annotation',
     description: 'Annotate text with phonetic readings (pinyin, jyutping, furigana).',
@@ -412,7 +402,6 @@ const optionalBlockEnabled: Record<string, boolean> = {
   image: __PB_BLOCK_IMAGE__,
   mediaText: __PB_BLOCK_MEDIA_TEXT__,
   mermaid: __PB_BLOCK_MERMAID__,
-  relatedPost: __PB_BLOCK_RELATED_POST__,
   table: __PB_BLOCK_TABLE__,
   tabsBlock: __PB_BLOCK_TABS_BLOCK__
 }

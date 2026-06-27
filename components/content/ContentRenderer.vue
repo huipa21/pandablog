@@ -10,7 +10,6 @@
     <NodeDiffBlock v-else-if="NodeDiffBlock && node.type === 'diffBlock'" :node="node" />
     <NodeMermaid v-else-if="NodeMermaid && node.type === 'mermaid'" :node="node" />
     <NodeBlockMath v-else-if="NodeBlockMath && node.type === 'blockMath'" :node="node" />
-    <NodeRelatedPost v-else-if="NodeRelatedPost && node.type === 'relatedPost'" :node="node" />
     <NodeRubyUnit v-else-if="NodeRubyUnit && node.type === 'rubyUnit'" :node="node" />
     <NodeInlineMath v-else-if="NodeInlineMath && node.type === 'inlineMath'" :node="node" />
     <NodeAnnotationBlock v-else-if="NodeAnnotationBlock && node.type === 'annotationBlock'" :node="node" />
@@ -41,7 +40,6 @@ const NodeCodeBlock = __PB_BLOCK_CODE_BLOCK__ ? defineAsyncComponent(() => impor
 const NodeDiffBlock = __PB_BLOCK_DIFF_BLOCK__ ? defineAsyncComponent(() => import('./NodeDiffBlock.vue')) : null
 const NodeMermaid = __PB_BLOCK_MERMAID__ ? defineAsyncComponent(() => import('./NodeMermaid.vue')) : null
 const NodeBlockMath = __PB_BLOCK_BLOCK_MATH__ ? defineAsyncComponent(() => import('./NodeBlockMath.vue')) : null
-const NodeRelatedPost = __PB_BLOCK_RELATED_POST__ ? defineAsyncComponent(() => import('./NodeRelatedPost.vue')) : null
 const NodeRubyUnit = __PB_BLOCK_ANNOTATION_BLOCK__ ? defineAsyncComponent(() => import('./NodeRubyUnit.vue')) : null
 const NodeInlineMath = __PB_BLOCK_INLINE_MATH__ ? defineAsyncComponent(() => import('./NodeInlineMath.vue')) : null
 const NodeAnnotationBlock = __PB_BLOCK_ANNOTATION_BLOCK__ ? defineAsyncComponent(() => import('./NodeAnnotationBlock.vue')) : null
@@ -60,7 +58,6 @@ const disabledBlockTypes = new Set([
   !__PB_BLOCK_DIFF_BLOCK__ ? 'diffBlock' : '',
   !__PB_BLOCK_MERMAID__ ? 'mermaid' : '',
   !__PB_BLOCK_BLOCK_MATH__ ? 'blockMath' : '',
-  !__PB_BLOCK_RELATED_POST__ ? 'relatedPost' : '',
   !__PB_BLOCK_INLINE_MATH__ ? 'inlineMath' : '',
   !__PB_BLOCK_ANNOTATION_BLOCK__ ? 'annotationBlock' : '',
   !__PB_BLOCK_CUSTOM_HTML__ ? 'customHtml' : '',

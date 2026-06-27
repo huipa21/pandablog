@@ -56,6 +56,7 @@
 import { ref, watch } from 'vue'
 
 interface PostSuggestion {
+  id: string
   slug: string
   title: string
 }
@@ -65,7 +66,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
-  (e: 'confirm', value: { target: string, label: string }): void
+  (e: 'confirm', value: { id: string, slug: string, title: string, target: string, label: string }): void
 }>()
 
 const open = ref(props.modelValue)
@@ -107,7 +108,7 @@ async function runSearch() {
 }
 
 function confirm(item: PostSuggestion) {
-  emit('confirm', { target: item.slug, label: item.title })
+  emit('confirm', { id: item.id, slug: item.slug, title: item.title, target: item.slug, label: item.title })
   close()
 }
 

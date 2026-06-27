@@ -33,6 +33,15 @@
           </UButton>
           <UButton
             type="button"
+            icon="i-lucide-settings"
+            variant="soft"
+            color="neutral"
+            size="sm"
+            :aria-label="t('admin.editor.postSettings.open')"
+            @click="postSettingsOpen = true"
+          />
+          <UButton
+            type="button"
             icon="i-lucide-external-link"
             variant="soft"
             color="neutral"
@@ -119,14 +128,21 @@
         <EditorSidebar
           v-if="!rightPaneCollapsed"
           class="h-full w-full md:w-[340px]"
-          :form="form"
-          :categories="categories"
-          :tags="tags"
-          :current-status="currentStatus"
           :editor="activeEditor"
         />
       </div>
     </div>
+
+    <PostSettingsModal
+      v-model:open="postSettingsOpen"
+      :form="form"
+      :categories="categories"
+      :tags="tags"
+      :current-status="currentStatus"
+      :current-post-id="post?.id ?? `post:${id}`"
+      :saving-action="savingAction"
+      @confirm="confirmPublishOrUpdate"
+    />
 
     <UModal v-model:open="leaveDialogOpen">
       <template #content>
@@ -160,6 +176,7 @@ import type { Editor } from '@tiptap/core'
 import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import EditorSidebar from '~/components/admin/editor/EditorSidebar.vue'
+import PostSettingsModal from '~/components/admin/editor/PostSettingsModal.vue'
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 
@@ -184,6 +201,7 @@ const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
 const rightPaneCollapsed = ref(true)
 const leaveDialogOpen = ref(false)
+const postSettingsOpen = ref(false)
 const editorTouchStart = ref<{ x: number, y: number } | null>(null)
 const pendingLeavePath = ref<string | null>(null)
 const bypassLeaveGuard = ref(false)
@@ -246,6 +264,8 @@ const form = reactive<AdminPostEditorForm>({
   password: '',
   password_hint: '',
   password_source: 'user',
+  related_post_ids: [],
+  related_posts: [],
   content: emptyDoc()
 })
 
@@ -303,6 +323,8 @@ watch(post, (value) => {
   form.password_hint = value.password_hint ?? ''
   form.password = ''
   form.password_source = value.password_source ?? 'custom'
+  form.related_post_ids = [...(value.related_post_ids ?? [])]
+  form.related_posts = [...(value.related_posts ?? [])]
   form.content = value.content_json
   savedDbSnapshot.value = serializeDbPayload()
   hasLoadedDbSnapshot.value = true
@@ -365,6 +387,7 @@ function saveLocal() {
       password: form.password,
       password_hint: form.password_hint,
       password_source: effectivePasswordSource(),
+      related_post_ids: form.related_post_ids,
       content_json: form.content
     }
     localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
@@ -394,7 +417,14 @@ function loadLocalSave() {
 
 // ─── PUBLISH / UPDATE (DB write) ─────────────────────────────────────────────
 async function publishOrUpdate() {
-  await save('published', 'publish')
+  postSettingsOpen.value = true
+}
+
+async function confirmPublishOrUpdate() {
+  const saved = await save('published', 'publish')
+  if (saved) {
+    postSettingsOpen.value = false
+  }
 }
 
 async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unpublish') {
@@ -420,6 +450,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
         password: form.password,
         password_hint: form.password_hint,
         password_source: effectivePasswordSource(),
+        related_post_ids: form.related_post_ids,
         content_json: form.content
       }
     })
@@ -434,6 +465,8 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
     form.visibility = saved.visibility ?? form.visibility
     form.password_hint = saved.password_hint ?? ''
     form.password_source = saved.password_source ?? form.password_source
+    form.related_post_ids = [...(saved.related_post_ids ?? form.related_post_ids)]
+    form.related_posts = [...(saved.related_posts ?? form.related_posts)]
     post.value = saved
     adminPostBreadcrumb.value = { id: saved.id, slug: saved.slug }
     savedDbSnapshot.value = serializeDbPayload()
@@ -504,6 +537,7 @@ onMounted(() => {
       password: local.password ?? '',
       password_hint: local.password_hint ?? form.password_hint,
       password_source: local.password_source ?? form.password_source,
+      related_post_ids: local.related_post_ids ?? form.related_post_ids,
       content: local.content_json ?? form.content
     })
     saveStatus.value = t('admin.editor.unsavedLocalChanges')
@@ -614,6 +648,7 @@ function serializeDbPayload() {
     password: form.password,
     password_hint: form.password_hint,
     password_source: effectivePasswordSource(),
+    related_post_ids: form.related_post_ids,
     content_json: form.content,
     status: currentStatus.value
   })

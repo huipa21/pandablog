@@ -12,7 +12,7 @@
     <UAlert v-else-if="error" color="error" icon="i-lucide-circle-alert" :title="t('public.graph.loadFailed')" />
     <ClientOnly v-else>
       <BlogGraphSurface
-        mode="overview"
+        :mode="surfaceMode"
         compact
         height="240px"
         :nodes="data?.nodes ?? []"
@@ -26,8 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import type { GraphOverviewResponse } from '~/types/graph'
-import type { GraphNode } from '~/types/graph'
+import type { GraphNode, GraphOverviewResponse } from '~/types/graph'
 
 type PublicFetch = <T>(url: string) => Promise<T>
 
@@ -45,6 +44,7 @@ const fetchWithSession: PublicFetch = (url) => {
 const { data, pending, error } = await useAsyncData('public-graph-overview', () =>
   fetchWithSession<GraphOverviewResponse>('/api/graph/overview')
 )
+const surfaceMode = computed(() => data.value?.clusters.length ? 'overview' : 'detail')
 
 function openNode(node: GraphNode) {
   if (node.type === 'post') {
