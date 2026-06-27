@@ -11,6 +11,7 @@ declare const __PB_MODULE_THEMES__: boolean
 declare const __PB_MODULE_MFA__: boolean
 declare const __PB_MODULE_SECURITY_ALERTS__: boolean
 declare const __PB_MODULE_BACKUPS__: boolean
+declare const __PB_MODULE_GRAPH_VIEW__: boolean
 declare const __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__: boolean
 
 declare const __PB_BLOCK_ACCORDION_BLOCK__: boolean

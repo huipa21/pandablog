@@ -7,6 +7,7 @@ export interface RuntimeModulesConfig {
   mfa?: { enabled?: boolean }
   securityAlerts?: { enabled?: boolean }
   backups?: { enabled?: boolean }
+  graphView?: { enabled?: boolean }
   publishActivityHeatmap?: { enabled?: boolean }
 }
 
@@ -34,6 +35,7 @@ export function resolveModuleFlags(modules?: RuntimeModulesConfig | null) {
     mfa: modules?.mfa?.enabled !== false,
     securityAlerts: modules?.securityAlerts?.enabled !== false,
     backups: modules?.backups?.enabled !== false,
+    graphView: modules?.graphView?.enabled !== false,
     publishActivityHeatmap: modules?.publishActivityHeatmap?.enabled !== false
   }
 }

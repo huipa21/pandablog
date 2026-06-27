@@ -534,11 +534,7 @@ export async function swapBlockSeq(db: Surreal, postRecordId: string, blockIdA: 
  */
 export async function syncPostLinks(db: Surreal, postRecordId: string, blocks: BlockInput[] | BlockRecord[]) {
   const postId = recordIdPart(postRecordId, 'post')
-  const targetSlugs = new Set<string>()
-
-  for (const block of blocks) {
-    collectRelatedSlugs(('node' in block ? block.node : null) as JsonContent | null, targetSlugs)
-  }
+  const targetSlugs = extractRelatedPostSlugsFromBlocks(blocks)
 
   // Clear edges originating from this post (both directions).
   await queryDb(
@@ -547,14 +543,14 @@ export async function syncPostLinks(db: Surreal, postRecordId: string, blocks: B
     { postId }
   )
 
-  if (!targetSlugs.size) {
+  if (!targetSlugs.length) {
     return [] as string[]
   }
 
   const resolved = await queryDb(
     db,
     'SELECT id, slug FROM post WHERE slug IN $slugs;',
-    { slugs: Array.from(targetSlugs) }
+    { slugs: targetSlugs }
   )
   const matches = queryRows<{ id: unknown, slug?: unknown }>(resolved, 0)
 
@@ -580,15 +576,27 @@ export async function syncPostLinks(db: Surreal, postRecordId: string, blocks: B
   return matches.map((m) => String(m.slug ?? '')).filter(Boolean)
 }
 
-function collectRelatedSlugs(node: JsonContent | null | undefined, out: Set<string>) {
+export function extractRelatedPostSlugsFromBlocks(blocks: BlockInput[] | BlockRecord[]) {
+  const slugs: string[] = []
+  const seen = new Set<string>()
+
+  for (const block of blocks) {
+    collectRelatedSlugs(('node' in block ? block.node : null) as JsonContent | null, slugs, seen)
+  }
+
+  return slugs
+}
+
+function collectRelatedSlugs(node: JsonContent | null | undefined, out: string[], seen: Set<string>) {
   if (!node) {
     return
   }
   if (node.type === 'relatedPost') {
     const target = typeof node.attrs?.target === 'string' ? node.attrs.target.trim() : ''
-    if (target) {
-      out.add(target)
+    if (target && !seen.has(target)) {
+      seen.add(target)
+      out.push(target)
     }
   }
-  node.content?.forEach((child) => collectRelatedSlugs(child, out))
+  node.content?.forEach((child) => collectRelatedSlugs(child, out, seen))
 }

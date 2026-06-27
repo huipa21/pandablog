@@ -5,7 +5,7 @@
         <BlogPostToc :content-json="post.content_json" />
         <BlogCategoryList />
         <BlogTagCloud />
-        <BlogKnowledgeGraph />
+        <BlogKnowledgeGraph v-if="graphEnabled" :current-slug="post.slug" />
         <BlogRelatedPosts :current-slug="post.slug" />
       </template>
       <template v-else>
@@ -104,6 +104,7 @@ const route = useRoute()
 const { t, locale } = useI18n()
 const { resolveMediaUrl } = useMediaUrl()
 const slug = computed(() => String(route.params.slug))
+const graphEnabled = __PB_MODULE_GRAPH_VIEW__
 
 type PublicFetch = <T>(url: string) => Promise<T>
 

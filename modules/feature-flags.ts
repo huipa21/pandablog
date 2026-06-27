@@ -125,6 +125,16 @@ export default defineNuxtModule({
       nitroIgnore.add('storage/backups/**')
     }
 
+    if (!modules.graphView.enabled) {
+      ignore.add('server/api/graph/**')
+      ignore.add('server/utils/graph*.ts')
+      ignore.add('types/graph.ts')
+      ignore.add('pages/graph.vue')
+      ignore.add('components/blog/Graph*.vue')
+      ignore.add('components/blog/KnowledgeGraph.vue')
+      ignore.add('components/blog/PostLocalGraph.vue')
+    }
+
     if (!modules.publishActivityHeatmap.enabled) {
       ignore.add('server/api/posts/publish-frequency.get.ts')
       ignore.add('components/blog/PublishFrequencyHeatmap.vue')

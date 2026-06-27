@@ -26,14 +26,9 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 
-const { data } = await useAsyncData(`related-posts-${props.currentSlug}`, () => $fetch<{ posts: PostListItem[] }>('/api/posts', {
-  query: { limit: 6 }
-}))
+const { data } = await useAsyncData(`related-posts-${props.currentSlug}`, () => $fetch<{ posts: PostListItem[] }>(`/api/posts/${encodeURIComponent(props.currentSlug)}/related`))
 
-const relatedPosts = computed(() => (data.value?.posts ?? [])
-  .filter((post) => post.slug !== props.currentSlug)
-  .slice(0, 5)
-)
+const relatedPosts = computed(() => data.value?.posts ?? [])
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(locale.value, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value))

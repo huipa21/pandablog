@@ -502,6 +502,15 @@ watch(() => route.query.file, () => {
   void openRouteMediaFile()
 })
 
+watch(() => route.query.upload, (value) => {
+  if (value !== '1') return
+
+  uploadModalOpen.value = true
+  const query = { ...route.query }
+  delete query.upload
+  void router.replace({ query })
+}, { immediate: true })
+
 async function loadMedia() {
   loading.value = true
   error.value = ''

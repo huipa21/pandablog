@@ -13,6 +13,7 @@ export interface PandablogModulesConfig {
   mfa: MfaModuleConfig
   securityAlerts: SecurityAlertsModuleConfig
   backups: BackupsModuleConfig
+  graphView: GraphViewModuleConfig
   publishActivityHeatmap: PublishActivityHeatmapModuleConfig
 }
 
@@ -51,6 +52,10 @@ export interface SecurityAlertsModuleConfig {
 }
 
 export interface BackupsModuleConfig {
+  enabled: boolean
+}
+
+export interface GraphViewModuleConfig {
   enabled: boolean
 }
 

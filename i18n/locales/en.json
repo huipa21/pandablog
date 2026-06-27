@@ -824,11 +824,11 @@
       },
       "relatedPost": {
         "title": "Link a related post",
-        "description": "Search by title or slug. The two posts will be linked bidirectionally.",
-        "placeholder": "Type to search posts...",
+        "description": "Choose from post titles or search by title. The two posts will be linked bidirectionally.",
+        "placeholder": "Search post titles...",
         "searching": "Searching...",
         "noPosts": "No posts found.",
-        "startTyping": "Start typing to find a post to link.",
+        "startTyping": "No posts available to link.",
         "cancel": "Cancel"
       },
       "slashMenu": {
@@ -1655,6 +1655,9 @@
     "nav": {
       "home": "Home",
       "admin": "Admin",
+      "new": "New",
+      "newPost": "New post",
+      "newMedia": "New media",
       "login": "Login",
       "logout": "Logout",
       "search": "Search",
@@ -1761,8 +1764,27 @@
     "sidebar": {
       "relatedPosts": "Related posts",
       "toc": "Table of Contents",
-      "knowledgeGraph": "Knowledge graph",
+      "knowledgeGraph": "Site Graph",
       "knowledgeGraphDescription": "Graph view is reserved for linked concepts and related posts."
+    },
+    "graph": {
+      "eyebrow": "Relationship graph",
+      "overview": "Overview",
+      "overviewTitle": "Post clusters",
+      "fullTitle": "Site Graph",
+      "openFull": "Open graph",
+      "loadFailed": "Could not load graph",
+      "empty": "No graph data yet.",
+      "emptyLocal": "No linked posts yet.",
+      "overviewSummary": "{clusters} clusters across {posts} posts",
+      "controls": "Graph controls",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "moveLeft": "Move left",
+      "moveRight": "Move right",
+      "fit": "Fit graph"
     },
     "heatmap": {
       "eyebrow": "Publish activity",

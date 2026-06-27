@@ -39,6 +39,31 @@
           <div class="hidden md:block">
             <BlogSearchBar :key="`admin-search-${locale}`" variant="header" />
           </div>
+          <UDropdownMenu v-if="canCreateContent" :items="quickNewItems">
+            <UButton
+              type="button"
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-plus"
+              size="sm"
+              :loading="creatingQuickPost"
+              :aria-label="t('public.nav.new')"
+              :title="t('public.nav.new')"
+            >
+              {{ t('public.nav.new') }}
+            </UButton>
+          </UDropdownMenu>
+          <UButton
+            to="/"
+            variant="ghost"
+            color="neutral"
+            icon="i-lucide-external-link"
+            size="sm"
+            :aria-label="t('admin.layout.viewSite')"
+            :title="t('admin.layout.viewSite')"
+          >
+            <span class="hidden lg:inline">{{ t('admin.layout.viewSite') }}</span>
+          </UButton>
           <UButton
             variant="ghost"
             color="neutral"
@@ -230,9 +255,15 @@ const accountUser = computed(() => authSession.value?.user ?? null)
 const accountName = computed(() => accountUser.value?.display_name || accountUser.value?.username || t('admin.layout.account'))
 const accountAvatarUrl = computed(() => accountUser.value?.avatar_url || '')
 const accountInitials = computed(() => initialsFor(accountName.value))
+const canCreateContent = computed(() => adminRole.value === 'superadmin' || adminRole.value === 'admin' || adminRole.value === 'author')
+const adminToast = useAdminToast()
+const creatingQuickPost = ref(false)
+const quickNewItems = computed(() => [[
+  { label: t('public.nav.newPost'), icon: 'i-lucide-file-plus-2', disabled: creatingQuickPost.value, onSelect: createQuickPost },
+  { label: t('public.nav.newMedia'), icon: 'i-lucide-upload', onSelect: openMediaUploader }
+]])
 const accountMenuItems = computed(() => [[
-  { label: t('admin.layout.myProfile'), icon: 'i-lucide-user', onSelect: () => navigateTo('/profile') },
-  { label: t('admin.layout.viewSite'), icon: 'i-lucide-external-link', onSelect: () => navigateTo('/') }
+  { label: t('admin.layout.myProfile'), icon: 'i-lucide-user', onSelect: () => navigateTo('/profile') }
 ], [
   { label: t('admin.layout.signOut'), icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }
 ]])
@@ -452,6 +483,27 @@ function breadcrumbSection(part: string) {
 function isActiveNav(to: string) {
   if (to === '/admin/dashboard') return route.path === '/admin' || route.path === to
   return route.path === to || route.path.startsWith(`${to}/`)
+}
+
+async function createQuickPost() {
+  if (creatingQuickPost.value) return
+
+  creatingQuickPost.value = true
+  try {
+    const post = await $fetch<{ id: string }>('/api/admin/posts', {
+      method: 'POST',
+      body: { title: '' }
+    })
+    await navigateTo({ path: `/admin/posts/${encodeURIComponent(post.id)}`, query: { new: '1' } })
+  } catch (error: unknown) {
+    adminToast.error(error, t('admin.posts.createFailed'))
+  } finally {
+    creatingQuickPost.value = false
+  }
+}
+
+function openMediaUploader() {
+  return navigateTo({ path: '/admin/media', query: { upload: '1' } })
 }
 
 async function logout() {

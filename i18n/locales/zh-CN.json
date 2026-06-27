@@ -824,11 +824,11 @@
       },
       "relatedPost": {
         "title": "关联相关文章",
-        "description": "按标题或 slug 搜索。两篇文章会双向关联。",
-        "placeholder": "输入以搜索文章...",
+        "description": "从文章标题中选择，或按标题搜索。两篇文章会双向关联。",
+        "placeholder": "搜索文章标题...",
         "searching": "正在搜索...",
         "noPosts": "未找到文章。",
-        "startTyping": "开始输入以查找要关联的文章。",
+        "startTyping": "暂无可关联的文章。",
         "cancel": "取消"
       },
       "slashMenu": {
@@ -1655,6 +1655,9 @@
     "nav": {
       "home": "首页",
       "admin": "后台",
+      "new": "新建",
+      "newPost": "新建文章",
+      "newMedia": "新建媒体",
       "login": "登录",
       "logout": "退出",
       "search": "搜索",
@@ -1761,8 +1764,27 @@
     "sidebar": {
       "relatedPosts": "相关文章",
       "toc": "目录",
-      "knowledgeGraph": "知识图谱",
+      "knowledgeGraph": "站点图谱",
       "knowledgeGraphDescription": "图谱视图预留给关联概念和相关文章。"
+    },
+    "graph": {
+      "eyebrow": "关系图谱",
+      "overview": "总览",
+      "overviewTitle": "文章簇",
+      "fullTitle": "站点图谱",
+      "openFull": "打开图谱",
+      "loadFailed": "无法加载图谱",
+      "empty": "暂无图谱数据。",
+      "emptyLocal": "暂无关联文章。",
+      "overviewSummary": "{clusters} 个簇，覆盖 {posts} 篇文章",
+      "controls": "图谱控制",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "moveUp": "向上移动",
+      "moveDown": "向下移动",
+      "moveLeft": "向左移动",
+      "moveRight": "向右移动",
+      "fit": "适应图谱"
     },
     "heatmap": {
       "eyebrow": "发布动态",

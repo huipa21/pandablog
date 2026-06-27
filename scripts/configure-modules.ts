@@ -17,7 +17,7 @@ const noOpen = process.argv.includes('--no-open') || checkOnly
 if (checkOnly) {
   const manifest = readManifest()
   const html = renderConfiguratorHtml()
-  if (!html.includes('data-path="logs.enabled"') || !html.includes('data-path="themes.enabled"') || !html.includes('data-path="editor.blocks.mermaid"')) {
+  if (!html.includes('data-path="logs.enabled"') || !html.includes('data-path="graphView.enabled"') || !html.includes('data-path="themes.enabled"') || !html.includes('data-path="editor.blocks.mermaid"')) {
     throw new Error('Configurator page is missing expected module controls')
   }
   console.log(`Pandablog modules manifest OK (${Object.keys(manifest.modules.editor.blocks).length} editor blocks).`)

@@ -51,6 +51,9 @@
     "backups": {
       "enabled": true
     },
+    "graphView": {
+      "enabled": true
+    },
     "publishActivityHeatmap": {
       "enabled": true
     }

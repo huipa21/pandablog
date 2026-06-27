@@ -2,6 +2,7 @@
   <NuxtLayout name="default">
     <template #sidebar>
       <BlogOwnerBio />
+      <BlogGraphOverviewWidget v-if="graphEnabled" />
       <BlogTagCloud />
       <BlogCategoryList />
     </template>
@@ -69,6 +70,7 @@ type PostViewMode = 'grid' | 'list'
 
 const { t } = useI18n()
 const { siteName } = useSiteSettings()
+const graphEnabled = __PB_MODULE_GRAPH_VIEW__
 const heatmapEnabled = __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__
 const { viewMode, isMobileViewport, gridColumns } = usePostViewMode()
 const page = ref(1)

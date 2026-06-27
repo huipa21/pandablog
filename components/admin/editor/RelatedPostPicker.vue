@@ -80,6 +80,7 @@ watch(() => props.modelValue, (next) => {
   if (next) {
     query.value = ''
     results.value = []
+    void runSearch()
   }
 })
 
@@ -92,11 +93,6 @@ function onQueryInput() {
 
 async function runSearch() {
   const q = query.value.trim()
-  if (!q) {
-    results.value = []
-    return
-  }
-
   loading.value = true
   try {
     const response = await $fetch<{ items: PostSuggestion[] }>('/api/admin/posts/search', {

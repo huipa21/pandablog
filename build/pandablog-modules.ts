@@ -57,6 +57,9 @@ export const DEFAULT_PANDABLOG_MODULES: PandablogModulesConfig = {
   backups: {
     enabled: true
   },
+  graphView: {
+    enabled: true
+  },
   publishActivityHeatmap: {
     enabled: true
   }
@@ -86,6 +89,7 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
   const mfaEnabled = modules.mfa?.enabled ?? DEFAULT_PANDABLOG_MODULES.mfa.enabled
   const securityAlertsEnabled = modules.securityAlerts?.enabled ?? DEFAULT_PANDABLOG_MODULES.securityAlerts.enabled
   const backupsEnabled = modules.backups?.enabled ?? DEFAULT_PANDABLOG_MODULES.backups.enabled
+  const graphViewEnabled = modules.graphView?.enabled ?? DEFAULT_PANDABLOG_MODULES.graphView.enabled
   const publishActivityHeatmapEnabled = modules.publishActivityHeatmap?.enabled ?? DEFAULT_PANDABLOG_MODULES.publishActivityHeatmap.enabled
 
   return {
@@ -124,6 +128,9 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
       backups: {
         enabled: backupsEnabled
       },
+      graphView: {
+        enabled: graphViewEnabled
+      },
       publishActivityHeatmap: {
         enabled: publishActivityHeatmapEnabled
       }
@@ -147,6 +154,7 @@ export function getPandablogModuleDefines(manifest: PandablogModulesManifest): R
     __PB_MODULE_MFA__: asDefine(modules.mfa.enabled),
     __PB_MODULE_SECURITY_ALERTS__: asDefine(modules.securityAlerts.enabled),
     __PB_MODULE_BACKUPS__: asDefine(modules.backups.enabled),
+    __PB_MODULE_GRAPH_VIEW__: asDefine(modules.graphView.enabled),
     __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__: asDefine(modules.publishActivityHeatmap.enabled)
   }
 

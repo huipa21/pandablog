@@ -57,6 +57,11 @@
               @click="toggleThemeMode"
             />
             <PublicLanguageSwitcher :key="`hero-language-${publicLocale}`" />
+            <UDropdownMenu v-if="canCreateContent" :items="quickNewItems">
+              <UButton type="button" variant="ghost" color="neutral" icon="i-lucide-plus" size="sm" :loading="creatingQuickPost" :aria-label="t('public.nav.new')" :title="t('public.nav.new')">
+                {{ t('public.nav.new') }}
+              </UButton>
+            </UDropdownMenu>
             <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin/dashboard" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
               {{ t('public.nav.admin') }}
             </UButton>
@@ -131,6 +136,11 @@
             @click="toggleThemeMode"
           />
           <PublicLanguageSwitcher :key="`compact-language-${publicLocale}`" />
+          <UDropdownMenu v-if="canCreateContent" :items="quickNewItems">
+            <UButton type="button" variant="ghost" color="neutral" icon="i-lucide-plus" size="sm" :loading="creatingQuickPost" :aria-label="t('public.nav.new')" :title="t('public.nav.new')">
+              {{ t('public.nav.new') }}
+            </UButton>
+          </UDropdownMenu>
           <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin/dashboard" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
             {{ t('public.nav.admin') }}
           </UButton>
@@ -265,6 +275,7 @@ const {
 } = useSiteSettings()
 
 const { t } = useI18n()
+const adminToast = useAdminToast()
 const { resolveMediaUrl } = useMediaUrl()
 const { locale: publicLocale } = usePublicLocale()
 const mobileNav = ref(false)
@@ -285,6 +296,8 @@ const {
 const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const authRole = computed(() => authSession.value?.user?.role ?? null)
+const canCreateContent = computed(() => isLoggedIn.value && (authRole.value === 'superadmin' || authRole.value === 'admin' || authRole.value === 'author'))
+const creatingQuickPost = ref(false)
 const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
 const isHome = computed(() => route.path === '/')
@@ -316,6 +329,10 @@ const siteHeroStyle = computed(() => ({
 const siteCompactHeaderStyle = computed(() => ({
   height: 'clamp(4.5rem, 8vh, 6.5rem)'
 }))
+const quickNewItems = computed(() => [[
+  { label: t('public.nav.newPost'), icon: 'i-lucide-file-plus-2', disabled: creatingQuickPost.value, onSelect: createQuickPost },
+  { label: t('public.nav.newMedia'), icon: 'i-lucide-upload', onSelect: openMediaUploader }
+]])
 
 useHead(() => ({
   title: siteName.value,
@@ -323,6 +340,27 @@ useHead(() => ({
     ? [{ rel: 'icon', href: publicSiteFavicon.value }]
     : []
 }))
+
+async function createQuickPost() {
+  if (creatingQuickPost.value) return
+
+  creatingQuickPost.value = true
+  try {
+    const post = await $fetch<{ id: string }>('/api/admin/posts', {
+      method: 'POST',
+      body: { title: '' }
+    })
+    await navigateTo({ path: `/admin/posts/${encodeURIComponent(post.id)}`, query: { new: '1' } })
+  } catch (error: unknown) {
+    adminToast.error(error, t('admin.posts.createFailed'))
+  } finally {
+    creatingQuickPost.value = false
+  }
+}
+
+function openMediaUploader() {
+  return navigateTo({ path: '/admin/media', query: { upload: '1' } })
+}
 
 async function logout() {
   loggingOut.value = true

@@ -131,6 +131,7 @@ The manifest currently controls:
 - `themes`: admin theme management and bundled non-default themes. The default theme always remains available.
 - `mfa`: TOTP setup, challenge, and admin MFA enforcement.
 - `backups`: backup and restore APIs, admin UI, storage, and maintenance middleware.
+- `graphView`: public relationship graph widgets, `/graph`, and graph projection APIs.
 - `publishActivityHeatmap`: the public publish-activity heatmap widget and its `/api/posts/publish-frequency` endpoint.
 
 At Nuxt startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the manifest, exposes the normalized settings at `runtimeConfig.public.modules`, and injects build constants such as `__PB_MODULE_ANALYTICS__` and `__PB_BLOCK_CODE_BLOCK__`. Disabled modules are also added to Nuxt/Nitro ignore rules where the app has a clean boundary, so their routes, pages, plugins, and storage payloads are not included in the build.
@@ -450,6 +451,9 @@ Public:
 - `GET /api/posts` lists published posts.
 - `GET /api/posts/:slug` returns a published post.
 - `GET /api/concepts/:slug` returns a concept and published posts mentioning it.
+- `GET /api/graph/overview` returns visible weighted category/tag nodes and co-occurrence edges for the graph overview.
+- `GET /api/graph/cluster?category=<slug>` returns a capped visible post graph for one category.
+- `GET /api/graph/post/:slug` returns a visible two-hop local graph centered on one post.
 
 Auth:
 
