@@ -231,6 +231,7 @@ import '~/assets/css/code-themes.css'
 import type { EditorView } from '@tiptap/pm/view'
 import type { JsonContent, MediaRecord } from '~/types/content'
 import { BlockReorderCommands } from '~/extensions/BlockReorderCommands'
+import { BlockId } from '~/extensions/blockId'
 import { DiffBlockNode } from '~/extensions/diffBlock'
 import { BlockquoteEnhanced } from '~/extensions/blockquoteEnhanced'
 import { CustomHtmlNode } from '~/extensions/customHtml'
@@ -469,6 +470,7 @@ const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel', 'accordionPan
 // Inserter state (also mirrored to editorStore so parent layout can switch to 3-column mode)
 const inserterOpen = ref(false)
 const insertAfterPos = ref<number | null>(null)
+const insertReplaceRange = ref<{ from: number; to: number } | null>(null)
 const pendingImageInsertPos = ref<number | null>(null)
 
 watch(inserterOpen, (open) => {
@@ -485,6 +487,7 @@ let draggedBlockElement: HTMLElement | null = null
 const editor = useEditor({
   content: props.modelValue,
   extensions: [
+    BlockId,
     // NO BubbleMenu or FloatingMenu extensions here.
     // The <BubbleMenu> Vue component in InlineToolbar.vue handles its own plugin internally.
     StarterKit.configure({
@@ -906,7 +909,7 @@ function updateSelectionState(ed: Editor) {
   selectionTick.value += 1
 }
 
-defineExpose({ editor, openInserter: () => { inserterOpen.value = true }, closeInserter, pickBlock: handleInserterPick })
+defineExpose({ editor, openInserter: openInserterWithoutTarget, closeInserter, pickBlock: handleInserterPick })
 
 function emitEditorModelValue(ed: Editor) {
   const nextValue = ed.getJSON() as JsonContent
@@ -1088,19 +1091,39 @@ function addBlockAfterCurrent() {
     return
   }
 
-  insertAfterPos.value = activeBlockRange.value?.to ?? editableDocumentEndPos(ed)
+  const range = activeBlockRange.value
+  if (range?.node.type.name === 'paragraph' && range.node.content.size === 0) {
+    insertReplaceRange.value = { from: range.from, to: range.to }
+    insertAfterPos.value = null
+  } else {
+    insertReplaceRange.value = null
+    insertAfterPos.value = range?.to ?? editableDocumentEndPos(ed)
+  }
+  inserterOpen.value = true
+}
+
+function openInserterWithoutTarget() {
+  insertAfterPos.value = null
+  insertReplaceRange.value = null
   inserterOpen.value = true
 }
 
 function closeInserter() {
   inserterOpen.value = false
+  insertAfterPos.value = null
+  insertReplaceRange.value = null
 }
 
 function handleInserterPick(name: string) {
+  const replaceRange = insertReplaceRange.value
+  const afterPos = insertAfterPos.value
   closeInserter()
   const ed = editor.value
-  insertBlockAtPosition(name, insertAfterPos.value ?? (ed ? editableDocumentEndPos(ed) : 0))
-  insertAfterPos.value = null
+  if (replaceRange) {
+    insertBlockReplacingRange(name, replaceRange)
+  } else {
+    insertBlockAtPosition(name, afterPos ?? (ed ? editableDocumentEndPos(ed) : 0))
+  }
 }
 
 // ─── BLOCK POPUP TOOLBAR HANDLERS ─────────────────────────────────────────

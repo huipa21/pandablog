@@ -7,6 +7,7 @@
         <UIcon name="i-lucide-arrow-right" class="rendered-block-diff-arrow" />
         <span>{{ newLabelText }}</span>
         <span v-if="changedCount" class="rendered-block-diff-stat is-changed">{{ changedCount }} changed</span>
+        <span v-if="movedCount" class="rendered-block-diff-stat is-moved">{{ movedCount }} moved</span>
         <span v-if="addedCount" class="rendered-block-diff-stat is-added">+{{ addedCount }}</span>
         <span v-if="removedCount" class="rendered-block-diff-stat is-removed">-{{ removedCount }}</span>
       </div>
@@ -31,7 +32,7 @@
           @click="toggleViewMode"
         >
           <UIcon :name="viewMode === 'text' ? 'i-lucide-columns-2' : 'i-lucide-code-2'" class="rendered-block-diff-tool-icon" />
-          <span>{{ viewMode === 'text' ? 'Rendered view' : 'Text diff' }}</span>
+          <span>{{ viewMode === 'text' ? 'Rendered view' : 'Plain text diff' }}</span>
         </button>
       </div>
     </div>
@@ -50,7 +51,7 @@
       >
         <div class="rendered-block-diff-cell is-old">
           <div v-if="row.oldNode" class="rendered-block-diff-prose pb-prose">
-            <ContentRenderer :node="row.oldNode" />
+            <ContentRenderer :node="row.oldRender ?? row.oldNode" />
           </div>
           <div v-else class="rendered-block-diff-empty is-added-space">
             <UIcon name="i-lucide-plus" class="rendered-block-diff-empty-icon" />
@@ -60,7 +61,7 @@
 
         <div class="rendered-block-diff-cell is-new">
           <div v-if="row.newNode" class="rendered-block-diff-prose pb-prose">
-            <ContentRenderer :node="row.newNode" />
+            <ContentRenderer :node="row.newRender ?? row.newNode" />
           </div>
           <div v-else class="rendered-block-diff-empty is-removed-space">
             <UIcon name="i-lucide-minus" class="rendered-block-diff-empty-icon" />
@@ -115,6 +116,7 @@ const rows = computed(() => buildRenderedBlockDiff(props.oldDoc, props.newDoc))
 const changedRows = computed(() => rows.value.filter((row) => row.status !== 'unchanged'))
 const visibleRows = computed(() => filter.value === 'changed' ? changedRows.value : rows.value)
 const changedCount = computed(() => rows.value.filter((row) => row.status === 'changed').length)
+const movedCount = computed(() => rows.value.filter((row) => row.status === 'moved').length)
 const addedCount = computed(() => rows.value.filter((row) => row.status === 'added').length)
 const removedCount = computed(() => rows.value.filter((row) => row.status === 'removed').length)
 const hasAdvancedText = computed(() => Boolean(props.oldText || props.newText))
@@ -135,7 +137,7 @@ function toggleViewMode() {
   --rendered-diff-removed-bg: color-mix(in srgb, var(--pb-danger, var(--pb-link)) 12%, transparent);
   --rendered-diff-removed-border: color-mix(in srgb, var(--pb-danger, var(--pb-link)) 38%, var(--pb-divider));
   --rendered-diff-changed-bg: color-mix(in srgb, var(--pb-warning, var(--pb-primary)) 15%, transparent);
-  --rendered-diff-changed-border: color-mix(in srgb, var(--pb-warning, var(--pb-primary)) 40%, var(--pb-divider));
+  --rendered-diff-moved-bg: color-mix(in srgb, var(--pb-info, var(--pb-link)) 13%, transparent);
   overflow: hidden;
   background: var(--pb-card-bg);
   color: var(--pb-text);
@@ -187,6 +189,11 @@ function toggleViewMode() {
 
 .rendered-block-diff-stat.is-changed {
   background: var(--rendered-diff-changed-bg);
+  color: var(--pb-text);
+}
+
+.rendered-block-diff-stat.is-moved {
+  background: var(--rendered-diff-moved-bg);
   color: var(--pb-text);
 }
 
@@ -256,8 +263,14 @@ function toggleViewMode() {
   border-top: 1px solid var(--pb-divider);
 }
 
+.rendered-block-diff-row.is-moved {
+  background: var(--rendered-diff-moved-bg);
+}
+
 .rendered-block-diff-cell {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
   padding: 0.75rem;
 }
 
@@ -265,28 +278,10 @@ function toggleViewMode() {
   border-left: 1px solid var(--pb-divider);
 }
 
-.rendered-block-diff-row.is-changed .rendered-block-diff-cell {
-  background: var(--rendered-diff-changed-bg);
-}
-
-.rendered-block-diff-row.is-changed .rendered-block-diff-prose {
-  border-color: var(--rendered-diff-changed-border);
-}
-
-.rendered-block-diff-row.is-added .rendered-block-diff-cell {
-  background: var(--rendered-diff-added-bg);
-}
-
-.rendered-block-diff-row.is-added .rendered-block-diff-prose,
 .rendered-block-diff-empty.is-added-space {
   border-color: var(--rendered-diff-added-border);
 }
 
-.rendered-block-diff-row.is-removed .rendered-block-diff-cell {
-  background: var(--rendered-diff-removed-bg);
-}
-
-.rendered-block-diff-row.is-removed .rendered-block-diff-prose,
 .rendered-block-diff-empty.is-removed-space {
   border-color: var(--rendered-diff-removed-border);
 }
@@ -294,6 +289,7 @@ function toggleViewMode() {
 .rendered-block-diff-prose,
 .rendered-block-diff-empty {
   min-height: 3rem;
+  flex: 1 1 auto;
   border: 1px solid transparent;
   border-radius: var(--pb-radius-card-inner);
   background: color-mix(in srgb, var(--pb-card-bg) 92%, transparent);

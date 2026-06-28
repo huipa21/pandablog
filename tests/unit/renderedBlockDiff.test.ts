@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { docToDiffText } from '../../utils/contentDiffText'
 import { buildRenderedBlockDiff, hasRenderedBlockChanges } from '../../utils/renderedBlockDiff'
 import type { JsonContent } from '~/types/content'
 
@@ -12,6 +13,10 @@ function paragraph(blockId: string | undefined, text: string): JsonContent {
     attrs: blockId ? { blockId } : {},
     content: [{ type: 'text', text }]
   }
+}
+
+function text(value: string): JsonContent {
+  return { type: 'text', text: value }
 }
 
 describe('buildRenderedBlockDiff', () => {
@@ -48,11 +53,30 @@ describe('buildRenderedBlockDiff', () => {
     expect(rows[1]?.newNode).toBeTruthy()
   })
 
-  it('keeps reordered stable blocks in local draft order', () => {
+  it('marks reordered stable blocks as moved in local draft order', () => {
     const rows = buildRenderedBlockDiff(doc([paragraph('a', 'A'), paragraph('b', 'B')]), doc([paragraph('b', 'B'), paragraph('a', 'A')]))
 
     expect(rows.map((row) => row.blockId)).toEqual(['b', 'a'])
-    expect(rows.map((row) => row.status)).toEqual(['unchanged', 'unchanged'])
+    expect(rows.map((row) => row.status)).toEqual(['moved', 'unchanged'])
+  })
+
+  it('does not cascade changes when a new local block is inserted between stable ids', () => {
+    const published = doc([
+      paragraph('a', 'First'),
+      paragraph('b', 'Second'),
+      paragraph('c', 'Third')
+    ])
+    const localDraft = doc([
+      paragraph('a', 'First'),
+      paragraph(undefined, 'Inserted locally'),
+      paragraph('b', 'Second'),
+      paragraph('c', 'Third')
+    ])
+
+    const rows = buildRenderedBlockDiff(published, localDraft)
+
+    expect(rows.map((row) => row.blockId)).toEqual(['a', undefined, 'b', 'c'])
+    expect(rows.map((row) => row.status)).toEqual(['unchanged', 'added', 'unchanged', 'unchanged'])
   })
 
   it('falls back to same-position block type when block ids are absent', () => {
@@ -63,8 +87,85 @@ describe('buildRenderedBlockDiff', () => {
     expect(rows[0]?.usesFallbackKey).toBe(true)
   })
 
+  it('matches by content when a legacy local draft lacks block ids', () => {
+    // Local drafts saved before blockId preservation can have no ids while the
+    // published doc keeps them. Identical visible content still aligns instead
+    // of reading as add + remove.
+    const published = doc([
+      paragraph('a', 'First'),
+      paragraph('b', 'Second'),
+      paragraph('c', 'Third')
+    ])
+    const localDraft = doc([
+      paragraph(undefined, 'First'),
+      paragraph(undefined, 'Second edited'),
+      paragraph(undefined, 'Third')
+    ])
+
+    const rows = buildRenderedBlockDiff(published, localDraft)
+
+    expect(rows.map((row) => row.status)).toEqual(['unchanged', 'changed', 'unchanged'])
+  })
+
+  it('aligns identical blocks even when new content is prepended without ids', () => {
+    const published = doc([paragraph('a', 'Kept one'), paragraph('b', 'Kept two')])
+    const localDraft = doc([
+      paragraph(undefined, 'Brand new intro'),
+      paragraph(undefined, 'Kept one'),
+      paragraph(undefined, 'Kept two')
+    ])
+
+    const rows = buildRenderedBlockDiff(published, localDraft)
+
+    expect(rows.map((row) => row.status)).toEqual(['added', 'unchanged', 'unchanged'])
+  })
+
   it('detects whether any rendered block rows changed', () => {
     expect(hasRenderedBlockChanges(doc([paragraph('a', 'Same')]), doc([paragraph('a', 'Same')]))).toBe(false)
     expect(hasRenderedBlockChanges(doc([paragraph('a', 'Same')]), doc([paragraph('a', 'Different')]))).toBe(true)
+  })
+})
+
+describe('docToDiffText', () => {
+  it('serializes basic block labels and text', () => {
+    expect(docToDiffText(doc([
+      { type: 'heading', attrs: { level: 2 }, content: [text('Title')] },
+      paragraph(undefined, 'Body text')
+    ]))).toBe('H2: Title\n¶: Body text')
+  })
+
+  it('preserves code block lines under the code label', () => {
+    expect(docToDiffText(doc([
+      { type: 'codeBlock', attrs: { language: 'ts' }, content: [text('const a = 1\nconst b = 2')] }
+    ]))).toBe('code:ts\n  const a = 1\n  const b = 2')
+  })
+
+  it('marks blockquote content as quoted lines', () => {
+    expect(docToDiffText(doc([
+      { type: 'blockquote', content: [paragraph(undefined, 'Quoted text')] }
+    ]))).toBe('> ¶: Quoted text')
+  })
+
+  it('preserves list markers and nested list indentation', () => {
+    expect(docToDiffText(doc([
+      {
+        type: 'bulletList',
+        content: [
+          { type: 'listItem', content: [paragraph(undefined, 'Parent'), { type: 'orderedList', content: [{ type: 'listItem', content: [paragraph(undefined, 'Child')] }] }] }
+        ]
+      }
+    ]))).toBe('- Parent\n  1. Child')
+  })
+
+  it('serializes table rows and cells with separators', () => {
+    expect(docToDiffText(doc([
+      {
+        type: 'table',
+        content: [
+          { type: 'tableRow', content: [{ type: 'tableHeader', content: [paragraph(undefined, 'Header 1')] }, { type: 'tableHeader', content: [paragraph(undefined, 'Header 2')] }] },
+          { type: 'tableRow', content: [{ type: 'tableCell', content: [paragraph(undefined, 'Cell 1')] }, { type: 'tableCell', content: [paragraph(undefined, 'Cell 2')] }] }
+        ]
+      }
+    ]))).toBe('table\n  row 1: Header 1 | Header 2\n  row 2: Cell 1 | Cell 2')
   })
 })

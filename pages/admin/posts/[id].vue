@@ -239,6 +239,7 @@ import PostSettingsModal from '~/components/admin/editor/PostSettingsModal.vue'
 import RenderedBlockDiffSurface from '~/components/content/RenderedBlockDiffSurface.vue'
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
+import { docToDiffText } from '~/utils/contentDiffText'
 import { hasRenderedBlockChanges } from '~/utils/renderedBlockDiff'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
@@ -562,58 +563,6 @@ function localFieldDiffers(field: LocalConflictFieldKey, serverValue: unknown, l
 
 function localDraftDiffersFromServer(local: LocalDraftPayload): boolean {
   return changedLocalFields(local).length > 0
-}
-
-// Build a readable, line-oriented outline of a document so the conflict diff is
-// human-readable instead of raw JSON.
-const DIFF_BLOCK_CONTAINERS = new Set([
-  'doc', 'bulletList', 'orderedList', 'listItem', 'blockquote',
-  'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel',
-  'accordionBlock', 'accordionPane', 'mediaText', 'footnotesBlock'
-])
-
-function diffNodeText(node?: JsonContent | null): string {
-  if (!node) return ''
-  if (typeof node.text === 'string') return node.text
-  const children = Array.isArray(node.content) ? node.content : []
-  return children.map(diffNodeText).join('')
-}
-
-function diffBlockLabel(node: JsonContent): string {
-  const type = node.type ?? 'block'
-  const attrs = (node.attrs ?? {}) as Record<string, unknown>
-  if (type === 'paragraph') return '¶'
-  if (type === 'heading') return `H${attrs.level ?? 1}`
-  if (type === 'codeBlock') return attrs.language ? `code:${String(attrs.language)}` : 'code'
-  const hint = ['src', 'url', 'fileName', 'alt'].map((key) => attrs[key]).find((value) => typeof value === 'string' && value)
-  return hint ? `${type} ${String(hint)}` : type
-}
-
-function appendDiffBlock(node: JsonContent, depth: number, out: string[]) {
-  const type = node.type ?? ''
-  const children = Array.isArray(node.content) ? node.content : []
-  if (type && type !== 'doc' && !DIFF_BLOCK_CONTAINERS.has(type)) {
-    const indent = '  '.repeat(Math.max(0, depth - 1))
-    const label = diffBlockLabel(node)
-    const text = diffNodeText(node)
-    if (!text) {
-      out.push(`${indent}${label}`)
-    } else if (text.includes('\n')) {
-      out.push(`${indent}${label}`)
-      for (const line of text.split('\n')) out.push(`${indent}  ${line}`)
-    } else {
-      out.push(`${indent}${label}: ${text}`)
-    }
-    return
-  }
-  for (const child of children) appendDiffBlock(child, depth + 1, out)
-}
-
-function docToDiffText(doc?: JsonContent | null): string {
-  if (!doc) return ''
-  const out: string[] = []
-  appendDiffBlock(doc, 0, out)
-  return out.join('\n')
 }
 
 function applyLocalDraft() {
