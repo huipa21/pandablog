@@ -1,5 +1,5 @@
 <template>
-  <UModal v-model:open="open" :dismissible="!nestedModalOpen" :ui="{ overlay: 'z-[1090]', content: 'z-[1100] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden sm:w-[calc(100vw-2rem)]' }">
+  <UModal v-model:open="open" :modal="!nestedModalOpen" :dismissible="!nestedModalOpen" :ui="{ overlay: 'z-[1090]', content: 'z-[1100] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden sm:w-[calc(100vw-2rem)]' }">
     <template #content>
       <UCard class="max-h-[calc(100dvh-1rem)] overflow-hidden">
         <template #header>
@@ -17,7 +17,7 @@
             <section class="space-y-5">
               <div class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
                 <h4 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.editor.sidebar.summarySlug') }}</h4>
-                <div class="mt-4 grid w-full gap-4 sm:w-4/5">
+                <div class="mt-4 grid w-full gap-4">
                   <UFormField :label="t('admin.editor.sidebar.slug')">
                     <UInput v-model="form.slug" icon="i-lucide-link" />
                   </UFormField>

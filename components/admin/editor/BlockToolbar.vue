@@ -1132,7 +1132,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   border-radius: var(--pb-radius-card-inner);
   padding: 4px;
   box-shadow: var(--pb-shadow-lg), 0 0 0 1px color-mix(in srgb, var(--pb-text) 8%, transparent);
-  z-index: 1000;
+  z-index: var(--block-menu-z, 100);
 }
 
 @media (max-width: 767px) {

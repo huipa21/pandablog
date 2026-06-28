@@ -168,6 +168,65 @@
         </UCard>
       </template>
     </UModal>
+
+    <UModal
+      v-model:open="localConflictOpen"
+      :dismissible="false"
+      :close="false"
+      :ui="{ content: 'w-[calc(100vw-1rem)] max-w-6xl sm:w-[calc(100vw-2rem)]' }"
+    >
+      <template #content>
+        <UCard>
+          <template #header>
+            <div>
+              <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.editor.localConflict.title') }}</h3>
+              <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.editor.localConflict.description') }}</p>
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <div class="flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--pb-text-subtle)]">
+              <span v-if="localConflictServerSavedAtLabel">{{ t('admin.editor.localConflict.serverSavedAt', { date: localConflictServerSavedAtLabel }) }}</span>
+              <span v-if="localConflictSavedAtLabel">{{ t('admin.editor.localConflict.localSavedAt', { date: localConflictSavedAtLabel }) }}</span>
+            </div>
+
+            <div v-if="localConflictChangedFields.length" class="text-sm text-[var(--pb-text-muted)]">
+              <span class="font-medium text-[var(--pb-text)]">{{ t('admin.editor.localConflict.changedFields') }}</span>
+              <ul class="mt-1 flex flex-wrap gap-1.5">
+                <li
+                  v-for="field in localConflictChangedFields"
+                  :key="field"
+                  class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-app-bg)] px-2 py-0.5 text-xs text-[var(--pb-text-muted)]"
+                >
+                  {{ t(`admin.editor.localConflict.fields.${field}`) }}
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <span class="text-sm font-medium text-[var(--pb-text)]">{{ t('admin.editor.localConflict.contentLabel') }}</span>
+              <div class="mt-2 max-h-[52vh] overflow-auto rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)]">
+                <RenderedBlockDiffSurface
+                  :old-doc="post?.content_json ?? null"
+                  :new-doc="pendingLocalDraft?.content_json ?? null"
+                  :old-text="localConflictServerText"
+                  :new-text="localConflictLocalText"
+                  :old-label="t('admin.editor.localConflict.diffBefore')"
+                  :new-label="t('admin.editor.localConflict.diffAfter')"
+                />
+              </div>
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex flex-wrap justify-end gap-2">
+              <UButton type="button" color="neutral" variant="ghost" @click="discardLocalDraft">{{ t('admin.editor.localConflict.useServer') }}</UButton>
+              <UButton type="button" color="primary" icon="i-lucide-history" @click="applyLocalDraft">{{ t('admin.editor.localConflict.keepLocal') }}</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </section>
 </template>
 
@@ -177,8 +236,10 @@ import BlockEditor from '~/components/admin/editor/blocks/BlockEditor.vue'
 import BlockInserterPanel from '~/components/admin/editor/blocks/BlockInserterPanel.vue'
 import EditorSidebar from '~/components/admin/editor/EditorSidebar.vue'
 import PostSettingsModal from '~/components/admin/editor/PostSettingsModal.vue'
+import RenderedBlockDiffSurface from '~/components/content/RenderedBlockDiffSurface.vue'
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
+import { hasRenderedBlockChanges } from '~/utils/renderedBlockDiff'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
 
@@ -202,6 +263,8 @@ const editorStore = useEditorStore()
 const rightPaneCollapsed = ref(true)
 const leaveDialogOpen = ref(false)
 const postSettingsOpen = ref(false)
+const localConflictOpen = ref(false)
+const pendingLocalDraft = ref<LocalDraftPayload | null>(null)
 const editorTouchStart = ref<{ x: number, y: number } | null>(null)
 const pendingLeavePath = ref<string | null>(null)
 const bypassLeaveGuard = ref(false)
@@ -388,7 +451,8 @@ function saveLocal() {
       password_hint: form.password_hint,
       password_source: effectivePasswordSource(),
       related_post_ids: form.related_post_ids,
-      content_json: form.content
+      content_json: form.content,
+      savedAt: new Date().toISOString()
     }
     localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
     const timeStr = formatTime(new Date())
@@ -407,13 +471,203 @@ function clearLocalSave() {
   localStorage.removeItem(localStorageKey.value)
 }
 
-function loadLocalSave() {
+function loadLocalSave(): LocalDraftPayload | null {
   try {
     const raw = localStorage.getItem(localStorageKey.value)
     if (!raw) return null
-    return JSON.parse(raw)
+    return JSON.parse(raw) as LocalDraftPayload
   } catch { return null }
 }
+
+// ─── LOCAL DRAFT CONFLICT DETECTION ──────────────────────────────────────────
+interface LocalDraftPayload {
+  title?: string
+  slug?: string
+  summary?: string
+  cover_image?: string
+  category_ids?: string[]
+  tag_ids?: string[]
+  category_names?: string[]
+  tag_names?: string[]
+  visibility?: string
+  password?: string
+  password_hint?: string
+  password_source?: string
+  related_post_ids?: string[]
+  content_json?: JsonContent
+  savedAt?: string
+}
+
+type LocalConflictFieldKey = 'title' | 'slug' | 'summary' | 'cover_image' | 'category_ids' | 'tag_ids' | 'visibility' | 'password_hint' | 'related_post_ids' | 'content_json'
+
+const LOCAL_CONFLICT_FIELDS: Array<{ key: LocalConflictFieldKey, label: string }> = [
+  { key: 'title', label: 'title' },
+  { key: 'slug', label: 'slug' },
+  { key: 'summary', label: 'summary' },
+  { key: 'cover_image', label: 'cover' },
+  { key: 'category_ids', label: 'categories' },
+  { key: 'tag_ids', label: 'tags' },
+  { key: 'visibility', label: 'visibility' },
+  { key: 'password_hint', label: 'password' },
+  { key: 'related_post_ids', label: 'related' },
+  { key: 'content_json', label: 'content' }
+]
+
+function buildServerComparable(): Record<LocalConflictFieldKey, unknown> {
+  const p = post.value
+  return {
+    title: p?.title ?? '',
+    slug: p?.slug ?? '',
+    summary: p?.summary ?? '',
+    cover_image: p?.cover_image ?? '',
+    category_ids: p?.category_ids ?? [],
+    tag_ids: p?.tag_ids ?? [],
+    visibility: p?.visibility ?? 'public',
+    password_hint: p?.password_hint ?? '',
+    related_post_ids: p?.related_post_ids ?? [],
+    content_json: p?.content_json ?? emptyDoc()
+  }
+}
+
+function buildLocalComparable(local: LocalDraftPayload): Record<LocalConflictFieldKey, unknown> {
+  return {
+    title: local.title ?? '',
+    slug: local.slug ?? '',
+    summary: local.summary ?? '',
+    cover_image: local.cover_image ?? '',
+    category_ids: local.category_ids ?? [],
+    tag_ids: local.tag_ids ?? [],
+    visibility: local.visibility ?? 'public',
+    password_hint: local.password_hint ?? '',
+    related_post_ids: local.related_post_ids ?? [],
+    content_json: local.content_json ?? emptyDoc()
+  }
+}
+
+function changedLocalFields(local: LocalDraftPayload): string[] {
+  const server = buildServerComparable()
+  const localCmp = buildLocalComparable(local)
+  return LOCAL_CONFLICT_FIELDS
+    .filter((field) => localFieldDiffers(field.key, server[field.key], localCmp[field.key]))
+    .map((field) => field.label)
+}
+
+function localFieldDiffers(field: LocalConflictFieldKey, serverValue: unknown, localValue: unknown): boolean {
+  if (field === 'content_json') {
+    return hasRenderedBlockChanges(serverValue as JsonContent, localValue as JsonContent)
+  }
+
+  return JSON.stringify(serverValue) !== JSON.stringify(localValue)
+}
+
+function localDraftDiffersFromServer(local: LocalDraftPayload): boolean {
+  return changedLocalFields(local).length > 0
+}
+
+// Build a readable, line-oriented outline of a document so the conflict diff is
+// human-readable instead of raw JSON.
+const DIFF_BLOCK_CONTAINERS = new Set([
+  'doc', 'bulletList', 'orderedList', 'listItem', 'blockquote',
+  'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel',
+  'accordionBlock', 'accordionPane', 'mediaText', 'footnotesBlock'
+])
+
+function diffNodeText(node?: JsonContent | null): string {
+  if (!node) return ''
+  if (typeof node.text === 'string') return node.text
+  const children = Array.isArray(node.content) ? node.content : []
+  return children.map(diffNodeText).join('')
+}
+
+function diffBlockLabel(node: JsonContent): string {
+  const type = node.type ?? 'block'
+  const attrs = (node.attrs ?? {}) as Record<string, unknown>
+  if (type === 'paragraph') return '¶'
+  if (type === 'heading') return `H${attrs.level ?? 1}`
+  if (type === 'codeBlock') return attrs.language ? `code:${String(attrs.language)}` : 'code'
+  const hint = ['src', 'url', 'fileName', 'alt'].map((key) => attrs[key]).find((value) => typeof value === 'string' && value)
+  return hint ? `${type} ${String(hint)}` : type
+}
+
+function appendDiffBlock(node: JsonContent, depth: number, out: string[]) {
+  const type = node.type ?? ''
+  const children = Array.isArray(node.content) ? node.content : []
+  if (type && type !== 'doc' && !DIFF_BLOCK_CONTAINERS.has(type)) {
+    const indent = '  '.repeat(Math.max(0, depth - 1))
+    const label = diffBlockLabel(node)
+    const text = diffNodeText(node)
+    if (!text) {
+      out.push(`${indent}${label}`)
+    } else if (text.includes('\n')) {
+      out.push(`${indent}${label}`)
+      for (const line of text.split('\n')) out.push(`${indent}  ${line}`)
+    } else {
+      out.push(`${indent}${label}: ${text}`)
+    }
+    return
+  }
+  for (const child of children) appendDiffBlock(child, depth + 1, out)
+}
+
+function docToDiffText(doc?: JsonContent | null): string {
+  if (!doc) return ''
+  const out: string[] = []
+  appendDiffBlock(doc, 0, out)
+  return out.join('\n')
+}
+
+function applyLocalDraft() {
+  const local = pendingLocalDraft.value
+  if (local) {
+    restoreLocalDraft(local, true)
+  }
+  localConflictOpen.value = false
+  pendingLocalDraft.value = null
+}
+
+function restoreLocalDraft(local: LocalDraftPayload, markUnsaved: boolean) {
+  Object.assign(form, {
+    title: local.title ?? form.title,
+    slug: local.slug ?? form.slug,
+    summary: local.summary ?? form.summary,
+    cover_image: local.cover_image ?? form.cover_image,
+    category_ids: local.category_ids ?? form.category_ids,
+    tag_ids: local.tag_ids ?? form.tag_ids,
+    category_names: local.category_names ?? [],
+    tag_names: local.tag_names ?? [],
+    visibility: local.visibility ?? form.visibility,
+    password: local.password ?? '',
+    password_hint: local.password_hint ?? form.password_hint,
+    password_source: local.password_source ?? form.password_source,
+    related_post_ids: local.related_post_ids ?? form.related_post_ids,
+    content: local.content_json ?? form.content
+  })
+
+  if (markUnsaved) {
+    saveStatus.value = t('admin.editor.unsavedLocalChanges')
+    saveStatusType.value = 'success'
+  } else {
+    savedDbSnapshot.value = serializeDbPayload()
+  }
+}
+
+function discardLocalDraft() {
+  clearLocalSave()
+  localConflictOpen.value = false
+  pendingLocalDraft.value = null
+}
+
+const localConflictChangedFields = computed(() => {
+  const local = pendingLocalDraft.value
+  return local ? changedLocalFields(local) : []
+})
+const localConflictServerText = computed(() => docToDiffText(post.value?.content_json ?? null))
+const localConflictLocalText = computed(() => docToDiffText(pendingLocalDraft.value?.content_json ?? null))
+const localConflictSavedAtLabel = computed(() => {
+  const at = pendingLocalDraft.value?.savedAt
+  return at ? formatAdminDateTime(at) : ''
+})
+const localConflictServerSavedAtLabel = computed(() => post.value?.updated_at ? formatAdminDateTime(post.value.updated_at) : '')
 
 // ─── PUBLISH / UPDATE (DB write) ─────────────────────────────────────────────
 async function publishOrUpdate() {
@@ -521,27 +775,18 @@ function postSaveTitle(action: 'save-db' | 'publish' | 'unpublish', wasPublished
 // save is already in flight, and only saves as draft (never publishes).
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
-  // Restore local draft if available
+  // Restore local draft if available. When it diverges from the saved/published
+  // version, surface a conflict diff and let the user choose instead of silently
+  // overwriting the form content.
   const local = loadLocalSave()
   if (local && post.value) {
-    Object.assign(form, {
-      title: local.title ?? form.title,
-      slug: local.slug ?? form.slug,
-      summary: local.summary ?? form.summary,
-      cover_image: local.cover_image ?? form.cover_image,
-      category_ids: local.category_ids ?? form.category_ids,
-      tag_ids: local.tag_ids ?? form.tag_ids,
-      category_names: local.category_names ?? [],
-      tag_names: local.tag_names ?? [],
-      visibility: local.visibility ?? form.visibility,
-      password: local.password ?? '',
-      password_hint: local.password_hint ?? form.password_hint,
-      password_source: local.password_source ?? form.password_source,
-      related_post_ids: local.related_post_ids ?? form.related_post_ids,
-      content: local.content_json ?? form.content
-    })
-    saveStatus.value = t('admin.editor.unsavedLocalChanges')
-    saveStatusType.value = 'success'
+    if (localDraftDiffersFromServer(local)) {
+      pendingLocalDraft.value = local
+      localConflictOpen.value = true
+    } else {
+      restoreLocalDraft(local, false)
+      clearLocalSave()
+    }
   }
 
   autoSaveTimer = setInterval(() => {

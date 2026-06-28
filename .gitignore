@@ -47,6 +47,7 @@ tests/unit/*
 !tests/unit/annotate.test.ts
 !tests/unit/analytics.test.ts
 !tests/unit/db-reconnect.test.ts
+!tests/unit/renderedBlockDiff.test.ts
 test-results
 .playwright-mcp/
 .vscode/

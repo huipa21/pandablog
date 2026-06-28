@@ -35,15 +35,16 @@
           <span>Split</span>
         </button>
         <button
+          v-if="!hideFilterControl"
           type="button"
           class="diff-block-tool"
-          :class="filter === 'changed' ? 'is-active' : ''"
-          :aria-pressed="filter === 'changed'"
+          :class="activeFilter === 'changed' ? 'is-active' : ''"
+          :aria-pressed="activeFilter === 'changed'"
           title="Show only changed lines"
           @click="toggleFilter"
         >
           <UIcon name="i-lucide-filter" class="diff-block-tool-icon" />
-          <span>{{ filter === 'changed' ? 'Changed' : 'All' }}</span>
+          <span>{{ activeFilter === 'changed' ? 'Changed' : 'All' }}</span>
         </button>
         <button type="button" class="diff-block-tool" :title="copied ? 'Copied' : 'Copy diff'" @click="copyDiff">
           <UIcon :name="copied ? 'i-lucide-check' : 'i-lucide-copy'" class="diff-block-tool-icon" />
@@ -52,7 +53,7 @@
       </div>
     </div>
 
-    <div class="diff-block-body" :data-mode="mode" :data-filter="filter">
+    <div class="diff-block-body" :data-mode="mode" :data-filter="activeFilter">
       <div v-if="mode === 'unified'" class="diff-unified" role="table" aria-label="Unified diff">
         <div
           v-for="row in visibleRows"
@@ -110,10 +111,12 @@ const props = defineProps<{
   language: string
   oldLabel: string
   newLabel: string
+  filter?: DiffFilter
+  hideFilterControl?: boolean
 }>()
 
 const mode = ref<DiffMode>('unified')
-const filter = ref<DiffFilter>('all')
+const internalFilter = ref<DiffFilter>('all')
 const copied = ref(false)
 
 const oldLabelText = computed(() => props.oldLabel.trim() || 'Before')
@@ -121,9 +124,10 @@ const newLabelText = computed(() => props.newLabel.trim() || 'After')
 const languageLabel = computed(() => diffLanguageLabel(props.language))
 const diffLines = computed(() => buildDiffLines(props.oldText, props.newText))
 const stats = computed(() => diffStats(diffLines.value))
+const activeFilter = computed(() => props.filter ?? internalFilter.value)
 
 const visibleRows = computed<VisibleRow[]>(() => {
-  const lines = filter.value === 'changed'
+  const lines = activeFilter.value === 'changed'
     ? diffLines.value.filter((line) => line.type !== 'unchanged')
     : diffLines.value
 
@@ -131,7 +135,7 @@ const visibleRows = computed<VisibleRow[]>(() => {
 })
 
 function toggleFilter() {
-  filter.value = filter.value === 'all' ? 'changed' : 'all'
+  internalFilter.value = activeFilter.value === 'all' ? 'changed' : 'all'
 }
 
 function signFor(type: DiffLine['type']) {

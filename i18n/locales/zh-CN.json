@@ -684,6 +684,30 @@
       "postArchived": "文章已归档",
       "archiveFailed": "无法归档文章",
       "unsavedLocalChanges": "存在未保存的本地更改",
+      "localConflict": {
+        "title": "发现未保存的本地草稿",
+        "description": "本地保存的草稿与已发布版本不一致，请选择要保留的版本。",
+        "changedFields": "变更内容：",
+        "fields": {
+          "title": "标题",
+          "slug": "别名",
+          "summary": "摘要",
+          "cover": "封面图片",
+          "categories": "分类",
+          "tags": "标签",
+          "visibility": "可见性",
+          "password": "密码提示",
+          "related": "相关文章",
+          "content": "正文"
+        },
+        "contentLabel": "正文变更",
+        "localSavedAt": "本地草稿保存于 {date}",
+        "serverSavedAt": "已发布版本保存于 {date}",
+        "diffBefore": "已发布",
+        "diffAfter": "本地草稿",
+        "keepLocal": "保留本地草稿",
+        "useServer": "使用已发布版本"
+      },
       "actions": {
         "unpublish": "取消发布",
         "archive": "归档"

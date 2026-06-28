@@ -684,6 +684,30 @@
       "postArchived": "Post archived",
       "archiveFailed": "Could not archive post",
       "unsavedLocalChanges": "Unsaved local changes",
+      "localConflict": {
+        "title": "Unsaved local draft found",
+        "description": "A locally saved draft differs from the published version. Choose which one to keep.",
+        "changedFields": "Changed:",
+        "fields": {
+          "title": "Title",
+          "slug": "Slug",
+          "summary": "Summary",
+          "cover": "Cover image",
+          "categories": "Categories",
+          "tags": "Tags",
+          "visibility": "Visibility",
+          "password": "Password hint",
+          "related": "Related posts",
+          "content": "Content"
+        },
+        "contentLabel": "Content changes",
+        "localSavedAt": "Local draft saved {date}",
+        "serverSavedAt": "Published version saved {date}",
+        "diffBefore": "Published",
+        "diffAfter": "Local draft",
+        "keepLocal": "Keep local draft",
+        "useServer": "Use published version"
+      },
       "actions": {
         "unpublish": "Unpublish",
         "archive": "Archive"
