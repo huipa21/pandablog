@@ -107,7 +107,7 @@ const props = defineProps<{
   newLabel: string
 }>()
 
-const filter = ref<DiffFilter>('all')
+const filter = ref<DiffFilter>('changed')
 const viewMode = ref<DiffViewMode>('rendered')
 
 const oldLabelText = computed(() => props.oldLabel.trim() || 'Published')

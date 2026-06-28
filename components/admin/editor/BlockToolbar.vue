@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div
-      v-if="visible"
+      v-if="toolbarVisible"
       ref="toolbarEl"
       class="block-toolbar"
       :style="dragStyle ?? floatingStyles"
@@ -344,6 +344,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
+const popupWindowOpen = ref(false)
+const toolbarVisible = computed(() => props.visible && !popupWindowOpen.value)
 const linkDialogOpen = ref(false)
 const linkDialogRange = ref<{ from: number; to: number } | null>(null)
 const inlineMathDialogOpen = ref(false)
@@ -357,6 +359,7 @@ type ToolbarDropdownMenu = 'transform' | 'align' | 'inlineMore' | 'more'
 const openDropdownMenu = ref<ToolbarDropdownMenu | null>(null)
 let pendingHighlightRange: { from: number; to: number } | null = null
 let themeObserver: MutationObserver | null = null
+let popupObserver: MutationObserver | null = null
 
 // ─── FREE DRAG ────────────────────────────────────────────────────────────────
 const dragging = ref(false)
@@ -406,6 +409,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
   window.removeEventListener('pointerdown', closeAnnotatePopoverOnOutsideClick)
   themeObserver?.disconnect()
+  popupObserver?.disconnect()
 })
 const linkForm = reactive({
   href: 'https://',
@@ -929,7 +933,21 @@ onMounted(() => {
     prefersDarkToolbar.value = document.documentElement.dataset.theme === 'dark'
   })
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  updatePopupWindowOpen()
+  popupObserver = new MutationObserver(() => updatePopupWindowOpen())
+  popupObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'role', 'data-state'] })
 })
+
+function updatePopupWindowOpen() {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+  popupWindowOpen.value = dialogs.some((dialog) => {
+    if (toolbarEl.value?.contains(dialog)) {
+      return false
+    }
+
+    return dialog.getClientRects().length > 0 && getComputedStyle(dialog).visibility !== 'hidden'
+  })
+}
 
 function selectionHasMark(editor: Editor, markName: string) {
   if (editor.isActive(markName)) {
@@ -1132,7 +1150,7 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   border-radius: var(--pb-radius-card-inner);
   padding: 4px;
   box-shadow: var(--pb-shadow-lg), 0 0 0 1px color-mix(in srgb, var(--pb-text) 8%, transparent);
-  z-index: var(--block-menu-z, 100);
+  z-index: var(--block-menu-z, 40);
 }
 
 @media (max-width: 767px) {
