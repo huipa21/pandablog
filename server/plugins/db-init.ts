@@ -21,6 +21,8 @@ import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMod
 
 const SCHEMA_HASH_KEY = '__schema_hash'
 const USER_TABLE_MIGRATION_KEY = '__user_table_migration_v1'
+const POST_VERSION_GRAPH_MIGRATION_KEY = '__post_version_graph_migration_v1'
+const POST_VERSION_DEDUP_MIGRATION_KEY = '__post_version_dedup_migration_v1'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v2'
 const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
@@ -70,6 +72,8 @@ export default defineNitroPlugin(async () => {
     }
 
     await ensureUserTableMigration(db)
+  await ensurePostVersionGraphMigration(db)
+    await ensureVersionEdgeDedupMigration(db)
     await ensureMediaStorageVersion(db)
     await ensureDefaultMediaSettings(db)
     await ensureDefaultAdminColorMode(db)
@@ -220,6 +224,169 @@ async function ensureUserTableMigration(db: Awaited<ReturnType<typeof useDb>>) {
   }
 
   await setAppSetting(db, USER_TABLE_MIGRATION_KEY, new Date().toISOString(), 'user table migration marker')
+}
+
+async function ensurePostVersionGraphMigration(db: Awaited<ReturnType<typeof useDb>>) {
+  const marker = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: POST_VERSION_GRAPH_MIGRATION_KEY },
+    { label: 'post version graph migration marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(marker)) {
+    return
+  }
+
+  const postsResponse = await queryDb(
+    db,
+    'SELECT id, status FROM post;',
+    undefined,
+    { label: 'post version graph migration load posts', timeoutMs: 30_000 }
+  )
+  const posts = queryRows<{ id?: unknown, status?: unknown }>(postsResponse, 0)
+
+  for (const post of posts) {
+    const postRecordId = stringifyRecordId(post.id)
+    const postId = postRecordId.startsWith('post:') ? postRecordId.slice(5) : postRecordId
+    if (!postId) continue
+
+    const versionId = `${postId}__current`
+    await queryDb(
+      db,
+      `UPSERT type::record('versions', $versionId) CONTENT { version: 'current', datetime: time::now(), diff: [], created_at: time::now() };
+       RELATE (type::record('post', $postId)) -> has_version -> (type::record('versions', $versionId));
+       UPDATE post SET has_versioning = true WHERE id = type::record('post', $postId) AND status = 'published';`,
+      { postId, versionId },
+      { label: 'post current version migration create', timeoutMs: 10_000 }
+    )
+
+    const legacyEdges = await queryDb(
+      db,
+      `SELECT out AS block_id, seq FROM has_blocks WHERE in = type::record('post', $postId);`,
+      { postId },
+      { label: 'post current version migration legacy edges', timeoutMs: 10_000 }
+    )
+    const rows = queryRows<{ block_id?: unknown, seq?: unknown }>(legacyEdges, 0)
+    if (!rows.length) continue
+
+    const stmts: string[] = []
+    const params: Record<string, unknown> = { postId, versionId }
+    rows.forEach((row, index) => {
+      const blockRecordId = stringifyRecordId(row.block_id)
+      const blockId = blockRecordId.startsWith('block:') ? blockRecordId.slice(6) : blockRecordId
+      if (!blockId) return
+      params[`bid_${index}`] = blockId
+      params[`seq_${index}`] = Number(row.seq ?? (index + 1) * 10)
+      stmts.push(`RELATE (type::record('versions', $versionId)) -> has_blocks -> (type::record('block', $bid_${index})) CONTENT { seq: $seq_${index} };`)
+    })
+    stmts.push(`DELETE has_blocks WHERE in = type::record('post', $postId);`)
+    if (stmts.length) {
+      await queryDb(db, stmts.join('\n'), params, { label: 'post current version migration move edges', timeoutMs: 30_000 })
+    }
+  }
+
+  await setAppSetting(db, POST_VERSION_GRAPH_MIGRATION_KEY, new Date().toISOString(), 'post version graph migration marker')
+}
+
+/**
+ * Collapse duplicate `has_version` edges (a post pointing at the same version
+ * record more than once produced duplicate "versions" in the editor UI), drop
+ * orphaned version/block records, then enforce a UNIQUE (in, out) index so the
+ * duplication can never recur. Marker-guarded; runs once per database.
+ */
+async function ensureVersionEdgeDedupMigration(db: Awaited<ReturnType<typeof useDb>>) {
+  const marker = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: POST_VERSION_DEDUP_MIGRATION_KEY },
+    { label: 'version edge dedup migration marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(marker)) {
+    return
+  }
+
+  // 1. Keep a single has_version edge per (in, out); delete the rest.
+  const edgesResponse = await queryDb(
+    db,
+    'SELECT id, in, out FROM has_version;',
+    undefined,
+    { label: 'version edge dedup load edges', timeoutMs: 30_000 }
+  )
+  const edges = queryRows<{ id?: unknown, in?: unknown, out?: unknown }>(edgesResponse, 0)
+  const seenPairs = new Set<string>()
+  const duplicateEdgeIds: string[] = []
+  for (const edge of edges) {
+    const inId = stringifyRecordId(edge.in)
+    const outId = stringifyRecordId(edge.out)
+    if (!inId || !outId) continue
+    const pairKey = `${inId}__${outId}`
+    if (seenPairs.has(pairKey)) {
+      const edgeId = stringifyRecordId(edge.id)
+      const edgeIdPart = edgeId.startsWith('has_version:') ? edgeId.slice('has_version:'.length) : edgeId
+      if (edgeIdPart) duplicateEdgeIds.push(edgeIdPart)
+    } else {
+      seenPairs.add(pairKey)
+    }
+  }
+  if (duplicateEdgeIds.length) {
+    const stmts: string[] = []
+    const params: Record<string, unknown> = {}
+    duplicateEdgeIds.forEach((edgeIdPart, index) => {
+      params[`eid_${index}`] = edgeIdPart
+      stmts.push(`DELETE type::record('has_version', $eid_${index});`)
+    })
+    await queryDb(db, stmts.join('\n'), params, { label: `version edge dedup delete ${duplicateEdgeIds.length} duplicate edges`, timeoutMs: 30_000 })
+  }
+
+  // 2. Drop orphaned version records (no remaining has_version edge), their
+  //    has_blocks edges, and any block left with no owning version.
+  const orphansResponse = await queryDb(
+    db,
+    'SELECT id FROM versions WHERE count(<-has_version) = 0;',
+    undefined,
+    { label: 'version edge dedup load orphans', timeoutMs: 30_000 }
+  )
+  const orphanIds = queryRows<{ id?: unknown }>(orphansResponse, 0)
+    .map((row) => stringifyRecordId(row.id))
+    .filter(Boolean)
+  for (const orphan of orphanIds) {
+    const versionId = orphan.startsWith('versions:') ? orphan.slice('versions:'.length) : orphan
+    if (!versionId) continue
+    const blockResponse = await queryDb(
+      db,
+      `SELECT out AS id FROM has_blocks WHERE in = type::record('versions', $versionId);`,
+      { versionId },
+      { label: 'version edge dedup orphan blocks', timeoutMs: 10_000 }
+    )
+    const blockIds = queryRows<{ id: unknown }>(blockResponse, 0)
+      .map((row) => {
+        const blockRecordId = stringifyRecordId(row.id)
+        return blockRecordId.startsWith('block:') ? blockRecordId.slice('block:'.length) : blockRecordId
+      })
+      .filter(Boolean)
+    const stmts = [
+      `DELETE has_blocks WHERE in = type::record('versions', $versionId);`,
+      `DELETE type::record('versions', $versionId);`
+    ]
+    const params: Record<string, unknown> = { versionId }
+    blockIds.forEach((blockId, index) => {
+      params[`bid_${index}`] = blockId
+      stmts.push(`DELETE type::record('block', $bid_${index}) WHERE count(<-has_blocks) = 0;`)
+    })
+    await queryDb(db, stmts.join('\n'), params, { label: 'version edge dedup delete orphan version', timeoutMs: 30_000 })
+  }
+
+  // 3. Duplicates are gone; enforce uniqueness so the bug cannot recur.
+  await queryDb(
+    db,
+    'DEFINE INDEX IF NOT EXISTS has_version_unique ON TABLE has_version FIELDS in, out UNIQUE;',
+    undefined,
+    { label: 'version edge unique index', timeoutMs: 30_000 }
+  )
+
+  await setAppSetting(db, POST_VERSION_DEDUP_MIGRATION_KEY, new Date().toISOString(), 'version edge dedup migration marker')
 }
 
 async function ensureDefaultAdminColorMode(db: Awaited<ReturnType<typeof useDb>>) {
@@ -388,7 +555,10 @@ async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
   try {
     const response = await queryDb(
       db,
-      `SELECT in AS post_id, out.node AS node FROM has_blocks FETCH out;`,
+      `SELECT <-has_version<-post[0].id AS post_id, out.node AS node
+       FROM has_blocks
+       WHERE in.version = 'current'
+       FETCH out;`,
       undefined,
       { label: 'post stats backfill load blocks', timeoutMs: 30_000 }
     )

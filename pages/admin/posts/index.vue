@@ -17,6 +17,9 @@
           <UButton v-if="filtersActive" icon="i-lucide-filter-x" color="neutral" variant="soft" @click="clearFilters">
             {{ t('admin.posts.columnFilter.clearAll') }}
           </UButton>
+          <UButton icon="i-lucide-settings" to="/admin/settings/versioning" color="neutral" variant="soft">
+            {{ t('admin.common.settings') }}
+          </UButton>
           <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
             {{ t('admin.posts.newPost') }}
           </UButton>

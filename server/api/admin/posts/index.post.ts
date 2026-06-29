@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
       post: {
         ...payload,
         ...visibilityUpdates,
+        has_versioning: payload.status === 'published',
         created_at: new Date(),
         view_count: 0
       }

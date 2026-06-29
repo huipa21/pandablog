@@ -62,6 +62,7 @@ DEFINE FIELD IF NOT EXISTS view_count ON post TYPE int DEFAULT 0;
 UPDATE post SET view_count = 0 WHERE view_count IS NONE;
 DEFINE FIELD IF NOT EXISTS word_count ON post TYPE option<int> DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS cjk_char_count ON post TYPE option<int> DEFAULT 0;
+DEFINE FIELD IF NOT EXISTS has_versioning ON post TYPE bool DEFAULT false;
 UPDATE post SET word_count = 0 WHERE word_count IS NONE;
 UPDATE post SET cjk_char_count = 0 WHERE cjk_char_count IS NONE;
 DEFINE INDEX IF NOT EXISTS post_slug_unique ON TABLE post COLUMNS slug UNIQUE;
@@ -111,11 +112,45 @@ DEFINE FIELD IF NOT EXISTS updated_at ON block TYPE datetime DEFAULT time::now()
 DEFINE INDEX IF NOT EXISTS block_type ON block FIELDS type;
 DEFINE INDEX IF NOT EXISTS block_text_fts ON TABLE block COLUMNS text FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 
--- ============ HAS_BLOCKS (post -> block edge with sequence) ============
-DEFINE TABLE OVERWRITE has_blocks TYPE RELATION FROM post TO block SCHEMAFULL PERMISSIONS NONE;
+-- ============ VERSIONS (post content snapshots; block content lives in `block`) ============
+DEFINE TABLE OVERWRITE versions SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS version ON versions TYPE string;
+DEFINE FIELD IF NOT EXISTS datetime ON versions TYPE datetime DEFAULT time::now();
+DEFINE FIELD OVERWRITE diff ON versions TYPE option<array<object>> DEFAULT NONE;
+DEFINE FIELD OVERWRITE diff.*.status ON versions TYPE string ASSERT $value IN ['added', 'removed', 'changed', 'moved', 'unchanged'];
+DEFINE FIELD OVERWRITE diff.*.blockId ON versions TYPE option<string> DEFAULT NONE;
+DEFINE FIELD OVERWRITE diff.*.oldHash ON versions TYPE option<string> DEFAULT NONE;
+DEFINE FIELD OVERWRITE diff.*.newHash ON versions TYPE option<string> DEFAULT NONE;
+DEFINE FIELD OVERWRITE diff.*.oldIndex ON versions TYPE option<int> DEFAULT NONE;
+DEFINE FIELD OVERWRITE diff.*.newIndex ON versions TYPE option<int> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS created_by ON versions TYPE option<record<users>> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS created_at ON versions TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS versions_version ON TABLE versions FIELDS version;
+DEFINE INDEX IF NOT EXISTS versions_datetime ON TABLE versions FIELDS datetime;
+
+DEFINE TABLE OVERWRITE has_version TYPE RELATION FROM post TO versions SCHEMAFULL PERMISSIONS NONE;
+DEFINE INDEX IF NOT EXISTS has_version_in ON TABLE has_version FIELDS in;
+DEFINE INDEX IF NOT EXISTS has_version_out ON TABLE has_version FIELDS out;
+-- NOTE: the UNIQUE (in, out) guard `has_version_unique` is created by the
+-- ensureVersionEdgeDedupMigration migration in server/plugins/db-init.ts, AFTER
+-- it collapses any pre-existing duplicate edges. It cannot live here because the
+-- schema runs before migrations and would fail on databases that still hold
+-- duplicate has_version edges.
+
+-- ============ HAS_BLOCKS (version -> block edge with sequence) ============
+DEFINE TABLE OVERWRITE has_blocks TYPE RELATION FROM versions TO block SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS seq ON has_blocks TYPE int;
 DEFINE INDEX IF NOT EXISTS has_blocks_in_seq ON TABLE has_blocks FIELDS in, seq;
 DEFINE INDEX IF NOT EXISTS has_blocks_out ON TABLE has_blocks FIELDS out;
+
+-- ============ EDIT_LOCK (single active editor per post) ============
+DEFINE TABLE OVERWRITE edit_lock SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS post ON edit_lock TYPE record<post>;
+DEFINE FIELD IF NOT EXISTS holder_username ON edit_lock TYPE string;
+DEFINE FIELD IF NOT EXISTS holder_display ON edit_lock TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS acquired_at ON edit_lock TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS heartbeat_at ON edit_lock TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS edit_lock_post ON TABLE edit_lock FIELDS post UNIQUE;
 
 -- ============ LINKS (post -> post bidirectional relation) ============
 DEFINE TABLE OVERWRITE links TYPE RELATION FROM post TO post SCHEMAFULL PERMISSIONS NONE;

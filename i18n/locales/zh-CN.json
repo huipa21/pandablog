@@ -659,6 +659,7 @@
       "save": "保存",
       "update": "更新",
       "publish": "发布",
+      "versions": "版本",
       "view": "查看",
       "loadPostFailed": "无法加载这篇文章",
       "addTitle": "添加标题",
@@ -719,10 +720,23 @@
         "chooseFromPostImages": "从文章图片中选择",
         "noPostImages": "这篇文章还没有使用图片。",
         "relatedPosts": "相关文章",
-        "noRelatedPosts": "尚未选择相关文章。"
+        "noRelatedPosts": "尚未选择相关文章。",
+        "versions": {
+          "title": "版本",
+          "description": "配置所有文章的编辑器快照保留数量。",
+          "snapshotLimit": "快照上限",
+          "snapshotLimitHint": "降低此上限不会立即删除现有快照。创建新快照后，超过上限的最旧快照才会被清理。",
+          "loading": "正在加载...",
+          "save": "保存版本设置",
+          "saved": "版本设置已保存",
+          "loadFailed": "无法加载版本设置",
+          "saveFailed": "无法保存版本设置"
+        }
       },
       "toolbar": {
         "dragToolbar": "拖动工具栏",
+        "expandToolbar": "展开工具栏",
+        "collapseToolbar": "收起工具栏",
         "transformTo": "转换为...",
         "moveUp": "上移",
         "moveDown": "下移",

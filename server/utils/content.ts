@@ -39,6 +39,7 @@ export function normalizePost(record: Record<string, unknown>): PostRecord {
     view_count: Number(record.view_count ?? 0),
     word_count: Number(record.word_count ?? 0),
     cjk_char_count: Number(record.cjk_char_count ?? 0),
+    has_versioning: record.has_versioning === true,
     visibility: cleanVisibility(record.visibility),
     password_hint: record.password_hint === undefined ? null : record.password_hint as string | null,
     password_source: cleanPasswordSource(record.password_source),

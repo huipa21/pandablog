@@ -17,3 +17,12 @@ export interface AdminPostEditorForm {
   related_posts: RelatedPostSummary[]
   content: JsonContent
 }
+
+export interface PostVersionListItem {
+  id: string
+  version: string
+  datetime: string
+  diff: Array<Record<string, unknown>>
+  ownerId: string | null
+  ownerName: string | null
+}

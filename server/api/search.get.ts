@@ -36,7 +36,7 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
 
   const db = await useDb()
 
-  // FTS the block table, walking back to owning posts via the has_blocks edge.
+  // FTS the block table, walking back to owning posts via current versions.
   // Highlights use private-use sentinel characters (not literal <mark>) so the
   // raw indexed text can be HTML-escaped before we re-insert the trusted tags.
   const ftsResponse = await queryDb(
@@ -47,7 +47,7 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
       text,
       search::score(0) AS score,
       search::highlight($hlOpen, $hlClose, 0) AS snippet,
-      <-has_blocks<-post AS owners
+      <-has_blocks<-versions[WHERE version = 'current']<-has_version<-post AS owners
      FROM block
      WHERE text @0@ $needle
      ORDER BY score DESC

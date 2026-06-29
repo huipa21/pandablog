@@ -2,7 +2,9 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { Surreal } from 'surrealdb'
 import type { BlockRecord, JsonContent, RelatedPostSummary } from '~/types/content'
 import { computeContentStats } from '../../utils/contentStats'
+import { isEmptyBlock } from '../../utils/emptyBlocks'
 import { queryDb } from './db'
+import { getPostVersioningSettings } from './settings'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 
 /** Default sequence step between adjacent blocks after a full renumber. */
@@ -168,6 +170,37 @@ export interface BlockInput {
   hash: string
 }
 
+interface VersionRow {
+  id: unknown
+  version?: unknown
+  datetime?: unknown
+  diff?: unknown
+  created_by?: unknown
+}
+
+export interface PostVersionRecord {
+  id: string
+  version: string
+  datetime: string
+  diff: BlockVersionDiffRow[]
+  ownerId: string | null
+  ownerName: string | null
+}
+
+export interface BlockVersionDiffRow {
+  status: 'added' | 'removed' | 'changed' | 'moved' | 'unchanged'
+  blockId?: string
+  oldHash?: string
+  newHash?: string
+  oldIndex?: number
+  newIndex?: number
+}
+
+interface SyncPostBlocksOptions {
+  shouldSnapshot?: boolean
+  userId?: string | null
+}
+
 /**
  * Extract top-level blocks from a Tiptap doc, ensuring each carries a
  * stable `blockId` attribute. New blocks get a freshly minted id.
@@ -196,6 +229,10 @@ export function extractBlocksFromDoc(doc: JsonContent | null | undefined): Block
     attrs[BLOCK_ID_ATTR] = blockId
 
     const node: JsonContent = { ...raw, attrs }
+    if (isEmptyBlock(node)) {
+      continue
+    }
+
     const text = flattenBlockSearchText(node)
     const hash = hashNode(node)
 
@@ -225,6 +262,68 @@ export function buildDocFromBlocks(blocks: BlockRecord[]): JsonContent {
  */
 export function hashNode(node: JsonContent): string {
   return createHash('sha256').update(stableStringify(node)).digest('hex')
+}
+
+function versionRecordId(postId: string, version: string): string {
+  return `${postId}__${version}`
+}
+
+function currentVersionRecordId(postId: string): string {
+  return versionRecordId(postId, 'current')
+}
+
+function versionLabelFromDate(value = new Date()): string {
+  const year = String(value.getUTCFullYear()).slice(-2)
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(value.getUTCDate()).padStart(2, '0')
+  const hour = String(value.getUTCHours()).padStart(2, '0')
+  const minute = String(value.getUTCMinutes()).padStart(2, '0')
+  const second = String(value.getUTCSeconds()).padStart(2, '0')
+  const millis = String(value.getUTCMilliseconds()).padStart(3, '0')
+  return `${year}${month}${day}${hour}${minute}${second}${millis}`
+}
+
+function blockIdFromNode(node: JsonContent): string {
+  const value = node.attrs?.[BLOCK_ID_ATTR]
+  return typeof value === 'string' ? value : ''
+}
+
+function lightweightBlockDiff(oldBlocks: BlockRecord[], newBlocks: BlockRecord[]): BlockVersionDiffRow[] {
+  const oldByBlockId = new Map(oldBlocks.map((block, index) => [blockIdFromNode(block.node) || block.id, { block, index }]))
+  const newByBlockId = new Map(newBlocks.map((block, index) => [blockIdFromNode(block.node) || block.id, { block, index }]))
+  const rows: BlockVersionDiffRow[] = []
+
+  for (const [key, current] of newByBlockId) {
+    const previous = oldByBlockId.get(key)
+    if (!previous) {
+      rows.push({ status: 'added', blockId: blockIdFromNode(current.block.node), newHash: recordIdPart(current.block.id, 'block'), newIndex: current.index })
+      continue
+    }
+
+    const oldHash = recordIdPart(previous.block.id, 'block')
+    const newHash = recordIdPart(current.block.id, 'block')
+    const moved = previous.index !== current.index
+    const changed = oldHash !== newHash
+    rows.push({
+      status: changed ? 'changed' : moved ? 'moved' : 'unchanged',
+      blockId: blockIdFromNode(current.block.node),
+      oldHash,
+      newHash,
+      oldIndex: previous.index,
+      newIndex: current.index
+    })
+  }
+
+  for (const [key, previous] of oldByBlockId) {
+    if (newByBlockId.has(key)) continue
+    rows.push({ status: 'removed', blockId: blockIdFromNode(previous.block.node), oldHash: recordIdPart(previous.block.id, 'block'), oldIndex: previous.index })
+  }
+
+  return rows.filter((row) => row.status !== 'unchanged')
+}
+
+function blocksChanged(oldBlocks: BlockRecord[], newBlocks: BlockRecord[]): boolean {
+  return lightweightBlockDiff(oldBlocks, newBlocks).length > 0
 }
 
 function stableStringify(value: unknown): string {
@@ -275,14 +374,14 @@ interface ExistingBlockRow {
  * edge sequence number.
  */
 export async function loadBlocksForPost(db: Surreal, postRecordId: string): Promise<BlockRecord[]> {
-  const postId = recordIdPart(postRecordId, 'post')
+  const currentVersionId = await ensureCurrentVersionForPost(db, postRecordId)
   const response = await queryDb(
     db,
     `SELECT seq, out FROM has_blocks
-     WHERE in = type::record('post', $postId)
+     WHERE in = type::record('versions', $versionId)
      ORDER BY seq ASC
      FETCH out;`,
-    { postId }
+    { versionId: currentVersionId }
   )
   const rows = queryRows<{ seq?: unknown, out?: ExistingBlockRow }>(response, 0)
   return rows
@@ -297,6 +396,37 @@ export async function loadBlocksForPost(db: Surreal, postRecordId: string): Prom
         seq: Number(row.seq ?? 0)
       }
     })
+}
+
+async function ensureCurrentVersionForPost(db: Surreal, postRecordId: string): Promise<string> {
+  const postId = recordIdPart(postRecordId, 'post')
+  const versionId = currentVersionRecordId(postId)
+  const response = await queryDb(
+    db,
+    `SELECT id FROM type::record('versions', $versionId);
+     SELECT id FROM has_version WHERE in = type::record('post', $postId) AND out = type::record('versions', $versionId);`,
+    { postId, versionId },
+    { label: 'ensure current version' }
+  )
+  const existingVersion = firstRow<Record<string, unknown>>(response, 0)
+  const existingEdge = firstRow<Record<string, unknown>>(response, 1)
+
+  if (existingVersion && existingEdge) {
+    return versionId
+  }
+
+  const statements: string[] = []
+  if (!existingVersion) {
+    statements.push(`CREATE type::record('versions', $versionId) CONTENT { version: 'current', datetime: time::now(), diff: [], created_at: time::now() };`)
+  }
+  if (!existingEdge) {
+    statements.push(`RELATE (type::record('post', $postId)) -> has_version -> (type::record('versions', $versionId));`)
+  }
+  if (statements.length) {
+    await queryDb(db, statements.join('\n'), { postId, versionId }, { label: 'create current version' })
+  }
+
+  return versionId
 }
 
 /**
@@ -316,74 +446,53 @@ export async function syncPostBlocks(
   db: Surreal,
   postRecordId: string,
   incoming: BlockInput[],
-  existingBlocks?: BlockRecord[]
+  existingBlocks?: BlockRecord[],
+  options: SyncPostBlocksOptions = {}
 ): Promise<BlockRecord[]> {
   const postId = recordIdPart(postRecordId, 'post')
+  const currentVersionId = await ensureCurrentVersionForPost(db, postRecordId)
   const existing = existingBlocks ?? await loadBlocksForPost(db, postRecordId)
-  const existingById = new Map(existing.map((block) => [block.id, block]))
-  const incomingIds = new Set(incoming.map((b) => b.blockId).map((id) => `block:${id}`))
+  const nextBlocks = incoming.map((incomingBlock, index) => ({
+    id: `block:${incomingBlock.hash}`,
+    type: String(incomingBlock.node.type ?? 'paragraph'),
+    node: incomingBlock.node,
+    text: incomingBlock.text,
+    seq: (index + 1) * BLOCK_SEQ_STEP
+  }))
+  const changed = blocksChanged(existing, nextBlocks)
 
-  // --- Batch 1: Delete blocks that are no longer present ---
-  const toDelete = existing.filter((block) => !incomingIds.has(block.id))
-  if (toDelete.length) {
-    const stmts: string[] = []
-    const params: Record<string, unknown> = {}
-    for (let i = 0; i < toDelete.length; i++) {
-      const blockId = recordIdPart(toDelete[i]!.id, 'block')
-      params[`del_${i}`] = blockId
-      stmts.push(`DELETE has_blocks WHERE out = type::record('block', $del_${i});`)
-      stmts.push(`DELETE type::record('block', $del_${i});`)
-    }
-    await queryDb(db, stmts.join('\n'), params, { label: `batch-delete ${toDelete.length} blocks` })
+  if (options.shouldSnapshot && changed && existing.length) {
+    await snapshotCurrentVersion(db, postId, currentVersionId, existing, nextBlocks, options.userId ?? null)
   }
 
-  // --- Batch 2 & 3: Create new blocks + Update existing blocks ---
+  await queryDb(
+    db,
+    `DELETE has_blocks WHERE in = type::record('versions', $versionId);`,
+    { versionId: currentVersionId },
+    { label: 'clear current version blocks' }
+  )
+
   const createStmts: string[] = []
-  const createParams: Record<string, unknown> = { postId }
-  const updateStmts: string[] = []
-  const updateParams: Record<string, unknown> = { postId }
+  const createParams: Record<string, unknown> = { versionId: currentVersionId }
 
   const finalBlocks: BlockRecord[] = []
   for (let i = 0; i < incoming.length; i += 1) {
     const incomingBlock = incoming[i]!
     const seq = (i + 1) * BLOCK_SEQ_STEP
-    const blockRecordId = `block:${incomingBlock.blockId}`
-    const prior = existingById.get(blockRecordId)
+    const blockRecordId = `block:${incomingBlock.hash}`
     const blockType = String(incomingBlock.node.type ?? 'paragraph')
 
-    if (!prior) {
-      createParams[`bid_${i}`] = incomingBlock.blockId
-      createParams[`typ_${i}`] = blockType
-      createParams[`nod_${i}`] = incomingBlock.node
-      createParams[`txt_${i}`] = incomingBlock.text
-      createParams[`hsh_${i}`] = incomingBlock.hash
-      createParams[`seq_${i}`] = seq
-      createStmts.push(
-        `CREATE type::record('block', $bid_${i}) CONTENT { type: $typ_${i}, node: $nod_${i}, text: $txt_${i}, content_hash: $hsh_${i}, created_at: time::now(), updated_at: time::now() };`
-      )
-      createStmts.push(
-        `RELATE (type::record('post', $postId)) -> has_blocks -> (type::record('block', $bid_${i})) CONTENT { seq: $seq_${i} };`
-      )
-    } else {
-      if (prior.text !== incomingBlock.text || hashNode(prior.node) !== incomingBlock.hash) {
-        updateParams[`bid_${i}`] = incomingBlock.blockId
-        updateParams[`typ_${i}`] = blockType
-        updateParams[`nod_${i}`] = incomingBlock.node
-        updateParams[`txt_${i}`] = incomingBlock.text
-        updateParams[`hsh_${i}`] = incomingBlock.hash
-        updateStmts.push(
-          `UPDATE type::record('block', $bid_${i}) MERGE { type: $typ_${i}, node: $nod_${i}, text: $txt_${i}, content_hash: $hsh_${i}, updated_at: time::now() };`
-        )
-      }
-
-      if (prior.seq !== seq) {
-        if (!updateParams[`bid_${i}`]) updateParams[`bid_${i}`] = incomingBlock.blockId
-        updateParams[`seq_${i}`] = seq
-        updateStmts.push(
-          `UPDATE has_blocks SET seq = $seq_${i} WHERE in = type::record('post', $postId) AND out = type::record('block', $bid_${i});`
-        )
-      }
-    }
+    createParams[`bid_${i}`] = incomingBlock.hash
+    createParams[`typ_${i}`] = blockType
+    createParams[`nod_${i}`] = incomingBlock.node
+    createParams[`txt_${i}`] = incomingBlock.text
+    createParams[`seq_${i}`] = seq
+    createStmts.push(
+      `UPSERT type::record('block', $bid_${i}) CONTENT { type: $typ_${i}, node: $nod_${i}, text: $txt_${i}, content_hash: $bid_${i}, created_at: time::now(), updated_at: time::now() };`
+    )
+    createStmts.push(
+      `RELATE (type::record('versions', $versionId)) -> has_blocks -> (type::record('block', $bid_${i})) CONTENT { seq: $seq_${i} };`
+    )
 
     finalBlocks.push({
       id: blockRecordId,
@@ -395,13 +504,210 @@ export async function syncPostBlocks(
   }
 
   if (createStmts.length) {
-    await queryDb(db, createStmts.join('\n'), createParams, { label: `batch-create ${createStmts.length / 2} blocks` })
-  }
-  if (updateStmts.length) {
-    await queryDb(db, updateStmts.join('\n'), updateParams, { label: `batch-update blocks` })
+    await queryDb(db, createStmts.join('\n'), createParams, { label: `batch-save ${createStmts.length / 2} version blocks` })
   }
 
   return finalBlocks
+}
+
+async function snapshotCurrentVersion(
+  db: Surreal,
+  postId: string,
+  currentVersionId: string,
+  existingBlocks: BlockRecord[],
+  nextBlocks: BlockRecord[],
+  userId: string | null = null
+) {
+  const currentResponse = await queryDb(
+    db,
+    `SELECT id, version, datetime, diff FROM type::record('versions', $currentVersionId);`,
+    { currentVersionId },
+    { label: 'read current version before snapshot' }
+  )
+  const current = firstRow<VersionRow>(currentResponse)
+  const currentDatetime = parseDateLike(current?.datetime) ?? new Date()
+  const snapshotLabel = versionLabelFromDate(currentDatetime)
+  const snapshotVersionId = versionRecordId(postId, snapshotLabel)
+  const diff = lightweightBlockDiff(existingBlocks, nextBlocks)
+
+  // Idempotency guard: rapid/overlapping saves can read the same current
+  // datetime and derive the same snapshot id. If the snapshot already exists,
+  // never RELATE a second edge to it (that produced duplicate "versions" in the
+  // UI, all pointing at one record). Just ensure a single edge and refresh the
+  // current marker.
+  const existing = await queryDb(
+    db,
+    `SELECT id FROM type::record('versions', $snapshotVersionId);
+     SELECT id FROM has_version WHERE in = type::record('post', $postId) AND out = type::record('versions', $snapshotVersionId);`,
+    { snapshotVersionId, postId },
+    { label: 'check existing snapshot version' }
+  )
+  const snapshotExists = Boolean(firstRow<Record<string, unknown>>(existing, 0))
+  const edgeExists = Boolean(firstRow<Record<string, unknown>>(existing, 1))
+
+  if (snapshotExists) {
+    const repair: string[] = []
+    if (!edgeExists) {
+      repair.push(`RELATE (type::record('post', $postId)) -> has_version -> (type::record('versions', $snapshotVersionId));`)
+    }
+    repair.push(`UPDATE type::record('versions', $currentVersionId) MERGE { datetime: time::now(), diff: $diff };`)
+    await queryDb(
+      db,
+      repair.join('\n'),
+      { postId, snapshotVersionId, currentVersionId, diff },
+      { label: `snapshot current version ${snapshotLabel} (exists)` }
+    )
+    return
+  }
+
+  const stmts: string[] = [
+    `UPSERT type::record('versions', $snapshotVersionId) CONTENT { version: $snapshotLabel, datetime: $snapshotDatetime, diff: $diff, created_by: (IF $createdBy != NONE THEN type::record('users', $createdBy) ELSE NONE END), created_at: time::now() };`,
+    `RELATE (type::record('post', $postId)) -> has_version -> (type::record('versions', $snapshotVersionId));`
+  ]
+  const params: Record<string, unknown> = {
+    postId,
+    snapshotVersionId,
+    snapshotLabel,
+    snapshotDatetime: currentDatetime,
+    currentVersionId,
+    diff,
+    createdBy: userId ? recordIdPart(userId, 'users') : null
+  }
+
+  for (let i = 0; i < existingBlocks.length; i += 1) {
+    const block = existingBlocks[i]!
+    params[`bid_${i}`] = recordIdPart(block.id, 'block')
+    params[`seq_${i}`] = block.seq
+    stmts.push(
+      `RELATE (type::record('versions', $snapshotVersionId)) -> has_blocks -> (type::record('block', $bid_${i})) CONTENT { seq: $seq_${i} };`
+    )
+  }
+  stmts.push(`UPDATE type::record('versions', $currentVersionId) MERGE { datetime: time::now(), diff: $diff };`)
+
+  await queryDb(db, stmts.join('\n'), params, { label: `snapshot current version ${snapshotLabel}` })
+  await prunePostVersions(db, `post:${postId}`)
+}
+
+async function prunePostVersions(db: Surreal, postRecordId: string): Promise<void> {
+  const { snapshot_limit: snapshotLimit } = await getPostVersioningSettings()
+  const versions = await loadVersionsForPost(db, postRecordId)
+  const excess = versions.sort((a, b) => b.version.localeCompare(a.version)).slice(snapshotLimit)
+  for (const version of excess) {
+    await deletePostVersion(db, postRecordId, version.version)
+  }
+}
+
+function parseDateLike(value: unknown): Date | null {
+  if (!value) return null
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null
+  const parsed = new Date(String(value))
+  return Number.isFinite(parsed.getTime()) ? parsed : null
+}
+
+export async function loadVersionsForPost(db: Surreal, postRecordId: string): Promise<PostVersionRecord[]> {
+  const postId = recordIdPart(postRecordId, 'post')
+  const response = await queryDb(
+    db,
+    `SELECT out FROM has_version
+     WHERE in = type::record('post', $postId)
+     FETCH out, out.created_by;`,
+    { postId },
+    { label: 'load post versions' }
+  )
+  const seen = new Set<string>()
+  return queryRows<{ out?: VersionRow }>(response, 0)
+    .map((row) => normalizeVersionRow(row.out))
+    .filter((version): version is PostVersionRecord => Boolean(version))
+    .filter((version) => {
+      if (seen.has(version.id)) return false
+      seen.add(version.id)
+      return true
+    })
+    .sort((a, b) => b.version.localeCompare(a.version))
+}
+
+export async function loadBlocksForVersion(db: Surreal, postRecordId: string, version: string): Promise<BlockRecord[]> {
+  const postId = recordIdPart(postRecordId, 'post')
+  const versionId = version === 'current' ? await ensureCurrentVersionForPost(db, postRecordId) : versionRecordId(postId, version)
+  const response = await queryDb(
+    db,
+    `SELECT seq, out FROM has_blocks
+     WHERE in = type::record('versions', $versionId)
+     ORDER BY seq ASC
+     FETCH out;`,
+    { versionId },
+    { label: 'load blocks for version' }
+  )
+  return queryRows<{ seq?: unknown, out?: ExistingBlockRow }>(response, 0)
+    .filter((row) => row.out && typeof row.out === 'object')
+    .map((row) => {
+      const out = row.out as ExistingBlockRow
+      return {
+        id: stringifyRecordId(out.id),
+        type: String(out.type ?? 'paragraph'),
+        node: (out.node && typeof out.node === 'object' ? out.node : {}) as JsonContent,
+        text: String(out.text ?? ''),
+        seq: Number(row.seq ?? 0)
+      }
+    })
+}
+
+export async function restorePostVersion(db: Surreal, postRecordId: string, version: string, existingBlocks?: BlockRecord[]): Promise<BlockRecord[]> {
+  if (version === 'current') {
+    return existingBlocks ?? await loadBlocksForPost(db, postRecordId)
+  }
+  const targetBlocks = await loadBlocksForVersion(db, postRecordId, version)
+  const incoming = targetBlocks.map((block) => ({
+    blockId: blockIdFromNode(block.node) || recordIdPart(block.id, 'block'),
+    node: block.node,
+    text: block.text,
+    hash: recordIdPart(block.id, 'block')
+  }))
+  return await syncPostBlocks(db, postRecordId, incoming, existingBlocks, { shouldSnapshot: true })
+}
+
+export async function deletePostVersion(db: Surreal, postRecordId: string, version: string): Promise<void> {
+  if (version === 'current') {
+    throw createError({ statusCode: 400, message: 'Current version cannot be deleted' })
+  }
+
+  const postId = recordIdPart(postRecordId, 'post')
+  const versionId = versionRecordId(postId, version)
+  const blockResponse = await queryDb(
+    db,
+    `SELECT out AS id FROM has_blocks WHERE in = type::record('versions', $versionId);`,
+    { versionId },
+    { label: 'load version blocks for delete' }
+  )
+  const blockIds = queryRows<{ id: unknown }>(blockResponse, 0).map((row) => recordIdPart(stringifyRecordId(row.id), 'block')).filter(Boolean)
+  const stmts = [
+    `DELETE has_version WHERE in = type::record('post', $postId) AND out = type::record('versions', $versionId);`,
+    `DELETE has_blocks WHERE in = type::record('versions', $versionId);`,
+    `DELETE type::record('versions', $versionId);`
+  ]
+  const params: Record<string, unknown> = { postId, versionId }
+  blockIds.forEach((blockId, index) => {
+    params[`bid_${index}`] = blockId
+    stmts.push(`DELETE type::record('block', $bid_${index}) WHERE count(<-has_blocks) = 0;`)
+  })
+  await queryDb(db, stmts.join('\n'), params, { label: 'delete post version' })
+}
+
+function normalizeVersionRow(row: VersionRow | undefined): PostVersionRecord | null {
+  if (!row?.id) return null
+  const version = String(row.version ?? '')
+  if (!version || version === 'current') return null
+  const owner = row.created_by && typeof row.created_by === 'object' ? row.created_by as Record<string, unknown> : null
+  const ownerId = owner?.id ? stringifyRecordId(owner.id) : (row.created_by ? stringifyRecordId(row.created_by) : null)
+  const ownerName = owner ? String(owner.display_name ?? owner.username ?? '') || null : null
+  return {
+    id: stringifyRecordId(row.id),
+    version,
+    datetime: parseDateLike(row.datetime)?.toISOString() ?? String(row.datetime ?? ''),
+    diff: Array.isArray(row.diff) ? row.diff as BlockVersionDiffRow[] : [],
+    ownerId: ownerId || null,
+    ownerName
+  }
 }
 
 /**
@@ -412,19 +718,43 @@ export async function deleteAllBlocksForPost(db: Surreal, postRecordId: string) 
   const postId = recordIdPart(postRecordId, 'post')
   const response = await queryDb(
     db,
-    "SELECT out AS id FROM has_blocks WHERE in = type::record('post', $postId);",
+    `SELECT out FROM has_version
+     WHERE in = type::record('post', $postId)
+     FETCH out;`,
     { postId }
   )
-  const blockIds = queryRows<{ id: unknown }>(response, 0).map((row) => stringifyRecordId(row.id))
-
-  const stmts: string[] = [`DELETE has_blocks WHERE in = type::record('post', $postId);`]
-  const params: Record<string, unknown> = { postId }
-  for (let i = 0; i < blockIds.length; i++) {
-    const blockId = recordIdPart(blockIds[i]!, 'block')
-    params[`bid_${i}`] = blockId
-    stmts.push(`DELETE type::record('block', $bid_${i});`)
+  const versionIds = queryRows<{ out?: { id?: unknown } }>(response, 0)
+    .map((row) => stringifyRecordId(row.out?.id))
+    .filter(Boolean)
+  const blockIds = new Set<string>()
+  for (const versionRecordId of versionIds) {
+    const versionId = recordIdPart(versionRecordId, 'versions')
+    const blockResponse = await queryDb(
+      db,
+      `SELECT out AS id FROM has_blocks WHERE in = type::record('versions', $versionId);`,
+      { versionId }
+    )
+    for (const row of queryRows<{ id: unknown }>(blockResponse, 0)) {
+      blockIds.add(stringifyRecordId(row.id))
+    }
   }
-  await queryDb(db, stmts.join('\n'), params, { label: `batch-delete all blocks for post` })
+
+  const stmts: string[] = [`DELETE has_version WHERE in = type::record('post', $postId);`]
+  const params: Record<string, unknown> = { postId }
+  for (let i = 0; i < versionIds.length; i++) {
+    const versionId = recordIdPart(versionIds[i]!, 'versions')
+    params[`vid_${i}`] = versionId
+    stmts.push(`DELETE has_blocks WHERE in = type::record('versions', $vid_${i});`)
+    stmts.push(`DELETE type::record('versions', $vid_${i});`)
+  }
+  let blockIndex = 0
+  for (const blockRecordId of blockIds) {
+    const blockId = recordIdPart(blockRecordId, 'block')
+    params[`bid_${blockIndex}`] = blockId
+    stmts.push(`DELETE type::record('block', $bid_${blockIndex}) WHERE count(<-has_blocks) = 0;`)
+    blockIndex += 1
+  }
+  await queryDb(db, stmts.join('\n'), params, { label: `batch-delete all versions for post` })
 }
 
 /* ---------- Sequence math: halving + full renumber ---------- */
@@ -468,13 +798,13 @@ export function seqGapTooTight(prev: number | undefined, next: number | undefine
  * stripe, preserving current order.
  */
 export async function renumberPostBlocks(db: Surreal, postRecordId: string): Promise<BlockRecord[]> {
-  const postId = recordIdPart(postRecordId, 'post')
+  const versionId = await ensureCurrentVersionForPost(db, postRecordId)
   const blocks = await loadBlocksForPost(db, postRecordId)
 
   if (!blocks.length) return blocks
 
   const stmts: string[] = []
-  const params: Record<string, unknown> = { postId }
+  const params: Record<string, unknown> = { versionId }
   for (let i = 0; i < blocks.length; i += 1) {
     const block = blocks[i]!
     const seq = (i + 1) * BLOCK_SEQ_STEP
@@ -482,7 +812,7 @@ export async function renumberPostBlocks(db: Surreal, postRecordId: string): Pro
     params[`bid_${i}`] = blockId
     params[`seq_${i}`] = seq
     stmts.push(
-      `UPDATE has_blocks SET seq = $seq_${i} WHERE in = type::record('post', $postId) AND out = type::record('block', $bid_${i});`
+      `UPDATE has_blocks SET seq = $seq_${i} WHERE in = type::record('versions', $versionId) AND out = type::record('block', $bid_${i});`
     )
     block.seq = seq
   }
@@ -496,16 +826,16 @@ export async function renumberPostBlocks(db: Surreal, postRecordId: string): Pro
  * position).
  */
 export async function swapBlockSeq(db: Surreal, postRecordId: string, blockIdA: string, blockIdB: string) {
-  const postId = recordIdPart(postRecordId, 'post')
+  const versionId = await ensureCurrentVersionForPost(db, postRecordId)
   const a = recordIdPart(blockIdA, 'block')
   const b = recordIdPart(blockIdB, 'block')
 
   const response = await queryDb(
     db,
     `SELECT out AS id, seq FROM has_blocks
-     WHERE in = type::record('post', $postId)
+     WHERE in = type::record('versions', $versionId)
        AND out IN [type::record('block', $a), type::record('block', $b)];`,
-    { postId, a, b }
+    { versionId, a, b }
   )
   const rows = queryRows<{ id: unknown, seq?: number }>(response, 0)
   const seqByBlock = new Map(rows.map((row) => [stringifyRecordId(row.id), Number(row.seq ?? 0)]))
@@ -518,9 +848,9 @@ export async function swapBlockSeq(db: Surreal, postRecordId: string, blockIdA: 
 
   await queryDb(
     db,
-    `UPDATE has_blocks SET seq = $seqB WHERE in = type::record('post', $postId) AND out = type::record('block', $a);
-     UPDATE has_blocks SET seq = $seqA WHERE in = type::record('post', $postId) AND out = type::record('block', $b);`,
-    { postId, a, seqB, b, seqA },
+    `UPDATE has_blocks SET seq = $seqB WHERE in = type::record('versions', $versionId) AND out = type::record('block', $a);
+     UPDATE has_blocks SET seq = $seqA WHERE in = type::record('versions', $versionId) AND out = type::record('block', $b);`,
+    { versionId, a, seqB, b, seqA },
     { label: 'batch-swap block seq' }
   )
 }

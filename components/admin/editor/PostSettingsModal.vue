@@ -1,7 +1,7 @@
 <template>
   <UModal v-model:open="open" :modal="!nestedModalOpen" :dismissible="!nestedModalOpen" :ui="{ overlay: 'z-[1090]', content: 'z-[1100] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden sm:w-[calc(100vw-2rem)]' }">
     <template #content>
-      <UCard class="max-h-[calc(100dvh-1rem)] overflow-hidden">
+      <UCard class="flex max-h-[calc(100dvh-1rem)] flex-col overflow-hidden" :ui="{ body: 'flex-1 min-h-0 overflow-y-auto p-4 sm:p-6' }">
         <template #header>
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -12,7 +12,7 @@
           </div>
         </template>
 
-        <div class="max-h-[calc(100dvh-12rem)] overflow-y-auto pr-1 sm:max-h-[calc(100dvh-13rem)]">
+        <div class="pr-1">
           <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <section class="space-y-5">
               <div class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">

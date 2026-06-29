@@ -45,6 +45,7 @@ export interface PostRecord {
   view_count: number
   word_count: number
   cjk_char_count: number
+  has_versioning?: boolean
   visibility?: PostVisibility
   password_hint?: string | null
   password_source?: PostPasswordSource

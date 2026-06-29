@@ -17,7 +17,7 @@
 
     <div class="post-shell mx-auto grid min-w-0 gap-8">
       <article v-if="post && !error && !isLocked(post)" class="theme-scope grid min-w-0 gap-8">
-        <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-4 shadow-[var(--pb-shadow-sm)] sm:p-6 md:p-8">
+          <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-4 shadow-[var(--pb-shadow-sm)] sm:p-6 md:p-8 min-h-[calc(100vh-12rem)]">
           <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--pb-text-subtle)]">

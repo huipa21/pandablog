@@ -49,7 +49,8 @@ const ADMIN_ONLY_SETTING_KEYS = [
   ADMIN_DATE_FORMAT_KEY,
   ADMIN_TIMEZONE_KEY,
   ADMIN_FORMAT_LOCALE_KEY,
-  ADMIN_POST_DISPLAY_MODE_KEY
+  ADMIN_POST_DISPLAY_MODE_KEY,
+  'post_versioning'
 ] as const
 
 export const ANALYTICS_SETTING_KEYS = [
@@ -750,6 +751,48 @@ export async function updateMediaSettings(settings: MediaSettings): Promise<void
     };`,
     { table: APP_SETTINGS_TABLE, id: 'media', key: 'media', value: settings }
   )
+}
+
+// ============ POST VERSIONING SETTINGS ============
+
+export interface PostVersioningSettings {
+  snapshot_limit: number
+}
+
+export const DEFAULT_POST_VERSIONING_SETTINGS: PostVersioningSettings = {
+  snapshot_limit: 20
+}
+
+export async function getPostVersioningSettings(): Promise<PostVersioningSettings> {
+  const db = await useDb()
+  const response = await queryDb(db, 'SELECT * FROM app_settings WHERE key = $key LIMIT 1;', { key: 'post_versioning' })
+  const row = queryRows<Record<string, unknown>>(response)[0]
+  const value = row?.value && typeof row.value === 'object' ? row.value as Record<string, unknown> : {}
+  return normalizePostVersioningSettings(value)
+}
+
+export async function updatePostVersioningSettings(settings: PostVersioningSettings): Promise<void> {
+  const db = await useDb()
+  const normalized = normalizePostVersioningSettings(settings as unknown as Record<string, unknown>)
+  await queryDb(db, `DELETE FROM app_settings WHERE key = $key AND id != type::record($table, $id);`, {
+    table: APP_SETTINGS_TABLE, id: 'post_versioning', key: 'post_versioning'
+  })
+  await queryDb(
+    db,
+    `UPSERT type::record($table, $id) CONTENT {
+      key: $key,
+      value: $value,
+      updated_at: time::now()
+    };`,
+    { table: APP_SETTINGS_TABLE, id: 'post_versioning', key: 'post_versioning', value: normalized }
+  )
+}
+
+function normalizePostVersioningSettings(value: Record<string, unknown>): PostVersioningSettings {
+  const limit = Number(value.snapshot_limit ?? DEFAULT_POST_VERSIONING_SETTINGS.snapshot_limit)
+  return {
+    snapshot_limit: Number.isFinite(limit) ? Math.max(1, Math.min(200, Math.floor(limit))) : DEFAULT_POST_VERSIONING_SETTINGS.snapshot_limit
+  }
 }
 
 // ---------------------------------------------------------------------------

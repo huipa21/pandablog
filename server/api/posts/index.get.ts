@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { queryDb, useDb } from '../../utils/db'
-import { firstRow, queryRows, stringifyRecordId } from '../../utils/surrealResult'
+import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
 import { isAdminAuthenticated } from '../../utils/auth'
 import { PUBLIC_LIST_CACHE_SECONDS, shouldBypassPublicCache } from '../../utils/public-cache'
 import type { PostListItem, PostVisibility } from '~/types/content'
@@ -152,16 +152,17 @@ async function loadExcerptsForPosts(db: Awaited<ReturnType<typeof useDb>>, postI
 
   const response = await queryDb(
     db,
-    `SELECT in AS post_id, out.text AS text, seq
+    `SELECT in AS version_id, out.text AS text, seq
      FROM has_blocks
-     WHERE in IN $postIds
+     WHERE in IN $versionIds
      ORDER BY seq ASC
      FETCH out;`,
-    { postIds }
+    { versionIds: postIds.map((postId) => `versions:${recordIdPart(stringifyRecordId(postId), 'post')}__current`) }
   )
 
   for (const row of queryRows<Record<string, unknown>>(response)) {
-    const postId = stringifyRecordId(row.post_id)
+    const versionId = stringifyRecordId(row.version_id)
+    const postId = `post:${recordIdPart(versionId, 'versions').replace(/__current$/, '')}`
     const text = String(row.text ?? '').trim()
 
     if (!text) {

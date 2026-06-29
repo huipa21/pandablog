@@ -47,6 +47,9 @@ export default defineEventHandler(async (event) => {
     : desiredSlug === previousPost.slug
       ? previousPost.slug
       : await uniquePostSlug(db, desiredSlug, `post:${id}`)
+  if (!previousPost.has_versioning && payload.status === 'published') {
+    payload.has_versioning = true
+  }
   const { updates: visibilityUpdate, ownerAction } = await resolveVisibilityUpdate(body, existing, user.id)
   const clears = cleanOptionalFieldClears(body)
 
@@ -90,7 +93,10 @@ export default defineEventHandler(async (event) => {
   if (Object.prototype.hasOwnProperty.call(body, 'content_json')) {
     const incomingDoc = parseDoc(body.content_json)
     const incomingBlocks = extractBlocksFromDoc(incomingDoc)
-    blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks, previousBlocks)
+    blocks = await syncPostBlocks(db, normalizedPost.id, incomingBlocks, previousBlocks, {
+      shouldSnapshot: previousPost.has_versioning === true,
+      userId: recordIdPart(user.id, 'users')
+    })
     reassembledDoc = buildDocFromBlocks(blocks)
   }
 

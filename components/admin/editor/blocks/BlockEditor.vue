@@ -10,7 +10,7 @@
 
         <!-- Unified block toolbar (block actions + inline formatting when text selected) -->
         <BlockToolbar
-          v-if="editor"
+          v-if="editor && !props.readonly"
           :editor="editor"
           :reference-el="actionsMenuReferenceEl"
           :visible="actionsMenuVisible && !slashOpen"
@@ -18,6 +18,7 @@
           :has-text-selection="hasTextSelection"
           :selection-tick="selectionTick"
           :last-text-selection="lastTextSelection"
+          :reference-key="activeBlockRange ? `${activeBlockRange.from}:${activeBlockRange.to}:${activeBlockRange.node.type.name}` : null"
           @move-up="runMoveUp"
           @move-down="runMoveDown"
           @duplicate="runDuplicate"
@@ -33,7 +34,7 @@
 
         <!-- Per-block + button shown on the active block -->
         <div
-          v-if="activeBlockRect && activeBlockRange"
+          v-if="activeBlockRect && activeBlockRange && !props.readonly"
           class="block-active-overlay pointer-events-none absolute inset-x-0"
           :style="{
             top: `${activeBlockRect.top}px`,
@@ -281,6 +282,7 @@ interface ActiveBlockRange {
 const props = defineProps<{
   modelValue: JsonContent
   useInlineInserter?: boolean
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -486,6 +488,7 @@ let draggedBlockElement: HTMLElement | null = null
 
 const editor = useEditor({
   content: props.modelValue,
+  editable: !props.readonly,
   extensions: [
     BlockId,
     // NO BubbleMenu or FloatingMenu extensions here.
@@ -931,6 +934,10 @@ watch(() => props.modelValue, (value) => {
     lastAppliedModelValueJson = nextValueJson
   }
   lastEmittedModelValue = null
+})
+
+watch(() => props.readonly, (readonly) => {
+  editor.value?.setEditable(!readonly)
 })
 
 watch(slashItems, (items) => {

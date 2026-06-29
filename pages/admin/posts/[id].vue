@@ -33,6 +33,17 @@
           </UButton>
           <UButton
             type="button"
+            icon="i-lucide-history"
+            variant="soft"
+            color="neutral"
+            size="sm"
+            :aria-label="t('admin.editor.versions')"
+            @click="openVersionHistory"
+          >
+            <span class="hidden sm:inline">{{ t('admin.editor.versions') }}</span>
+          </UButton>
+          <UButton
+            type="button"
             icon="i-lucide-settings"
             variant="soft"
             color="neutral"
@@ -96,6 +107,7 @@
         <div class="pb-content-frame mx-auto">
           <div class="mb-4 space-y-3">
             <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" :title="t('admin.editor.loadPostFailed')" />
+            <UAlert v-if="editorReadOnly" color="warning" icon="i-lucide-lock" :title="`Read-only: ${editLock.holderName.value || 'another editor'} is editing this post.`" />
           </div>
 
           <form class="pb-editor-grid-shell rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] px-4 py-5 shadow-[var(--pb-shadow-sm)] md:px-10 md:py-8" @submit.prevent="saveLocal()">
@@ -105,30 +117,40 @@
                 v-model="form.title"
                 type="text"
                 :placeholder="t('admin.editor.addTitle')"
+                :readonly="editorReadOnly"
                 class="w-full border-0 bg-transparent text-4xl font-semibold leading-tight tracking-normal text-[var(--pb-text)] outline-none placeholder:text-[var(--pb-text-placeholder)] md:text-5xl"
               >
               <div class="pb-editor-gutter" aria-hidden="true" />
             </div>
 
-            <BlockEditor ref="blockEditorRef" v-model="form.content" :use-inline-inserter="true" />
+            <BlockEditor ref="blockEditorRef" v-model="form.content" :use-inline-inserter="true" :readonly="editorReadOnly" />
           </form>
         </div>
       </main>
 
-      <div data-editor-right-pane class="fixed inset-0 z-50 h-full shrink-0 border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width] md:relative md:z-auto" :class="rightPaneCollapsed ? 'hidden md:block md:w-11' : 'w-full md:w-[340px]'">
-        <button
-          type="button"
-          class="absolute left-3 top-3 z-20 inline-flex size-8 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)] md:left-1 md:top-2 md:size-7"
-          :title="rightPaneCollapsed ? t('admin.editor.expandRightPane') : t('admin.editor.collapseRightPane')"
-          @click="rightPaneCollapsed = !rightPaneCollapsed"
-        >
-          <UIcon :name="rightPaneCollapsed ? 'i-lucide-chevrons-left' : 'i-lucide-chevrons-right'" class="size-4" />
-        </button>
+      <div data-editor-right-pane class="fixed inset-0 z-50 flex h-full shrink-0 flex-col border-l border-[var(--pb-divider)] bg-[var(--pb-card-bg)] transition-[width] md:relative md:z-auto" :class="rightPaneCollapsed ? 'hidden md:flex md:w-11' : 'w-full md:w-[340px]'">
+        <div class="flex shrink-0 items-center p-1.5">
+          <button
+            type="button"
+            class="inline-flex size-8 items-center justify-center rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] text-[var(--pb-icon-muted)] hover:border-[var(--pb-selected-border)] hover:text-[var(--pb-link-hover)] md:size-7"
+            :title="rightPaneCollapsed ? t('admin.editor.expandRightPane') : t('admin.editor.collapseRightPane')"
+            @click="rightPaneCollapsed = !rightPaneCollapsed"
+          >
+            <UIcon :name="rightPaneCollapsed ? 'i-lucide-chevrons-left' : 'i-lucide-chevrons-right'" class="size-4" />
+          </button>
+        </div>
 
         <EditorSidebar
           v-if="!rightPaneCollapsed"
-          class="h-full w-full md:w-[340px]"
+          class="min-h-0 flex-1 w-full md:w-[340px]"
           :editor="activeEditor"
+          :mode="rightPaneMode"
+          :versions="versions"
+          :read-only="editorReadOnly"
+          @close-versions="rightPaneMode = 'settings'"
+          @diff-version="showVersionDiff"
+          @restore-version="restoreSelectedVersion"
+          @delete-version="deleteSelectedVersion"
         />
       </div>
     </div>
@@ -227,6 +249,43 @@
         </UCard>
       </template>
     </UModal>
+
+    <UModal v-model:open="versionHistoryOpen" :ui="{ content: 'w-[calc(100vw-1rem)] max-w-6xl sm:w-[calc(100vw-2rem)]' }">
+      <template #content>
+        <UCard>
+          <template #header>
+            <div>
+              <h3 class="text-base font-semibold text-[var(--pb-text)]">{{ t('admin.editor.versions') }}</h3>
+              <p class="text-xs text-[var(--pb-text-subtle)]">{{ selectedVersion ? formatVersionDate(selectedVersion) : '' }}</p>
+            </div>
+          </template>
+
+          <div class="min-h-[280px] max-h-[60vh] overflow-auto rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)]">
+            <div v-if="versionDetailPending" class="grid gap-3 p-4">
+              <USkeleton class="h-10" />
+              <USkeleton class="h-32" />
+            </div>
+            <RenderedBlockDiffSurface
+              v-else-if="selectedVersionDoc"
+              :old-doc="selectedVersionDoc"
+              :new-doc="post?.content_json ?? null"
+              :old-text="docToDiffText(selectedVersionDoc)"
+              :new-text="docToDiffText(post?.content_json ?? null)"
+              :old-label="selectedVersion ? formatVersionDate(selectedVersion) : 'Snapshot'"
+              new-label="Current"
+            />
+            <div v-else class="p-4 text-sm text-[var(--pb-text-muted)]">Select a snapshot to preview its diff.</div>
+          </div>
+
+          <template #footer>
+            <div class="flex flex-wrap justify-end gap-2">
+              <UButton type="button" color="neutral" variant="ghost" @click="versionHistoryOpen = false">Close</UButton>
+              <UButton type="button" color="primary" icon="i-lucide-rotate-ccw" :disabled="!selectedVersion || editorReadOnly" @click="restoreFromDiff">{{ t('admin.editor.versionsPanel.restore') }}</UButton>
+            </div>
+          </template>
+        </UCard>
+      </template>
+    </UModal>
   </section>
 </template>
 
@@ -240,6 +299,7 @@ import RenderedBlockDiffSurface from '~/components/content/RenderedBlockDiffSurf
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 import { docToDiffText } from '~/utils/contentDiffText'
+import { stripEmptyBlocks } from '~/utils/emptyBlocks'
 import { hasRenderedBlockChanges } from '~/utils/renderedBlockDiff'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
@@ -258,6 +318,7 @@ const savingAction = ref<'save-local' | 'save-db' | 'publish' | 'unpublish' | nu
 const saveStatus = ref('')
 const saveStatusType = ref<'success' | 'error'>('success')
 const adminToast = useAdminToast()
+const editLock = useEditLock(id, sessionFetch as typeof $fetch)
 const currentStatus = ref<PostStatus>('draft')
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
@@ -266,6 +327,12 @@ const leaveDialogOpen = ref(false)
 const postSettingsOpen = ref(false)
 const localConflictOpen = ref(false)
 const pendingLocalDraft = ref<LocalDraftPayload | null>(null)
+const versionHistoryOpen = ref(false)
+const rightPaneMode = ref<'settings' | 'versions'>('settings')
+const versions = ref<PostVersionRecord[]>([])
+const selectedVersion = ref<PostVersionRecord | null>(null)
+const selectedVersionDoc = ref<JsonContent | null>(null)
+const versionDetailPending = ref(false)
 const editorTouchStart = ref<{ x: number, y: number } | null>(null)
 const pendingLeavePath = ref<string | null>(null)
 const bypassLeaveGuard = ref(false)
@@ -279,6 +346,7 @@ const adminPostBreadcrumb = useState<{ id: string, slug: string } | null>('admin
 const saveStatusClass = computed(() =>
   saveStatusType.value === 'error' ? 'text-red-600' : 'text-[var(--pb-text-subtle)]'
 )
+const editorReadOnly = computed(() => editLock.locked.value)
 
 const editorShellStyle = computed(() => ({
   height: `calc(${editorVisualViewportHeight.value} - 3.5rem)`
@@ -436,6 +504,12 @@ const needsLeaveDecision = computed(() => hasUnsavedDbChanges.value || isNewDraf
 const localStorageKey = computed(() => `pb-post-local-${id.value}`)
 
 function saveLocal() {
+  if (editorReadOnly.value) {
+    saveStatus.value = 'This post is open read-only because another editor holds the lock.'
+    saveStatusType.value = 'error'
+    return
+  }
+
   savingAction.value = 'save-local'
   try {
     const payload = {
@@ -452,7 +526,7 @@ function saveLocal() {
       password_hint: form.password_hint,
       password_source: effectivePasswordSource(),
       related_post_ids: form.related_post_ids,
-      content_json: form.content,
+      content_json: strippedContent(),
       savedAt: new Date().toISOString()
     }
     localStorage.setItem(localStorageKey.value, JSON.stringify(payload))
@@ -497,6 +571,15 @@ interface LocalDraftPayload {
   related_post_ids?: string[]
   content_json?: JsonContent
   savedAt?: string
+}
+
+interface PostVersionRecord {
+  id: string
+  version: string
+  datetime: string
+  diff: Array<Record<string, unknown>>
+  ownerId: string | null
+  ownerName: string | null
 }
 
 type LocalConflictFieldKey = 'title' | 'slug' | 'summary' | 'cover_image' | 'category_ids' | 'tag_ids' | 'visibility' | 'password_hint' | 'related_post_ids' | 'content_json'
@@ -618,6 +701,65 @@ const localConflictSavedAtLabel = computed(() => {
 })
 const localConflictServerSavedAtLabel = computed(() => post.value?.updated_at ? formatAdminDateTime(post.value.updated_at) : '')
 
+async function openVersionHistory() {
+  rightPaneMode.value = 'versions'
+  rightPaneCollapsed.value = false
+  await loadVersions()
+}
+
+async function loadVersions() {
+  const response = await fetchAdmin<{ versions: PostVersionRecord[] }>(`${apiPath.value}/versions`)
+  versions.value = response.versions
+}
+
+async function selectVersion(version: PostVersionRecord) {
+  selectedVersion.value = version
+  selectedVersionDoc.value = null
+  versionDetailPending.value = true
+  try {
+    const detail = await fetchAdmin<{ content_json: JsonContent }>(`${apiPath.value}/versions/${encodeURIComponent(version.version)}`)
+    selectedVersionDoc.value = detail.content_json
+  } finally {
+    versionDetailPending.value = false
+  }
+}
+
+async function showVersionDiff(version: PostVersionRecord) {
+  versionHistoryOpen.value = true
+  await selectVersion(version)
+}
+
+// Restore a snapshot into the local editor only. Persists to the DB only when
+// the user clicks Update; matches the local-draft workflow.
+async function restoreSelectedVersion(version?: PostVersionRecord) {
+  const target = version ?? selectedVersion.value
+  if (!target || editorReadOnly.value) return
+  const detail = await fetchAdmin<{ content_json: JsonContent }>(`${apiPath.value}/versions/${encodeURIComponent(target.version)}`)
+  form.content = detail.content_json
+  versionHistoryOpen.value = false
+  adminToast.success(t('admin.editor.versionsPanel.restoredLocal'))
+}
+
+async function restoreFromDiff() {
+  if (selectedVersion.value) await restoreSelectedVersion(selectedVersion.value)
+}
+
+async function deleteSelectedVersion(version?: PostVersionRecord) {
+  const target = version ?? selectedVersion.value
+  if (!target || editorReadOnly.value) return
+  await fetchAdmin(`${apiPath.value}/versions/${encodeURIComponent(target.version)}`, { method: 'DELETE' })
+  if (selectedVersion.value?.version === target.version) {
+    selectedVersion.value = null
+    selectedVersionDoc.value = null
+  }
+  await loadVersions()
+  adminToast.success('Version deleted')
+}
+
+function formatVersionDate(version: PostVersionRecord) {
+  return version.datetime ? formatAdminDateTime(version.datetime) : version.version
+}
+
 // ─── PUBLISH / UPDATE (DB write) ─────────────────────────────────────────────
 async function publishOrUpdate() {
   postSettingsOpen.value = true
@@ -631,6 +773,12 @@ async function confirmPublishOrUpdate() {
 }
 
 async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unpublish') {
+  if (editorReadOnly.value) {
+    saveStatus.value = 'This post is open read-only because another editor holds the lock.'
+    saveStatusType.value = 'error'
+    return false
+  }
+
   const wasPublished = currentStatus.value === 'published'
   savingAction.value = action
   saveStatus.value = t('admin.editor.saving')
@@ -654,7 +802,7 @@ async function save(nextStatus: PostStatus, action: 'save-db' | 'publish' | 'unp
         password_hint: form.password_hint,
         password_source: effectivePasswordSource(),
         related_post_ids: form.related_post_ids,
-        content_json: form.content
+        content_json: strippedContent()
       }
     })
 
@@ -724,6 +872,10 @@ function postSaveTitle(action: 'save-db' | 'publish' | 'unpublish', wasPublished
 // save is already in flight, and only saves as draft (never publishes).
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
+  void editLock.acquire().catch((error) => {
+    adminToast.error(error, 'Could not acquire edit lock')
+  })
+
   // Restore local draft if available. When it diverges from the saved/published
   // version, surface a conflict diff and let the user choose instead of silently
   // overwriting the form content.
@@ -786,6 +938,7 @@ async function discardAndLeave() {
     return
   }
 
+  clearLocalSave()
   await continueLeaveNavigation()
 }
 
@@ -843,9 +996,13 @@ function serializeDbPayload() {
     password_hint: form.password_hint,
     password_source: effectivePasswordSource(),
     related_post_ids: form.related_post_ids,
-    content_json: form.content,
+    content_json: strippedContent(),
     status: currentStatus.value
   })
+}
+
+function strippedContent() {
+  return stripEmptyBlocks(form.content) ?? form.content
 }
 
 function effectivePasswordSource() {

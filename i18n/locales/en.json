@@ -659,6 +659,20 @@
       "save": "Save",
       "update": "Update",
       "publish": "Publish",
+      "versions": "Versions",
+      "versionsPanel": {
+        "subtitle": "Editor-only snapshots",
+        "current": "Current version",
+        "version": "Version {n}",
+        "changedBlocks": "{count} changed block | {count} changed blocks",
+        "unknownOwner": "Unknown",
+        "more": "More",
+        "showDiff": "Show Difference",
+        "restore": "Restore Version",
+        "delete": "Delete Version",
+        "empty": "No snapshots yet.",
+        "restoredLocal": "Version restored locally. Click Update to save."
+      },
       "view": "View",
       "loadPostFailed": "Could not load this post",
       "addTitle": "Add title",
@@ -719,10 +733,23 @@
         "chooseFromPostImages": "Choose from post images",
         "noPostImages": "No images are used in this post yet.",
         "relatedPosts": "Related posts",
-        "noRelatedPosts": "No related posts selected."
+        "noRelatedPosts": "No related posts selected.",
+        "versions": {
+          "title": "Versions",
+          "description": "Configure editor snapshot retention for all posts.",
+          "snapshotLimit": "Snapshot limit",
+          "snapshotLimitHint": "Lowering this limit does not delete existing snapshots immediately. Oldest snapshots above the limit are pruned after a new snapshot is created.",
+          "loading": "Loading...",
+          "save": "Save version settings",
+          "saved": "Version settings saved",
+          "loadFailed": "Could not load version settings",
+          "saveFailed": "Could not save version settings"
+        }
       },
       "toolbar": {
         "dragToolbar": "Drag toolbar",
+        "expandToolbar": "Expand toolbar",
+        "collapseToolbar": "Collapse toolbar",
         "transformTo": "Transform to...",
         "moveUp": "Move up",
         "moveDown": "Move down",

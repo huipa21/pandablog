@@ -4,11 +4,12 @@
       v-if="toolbarVisible"
       ref="toolbarEl"
       class="block-toolbar"
+      :class="{ 'is-expanded': isExpanded }"
       :style="dragStyle ?? floatingStyles"
       contenteditable="false"
       data-testid="block-popup-toolbar"
     >
-      <!-- Drag grip -->
+      <!-- Drag grip (always visible) -->
       <button
         type="button"
         class="bt-btn cursor-grab active:cursor-grabbing touch-none"
@@ -25,9 +26,23 @@
           <circle cx="7" cy="13" r="1.5" fill="currentColor" />
         </svg>
       </button>
+
+      <!-- Expand/collapse toggle -->
+      <button
+        type="button"
+        class="bt-btn bt-expand-btn"
+        :title="isExpanded ? t('admin.editor.toolbar.collapseToolbar') : t('admin.editor.toolbar.expandToolbar')"
+        :aria-label="isExpanded ? t('admin.editor.toolbar.collapseToolbar') : t('admin.editor.toolbar.expandToolbar')"
+        @mousedown.prevent="isExpanded = !isExpanded"
+      >
+        <UIcon :name="isExpanded ? 'i-lucide-chevron-left' : 'i-lucide-chevron-right'" class="size-4" />
+      </button>
+
+      <!-- Full toolbar (expanded) -->
+      <template v-if="isExpanded">
       <div class="bt-separator" />
 
-      <!-- Block-level actions (always visible when toolbar is shown) -->
+      <!-- Block-level actions -->
       <UDropdownMenu :items="transformItems" :open="openDropdownMenu === 'transform'" @update:open="setDropdownOpen('transform', $event)">
         <button type="button" class="bt-btn" :title="t('admin.editor.toolbar.transformTo')">
           <UIcon :name="currentIcon" class="size-4" />
@@ -230,6 +245,7 @@
           <UIcon name="i-lucide-more-vertical" class="size-4" />
         </button>
       </UDropdownMenu>
+      </template>
     </div>
   </Teleport>
 
@@ -325,6 +341,7 @@ const props = defineProps<{
   hasTextSelection: boolean
   selectionTick: number
   lastTextSelection: { from: number; to: number } | null
+  referenceKey: string | null
 }>()
 
 const emit = defineEmits<{
@@ -346,6 +363,18 @@ const toolbarEl = ref<HTMLElement | null>(null)
 const refEl = computed(() => props.referenceEl)
 const popupWindowOpen = ref(false)
 const toolbarVisible = computed(() => props.visible && !popupWindowOpen.value)
+
+const isExpanded = ref(false)
+
+// Auto-expand when the user has a text selection inside this block
+watch(() => props.hasTextSelection, (v) => {
+  if (v) isExpanded.value = true
+})
+
+// Collapse back when the toolbar hides (block deselected)
+watch(toolbarVisible, (v) => {
+  if (!v) isExpanded.value = false
+})
 const linkDialogOpen = ref(false)
 const linkDialogRange = ref<{ from: number; to: number } | null>(null)
 const inlineMathDialogOpen = ref(false)
@@ -397,10 +426,12 @@ function onDragMouseUp() {
   window.removeEventListener('mouseup', onDragMouseUp)
 }
 
-// Reset drag position when the toolbar's reference block changes
-watch(() => props.referenceEl, () => {
+// Reset drag position when the toolbar's reference block changes.
+watch([() => props.referenceEl, () => props.referenceKey], () => {
   dragStyle.value = null
   dragging.value = false
+  isExpanded.value = false
+  nextTick(() => updateFloatingPosition())
 })
 
 onBeforeUnmount(() => {
@@ -462,7 +493,7 @@ function setDropdownOpen(menu: ToolbarDropdownMenu, open: boolean) {
   }
 }
 
-const { floatingStyles } = useFloating(refEl, toolbarEl, {
+const { floatingStyles, update: updateFloatingPosition } = useFloating(refEl, toolbarEl, {
   placement: 'top-start',
   middleware: [offset(8), flip(), shift({ padding: 8 })],
   whileElementsMounted: autoUpdate
@@ -1151,10 +1182,21 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
   padding: 4px;
   box-shadow: var(--pb-shadow-lg), 0 0 0 1px color-mix(in srgb, var(--pb-text) 8%, transparent);
   z-index: var(--block-menu-z, 40);
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+.block-toolbar:hover {
+  opacity: 0.75;
+}
+
+.block-toolbar.is-expanded {
+  opacity: 1;
 }
 
 @media (max-width: 767px) {
   .block-toolbar {
+    opacity: 1 !important;
     position: fixed !important;
     right: 0.5rem !important;
     bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-editor-keyboard-inset, 0px) + 0.5rem) !important;
