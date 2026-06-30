@@ -461,7 +461,7 @@ export async function syncPostBlocks(
   }))
   const changed = blocksChanged(existing, nextBlocks)
 
-  if (options.shouldSnapshot && changed && existing.length) {
+  if (__PB_MODULE_POST_VERSIONING__ && options.shouldSnapshot && changed && existing.length) {
     await snapshotCurrentVersion(db, postId, currentVersionId, existing, nextBlocks, options.userId ?? null)
   }
 
@@ -507,7 +507,70 @@ export async function syncPostBlocks(
     await queryDb(db, createStmts.join('\n'), createParams, { label: `batch-save ${createStmts.length / 2} version blocks` })
   }
 
+  if (!__PB_MODULE_POST_VERSIONING__) {
+    await collapsePostToCurrentVersion(db, postId, currentVersionId, existing)
+  }
+
   return finalBlocks
+}
+
+async function collapsePostToCurrentVersion(db: Surreal, postId: string, currentVersionId: string, previousBlocks: BlockRecord[]): Promise<void> {
+  const response = await queryDb(
+    db,
+    `SELECT out AS version_id FROM has_version
+     WHERE in = type::record('post', $postId) AND out != type::record('versions', $currentVersionId);`,
+    { postId, currentVersionId },
+    { label: 'load historical versions for collapse' }
+  )
+  const versionIds = queryRows<{ version_id?: unknown }>(response, 0)
+    .map((row) => recordIdPart(stringifyRecordId(row.version_id), 'versions'))
+    .filter(Boolean)
+  const historicalBlockIds = await loadBlockIdsForVersions(db, versionIds)
+  const blockIds = [...new Set([
+    ...previousBlocks.map((block) => recordIdPart(block.id, 'block')).filter(Boolean),
+    ...historicalBlockIds
+  ])]
+
+  const stmts: string[] = [
+    `DELETE has_version WHERE in = type::record('post', $postId) AND out != type::record('versions', $currentVersionId);`
+  ]
+  const params: Record<string, unknown> = { postId, currentVersionId }
+
+  versionIds.forEach((versionId, index) => {
+    params[`vid_${index}`] = versionId
+    stmts.push(`DELETE has_blocks WHERE in = type::record('versions', $vid_${index});`)
+    stmts.push(`DELETE type::record('versions', $vid_${index});`)
+  })
+
+  blockIds.forEach((blockId, index) => {
+    params[`bid_${index}`] = blockId
+    stmts.push(`DELETE type::record('block', $bid_${index}) WHERE count(<-has_blocks) = 0;`)
+  })
+
+  await queryDb(db, stmts.join('\n'), params, { label: 'collapse post to current version' })
+}
+
+export async function collapsePostVersionHistory(db: Surreal, postRecordId: string, currentBlocks?: BlockRecord[]): Promise<void> {
+  const postId = recordIdPart(postRecordId, 'post')
+  const currentVersionId = await ensureCurrentVersionForPost(db, postRecordId)
+  await collapsePostToCurrentVersion(db, postId, currentVersionId, currentBlocks ?? await loadBlocksForPost(db, postRecordId))
+}
+
+async function loadBlockIdsForVersions(db: Surreal, versionIds: string[]): Promise<string[]> {
+  if (!versionIds.length) return []
+
+  const stmts: string[] = []
+  const params: Record<string, unknown> = {}
+  versionIds.forEach((versionId, index) => {
+    params[`vid_${index}`] = versionId
+    stmts.push(`SELECT out AS id FROM has_blocks WHERE in = type::record('versions', $vid_${index});`)
+  })
+  const response = await queryDb(db, stmts.join('\n'), params, { label: 'load historical version blocks for collapse' })
+  const blockIds: string[] = []
+  for (let i = 0; i < versionIds.length; i += 1) {
+    blockIds.push(...queryRows<{ id?: unknown }>(response, i).map((row) => recordIdPart(stringifyRecordId(row.id), 'block')).filter(Boolean))
+  }
+  return blockIds
 }
 
 async function snapshotCurrentVersion(

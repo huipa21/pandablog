@@ -9,6 +9,7 @@ export interface RuntimeModulesConfig {
   backups?: { enabled?: boolean }
   graphView?: { enabled?: boolean }
   publishActivityHeatmap?: { enabled?: boolean }
+  postVersioning?: { enabled?: boolean }
 }
 
 export function getRuntimeModuleConfig() {
@@ -36,7 +37,8 @@ export function resolveModuleFlags(modules?: RuntimeModulesConfig | null) {
     securityAlerts: modules?.securityAlerts?.enabled !== false,
     backups: modules?.backups?.enabled !== false,
     graphView: modules?.graphView?.enabled !== false,
-    publishActivityHeatmap: modules?.publishActivityHeatmap?.enabled !== false
+    publishActivityHeatmap: modules?.publishActivityHeatmap?.enabled !== false,
+    postVersioning: modules?.postVersioning?.enabled !== false
   }
 }
 

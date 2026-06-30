@@ -63,6 +63,7 @@
             <label><input type="checkbox" data-path="backups.enabled"><span>Backups and restore</span></label>
             <label><input type="checkbox" data-path="graphView.enabled"><span>Graph view</span></label>
             <label><input type="checkbox" data-path="publishActivityHeatmap.enabled"><span>Publish activity heatmap</span></label>
+            <label><input type="checkbox" data-path="postVersioning.enabled"><span>Post versioning</span></label>
           </div>
         </section>
         <section style="margin-top:18px">
@@ -104,7 +105,7 @@
     }
 
     function collectManifest() {
-      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {}, themes: {}, mfa: {}, securityAlerts: {}, backups: {}, graphView: {}, publishActivityHeatmap: {} }
+      const modules = { editor: { enabled: true, blocks: {} }, logs: {}, analytics: {}, users: {}, themes: {}, mfa: {}, securityAlerts: {}, backups: {}, graphView: {}, publishActivityHeatmap: {}, postVersioning: {} }
       for (const input of inputs) setPath(modules, input.dataset.path, input.checked)
       return { version: 1, modules }
     }

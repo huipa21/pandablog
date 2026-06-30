@@ -15,6 +15,7 @@ export interface PandablogModulesConfig {
   backups: BackupsModuleConfig
   graphView: GraphViewModuleConfig
   publishActivityHeatmap: PublishActivityHeatmapModuleConfig
+  postVersioning: PostVersioningModuleConfig
 }
 
 export interface EditorModuleConfig {
@@ -60,6 +61,10 @@ export interface GraphViewModuleConfig {
 }
 
 export interface PublishActivityHeatmapModuleConfig {
+  enabled: boolean
+}
+
+export interface PostVersioningModuleConfig {
   enabled: boolean
 }
 

@@ -133,6 +133,7 @@ The manifest currently controls:
 - `backups`: backup and restore APIs, admin UI, storage, and maintenance middleware.
 - `graphView`: public relationship graph widgets, `/graph`, and graph projection APIs.
 - `publishActivityHeatmap`: the public publish-activity heatmap widget and its `/api/posts/publish-frequency` endpoint.
+- `postVersioning`: admin post history, diff/restore endpoints, versioning settings, and historical block snapshots.
 
 At Nuxt startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the manifest, exposes the normalized settings at `runtimeConfig.public.modules`, and injects build constants such as `__PB_MODULE_ANALYTICS__` and `__PB_BLOCK_CODE_BLOCK__`. Disabled modules are also added to Nuxt/Nitro ignore rules where the app has a clean boundary, so their routes, pages, plugins, and storage payloads are not included in the build.
 

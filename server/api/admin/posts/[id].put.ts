@@ -9,6 +9,7 @@ import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import {
   buildDocFromBlocks,
+  collapsePostVersionHistory,
   computeStatsFromBlocks,
   extractBlocksFromDoc,
   loadBlocksForPost,
@@ -47,7 +48,7 @@ export default defineEventHandler(async (event) => {
     : desiredSlug === previousPost.slug
       ? previousPost.slug
       : await uniquePostSlug(db, desiredSlug, `post:${id}`)
-  if (!previousPost.has_versioning && payload.status === 'published') {
+  if (__PB_MODULE_POST_VERSIONING__ && !previousPost.has_versioning && payload.status === 'published') {
     payload.has_versioning = true
   }
   const { updates: visibilityUpdate, ownerAction } = await resolveVisibilityUpdate(body, existing, user.id)
@@ -98,6 +99,8 @@ export default defineEventHandler(async (event) => {
       userId: recordIdPart(user.id, 'users')
     })
     reassembledDoc = buildDocFromBlocks(blocks)
+  } else if (!__PB_MODULE_POST_VERSIONING__) {
+    await collapsePostVersionHistory(db, normalizedPost.id, previousBlocks)
   }
 
   const stats = computeStatsFromBlocks(blocks)

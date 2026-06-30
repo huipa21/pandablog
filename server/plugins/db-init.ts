@@ -256,8 +256,8 @@ async function ensurePostVersionGraphMigration(db: Awaited<ReturnType<typeof use
       db,
       `UPSERT type::record('versions', $versionId) CONTENT { version: 'current', datetime: time::now(), diff: [], created_at: time::now() };
        RELATE (type::record('post', $postId)) -> has_version -> (type::record('versions', $versionId));
-       UPDATE post SET has_versioning = true WHERE id = type::record('post', $postId) AND status = 'published';`,
-      { postId, versionId },
+       UPDATE post SET has_versioning = $hasVersioning WHERE id = type::record('post', $postId) AND status = 'published';`,
+      { postId, versionId, hasVersioning: __PB_MODULE_POST_VERSIONING__ },
       { label: 'post current version migration create', timeoutMs: 10_000 }
     )
 

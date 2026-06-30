@@ -32,6 +32,7 @@
             <span class="hidden sm:inline">{{ currentStatus === 'published' ? t('admin.editor.update') : t('admin.editor.publish') }}</span>
           </UButton>
           <UButton
+            v-if="postVersioningEnabled"
             type="button"
             icon="i-lucide-history"
             variant="soft"
@@ -144,7 +145,7 @@
           v-if="!rightPaneCollapsed"
           class="min-h-0 flex-1 w-full md:w-[340px]"
           :editor="activeEditor"
-          :mode="rightPaneMode"
+          :mode="postVersioningEnabled ? rightPaneMode : 'settings'"
           :versions="versions"
           :read-only="editorReadOnly"
           @close-versions="rightPaneMode = 'settings'"
@@ -250,7 +251,7 @@
       </template>
     </UModal>
 
-    <UModal v-model:open="versionHistoryOpen" :ui="{ content: 'w-[calc(100vw-1rem)] max-w-6xl sm:w-[calc(100vw-2rem)]' }">
+    <UModal v-if="postVersioningEnabled" v-model:open="versionHistoryOpen" :ui="{ content: 'w-[calc(100vw-1rem)] max-w-6xl sm:w-[calc(100vw-2rem)]' }">
       <template #content>
         <UCard>
           <template #header>
@@ -307,6 +308,7 @@ definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
 type BlockEditorInstance = InstanceType<typeof BlockEditor> & { editor?: Editor, pickBlock?: (name: string) => void }
 const readFetchTimeoutMs = 10_000
 const writeFetchTimeoutMs = 30_000
+const postVersioningEnabled = __PB_MODULE_POST_VERSIONING__
 
 const route = useRoute()
 const { t } = useI18n()
@@ -702,17 +704,23 @@ const localConflictSavedAtLabel = computed(() => {
 const localConflictServerSavedAtLabel = computed(() => post.value?.updated_at ? formatAdminDateTime(post.value.updated_at) : '')
 
 async function openVersionHistory() {
+  if (!postVersioningEnabled) return
   rightPaneMode.value = 'versions'
   rightPaneCollapsed.value = false
   await loadVersions()
 }
 
 async function loadVersions() {
+  if (!postVersioningEnabled) {
+    versions.value = []
+    return
+  }
   const response = await fetchAdmin<{ versions: PostVersionRecord[] }>(`${apiPath.value}/versions`)
   versions.value = response.versions
 }
 
 async function selectVersion(version: PostVersionRecord) {
+  if (!postVersioningEnabled) return
   selectedVersion.value = version
   selectedVersionDoc.value = null
   versionDetailPending.value = true
@@ -725,6 +733,7 @@ async function selectVersion(version: PostVersionRecord) {
 }
 
 async function showVersionDiff(version: PostVersionRecord) {
+  if (!postVersioningEnabled) return
   versionHistoryOpen.value = true
   await selectVersion(version)
 }
@@ -732,6 +741,7 @@ async function showVersionDiff(version: PostVersionRecord) {
 // Restore a snapshot into the local editor only. Persists to the DB only when
 // the user clicks Update; matches the local-draft workflow.
 async function restoreSelectedVersion(version?: PostVersionRecord) {
+  if (!postVersioningEnabled) return
   const target = version ?? selectedVersion.value
   if (!target || editorReadOnly.value) return
   const detail = await fetchAdmin<{ content_json: JsonContent }>(`${apiPath.value}/versions/${encodeURIComponent(target.version)}`)
@@ -745,6 +755,7 @@ async function restoreFromDiff() {
 }
 
 async function deleteSelectedVersion(version?: PostVersionRecord) {
+  if (!postVersioningEnabled) return
   const target = version ?? selectedVersion.value
   if (!target || editorReadOnly.value) return
   await fetchAdmin(`${apiPath.value}/versions/${encodeURIComponent(target.version)}`, { method: 'DELETE' })

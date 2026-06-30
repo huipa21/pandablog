@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
       post: {
         ...payload,
         ...visibilityUpdates,
-        has_versioning: payload.status === 'published',
+        has_versioning: __PB_MODULE_POST_VERSIONING__ && payload.status === 'published',
         created_at: new Date(),
         view_count: 0
       }

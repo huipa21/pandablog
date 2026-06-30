@@ -140,6 +140,13 @@ export default defineNuxtModule({
       ignore.add('components/blog/PublishFrequencyHeatmap.vue')
     }
 
+    if (!modules.postVersioning.enabled) {
+      ignore.add('server/api/admin/posts/[id]/versions/**')
+      ignore.add('server/api/admin/settings/versioning.put.ts')
+      ignore.add('server/api/site/settings/versioning.get.ts')
+      ignore.add('pages/admin/settings/versioning.vue')
+    }
+
     nuxt.options.ignore = [...ignore]
     nuxt.options.nitro.ignore = [...nitroIgnore]
   }

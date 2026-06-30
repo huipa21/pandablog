@@ -2,7 +2,7 @@
   <aside data-testid="editor-sidebar-panel" class="flex flex-col bg-[var(--pb-card-bg)]">
     <div class="flex-1 overflow-y-auto p-4">
       <EditorVersionsPanel
-        v-if="mode === 'versions'"
+        v-if="postVersioningEnabled && mode === 'versions'"
         :versions="versions ?? []"
         :read-only="readOnly"
         @close="$emit('closeVersions')"
@@ -23,6 +23,8 @@ import type { PostVersionListItem } from '~/types/editor'
 // would otherwise fail to resolve.
 import BlockSettings from '~/components/admin/editor/blocks/BlockSettings.vue'
 import EditorVersionsPanel from '~/components/admin/editor/EditorVersionsPanel.vue'
+
+const postVersioningEnabled = __PB_MODULE_POST_VERSIONING__
 
 defineProps<{
   editor: Editor | null

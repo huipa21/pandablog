@@ -62,6 +62,9 @@ export const DEFAULT_PANDABLOG_MODULES: PandablogModulesConfig = {
   },
   publishActivityHeatmap: {
     enabled: true
+  },
+  postVersioning: {
+    enabled: true
   }
 }
 
@@ -91,6 +94,7 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
   const backupsEnabled = modules.backups?.enabled ?? DEFAULT_PANDABLOG_MODULES.backups.enabled
   const graphViewEnabled = modules.graphView?.enabled ?? DEFAULT_PANDABLOG_MODULES.graphView.enabled
   const publishActivityHeatmapEnabled = modules.publishActivityHeatmap?.enabled ?? DEFAULT_PANDABLOG_MODULES.publishActivityHeatmap.enabled
+  const postVersioningEnabled = modules.postVersioning?.enabled ?? DEFAULT_PANDABLOG_MODULES.postVersioning.enabled
 
   return {
     $schema: raw.$schema,
@@ -133,6 +137,9 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
       },
       publishActivityHeatmap: {
         enabled: publishActivityHeatmapEnabled
+      },
+      postVersioning: {
+        enabled: postVersioningEnabled
       }
     }
   }
@@ -155,7 +162,8 @@ export function getPandablogModuleDefines(manifest: PandablogModulesManifest): R
     __PB_MODULE_SECURITY_ALERTS__: asDefine(modules.securityAlerts.enabled),
     __PB_MODULE_BACKUPS__: asDefine(modules.backups.enabled),
     __PB_MODULE_GRAPH_VIEW__: asDefine(modules.graphView.enabled),
-    __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__: asDefine(modules.publishActivityHeatmap.enabled)
+    __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__: asDefine(modules.publishActivityHeatmap.enabled),
+    __PB_MODULE_POST_VERSIONING__: asDefine(modules.postVersioning.enabled)
   }
 
   for (const block of EDITOR_BLOCK_KEYS) {
