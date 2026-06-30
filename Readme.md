@@ -1,387 +1,275 @@
 # PandaBlog
 
-PandaBlog is a Nuxt-based personal knowledge management blog. It has a public SSR blog frontend and a protected admin workspace for writing rich posts, uploading assets, and building wiki-style concept links backed by SurrealDB graph relations.
+PandaBlog is a self-hosted, single-author blogging platform built on Nuxt. It pairs a fast,
+server-rendered public site with a rich, block-based admin workspace for writing posts,
+managing media, and configuring your site — all backed by SurrealDB.
 
-## Stack
+- **Public site**: SSR blog with posts, categories, tags, full-text search (including CJK),
+  a relationship graph, and a publish-activity heatmap.
+- **Admin workspace**: a Tiptap-based WYSIWYG editor with many content blocks, a hash-based
+  media library, analytics, logging, backups, post versioning, themes, and multi-user roles.
+- **Modular**: optional features can be compiled in or out per deployment.
 
-- Nuxt 4, Vue 3, TypeScript, Nitro server routes
-- Nuxt UI, Tailwind CSS, Nuxt Icon, Nuxt Image
-- SurrealDB 3.x for posts, assets, concepts, full-text indexes, and graph relations
-- `nuxt-auth-utils` for encrypted session cookies
-- Tiptap v2 for the admin editor
-- Shiki for public code block rendering
-- Mermaid for client-side diagram rendering
+---
+
+## Table of contents
+
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Environment variables](#environment-variables)
+- [First-run setup](#first-run-setup)
+- [Available scripts](#available-scripts)
+- [Optional features (modules)](#optional-features-modules)
+- [Content blocks](#content-blocks)
+- [Media library](#media-library)
+- [Backups](#backups)
+- [Themes](#themes)
+- [Visibility & access control](#visibility--access-control)
+- [Security & reverse proxy](#security--reverse-proxy)
+- [Deploying with Docker](#deploying-with-docker)
+- [Testing](#testing)
+- [Project layout](#project-layout)
+- [How it works](#how-it-works)
+
+---
+
+## Features
+
+- **Block editor** — headings, lists, quotes, tables, code blocks with syntax highlighting,
+  Mermaid diagrams, KaTeX math, image/media-text blocks, columns, tabs, accordions, diffs,
+  footnotes, annotations, custom HTML, video embeds, and more.
+- **WYSIWYG parity** — what you see in the editor matches the published post exactly.
+- **Media library** — drag-and-drop uploads, SHA-256 deduplication, automatic WebP variants,
+  folders, tags, search, and orphan cleanup.
+- **Full-text search** — multilingual search across titles, summaries, and body content, with
+  dedicated tokenization for English plus Simplified/Traditional Chinese and Japanese.
+- **Relationship graph** — explore posts by category, tag, and explicit post-to-post links.
+- **Post versioning** — automatic content snapshots with diff and restore.
+- **Analytics** — pageview/session metrics with optional city-level GeoIP lookups.
+- **Logging** — configurable access, activity, and error logs with export and retention tools.
+- **Backups** — full and incremental snapshots of the database and media, with import/export.
+- **Themes** — uploadable, validated themes with light/dark design tokens.
+- **Multi-user roles** — superadmin, admin, author, and viewer roles.
+- **Two-factor authentication** — per-account TOTP, with optional admin enforcement.
+- **Internationalized UI** — English and Simplified Chinese out of the box.
+
+---
+
+## Tech stack
+
+- [Nuxt 4](https://nuxt.com/) + Vue 3 + TypeScript, with Nitro server routes
+- [Nuxt UI](https://ui.nuxt.com/), Tailwind CSS, Nuxt Icon, Nuxt Image, Nuxt Fonts
+- [Pinia](https://pinia.vuejs.org/) for client state
+- [SurrealDB](https://surrealdb.com/) 3.x for data, full-text indexes, and graph relations
+- [`nuxt-auth-utils`](https://github.com/atinux/nuxt-auth-utils) for encrypted session cookies
+- [Tiptap v2](https://tiptap.dev/) for the admin editor
+- [Shiki](https://shiki.style/) for public code highlighting, [Mermaid](https://mermaid.js.org/)
+  for diagrams, [KaTeX](https://katex.org/) for math
+- [`sharp`](https://sharp.pixelplumbing.com/) for image processing, [`argon2`](https://github.com/ranisalt/node-argon2)
+  for password hashing, [`otplib`](https://github.com/yeojz/otplib) for TOTP
+- `@nuxtjs/i18n` for translations
+
+---
 
 ## Requirements
 
-- Node.js 22+ recommended
-- npm
-- A reachable SurrealDB 3.x instance
+- **Node.js 22+** (recommended)
+- **npm**
+- A reachable **SurrealDB 3.x** instance (local or remote, over a WebSocket endpoint)
 
-The repository includes [docker-compose.yml](docker-compose.yml) for a local SurrealDB container, but the app can also connect to a remote SurrealDB WebSocket endpoint.
+---
 
-## Environment
+## Quick start
 
-Create `.env` from [.env.example](.env.example):
+1. **Install dependencies**
 
-```bash
-cp .env.example .env
-```
+   ```bash
+   npm install
+   ```
 
-Required values:
+2. **Start SurrealDB** (skip if you already have a reachable instance). For example, with Docker:
+
+   ```bash
+   docker run --rm -p 8000:8000 surrealdb/surrealdb:latest \
+     start --user root --pass "your-local-password"
+   ```
+
+3. **Create a `.env` file** in the project root (see [Environment variables](#environment-variables)).
+
+4. **Run the dev server**
+
+   ```bash
+   npm run dev
+   ```
+
+5. **Open the app**
+
+   - Public site: <http://127.0.0.1:3000/>
+   - Admin login: <http://127.0.0.1:3000/admin/login>
+
+On first launch, visit `/admin` and complete the [first-run setup](#first-run-setup).
+
+---
+
+## Environment variables
+
+PandaBlog reads a `.env` file in the project root. During development these values take
+priority over OS environment variables.
+
+### Minimal `.env` for local development
 
 ```env
-SURREAL_URL="wss://your-surreal-host/rpc"
+# SurrealDB connection
+SURREAL_URL="ws://127.0.0.1:8000/rpc"
 SURREAL_NAMESPACE="main"
 SURREAL_DATABASE="main"
-SURREAL_ROOT="root-or-admin-user"
-SURREAL_ROOT_PASSWORD="your-db-password"
+SURREAL_ROOT="root"
+SURREAL_ROOT_PASSWORD="your-local-password"
 
-NUXT_SESSION_PASSWORD="at-least-32-random-characters"
+# Session cookie encryption — MUST be 32+ random characters.
+# Generate one with:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+NUXT_SESSION_PASSWORD="replace-with-a-32-plus-character-random-string"
 ```
 
-Optional (recommended) least-privilege runtime user — see
-[Scoped database user](#scoped-database-user):
+### Reference
 
-```env
-SURREAL_APP_USER="pandablog_app"
-SURREAL_APP_PASSWORD="another-strong-password"
-```
+| Variable | Purpose | Required |
+| --- | --- | --- |
+| `SURREAL_URL` | SurrealDB WebSocket RPC endpoint | Yes |
+| `SURREAL_NAMESPACE` | Database namespace | Yes |
+| `SURREAL_DATABASE` | Database name | Yes |
+| `SURREAL_ROOT` | Root user (used at boot for provisioning, schema, and backups) | Yes |
+| `SURREAL_ROOT_PASSWORD` | Root user password | Yes |
+| `NUXT_SESSION_PASSWORD` | 32+ character random string for session cookie encryption. Production refuses to start without it. | Yes |
+| `SURREAL_APP_USER` | Optional least-privilege, database-scoped runtime user (see [Scoped database user](#scoped-database-user)) | No |
+| `SURREAL_APP_PASSWORD` | Password for `SURREAL_APP_USER` (required if it is set) | No |
+| `MFA_SECRET` | Optional dedicated key for encrypting stored TOTP secrets at rest; falls back to `NUXT_SESSION_PASSWORD` (see [Two-factor authentication](#two-factor-authentication)) | No |
+| `GEOIP_DB_PATH` | Path to a MaxMind-compatible `.mmdb` file for city-level analytics | No |
+| `APP_SPONSOR` | Enables an optional sponsor flag for the public UI | No |
 
-On first deployment, visit `/admin` and complete the setup wizard. Admin username is fixed as `admin`; the wizard stores the password hash in SurrealDB `app_settings`.
+> **Note on production / Docker:** when running the built server, Nitro only overrides runtime
+> config from `NUXT_`-prefixed variables (for example `NUXT_SURREAL_URL`,
+> `NUXT_SURREAL_ROOT_PASSWORD`, `NUXT_MFA_SECRET`). A ready-to-edit production template lives at
+> [deploy/production/.env.example](deploy/production/.env.example).
 
-### Optional Analytics Geo Database
+### Optional analytics GeoIP database
 
-City-level analytics use a local MaxMind-compatible `.mmdb` file, not a SurrealDB table. Download the DB-IP City Lite database in MMDB format from DB-IP, then place it at:
+City-level analytics use a local MaxMind-compatible `.mmdb` file (not a database table). Download
+a city-level database in MMDB format and place it at:
 
 ```text
 storage/geoip/dbip-city-lite.mmdb
 ```
 
-To use a different location, set `GEOIP_DB_PATH` or `NUXT_GEOIP_DB_PATH` to the absolute path. In Docker, mount the file or the whole `storage` volume into the app container so it exists at `/app/storage/geoip/dbip-city-lite.mmdb`.
+To use a different location, set `GEOIP_DB_PATH` (or `NUXT_GEOIP_DB_PATH` in Docker). Until a
+database is present, the Analytics page shows a "GeoIP database not loaded" notice and the world
+map is empty.
 
-## Install And Run
+---
 
-Install dependencies:
+## First-run setup
 
-```bash
-npm install
-```
+The admin username is always `admin`. The password is **not** stored in an environment variable —
+on a fresh database, open `/admin` and complete the setup wizard. Your password is hashed with
+argon2id and stored in SurrealDB. You can change it later from **Admin → Settings → Profile**.
 
-Start SurrealDB locally if you are not using a remote instance:
+---
 
-```bash
-docker compose up -d surrealdb
-```
+## Available scripts
 
-Start the Nuxt dev server:
+| Script | Description |
+| --- | --- |
+| `npm run dev` | Start the Nuxt development server |
+| `npm run build` | Build the production server |
+| `npm run preview` | Preview the production build locally |
+| `npm run generate` | Generate static output |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run lint` | Lint code and check for style drift |
+| `npm run lint:fix` | Auto-fix lint issues |
+| `npm run lint:css` | Lint CSS and Vue styles |
+| `npm run format` | Format the codebase with Prettier |
+| `npm run test:unit` | Run unit tests (Vitest) |
+| `npm run test:e2e` | Run end-to-end tests (Playwright) |
+| `npm run configure` | Interactively select optional modules |
+| `npm run modules:print` | Print the normalized module manifest |
+| `npm run hash-password` | Generate an argon2 password hash |
 
-```bash
-npm run dev
-```
+---
 
-Open:
+## Optional features (modules)
 
-- Public site: `http://127.0.0.1:3000/`
-- Admin login: `http://127.0.0.1:3000/admin/login`
-
-Production build:
-
-```bash
-npm run build
-npm run preview
-```
-
-Typecheck:
-
-```bash
-npm run typecheck
-```
-
-Browser e2e tests:
-
-```bash
-$env:E2E_ADMIN_USERNAME="<your-e2e-admin-username>"
-$env:E2E_ADMIN_PASSWORD="<your-e2e-admin-password>"
-npm run test:e2e
-```
-
-The e2e suite starts the Nuxt dev server when `PLAYWRIGHT_BASE_URL` is not set. Set `PLAYWRIGHT_BASE_URL` to test an already-running local or staging instance.
-
-## Modules And Feature Flags
-
-PandaBlog can compile optional features in or out from [pandablog.modules.json](pandablog.modules.json). Edit the manifest directly, or use the local configurator:
+PandaBlog can compile optional features in or out via
+[pandablog.modules.json](pandablog.modules.json). Edit the manifest directly, or run the
+interactive configurator:
 
 ```bash
 npm run configure
 ```
 
-To print the normalized manifest for CI or deployment checks:
+To print the normalized manifest (useful for CI or deployment checks):
 
 ```bash
 npm run modules:print
 ```
 
-The manifest currently controls:
-
-- `editor`: the admin editor and individual block types.
-- `logs`: access, activity, and error logging surfaces.
-- `analytics`: pageview/session analytics and optional GeoIP lookup data.
-- `users`: multi-user roles and user management.
-- `themes`: admin theme management and bundled non-default themes. The default theme always remains available.
-- `mfa`: TOTP setup, challenge, and admin MFA enforcement.
-- `backups`: backup and restore APIs, admin UI, storage, and maintenance middleware.
-- `graphView`: public relationship graph widgets, `/graph`, and graph projection APIs.
-- `publishActivityHeatmap`: the public publish-activity heatmap widget and its `/api/posts/publish-frequency` endpoint.
-- `postVersioning`: admin post history, diff/restore endpoints, versioning settings, and historical block snapshots.
-
-At Nuxt startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the manifest, exposes the normalized settings at `runtimeConfig.public.modules`, and injects build constants such as `__PB_MODULE_ANALYTICS__` and `__PB_BLOCK_CODE_BLOCK__`. Disabled modules are also added to Nuxt/Nitro ignore rules where the app has a clean boundary, so their routes, pages, plugins, and storage payloads are not included in the build.
-
-SurrealDB 3 schema initialization is module-aware. [server/plugins/db-init.ts](server/plugins/db-init.ts) strips marked optional sections from [server/utils/schema.surql](server/utils/schema.surql) before hashing and applying the schema, so disabled `logs`, `analytics`, and `backups` modules do not create their optional tables on fresh installs.
-
-When `mfa.enabled` is `false`, MFA is silently bypassed for login: previously enrolled users and admins that would otherwise be required to enrol sign in with password-only authentication. This avoids lockouts but lowers authentication strength, so only disable MFA when that trade-off is intentional.
-
-## Build Docker Image
-
-Build the production image from `Dockerfile`:
-
-```bash
-docker build -t pandablog:latest .
-```
-
-The default image uses `node:22-bookworm-slim` for native-module compatibility.
-To test a smaller Alpine-based image, build both stages from Alpine:
-
-```bash
-docker build --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine .
-```
-
-Module selections are baked into the image during `npm run build` in the Docker
-builder stage. Update [pandablog.modules.json](pandablog.modules.json) or run
-`npm run configure` **before** `docker build`, then rebuild the image whenever
-the module selection changes. Runtime `.env` values cannot turn modules back on
-or off after the image is built.
-
-Only promote the Alpine image after a smoke test of login, image upload/variant
-generation, backups, and public post rendering. Native modules such as `sharp`
-and `argon2` are compiled for the selected base image.
-
-Check image size and runtime memory:
-
-```bash
-docker images pandablog
-docker history --no-trunc pandablog:latest
-docker run --rm pandablog:latest sh -c 'du -h -d 3 /app | sort -hr | head -40'
-docker stats --no-stream pandablog-app
-```
-
-A several-hundred-MB image is expected for this SSR app because it includes the
-Node runtime, Nuxt/Nitro server output, native image/auth dependencies, syntax
-highlighting, editor assets, Mermaid, and CJK text tooling. Around 100-200 MiB
-memory under light personal traffic is normal; measure again after admin editor
-use, media processing, and backup operations.
-
-Optional: export the image as a tarball for transfer to another host:
-
-```bash
-docker save -o pandablog-latest.tar pandablog:latest
-```
-
-If your target host uses Podman:
-
-```bash
-podman load -i pandablog-latest.tar
-```
-
-Run the image directly:
-
-```bash
-docker run -d \
-  --name pandablog \
-  -p 127.0.0.1:3000:3000 \
-  --env-file .env \
-  -v pandablog-storage:/app/storage \
-  pandablog:latest
-```
-
-Or use the provided production compose file:
-
-```bash
-# Option A: use locally built image
-set PANDABLOG_IMAGE=pandablog:latest
-
-# Option B: if loaded as localhost/pandablog:latest
-# set PANDABLOG_IMAGE=localhost/pandablog:latest
-
-docker compose -f docker-compose.prod.yml up -d
-```
-
-Verify container health/logs:
-
-```bash
-docker compose -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs -f app
-```
-
-Notes:
-
-- Keep real secrets in runtime `.env`; do not bake secrets into the image.
-- `docker-compose.prod.yml` expects `NUXT_*` variables (for example `NUXT_SURREAL_URL`, `NUXT_SESSION_PASSWORD`) in `.env`.
-- First deployment still requires opening `/admin` once to complete setup if `app_settings` is empty.
-
-## Security And Reverse Proxy
-
-PandaBlog is designed to run behind a TLS-terminating reverse proxy (nginx,
-Caddy, Traefik, or Cloudflare). The provided run commands bind the app to
-`127.0.0.1:3000` so only the proxy can reach it. The proxy should terminate
-HTTPS; in production the app emits HSTS and other security headers (see
-[server/middleware/security-headers.ts](server/middleware/security-headers.ts)).
-
-### Client IP And The `trust_proxy_headers` Setting
-
-The app derives each request's client IP from the `X-Forwarded-For` header when
-the runtime setting `trust_proxy_headers` is enabled. This client IP drives
-security-sensitive controls:
-
-- Login rate limiting and temporary lockout after repeated failures
-- Public rate limiting on search and analytics tracking
-- Password-protected post unlock throttling
-- Access logs, activity records, and geo lookups
-
-`trust_proxy_headers` defaults to `true` and is stored in the `app_settings`
-table under the `trust_proxy_headers` key (an admin-tier setting).
-
-> [!IMPORTANT]
-> Only keep `trust_proxy_headers` enabled when a **trusted** reverse proxy sits
-> in front of the app and **overwrites** `X-Forwarded-For` with the real client
-> IP (stripping any client-supplied value). If the app is exposed directly to
-> the internet with no such proxy, set `trust_proxy_headers` to `false` —
-> otherwise any client can spoof `X-Forwarded-For` to forge their IP, bypassing
-> rate limits and login lockout and poisoning access logs and analytics.
-
-Example proxy configuration that sets a trustworthy forwarded IP:
-
-```nginx
-# nginx
-proxy_set_header X-Forwarded-For $remote_addr;   # overwrite, do not append
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header Host $host;
-```
-
-```caddy
-# Caddy automatically sets X-Forwarded-For/Proto when used as a reverse_proxy
-reverse_proxy 127.0.0.1:3000
-```
-
-### Scoped database user
-
-By default the app authenticates to SurrealDB as the root user for everything.
-For defence in depth you can run normal request traffic as a least-privilege,
-**database-scoped** `EDITOR` user, reserving root for the few operations that
-actually need it.
-
-Set both of these (plus `NUXT_`-prefixed variants in Docker):
-
-```env
-SURREAL_APP_USER="pandablog_app"        # a simple identifier (letters/digits/_)
-SURREAL_APP_PASSWORD="another-strong-password"
-```
-
-When both are set:
-
-- At boot the app uses **root** once to provision/update this user via
-  `DEFINE USER ... ON DATABASE ... ROLES EDITOR` (idempotent — rotating
-  `SURREAL_APP_PASSWORD` simply takes effect on the next restart), then runs the
-  schema and migrations.
-- All normal request queries then sign in as the scoped `EDITOR` user, which can
-  read and write data but **cannot** manage database users/accesses or other
-  databases.
-- **Root is still required** and is used only at boot (provisioning + schema) and
-  for backup/restore (which stages and exports via the SurrealDB HTTP endpoint).
-  Keep `SURREAL_ROOT` / `SURREAL_ROOT_PASSWORD` set.
-
-If either variable is unset, the app falls back to using root for runtime
-queries (the previous behaviour), so this feature is fully opt-in.
-
-### Two-factor authentication (TOTP)
-
-Each account can enable time-based one-time password (TOTP) two-factor
-authentication from **Admin → Settings → Security**. Superadmins can also turn
-on **Require MFA for administrators**, which forces every superadmin/admin
-without MFA to enrol an authenticator app the next time they sign in.
-
-TOTP secrets are stored encrypted at rest (AES-256-GCM). The encryption key is
-derived from `NUXT_MFA_SECRET` when set, otherwise it falls back to
-`NUXT_SESSION_PASSWORD`:
-
-```env
-NUXT_MFA_SECRET="a-separate-strong-random-secret"   # optional but recommended
-```
-
-- Setting a dedicated `NUXT_MFA_SECRET` decouples MFA secrets from the session
-  cookie key so you can rotate one without the other.
-- **Rotating this key (or `NUXT_SESSION_PASSWORD` when no MFA secret is set)
-  invalidates all stored TOTP secrets** — affected users must re-enrol. Backup
-  codes are unaffected (they are hashed, not encrypted).
-- Database backups include the encrypted `totp_secret`, so a restore only works
-  with the matching key. Keep the secret with your backups' threat model in mind.
-
-## Project Layout
-
-```text
-assets/css/main.css                Global Tailwind and editor/content styles
-components/admin/TiptapEditor.vue  Rich admin editor wrapper
-components/admin/Media*.vue       Media library, uploader, picker, folders, orphans
-components/admin/editor/*          Tiptap Vue node views
-components/content/*               Public Tiptap JSON renderers
-extensions/*                       Custom Tiptap nodes
-layouts/admin.vue                  Protected admin shell
-layouts/default.vue                Public shell
-middleware/admin.global.ts         Client-side admin route guard
-pages/admin/*                      Admin login, dashboard, posts UI
-pages/blog/[slug].vue              Public post page
-pages/concept/[slug].vue           Public concept page for wiki-links
-server/api/*                       Nitro API endpoints
-server/plugins/db-init.ts          SurrealDB schema bootstrap
-server/utils/*                     DB, auth, content, wiki-link helpers
-types/content.ts                   Shared post/concept types
-```
-
-## How The App Works
-
-### Runtime Flow
-
-1. Nuxt starts and `server/plugins/db-init.ts` connects to SurrealDB.
-2. The schema in `server/utils/schema.surql` is applied with `IF NOT EXISTS`/`OVERWRITE` where needed.
-3. Public pages call cached Nitro endpoints under `server/api/posts` and `server/api/concepts`.
-4. Admin pages call protected endpoints under `server/api/admin`.
-5. Auth is session-cookie based via `nuxt-auth-utils`.
-
-### SurrealDB Model
-
-Core tables:
-
-- `post` stores title, slug, summary, Tiptap JSON, flattened search text, status, timestamps, and view count.
-- `files` stores hash-addressed media records. The SHA-256 hash is the record id and the stored filename.
-- `folder` stores user-created media folders. Month folders are virtual and derived from `files.uploaded_at`.
-- `asset` is the older upload table kept for compatibility with existing installs.
-- `concept` stores wiki-link topic hubs.
-- `tag` and `category` are prepared for future taxonomy features.
-
-Graph relation tables:
-
-- `mentions`: `post -> concept`, created from Tiptap `wikiLink` nodes on save.
-- `tagged`: `post -> tag`, reserved for tags.
-- `categorized_as`: `post -> category`, reserved for categories.
-- `post_reference`: `post -> post`, reserved for explicit post-to-post links.
-
-Full-text indexes are defined on `post.title`, `post.summary`, `post.content_text`, `files.original_name`, and `files.comment` using SurrealDB 3 `FULLTEXT ANALYZER` syntax.
-
-### Media Library
-
-Admin media lives at `/admin/media` and is backed by [server/api/media](server/api/media). Uploads can start from the media library, the reusable [components/admin/MediaPicker.vue](components/admin/MediaPicker.vue), post editors, and existing settings upload fields.
-
-Files are hashed with SHA-256 and stored in year/month folders:
+Available modules:
+
+| Module | What it controls |
+| --- | --- |
+| `editor` | The admin editor and individual content block types |
+| `logs` | Access, activity, and error logging surfaces |
+| `analytics` | Pageview/session analytics and optional GeoIP lookups |
+| `users` | Multi-user roles and user management |
+| `themes` | Theme management and bundled non-default themes (the default theme always remains) |
+| `mfa` | TOTP setup, challenge, and optional admin MFA enforcement |
+| `securityAlerts` | Security alerting surfaces |
+| `backups` | Backup/restore APIs, admin UI, and storage |
+| `graphView` | Public relationship graph widgets and projection APIs |
+| `publishActivityHeatmap` | The public publish-activity heatmap and its endpoint |
+| `postVersioning` | Post history, diff/restore, and historical block snapshots |
+
+**How it works:** at startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the
+manifest, exposes the normalized settings via runtime config, and injects build constants.
+Disabled modules are excluded from the build where the app has a clean boundary, and the
+SurrealDB schema is module-aware — disabled `logs`, `analytics`, and `backups` modules don't
+create their optional tables on a fresh install.
+
+> Module selections are baked in at **build time**. When deploying with Docker, update the
+> manifest **before** building the image; runtime environment variables cannot turn modules on
+> or off afterward.
+
+> When `mfa.enabled` is `false`, MFA is bypassed at login (password-only). This avoids lockouts
+> but lowers authentication strength — only disable it when that trade-off is intentional.
+
+---
+
+## Content blocks
+
+The admin editor is built on Tiptap and renders the same DOM the public site shows. Supported
+blocks include:
+
+- Headings, paragraphs, bold/italic/strike, highlight, links
+- Bullet, ordered, and nested lists
+- Blockquotes and separators
+- Code blocks with language selection (highlighted with Shiki on the public site)
+- Tables
+- Images and media-text blocks (via the media picker, paste, or drag-and-drop)
+- Columns, tabs, and accordions
+- Diff blocks, footnotes, and annotations
+- Mermaid diagrams and KaTeX math (inline and block)
+- Custom HTML, video embeds, and related-post blocks
+
+Unknown nodes degrade gracefully so older posts keep rendering after editor schema changes.
+
+---
+
+## Media library
+
+The media library lives at `/admin/media`. Files are hashed with SHA-256 and stored in
+year/month folders, with WebP variants generated for images:
 
 ```text
 storage/uploads/YYYY/MM/<hash>.<ext>
@@ -390,353 +278,290 @@ storage/variants/medium/YYYY/MM/<hash>.webp
 storage/variants/large/YYYY/MM/<hash>.webp
 ```
 
-The `files` record stores `hash`, `original_name`, `stored_name`, `mime_type`, `size`, `extension`, timestamps, optional `comment`, `is_image`, `image_meta`, `folders`, `tags`, `reference_count`, `referenced_by`, `original_path`, and `variants`. Duplicate uploads reuse the existing hash record and increment `reference_count`.
+- **Deduplication** — uploading the same bytes reuses the existing record and increments its
+  reference count.
+- **Serving** — originals are served from `/api/media/file/<hash>` and variants from
+  `/api/media/variant/<size>/<hash>` with immutable cache headers.
+- **Organization** — combine filters for name/comment text, upload date, type/MIME, custom
+  folder, tag, and orphan state. Virtual month folders are derived from upload dates and never
+  affect disk layout.
+- **Orphans** — files with no references can be listed and cleaned up (database record plus
+  physical files) from the admin UI, which requires confirmation. Optional scheduled cleanup is
+  configurable under **Admin → Settings → Media**.
 
-Images are processed with `sharp` for metadata and generated WebP variants (`thumbnail`, `medium`, `large`). File bytes are served from `/api/media/file/<hash>`, and variants from `/api/media/variant/<size>/<hash>` with immutable cache headers.
+---
 
-Search supports combined filters for name/comment text, upload date range, type/MIME, custom folder, tag, and orphan state. Custom folder CRUD endpoints live under `/api/media/folders`; virtual month folders are computed from `uploaded_at` and never affect disk layout.
+## Backups
 
-Orphans are files where `reference_count = 0` and `referenced_by = []`. Use `GET /api/media/orphans` to list them and `POST /api/media/orphans/cleanup` to delete database records plus physical original/variant files. The admin UI requires confirmation for delete and orphan cleanup actions.
+**Admin → Tools → Backups** (superadmin only) provides manual snapshot management. Each snapshot
+is stored under `storage/backups/<id>/`:
 
-Optional scheduled orphan cleanup is configured in Admin -> Settings -> Media and stored in `app_settings`.
+```text
+db.surql.gz     Gzipped SurrealDB export (full database)
+media.tar.gz    Gzipped tar of media originals (full or incremental set)
+manifest.json   SHA-256 hashes + metadata for integrity verification
+```
 
-### Admin Editor
+- **Full** — entire database plus all current media files.
+- **Incremental** — a fresh full database dump plus only media files added since the parent
+  snapshot. Incrementals form a chain; restore walks the chain oldest-first to reconstruct the
+  full media set.
+- **Restore is replace-only** — the database is wiped and reimported, variants are cleared, then
+  each chain ancestor's media is extracted (idempotent by hash filename). Image variants are
+  regenerated in the background afterward.
+- **Export / Import** — download a snapshot's archives and import them on another instance to
+  register a new restorable snapshot. An optional `manifest.json` enables integrity verification.
 
-[components/admin/TiptapEditor.vue](components/admin/TiptapEditor.vue) wraps Tiptap and emits the full JSON document back to the post form.
+> Backups are manual (no scheduling) and have no automatic retention policy — delete old
+> snapshots from the UI. Only one backup job runs at a time per server process.
 
-Supported editor features:
+---
 
-- Headings, paragraphs, bold, italic, strike
-- Bullet and ordered lists
-- Blockquotes
-- Links
-- Code blocks with language selection
-- Image insertion through the media picker, plus paste or drag/drop upload
-- Mermaid diagram nodes
-- Wiki-link nodes through `[[Concept]]` typing or the toolbar search field
+## Themes
 
-Uploaded images go through [server/api/admin/upload.post.ts](server/api/admin/upload.post.ts), which now delegates to the hash-based media library.
+The public site uses an uploadable theme system. Themes live in `themes/<id>/`:
 
-### Rich Content Rendering
+```text
+themes/my-theme/
+├── theme.json      # manifest (required)
+├── tokens.json     # design tokens for light + dark (required)
+├── theme.css       # CSS overrides (required)
+└── preview.png     # preview thumbnail (required)
+```
 
-Public rendering starts in [components/content/ContentRenderer.vue](components/content/ContentRenderer.vue). It recursively walks Tiptap JSON and delegates rich nodes:
+See `themes/default/` for a reference implementation. Tokens are split into `light` and `dark`
+sets and exposed as CSS custom properties (for example `color.bg` → `--color-bg`).
 
-- `codeBlock` -> [components/content/NodeCodeBlock.vue](components/content/NodeCodeBlock.vue), rendered with Shiki during SSR.
-- `mermaid` -> [components/content/NodeMermaid.vue](components/content/NodeMermaid.vue), rendered in the browser with Mermaid inside `<ClientOnly>`.
-- `wikiLink` -> [components/content/NodeWikiLink.vue](components/content/NodeWikiLink.vue), linking to `/concept/<slug>`.
-- `image` -> [components/content/NodeImage.vue](components/content/NodeImage.vue), rendered with `NuxtImg`.
+**Uploading:** zip your theme folder, then go to **Admin → Settings → Themes → Upload .zip**.
+Uploads must be ≤5 MB and pass validation (no path traversal, allowed extensions only, valid
+manifest, and CSS free of `@import`, `javascript:`, or `expression()`). After upload, preview the
+theme and then activate it.
 
-Unknown nodes fall back to a normal wrapper and continue rendering their children so old posts do not crash after editor schema changes.
+---
 
-### Wiki-Links And Concepts
+## Visibility & access control
 
-The custom wiki-link extension lives in [extensions/wikiLink.ts](extensions/wikiLink.ts). It converts `[[Some Concept]]` into a Tiptap `wikiLink` node.
+PandaBlog has two independent visibility layers.
 
-On post create/update:
+### Site-wide
 
-1. `server/utils/wikiLinks.ts` extracts all `wikiLink` nodes from `content_json`.
-2. Missing `concept` records are created.
-3. Old `mentions` relations for the post are deleted.
-4. Current `post -> mentions -> concept` relations are written.
+Set under **Admin → Settings → Visibility**:
 
-The concept page at `/concept/[slug]` lists published posts that mention that concept.
+- **Public** (default) — anyone can browse; per-post rules still apply.
+- **Private** — anonymous visitors are redirected to login; only the admin can browse.
 
-### Caching
+If SurrealDB is unreachable while reading this setting, the site defaults to **public**
+(fail-open) so a database outage can't lock everyone out.
 
-Public post and concept APIs use Nitro `defineCachedEventHandler` with short stale-while-revalidate caching. This is intentionally simple for now; later phases can add tag-based invalidation and longer ISR-style caching.
+### Per-post
 
-## API Overview
+Set on each post in the editor:
 
-Public:
+- **Public** — visible to anyone (default).
+- **Private** — hidden from non-admins; returns 404 to anonymous visitors and is excluded from
+  public lists.
+- **Password protected** — listed publicly, but the body is gated behind a password. A correct
+  entry sets a signed cookie so the post stays unlocked on later visits. Passwords are stored as
+  argon2id hashes and unlock attempts are rate-limited.
 
-- `GET /api/posts` lists published posts.
-- `GET /api/posts/:slug` returns a published post.
-- `GET /api/concepts/:slug` returns a concept and published posts mentioning it.
-- `GET /api/graph/overview` returns visible weighted category/tag nodes and co-occurrence edges for the graph overview.
-- `GET /api/graph/cluster?category=<slug>` returns a capped visible post graph for one category.
-- `GET /api/graph/post/:slug` returns a visible two-hop local graph centered on one post.
+The logged-in admin always sees everything, regardless of either layer.
 
-Auth:
+---
 
-- `POST /api/auth/login` creates an admin session.
-- `POST /api/auth/logout` clears the session.
-- `GET /api/auth/session` returns the current session state.
+## Security & reverse proxy
 
-Admin:
+PandaBlog is designed to run behind a TLS-terminating reverse proxy (nginx, Caddy, Traefik, or
+Cloudflare). In production it emits HSTS and other security headers, and session cookies are set
+`Secure` — so the admin area must be served over HTTPS.
 
-- `GET /api/admin/posts` lists non-archived posts.
-- `POST /api/admin/posts` creates a post.
-- `GET /api/admin/posts/:id` fetches a post.
-- `PUT /api/admin/posts/:id` updates a post and syncs wiki relations.
-- `DELETE /api/admin/posts/:id` archives a post.
-- `POST /api/admin/upload` uploads and deduplicates a local asset.
-- `GET /api/admin/concepts/search?q=` searches concepts and posts for the wiki-link picker.
+### Client IP and `trust_proxy_headers`
 
-Logging Admin:
+The app derives each request's client IP from `X-Forwarded-For` when the `trust_proxy_headers`
+setting is enabled (default). This IP drives login rate limiting and lockout, public rate limits,
+password-unlock throttling, and access logs/geo lookups.
 
-- `GET /api/admin/settings/logging` returns current logging settings.
-- `PUT /api/admin/settings/logging` updates logging settings and refreshes the in-memory cache.
-- `POST /api/admin/settings/logging/reset` resets logging settings to defaults.
-- `GET /api/admin/logs/access` queries access logs with filter + pagination.
-- `GET /api/admin/logs/activity` queries activity logs with filter + pagination.
-- `GET /api/admin/logs/errors` queries error logs with filter + pagination.
-- `GET /api/admin/logs/:type/:id` returns a single log record by type + id.
-- `GET /api/admin/logs/:type/export?format=csv|json` exports filtered logs (capped at 10k rows).
-- `POST /api/admin/logs/cleanup` manually deletes logs with `{ type, mode, value }`, where mode is `older_than_days` or `keep_latest`.
-- `DELETE /api/admin/logs/:type` purges a full log table (requires confirmation token in body).
-- `GET /api/admin/logs/stats` returns counts + oldest/newest timestamps + size estimate.
+> **Important:** only keep `trust_proxy_headers` enabled when a **trusted** reverse proxy sits in
+> front of the app and **overwrites** `X-Forwarded-For` with the real client IP. If the app is
+> exposed directly to the internet, set it to `false` — otherwise clients can spoof the header to
+> forge their IP and bypass rate limiting.
 
-## Logging System
+Example nginx configuration that sets a trustworthy forwarded IP (overwrite, do not append):
 
-The app now includes a runtime-configurable logging system with SurrealDB-backed settings and log tables.
+```nginx
+location / {
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host              $host;
+    proxy_pass http://127.0.0.1:3000;
+}
+```
 
-### SurrealDB storage
+### Scoped database user
 
-- Logging configuration is stored in `app_settings` with key `logging`.
-- `access_logs`
-- `activity_logs`
-- `error_logs`
+By default the app authenticates to SurrealDB as root. For defense in depth, you can run normal
+request traffic as a least-privilege, database-scoped `EDITOR` user and reserve root for boot-time
+provisioning, schema, and backups. Set both:
 
-The log tables are created in `server/utils/schema.surql` and applied automatically by `server/plugins/db-init.ts`.
+```env
+SURREAL_APP_USER="pandablog_app"        # a simple identifier (letters/digits/_)
+SURREAL_APP_PASSWORD="a-strong-password"
+```
 
-### Runtime behavior
+When both are set, the app provisions/updates this user at boot using root (idempotent — rotating
+the password just takes effect on restart), then signs in as the scoped user for normal queries.
+Root remains required for boot and backups, so keep `SURREAL_ROOT` / `SURREAL_ROOT_PASSWORD` set.
+If either variable is unset, the app falls back to root for runtime queries.
 
-- Logging settings are cached in memory and initialized on server startup.
-- Updating logging settings via API atomically replaces the cache object.
-- Logging DB writes are fire-and-forget and isolated from request failures.
-- Metadata/context fields are redacted recursively using configured `redact_fields`.
-- Oversized metadata is truncated with `{ _truncated: true }` payload marker.
-- A 60-second DB write circuit breaker prevents repeated write failures from cascading.
-- Log cleanup is manual: delete rows older than a day count or keep the latest N rows for one log type.
+### Two-factor authentication
 
-### Activity action naming
+Each account can enable TOTP from **Admin → Settings → Security**. Superadmins can require MFA for
+all administrators, forcing enrollment at next sign-in.
 
-Use `<resource>.<verb>` naming for activity logs. Current actions in this codebase:
+TOTP secrets are encrypted at rest (AES-256-GCM). The key is derived from `MFA_SECRET` when set,
+otherwise from `NUXT_SESSION_PASSWORD`.
 
-- `auth.login`
-- `site.visibility.update`
-- `system.log_cleanup`
+> Rotating the MFA key (or the session password when no dedicated MFA key is set) **invalidates
+> all stored TOTP secrets** — affected users must re-enroll. Backup codes are hashed (not
+> encrypted) and are unaffected. Database backups include the encrypted secrets, so a restore only
+> works with the matching key.
 
-### Tests
+---
 
-Run logging unit tests:
+## Deploying with Docker
+
+A production-ready `Dockerfile` and Compose setup are included.
+
+1. **Select modules** in [pandablog.modules.json](pandablog.modules.json) (they are baked in at
+   build time).
+
+2. **Build the image** from the project root:
+
+   ```bash
+   docker build -t pandablog:latest .
+   ```
+
+   The default base image is `node:22-bookworm-slim` for native-module compatibility. To
+   experiment with a smaller image, build from Alpine:
+
+   ```bash
+   docker build --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine .
+   ```
+
+   Only promote the Alpine image after smoke-testing login, image upload/variant generation,
+   backups, and public post rendering — native modules such as `sharp` and `argon2` are compiled
+   for the selected base image.
+
+3. **Configure runtime env.** The production Compose file expects `NUXT_`-prefixed variables. Copy
+   the template and fill in real values:
+
+   ```bash
+   cp deploy/production/.env.example deploy/production/.env
+   ```
+
+4. **Run** with the provided Compose file:
+
+   ```bash
+   docker compose -f deploy/production/docker-compose.yml up -d
+   ```
+
+   Or run the image directly behind your own proxy:
+
+   ```bash
+   docker run -d \
+     --name pandablog \
+     -p 127.0.0.1:3000:3000 \
+     --env-file deploy/production/.env \
+     -v pandablog-storage:/app/storage \
+     pandablog:latest
+   ```
+
+Notes:
+
+- Keep real secrets in the runtime `.env`; never bake them into the image.
+- Bind-mount or use a volume for `/app/storage` so uploads, variants, backups, and the GeoIP
+  database persist across restarts.
+- First deployment still requires opening `/admin` once to complete setup.
+
+---
+
+## Testing
+
+**Unit tests** (Vitest):
 
 ```bash
 npm run test:unit
 ```
 
-## Verification
-
-Current checks used during implementation:
+**End-to-end tests** (Playwright):
 
 ```bash
-npm run typecheck
-npm run build
+npm run test:e2e
 ```
 
-Manual smoke flow:
+The e2e suite starts the dev server automatically unless `PLAYWRIGHT_BASE_URL` is set (point it at
+an already-running instance to test that instead). Admin credentials for the suite are read from
+your `.env` file via `E2E_ADMIN_USERNAME` and `E2E_ADMIN_PASSWORD`.
 
-1. Sign in at `/admin/login`.
-2. Create a post in `/admin/posts`.
-3. Add formatted text, an image, a code block, a Mermaid diagram, and a wiki-link.
-4. Publish the post.
-5. Open `/blog/<slug>` and `/concept/<wiki-link-slug>`.
+---
 
-## Notes For Future Phases
+## Project layout
 
-- Add a dedicated full-site search UI using SurrealDB full-text indexes.
-- Add a graph visualization route with Cytoscape.js.
-- Add analytics collection and dashboard widgets.
-- Add stronger cache invalidation when posts are published or archived.
-
-## Backup & Restore
-
-Admin → Tools → Backups (superadmin only) provides manual snapshot management.
-
-### Snapshot layout
-
-Each snapshot is stored in `storage/backups/<id>/`:
-
-```
-db.surql.gz     Gzipped SurrealDB export (full DB, every snapshot)
-media.tar.gz    Gzipped tar of media originals (full or incremental set)
-manifest.json   SHA-256 hashes + metadata for integrity verification
-```
-
-### Backup types
-
-- **Full** — entire database + all files currently in `storage/uploads/`.
-- **Incremental** — fresh full DB dump + only media files that are *new* since the parent snapshot.
-  Incrementals form a chain; restore walks the chain oldest-first to reconstruct the full media set.
-
-### Restore semantics
-
-Restore is **replace-only**: the DB is wiped and reimported, variant images (`storage/variants/`) are cleared, then each chain ancestor's media tar is extracted into `storage/uploads/` (idempotent by hash filename). Variants are regenerated in the background at a concurrency of 2 after restore completes.
-
-### Export / Import
-
-Use **Download DB** and **Download Media** buttons to export a snapshot's archives. Upload them via **Import backup** on another instance to register them as a new restorable full snapshot. Optional `manifest.json` enables SHA-256 integrity verification on import.
-
-### Known limitations
-
-- No scheduled/automatic backups in v1 (manual trigger only).
-- No per-snapshot retention policy (delete manually from the UI).
-- Consolidated incremental download returns the tip tar only; restore automatically applies the full chain.
-- The in-process backup mutex prevents concurrent backups; only one job runs at a time per Node process.
-
-## Auth Setup
-
-The admin login uses environment variables. The `.env` file in the project root has **highest priority** over OS environment variables.
-
-### Configure admin credentials
-
-On a fresh deployment, open `/admin` and complete the first-run setup wizard. The username is always `admin`; the password hash is stored in the SurrealDB `app_settings` table.
-
-### Required env vars
-
-| Variable | Purpose | Required |
-|---|---|---|
-| `SURREAL_URL` | SurrealDB RPC endpoint | Yes |
-| `SURREAL_NAMESPACE` | DB namespace | Yes |
-| `SURREAL_DATABASE` | DB name | Yes |
-| `SURREAL_ROOT` | Root user (boot provisioning + schema + backups) | Yes |
-| `SURREAL_ROOT_PASSWORD` | Root password | Yes |
-| `SURREAL_APP_USER` | Optional least-privilege DB-scoped runtime user (see [Scoped database user](#scoped-database-user)) | No |
-| `SURREAL_APP_PASSWORD` | Password for `SURREAL_APP_USER` (required if it is set) | No |
-| `NUXT_SESSION_PASSWORD` | 32+ char random string for session cookie encryption | Yes (prod hard-fails without it) |
-| `NUXT_MFA_SECRET` | Optional key for encrypting TOTP secrets at rest; falls back to `NUXT_SESSION_PASSWORD`. Rotating it forces MFA re-enrolment (see [Two-factor authentication](#two-factor-authentication-totp)) | No |
-
-### Rate limiting
-
-Failed login attempts are tracked per IP. After 5 failed attempts within 15 minutes, that IP is locked for 15 minutes. Storage lives at `./storage/rate-limit/` (gitignored).
-
-### Rotating the admin password
-
-Open Admin -> Settings -> Profile -> User Info and change the password there. Existing sessions remain valid until expiry; log out from `/admin` to invalidate the current browser session immediately.
-
-### Production reverse proxy (nginx)
-
-When Admin -> Settings -> Site -> Network -> Trust reverse proxy headers is enabled, the login endpoint trusts the `X-Forwarded-For` header to determine the client IP for rate limiting. **Your nginx config must strip any inbound `X-Forwarded-For` header from clients and set its own**, otherwise an attacker can spoof the header to bypass per-IP lockout.
-
-Recommended nginx location block:
-
-```nginx
-location / {
-    # Always overwrite (do NOT use add_header — that appends).
-    proxy_set_header X-Real-IP        $remote_addr;
-    proxy_set_header X-Forwarded-For  $remote_addr;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Host             $host;
-
-    proxy_pass http://127.0.0.1:3000;
-}
+```text
+app.vue, app.config.ts             App root and runtime app config
+nuxt.config.ts                     Nuxt configuration and runtime config
+pandablog.modules.json             Optional-module manifest
+assets/css/main.css                Global Tailwind and content styles
+components/admin/                   Admin UI: editor, media, settings
+components/admin/editor/            Tiptap Vue node views (editor side)
+components/content/                 Public Tiptap JSON renderers (reader side)
+components/post/, components/blog/  Public post and listing components
+extensions/                        Custom Tiptap nodes and editor commands
+composables/                       Shared Vue composables
+layouts/admin.vue, default.vue     Admin shell and public shell
+middleware/admin.global.ts         Client-side admin route guard
+pages/admin/                       Admin login, dashboard, posts, settings, etc.
+pages/blog/[slug].vue              Public post page
+pages/                             Home, search, graph, category, tag pages
+server/api/                        Nitro API endpoints (public + admin)
+server/plugins/db-init.ts          SurrealDB schema bootstrap and migrations
+server/utils/                      DB, auth, content, and helper utilities
+server/utils/schema.surql          SurrealDB schema definition
+themes/                            Bundled and uploaded themes
+i18n/locales/                      UI translations (en, zh-CN)
+tests/unit, tests/e2e              Unit and end-to-end tests
+deploy/production/                 Production Dockerfile env, Compose, nginx
 ```
 
-Key point: `proxy_set_header X-Forwarded-For $remote_addr;` **replaces** any client-supplied value with the real socket address nginx sees. Do not use `$proxy_add_x_forwarded_for` here unless you have an additional trusted proxy in front of nginx.
+---
 
-### HTTP vs HTTPS in production
+## How it works
 
-If you serve over plain HTTP (no TLS), avoid production mode for admin traffic. However:
-- Anyone on the network path can read the session cookie.
-- `Secure` cookies cannot be transmitted over HTTP at all in modern browsers.
+### Runtime flow
 
-Nuxt enables secure session cookies in production mode. **If you must serve admin traffic over HTTP in prod**, sessions will silently fail to set in the browser. Either:
-1. Use HTTPS for the admin area (strongly recommended), or
-2. Manually override the cookie config in `nuxt.config.ts` (not recommended; do this only with full awareness of the risk).
+1. Nuxt starts and [server/plugins/db-init.ts](server/plugins/db-init.ts) connects to SurrealDB.
+2. The schema in [server/utils/schema.surql](server/utils/schema.surql) is applied (module-aware),
+   followed by any data migrations.
+3. Public pages call cached Nitro endpoints; admin pages call protected endpoints under
+   `server/api/admin`.
+4. Authentication is session-cookie based via `nuxt-auth-utils`.
 
-The public blog frontend can safely run on HTTP; only the admin/login flow is sensitive.
+### Data model
 
-## Theming
+Content is normalized in SurrealDB:
 
-The public blog uses an uploadable theme system. Themes live in `./themes/<id>/`.
+- `post` — title, slug, summary, status, visibility, timestamps, view/word counts, and version
+  flags. (Block content is stored separately.)
+- `block` — one row per top-level editor block, with the Tiptap node, flattened search text, and a
+  content hash for diffing.
+- `versions` + `has_version` + `has_blocks` — post content snapshots used for history, diffs, and
+  restore.
+- `files` + `folder` — the hash-addressed media library.
+- `tag`, `category` — taxonomy, linked to posts via the `tagged` and `categorized_as` relations.
+- `links` — explicit post-to-post relationships used by the graph view.
+- `users` — accounts and roles (superadmin, admin, author, viewer).
+- `app_settings` — key/value store for site settings (visibility, logging, media, etc.).
+- `edit_lock` — ensures a single active editor per post.
 
-### Theme structure
-
-```
-themes/my-theme/
-├── theme.json      # manifest (required)
-├── tokens.json     # design tokens for light + dark (required)
-├── theme.css       # CSS overrides (required)
-└── preview.png     # 1200x630 thumbnail (required)
-```
-
-See `themes/default/` for a reference implementation.
-
-### Manifest fields (`theme.json`)
-
-| Field | Required | Description |
-|---|---|---|
-| `id` | yes | Lowercase alphanumeric + dashes, 2-50 chars. Reserved: `default`. |
-| `name` | yes | Display name. |
-| `version` | yes | Semver `x.y.z`. |
-| `author` | yes | Free text. |
-| `description` | yes | Free text, ≤500 chars. |
-| `supports` | yes | Array containing `"light"` and/or `"dark"`. |
-| `preview` | yes | Filename of the preview image. |
-| `tokens` | yes | Filename of the tokens JSON. |
-| `css` | yes | Filename of the CSS overrides. |
-| `layout` | yes | Layout preferences (see below). |
-
-### Layout preferences
-
-```json
-{
-  "type": "three-column",          // or "two-column" | "single-column"
-  "leftSidebar": "toc",            // or "nav" | null
-  "rightSidebar": "meta-graph",    // or "meta" | "related" | null
-   "maxContentWidth": "72rem",
-  "showCoverImage": true,
-  "stickyHeader": true
-}
-```
-
-### Tokens (`tokens.json`)
-
-Two top-level keys: `light` and `dark`. Each contains categories: `color`, `font`, `size`, `space`, `radius`, `shadow`. Each category is a flat object mapping name → CSS value.
-
-Tokens are exposed as CSS custom properties: `color.bg` → `--color-bg`, `font.sans` → `--font-sans`, etc.
-
-### Uploading
-
-1. Zip your theme folder (containing `theme.json` at root or inside one top-level folder).
-2. Go to **Admin → Settings → Themes**.
-3. Click **Upload .zip**.
-4. The zip must be ≤5 MB and must pass validation:
-   - No path traversal in entry names
-   - Allowed extensions only (`.json`, `.css`, image, `.md`, `.txt`)
-   - Manifest passes schema validation
-   - CSS does not use `@import`, `javascript:`, or `expression()`
-   - Theme id must not already exist
-5. After upload, click **Preview** to inspect, then **Activate** to publish.
-
-## Site and post visibility
-
-PandaBlog has two independent visibility layers: site-wide and per-post.
-
-### Site-wide visibility
-
-Set in **Admin -> Settings -> Visibility**.
-
-- **Public** (default): anyone can browse the site. Per-post rules still apply.
-- **Private**: anonymous visitors are redirected to login. Only the admin can browse.
-
-The setting is stored in `app_settings:site_visibility` and enforced via Nitro middleware.
-
-### Per-post visibility
-
-Set on each post in the editor.
-
-- **Public**: visible to anyone (default).
-- **Private**: hidden from non-admins. Returns 404 to anonymous visitors. Excluded from public lists and concept pages.
-- **Password protected**: appears in public lists, but the body is gated behind a password. Correct entry sets a 7-day signed cookie so the post stays unlocked on later visits.
-
-Passwords are stored as argon2id hashes. Failed unlock attempts are rate-limited (5 per 15 minutes per IP per post).
-
-### Admin override
-
-The logged-in admin always sees everything regardless of either layer.
-
-### Failure mode
-
-If SurrealDB is unreachable while reading site visibility, PandaBlog defaults to `'public'` (fail-open). This prevents DB outages from locking out the site.
+Full-text indexes cover post titles and summaries, block text, and media names/comments, using a
+multilingual analyzer tuned for English and CJK content.
