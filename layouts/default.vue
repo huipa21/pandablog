@@ -206,13 +206,20 @@
 
     <!-- Footer -->
     <footer class="border-t border-[var(--pb-border)] bg-[var(--pb-surface)] text-sm text-[var(--pb-text-muted)]">
-      <div data-public-container="footer" class="mx-auto grid w-full max-w-[var(--pb-site-content-max)] gap-6 px-5 py-6 md:grid-cols-[1fr_auto_auto] md:items-start">
-        <div>
-          <div class="font-medium text-[var(--pb-text)]">{{ siteName }}</div>
-          <p class="mt-1">{{ footerCopyright }}</p>
-        </div>
+      <div data-public-container="footer" class="mx-auto flex w-full max-w-[var(--pb-site-content-max)] flex-wrap items-center gap-x-6 gap-y-2 px-5 py-6">
+        <p>{{ footerCopyright }}</p>
 
-        <nav v-if="footerLinks.length" class="flex flex-wrap gap-x-4 gap-y-2 md:justify-end">
+        <span v-if="footerShowPoweredBy">
+          Powered by
+          <a
+            href="https://github.com/huipa21/pandablog"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="font-medium text-[var(--pb-link)] underline underline-offset-2 hover:text-[var(--pb-link-hover)]"
+          >PandaBlog</a>
+        </span>
+
+        <nav v-if="footerLinks.length" class="flex flex-wrap items-center gap-x-4 gap-y-2">
           <NuxtLink
             v-for="link in footerLinks"
             :key="`${link.label}:${link.url}`"
@@ -223,7 +230,7 @@
           </NuxtLink>
         </nav>
 
-        <div v-if="footerSocial.length" class="flex gap-2 md:justify-end">
+        <div v-if="footerSocial.length" class="flex flex-wrap items-center gap-2">
           <UButton
             v-for="link in footerSocial"
             :key="`${link.label}:${link.url}`"
@@ -271,6 +278,7 @@ const {
   footerLinks,
   footerSocial,
   footerFilings,
+  footerShowPoweredBy,
   hasFilingInfo
 } = useSiteSettings()
 

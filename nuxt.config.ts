@@ -11,6 +11,11 @@ function env(name: string, fallback = ''): string {
   return localEnv[name] ?? process.env[name] ?? fallback
 }
 
+function envFlag(name: string, fallback = false): boolean {
+  const value = env(name, fallback ? 'true' : 'false').trim().toLowerCase()
+  return value === 'true' || value === '1' || value === 'yes' || value === 'on'
+}
+
 const isProd = process.env.NODE_ENV === 'production'
 const publicThemeInitScript = `(() => {
   try {
@@ -106,6 +111,7 @@ export default defineNuxtConfig({
       }
     },
     public: {
+      appSponsor: envFlag('APP_SPONSOR'),
       modules: {}
     }
   },

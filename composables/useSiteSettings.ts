@@ -28,6 +28,7 @@ export interface SiteSettings {
 }
 
 export function useSiteSettings() {
+  const runtimeConfig = useRuntimeConfig()
   const fallback = computed<SiteSettings>(() => {
     const siteTitle = 'PandaBlog'
 
@@ -105,6 +106,7 @@ export function useSiteSettings() {
     footerLinks: computed(() => settings.value.footer_links),
     footerSocial: computed(() => settings.value.footer_social),
     footerFilings: computed(() => settings.value.footer_filings),
+    footerShowPoweredBy: computed(() => runtimeConfig.public.appSponsor === true),
     hasFilingInfo: computed(() => settings.value.footer_filings.length > 0)
   }
 }

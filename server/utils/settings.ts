@@ -36,7 +36,8 @@ export const PUBLIC_SETTING_KEYS = [
   'footer_copyright',
   'footer_links',
   'footer_social',
-  'footer_filings'
+  'footer_filings',
+  'footer_show_powered_by'
 ] as const
 
 export const RUNTIME_SETTING_KEYS = [
@@ -172,6 +173,7 @@ export interface PublicSiteSettings {
   footer_links: SettingsLink[]
   footer_social: SettingsLink[]
   footer_filings: SettingsLink[]
+  footer_show_powered_by: boolean
 }
 
 const publicSettingKeySet = new Set<string>(PUBLIC_SETTING_KEYS)
@@ -601,7 +603,8 @@ export function normalizePublicSettings(values: Record<string, unknown>): Public
     footer_copyright: stringValue(values.footer_copyright),
     footer_links: linksValue(values.footer_links),
     footer_social: linksValue(values.footer_social),
-    footer_filings: linksValue(values.footer_filings)
+    footer_filings: linksValue(values.footer_filings),
+    footer_show_powered_by: booleanValue(values.footer_show_powered_by, true)
   }
 }
 
