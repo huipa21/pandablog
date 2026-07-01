@@ -3,6 +3,7 @@ import { checkLoginRateLimit, recordLoginAttempt } from '../../utils/rate-limit'
 import { alertDetailsFromEvent, dispatchSecurityAlert } from '../../utils/notify/security-alert'
 import { setMfaPending } from '../../utils/mfa/session'
 import { getUserMfaState } from '../../utils/mfa/store'
+import { findMatchingTrustedDevice, refreshTrustedDevice, resolveTrustedDeviceContext, trustedDeviceContextMatches } from '../../utils/mfa/trusted-devices'
 import { getSecuritySettings, getRuntimeFlags, isSetupCompleted } from '../../utils/settings'
 import { findUserByUsername, toSessionUser, touchUserLogin, verifyUserPassword } from '../../utils/users'
 import type { UserRole } from '../../utils/users'
@@ -106,6 +107,33 @@ export default defineEventHandler(async (event) => {
   if (__PB_MODULE_MFA__) {
     const mfaState = await getUserMfaState(user.id)
     if (mfaState?.enabled) {
+      const trustedDevice = await findMatchingTrustedDevice(event, user.id)
+      if (trustedDevice) {
+        const trustedContext = await resolveTrustedDeviceContext(event)
+        if (trustedDeviceContextMatches(trustedDevice, trustedContext)) {
+          await setUserSession(event, {
+            user,
+            loggedInAt: new Date().toISOString()
+          })
+          await refreshTrustedDevice(event, trustedDevice, trustedContext)
+          await touchUserLogin(user.id)
+
+          recordActivity(event, {
+            action: 'auth.login',
+            resource_type: 'session',
+            resource_id: user.id,
+            metadata: { username: user.username, role: user.role, mfa: true, trusted_device: true },
+            description: 'User signed in'
+          })
+          dispatchSecurityAlert('login.success', alertDetailsFromEvent(event, {
+            username: user.username,
+            reason: `Role: ${user.role} (MFA trusted device)`
+          }))
+
+          return { user }
+        }
+      }
+
       await setMfaPending(event, user.id, 'verify')
       return { mfa_required: true }
     }

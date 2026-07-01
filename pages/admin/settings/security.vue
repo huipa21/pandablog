@@ -122,6 +122,62 @@
               {{ t('admin.settings.security.mfaDisable') }}
             </UButton>
           </div>
+
+          <section class="grid gap-3 border-t border-[var(--pb-divider)] pt-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.settings.security.trustedDevicesTitle') }}</h3>
+                <p class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.security.trustedDevicesHelp') }}</p>
+              </div>
+              <div class="flex gap-2">
+                <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-refresh-cw" :loading="devicesPending" @click="loadTrustedDevices">
+                  {{ t('admin.settings.security.trustedDevicesRefresh') }}
+                </UButton>
+                <UButton color="error" variant="subtle" size="sm" icon="i-lucide-trash-2" :loading="devicesBusy" :disabled="!trustedDevices.length" @click="revokeAllDevices">
+                  {{ t('admin.settings.security.trustedDevicesRevokeAll') }}
+                </UButton>
+              </div>
+            </div>
+
+            <div v-if="devicesPending" class="grid gap-2">
+              <USkeleton class="h-16" />
+              <USkeleton class="h-16" />
+            </div>
+
+            <UAlert
+              v-else-if="!trustedDevices.length"
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-monitor"
+              :title="t('admin.settings.security.trustedDevicesEmpty')"
+            />
+
+            <ul v-else class="grid gap-2">
+              <li
+                v-for="device in trustedDevices"
+                :key="device.id"
+                class="grid gap-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+              >
+                <div class="min-w-0 space-y-2">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <UInput v-model="deviceLabels[device.id]" size="sm" class="min-w-0 max-w-sm flex-1" />
+                    <UBadge v-if="device.current" color="primary" variant="subtle">{{ t('admin.settings.security.trustedDevicesCurrent') }}</UBadge>
+                  </div>
+                  <p class="text-xs text-[var(--pb-text-muted)]">
+                    {{ trustedDeviceSummary(device) }}
+                  </p>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-check" :loading="devicesBusy" @click="renameDevice(device)">
+                    {{ t('admin.common.save') }}
+                  </UButton>
+                  <UButton color="error" variant="subtle" size="sm" icon="i-lucide-x" :loading="devicesBusy" @click="revokeDevice(device.id)">
+                    {{ t('admin.settings.security.trustedDevicesRevoke') }}
+                  </UButton>
+                </div>
+              </li>
+            </ul>
+          </section>
         </div>
 
         <!-- Status: disabled -->
@@ -263,11 +319,27 @@ async function sendTest() {
 // ---- Personal multi-factor authentication ---------------------------------
 interface MfaStatus { enabled: boolean, enabled_at: string | null, backup_codes_remaining: number }
 type MfaMode = 'idle' | 'enroll' | 'codes' | 'disable'
+interface TrustedDeviceItem {
+  id: string
+  label: string
+  userAgent: string | null
+  ip: string | null
+  ipPrefix: string | null
+  country: string | null
+  createdAt: string
+  lastUsedAt: string
+  expiresAt: string
+  current: boolean
+}
 
 const mfaStatus = ref<MfaStatus | null>(null)
 const mfaPending = ref(true)
 const mfaMode = ref<MfaMode>('idle')
 const mfaBusy = ref(false)
+const trustedDevices = ref<TrustedDeviceItem[]>([])
+const deviceLabels = reactive<Record<string, string>>({})
+const devicesPending = ref(false)
+const devicesBusy = ref(false)
 const mfaCode = ref('')
 const disablePassword = ref('')
 const enrollQr = ref('')
@@ -278,10 +350,87 @@ async function loadMfaStatus() {
   mfaPending.value = true
   try {
     mfaStatus.value = await $fetch<MfaStatus>('/api/admin/auth/mfa/status')
+    if (mfaStatus.value.enabled) {
+      await loadTrustedDevices()
+    } else {
+      trustedDevices.value = []
+    }
   } catch {
     mfaStatus.value = null
   } finally {
     mfaPending.value = false
+  }
+}
+
+async function loadTrustedDevices() {
+  devicesPending.value = true
+  try {
+    const response = await $fetch<{ devices: TrustedDeviceItem[] }>('/api/admin/auth/devices/list')
+    trustedDevices.value = response.devices ?? []
+    for (const device of trustedDevices.value) {
+      deviceLabels[device.id] = device.label
+    }
+  } catch (err: any) {
+    adminToast.error(err, t('admin.settings.security.trustedDevicesError'))
+  } finally {
+    devicesPending.value = false
+  }
+}
+
+function trustedDeviceSummary(device: TrustedDeviceItem) {
+  const location = device.country || device.ipPrefix || device.ip || t('admin.settings.security.trustedDevicesUnknownLocation')
+  return t('admin.settings.security.trustedDevicesSummary', {
+    location,
+    lastUsed: formatDeviceDate(device.lastUsedAt),
+    expires: formatDeviceDate(device.expiresAt)
+  })
+}
+
+function formatDeviceDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return t('admin.settings.security.trustedDevicesUnknownDate')
+  return date.toLocaleString()
+}
+
+async function renameDevice(device: TrustedDeviceItem) {
+  devicesBusy.value = true
+  try {
+    await $fetch('/api/admin/auth/devices/rename', {
+      method: 'POST',
+      body: { id: device.id, label: deviceLabels[device.id] ?? device.label }
+    })
+    adminToast.success(t('admin.settings.security.trustedDevicesRenamed'))
+    await loadTrustedDevices()
+  } catch (err: any) {
+    adminToast.error(err, t('admin.settings.security.trustedDevicesError'))
+  } finally {
+    devicesBusy.value = false
+  }
+}
+
+async function revokeDevice(id: string) {
+  devicesBusy.value = true
+  try {
+    await $fetch('/api/admin/auth/devices/revoke', { method: 'POST', body: { id } })
+    adminToast.success(t('admin.settings.security.trustedDevicesRevoked'))
+    await loadTrustedDevices()
+  } catch (err: any) {
+    adminToast.error(err, t('admin.settings.security.trustedDevicesError'))
+  } finally {
+    devicesBusy.value = false
+  }
+}
+
+async function revokeAllDevices() {
+  devicesBusy.value = true
+  try {
+    await $fetch('/api/admin/auth/devices/revoke-all', { method: 'POST' })
+    trustedDevices.value = []
+    adminToast.success(t('admin.settings.security.trustedDevicesRevokedAll'))
+  } catch (err: any) {
+    adminToast.error(err, t('admin.settings.security.trustedDevicesError'))
+  } finally {
+    devicesBusy.value = false
   }
 }
 
@@ -347,6 +496,7 @@ async function confirmDisable() {
     })
     adminToast.success(t('admin.settings.security.mfaDisabled'))
     mfaMode.value = 'idle'
+    trustedDevices.value = []
     resetMfaInputs()
     await loadMfaStatus()
   } catch (err: any) {

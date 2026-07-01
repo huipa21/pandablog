@@ -5,6 +5,7 @@ import { getMfaPending } from '../../../utils/mfa/session'
 import { getUserMfaState, setUserBackupCodes } from '../../../utils/mfa/store'
 import { decryptMfaSecret } from '../../../utils/mfa/secret-crypto'
 import { matchBackupCode, verifyTotpToken } from '../../../utils/mfa/totp'
+import { issueTrustedDevice, rebindCurrentTrustedDevice, resolveTrustedDeviceContext } from '../../../utils/mfa/trusted-devices'
 import { getRuntimeFlags } from '../../../utils/settings'
 import { findUserById, toSessionUser, touchUserLogin } from '../../../utils/users'
 
@@ -13,7 +14,7 @@ import { findUserById, toSessionUser, touchUserLogin } from '../../../utils/user
 // then issue the full authenticated session. Rate limited per IP+user so a
 // pending token cannot be brute forced.
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ code?: string }>(event)
+  const body = await readBody<{ code?: string, trustDevice?: boolean }>(event)
   const code = String(body?.code ?? '').trim()
 
   const pending = await getMfaPending(event)
@@ -67,17 +68,22 @@ export default defineEventHandler(async (event) => {
   }
 
   const user = toSessionUser(account)
+  const trustedContext = await resolveTrustedDeviceContext(event)
   await replaceUserSession(event, {
     user,
     loggedInAt: new Date().toISOString()
   })
+  const reboundTrustedDevice = await rebindCurrentTrustedDevice(event, user.id, trustedContext)
+  if (!reboundTrustedDevice && body?.trustDevice === true) {
+    await issueTrustedDevice(event, user.id, trustedContext)
+  }
   await touchUserLogin(user.id)
 
   recordActivity(event, {
     action: 'auth.login',
     resource_type: 'session',
     resource_id: user.id,
-    metadata: { username: user.username, role: user.role, mfa: true, backup_code: usedBackupCode },
+    metadata: { username: user.username, role: user.role, mfa: true, backup_code: usedBackupCode, trusted_device: body?.trustDevice === true || reboundTrustedDevice },
     description: 'User signed in'
   })
   dispatchSecurityAlert('login.success', alertDetailsFromEvent(event, {

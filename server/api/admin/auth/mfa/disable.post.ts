@@ -2,6 +2,7 @@ import { recordActivity } from '../../../../utils/activity'
 import { requireUser } from '../../../../utils/auth'
 import { disableUserMfa, getUserMfaState, setUserBackupCodes } from '../../../../utils/mfa/store'
 import { decryptMfaSecret } from '../../../../utils/mfa/secret-crypto'
+import { revokeAllTrustedDevices } from '../../../../utils/mfa/trusted-devices'
 import { matchBackupCode, verifyTotpToken } from '../../../../utils/mfa/totp'
 import { findUserById, verifyUserPassword } from '../../../../utils/users'
 
@@ -38,6 +39,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await disableUserMfa(sessionUser.id)
+  await revokeAllTrustedDevices(event, sessionUser.id)
 
   recordActivity(event, {
     action: 'auth.mfa.disabled',

@@ -31,6 +31,11 @@
           >
         </label>
 
+        <label class="login-check">
+          <input v-model="trustDevice" type="checkbox">
+          <span>{{ t('public.login.mfa.trustDevice') }}</span>
+        </label>
+
         <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
 
         <button class="login-submit" type="submit" :disabled="loading" :aria-busy="loading">
@@ -136,6 +141,7 @@ const enrollQr = ref('')
 const enrollSecret = ref('')
 const backupCodes = ref<string[]>([])
 const pendingUser = ref<LoginUser | null>(null)
+const trustDevice = ref(false)
 
 onMounted(async () => {
   const setup = await $fetch<{ completed: boolean }>('/api/auth/setup-status').catch(() => null)
@@ -193,7 +199,7 @@ async function verifyMfa() {
   try {
     const response = await $fetch<{ user: LoginUser }>('/api/auth/login/mfa', {
       method: 'POST',
-      body: { code: mfaCode.value }
+      body: { code: mfaCode.value, trustDevice: trustDevice.value }
     })
     await navigateTo(targetForRole(response.user.role))
   } catch (error: any) {
@@ -252,6 +258,7 @@ async function finishEnrollment() {
 function resetToCredentials() {
   step.value = 'credentials'
   mfaCode.value = ''
+  trustDevice.value = false
   enrollQr.value = ''
   enrollSecret.value = ''
   backupCodes.value = []
@@ -416,6 +423,25 @@ function targetForRole(role: Role) {
   color: var(--pb-text);
   font-size: 0.95rem;
   font-weight: 650;
+}
+
+.login-check {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  margin-top: -0.5rem;
+  color: color-mix(in srgb, var(--pb-text) 82%, transparent);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.login-check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.12rem 0 0;
+  accent-color: var(--pb-primary);
 }
 
 .login-input {

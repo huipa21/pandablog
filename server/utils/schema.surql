@@ -46,6 +46,21 @@ DEFINE FIELD IF NOT EXISTS updated_at ON users TYPE datetime DEFAULT time::now()
 DEFINE INDEX IF NOT EXISTS users_username_unique ON TABLE users COLUMNS username UNIQUE;
 DEFINE INDEX IF NOT EXISTS users_role ON TABLE users FIELDS role;
 
+-- ============ TRUSTED DEVICES (MFA) ============
+DEFINE TABLE OVERWRITE trusted_devices SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS user ON trusted_devices TYPE record<users>;
+DEFINE FIELD IF NOT EXISTS token_hash ON trusted_devices TYPE string;
+DEFINE FIELD IF NOT EXISTS label ON trusted_devices TYPE string;
+DEFINE FIELD IF NOT EXISTS user_agent ON trusted_devices TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS ua_hash ON trusted_devices TYPE string;
+DEFINE FIELD IF NOT EXISTS ip ON trusted_devices TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS ip_prefix ON trusted_devices TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS country ON trusted_devices TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS created_at ON trusted_devices TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS last_used_at ON trusted_devices TYPE datetime DEFAULT time::now();
+DEFINE FIELD IF NOT EXISTS expires_at ON trusted_devices TYPE datetime;
+DEFINE INDEX IF NOT EXISTS trusted_devices_user ON TABLE trusted_devices FIELDS user;
+
 -- ============ POST (metadata only — block content lives in `block` table) ============
 DEFINE TABLE OVERWRITE post SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS title ON post TYPE string;
