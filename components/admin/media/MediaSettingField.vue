@@ -2,7 +2,7 @@
   <div class="grid gap-2">
     <label class="text-sm font-medium text-[var(--pb-text-muted)]">{{ label }}</label>
     <div v-if="previewSource" class="relative overflow-hidden rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)]" :class="previewContainerClass">
-      <img v-if="!previewFailed" :src="previewSource" :alt="label" class="bg-[var(--pb-surface-subtle)] object-cover" :class="previewImageClass || [previewClass || 'h-36', 'w-full']" :style="previewStyle" @error="previewFailed = true">
+      <img v-if="!previewFailed" :src="previewSource" :alt="label" class="bg-[var(--pb-surface-subtle)]" :class="previewImageClass || [previewClass || 'h-36', 'w-full', 'object-cover']" :style="previewStyle" @error="previewFailed = true">
       <div v-else class="flex flex-col items-center justify-center gap-2 bg-[var(--pb-surface-subtle)] px-4 py-8 text-center text-[var(--pb-text-subtle)]" :class="previewImageClass || [previewClass || 'h-36', 'w-full']" :style="previewStyle">
         <UIcon name="i-lucide-image-off" class="size-8" />
         <span class="text-sm font-medium">{{ placeholder || label }}</span>

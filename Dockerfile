@@ -49,9 +49,10 @@ RUN mkdir -p /app/runtime \
  && cp -r node_modules/node-cron   /app/runtime/.output/server/node_modules/node-cron
 
 RUN node -e "const { readFileSync, rmSync } = require('node:fs'); \
-let themesEnabled = true; \
-try { const manifest = JSON.parse(readFileSync('/app/pandablog.modules.json', 'utf8')); themesEnabled = manifest.modules?.themes?.enabled !== false; } catch {} \
-if (!themesEnabled) { for (const theme of ['clay', 'notion', 'tesla']) rmSync('/app/runtime/themes/' + theme, { recursive: true, force: true }); }"
+const BUNDLED = ['tesla', 'clay', 'notion', 'hexagon']; \
+let themesEnabled = true; let bundled = {}; \
+try { const manifest = JSON.parse(readFileSync('/app/pandablog.modules.json', 'utf8')); themesEnabled = manifest.modules?.themes?.enabled !== false; bundled = manifest.modules?.themes?.bundled || {}; } catch {} \
+for (const theme of BUNDLED) { const keep = themesEnabled && bundled[theme] !== false; if (!keep) rmSync('/app/runtime/themes/' + theme, { recursive: true, force: true }); }"
 
 
 # ---------- Stage 2: runtime ----------

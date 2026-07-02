@@ -40,8 +40,11 @@ export interface UsersModuleConfig {
   multiUser: boolean
 }
 
+export type BundledThemeKey = 'tesla' | 'clay' | 'notion' | 'hexagon'
+
 export interface ThemesModuleConfig {
   enabled: boolean
+  bundled: Record<BundledThemeKey, boolean>
 }
 
 export interface MfaModuleConfig {

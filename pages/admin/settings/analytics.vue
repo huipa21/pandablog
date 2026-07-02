@@ -51,7 +51,8 @@
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
-const { data, pending, error } = await useAsyncData('admin-settings-analytics', () => $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings'))
+const sessionFetch = useSessionFetch()
+const { data, pending, error } = await useAsyncData('admin-settings-analytics', () => sessionFetch<{ settings: Record<string, unknown> }>('/api/admin/settings'))
 const adminToast = useAdminToast()
 const saving = ref(false)
 const form = reactive({

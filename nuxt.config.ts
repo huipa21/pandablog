@@ -151,7 +151,7 @@ export default defineNuxtConfig({
         { key: 'pb-public-theme-init', innerHTML: publicThemeInitScript }
       ],
       link: [
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+        { rel: 'icon', key: 'favicon', type: 'image/x-icon', href: '/favicon.ico' }
       ]
     }
   },

@@ -115,7 +115,11 @@ export default defineEventHandler(async (event) => {
             user,
             loggedInAt: new Date().toISOString()
           })
-          await refreshTrustedDevice(event, trustedDevice, trustedContext)
+          try {
+            await refreshTrustedDevice(event, trustedDevice, trustedContext)
+          } catch (error) {
+            console.warn('[auth.login] trusted device refresh failed; login continues', error)
+          }
           await touchUserLogin(user.id)
 
           recordActivity(event, {

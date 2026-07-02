@@ -344,9 +344,9 @@ const quickNewItems = computed(() => [[
 
 useHead(() => ({
   title: siteName.value,
-  link: publicSiteFavicon.value
-    ? [{ rel: 'icon', href: publicSiteFavicon.value }]
-    : []
+  link: [
+    { rel: 'icon', key: 'favicon', href: publicSiteFavicon.value || '/favicon.ico' }
+  ]
 }))
 
 async function createQuickPost() {

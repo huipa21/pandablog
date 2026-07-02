@@ -58,3 +58,4 @@ scripts/*
 !scripts/print-modules.ts
 !scripts/configure/
 !scripts/configure/index.html
+pandablog.modules.json.example

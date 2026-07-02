@@ -28,7 +28,7 @@
           :label="t('admin.settings.profile.avatar')"
           :model-value="form.owner_avatar"
           preview-container-class="w-fit rounded-full"
-          preview-image-class="size-32 rounded-full"
+          preview-image-class="size-32 rounded-full object-cover"
           @update:model-value="form.owner_avatar = $event"
           @browse="mediaPickerOpen = true"
         />
@@ -110,7 +110,8 @@ import type { JsonContent, MediaRecord } from '~/types/content'
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
-const { data, pending, error } = await useAsyncData('admin-settings-profile', () => $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings'))
+const sessionFetch = useSessionFetch()
+const { data, pending, error } = await useAsyncData('admin-settings-profile', () => sessionFetch<{ settings: Record<string, unknown> }>('/api/admin/settings'))
 
 const form = reactive({
   owner_name: '',

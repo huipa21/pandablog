@@ -87,6 +87,8 @@
               <MediaSettingField
                 :label="t('admin.settings.general.logo')"
                 :model-value="form.site_logo"
+                preview-container-class="flex items-center justify-center p-4"
+                preview-image-class="h-20 w-auto max-w-full object-contain"
                 @update:model-value="form.site_logo = $event"
                 @browse="openMediaPicker('site_logo')"
               />
@@ -94,6 +96,8 @@
               <MediaSettingField
                 :label="t('admin.settings.general.favicon')"
                 :model-value="form.site_favicon"
+                preview-container-class="w-fit p-3"
+                preview-image-class="size-12 object-contain rounded-[var(--pb-radius-control)]"
                 @update:model-value="form.site_favicon = $event"
                 @browse="openMediaPicker('site_favicon')"
               />
@@ -284,10 +288,11 @@ const filingIconOptions = computed<Array<{ label: string, value: FilingIconPrese
   { label: t('admin.settings.general.filingIconCustom'), value: 'custom' }
 ])
 
+const sessionFetch = useSessionFetch()
 const { data, pending, error } = await useAsyncData('admin-settings-general', async () => {
   const [settingsResponse, visibilityResponse] = await Promise.all([
-    $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings'),
-    $fetch<{ mode: SiteVisibility }>('/api/admin/site/visibility')
+    sessionFetch<{ settings: Record<string, unknown> }>('/api/admin/settings'),
+    sessionFetch<{ mode: SiteVisibility }>('/api/admin/site/visibility')
   ])
 
   return {

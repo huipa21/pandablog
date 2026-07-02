@@ -85,6 +85,15 @@ function serializeDate(value: unknown): string {
   return String(value ?? '')
 }
 
+/**
+ * Compute the trusted-device expiry as a JS `Date`. SurrealDB's schemafull
+ * `datetime` fields reject raw ISO strings via parameter binding, so this MUST
+ * be bound as a `Date` (see `toDatetime()` in `server/utils/content.ts`).
+ */
+export function trustedDeviceExpiry(now: Date = new Date()): Date {
+  return new Date(now.getTime() + TRUSTED_DEVICE_TTL_MS)
+}
+
 function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value ? value : null
 }
@@ -287,7 +296,7 @@ export async function issueTrustedDevice(
       ip: deviceContext.ip,
       ipPrefix: deviceContext.ipPrefix,
       country: deviceContext.country,
-      expiresAt: new Date(Date.now() + TRUSTED_DEVICE_TTL_MS).toISOString()
+      expiresAt: trustedDeviceExpiry()
     }
   )
 
@@ -327,7 +336,7 @@ export async function refreshTrustedDevice(
       table: TRUSTED_DEVICES_TABLE,
       id: deviceId,
       tokenHash,
-      expiresAt: new Date(Date.now() + TRUSTED_DEVICE_TTL_MS).toISOString(),
+      expiresAt: trustedDeviceExpiry(),
       rebind: options.rebind === true,
       userAgent: context.userAgent,
       uaHash: context.uaHash,

@@ -34,7 +34,7 @@
           :preview-value="avatarPreviewUrl"
           :placeholder="t('public.profile.avatarPlaceholder')"
           preview-container-class="w-fit rounded-full"
-          preview-image-class="size-36 rounded-full"
+          preview-image-class="size-36 rounded-full object-cover"
           @update:model-value="profileForm.avatar = normalizeAvatarValue($event)"
           @browse="avatarPickerOpen = true"
         />

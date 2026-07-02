@@ -59,7 +59,17 @@
           "additionalProperties": false,
           "required": ["enabled"],
           "properties": {
-            "enabled": { "type": "boolean" }
+            "enabled": { "type": "boolean" },
+            "bundled": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "tesla": { "type": "boolean" },
+                "clay": { "type": "boolean" },
+                "notion": { "type": "boolean" },
+                "hexagon": { "type": "boolean" }
+              }
+            }
           }
         },
         "mfa": {

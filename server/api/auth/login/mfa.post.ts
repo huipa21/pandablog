@@ -73,9 +73,14 @@ export default defineEventHandler(async (event) => {
     user,
     loggedInAt: new Date().toISOString()
   })
-  const reboundTrustedDevice = await rebindCurrentTrustedDevice(event, user.id, trustedContext)
-  if (!reboundTrustedDevice && body?.trustDevice === true) {
-    await issueTrustedDevice(event, user.id, trustedContext)
+  let reboundTrustedDevice = false
+  try {
+    reboundTrustedDevice = await rebindCurrentTrustedDevice(event, user.id, trustedContext)
+    if (!reboundTrustedDevice && body?.trustDevice === true) {
+      await issueTrustedDevice(event, user.id, trustedContext)
+    }
+  } catch (error) {
+    console.warn('[auth.mfa] trusted device update failed; login continues', error)
   }
   await touchUserLogin(user.id)
 

@@ -1,5 +1,5 @@
 import { defineNuxtModule } from '@nuxt/kit'
-import { getPandablogModuleDefines, loadPandablogModules } from '../build/pandablog-modules'
+import { BUNDLED_THEME_KEYS, getPandablogModuleDefines, loadPandablogModules } from '../build/pandablog-modules'
 
 export default defineNuxtModule({
   meta: {
@@ -95,9 +95,17 @@ export default defineNuxtModule({
       ignore.add('server/api/admin/themes/**')
       ignore.add('server/utils/theme-installer.ts')
       ignore.add('pages/admin/settings/themes.vue')
-      nitroIgnore.add('themes/clay/**')
-      nitroIgnore.add('themes/notion/**')
-      nitroIgnore.add('themes/tesla/**')
+      // With theme management off, only the default theme is kept.
+      for (const theme of BUNDLED_THEME_KEYS) {
+        nitroIgnore.add(`themes/${theme}/**`)
+      }
+    } else {
+      // Theme management is on: exclude only the individually deselected themes.
+      for (const theme of BUNDLED_THEME_KEYS) {
+        if (!modules.themes.bundled[theme]) {
+          nitroIgnore.add(`themes/${theme}/**`)
+        }
+      }
     }
 
     if (!modules.mfa.enabled) {

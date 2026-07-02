@@ -193,7 +193,14 @@ interface AdminSessionUser {
 }
 
 const { t, locale, setLocale } = useI18n()
-const { siteName, siteLogo } = useSiteSettings()
+const { siteName, siteLogo, siteFavicon } = useSiteSettings()
+const { resolveMediaUrl } = useMediaUrl()
+const adminFavicon = computed(() => resolveMediaUrl(siteFavicon.value))
+useHead(() => ({
+  link: [
+    { rel: 'icon', key: 'favicon', href: adminFavicon.value || '/favicon.ico' }
+  ]
+}))
 const sessionFetch = useSessionFetch()
 const moduleFlags = useModuleFlags()
 const analyticsModuleEnabled = moduleFlags.analytics

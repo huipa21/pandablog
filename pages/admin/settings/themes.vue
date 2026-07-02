@@ -121,7 +121,7 @@ const adminToast = useAdminToast()
 const previewId = ref<string | null>(null)
 const deleteDialogOpen = ref(false)
 const pendingDeleteThemeId = ref<string | null>(null)
-const builtInThemeIds = new Set(['default', 'tesla', 'notion', 'clay'])
+const builtInThemeIds = new Set(['default', 'tesla', 'notion', 'clay', 'hexagon'])
 const deleteDialogDescription = computed(() => pendingDeleteThemeId.value
   ? t('admin.settings.themes.deleteDescription', { id: pendingDeleteThemeId.value })
   : t('admin.settings.themes.deleteFallback'))

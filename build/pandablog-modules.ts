@@ -1,8 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { EditorBlockKey, PandablogModulesConfig, PandablogModulesManifest } from '../types/pandablog-modules'
+import type { BundledThemeKey, EditorBlockKey, PandablogModulesConfig, PandablogModulesManifest } from '../types/pandablog-modules'
 
 export const PANDABLOG_MODULES_MANIFEST = 'pandablog.modules.json'
+
+// Non-default themes that ship with the repo and can be individually
+// included or excluded at build time. The `default` theme is never listed
+// here because it must always remain available.
+export const BUNDLED_THEME_KEYS = ['tesla', 'clay', 'notion', 'hexagon'] as const satisfies readonly BundledThemeKey[]
 
 export const EDITOR_BLOCK_KEYS = [
   'accordionBlock',
@@ -46,7 +51,8 @@ export const DEFAULT_PANDABLOG_MODULES: PandablogModulesConfig = {
     multiUser: true
   },
   themes: {
-    enabled: true
+    enabled: true,
+    bundled: Object.fromEntries(BUNDLED_THEME_KEYS.map((key) => [key, true])) as Record<BundledThemeKey, boolean>
   },
   mfa: {
     enabled: true
@@ -89,6 +95,7 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
   const analyticsEnabled = modules.analytics?.enabled ?? DEFAULT_PANDABLOG_MODULES.analytics.enabled
   const usersEnabled = modules.users?.enabled ?? DEFAULT_PANDABLOG_MODULES.users.enabled
   const themesEnabled = modules.themes?.enabled ?? DEFAULT_PANDABLOG_MODULES.themes.enabled
+  const themesBundled = modules.themes?.bundled ?? DEFAULT_PANDABLOG_MODULES.themes.bundled
   const mfaEnabled = modules.mfa?.enabled ?? DEFAULT_PANDABLOG_MODULES.mfa.enabled
   const securityAlertsEnabled = modules.securityAlerts?.enabled ?? DEFAULT_PANDABLOG_MODULES.securityAlerts.enabled
   const backupsEnabled = modules.backups?.enabled ?? DEFAULT_PANDABLOG_MODULES.backups.enabled
@@ -121,7 +128,10 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
         multiUser: usersEnabled && (modules.users?.multiUser ?? true)
       },
       themes: {
-        enabled: themesEnabled
+        enabled: themesEnabled,
+        bundled: Object.fromEntries(
+          BUNDLED_THEME_KEYS.map((key) => [key, themesEnabled && (themesBundled[key] ?? true)])
+        ) as Record<BundledThemeKey, boolean>
       },
       mfa: {
         enabled: mfaEnabled

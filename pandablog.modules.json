@@ -5,8 +5,8 @@
       "enabled": true,
       "blocks": {
         "accordionBlock": true,
-        "annotationBlock": true,
-        "blockMath": true,
+        "annotationBlock": false,
+        "blockMath": false,
         "blockquote": true,
         "codeBlock": true,
         "columnsBlock": true,
@@ -16,7 +16,7 @@
         "footnotesBlock": true,
         "horizontalRule": true,
         "image": true,
-        "inlineMath": true,
+        "inlineMath": false,
         "mediaText": true,
         "mermaid": true,
         "relatedPost": true,
@@ -27,7 +27,7 @@
     },
     "logs": {
       "enabled": true,
-      "accessLogs": true,
+      "accessLogs": false,
       "activityLogs": true,
       "errorLogs": true
     },
@@ -36,17 +36,23 @@
       "geoip": true
     },
     "users": {
-      "enabled": true,
-      "multiUser": true
+      "enabled": false,
+      "multiUser": false
     },
     "themes": {
-      "enabled": true
+      "enabled": true,
+      "bundled": {
+        "tesla": true,
+        "clay": true,
+        "notion": true,
+        "hexagon": true
+      }
     },
     "mfa": {
       "enabled": true
     },
     "securityAlerts": {
-      "enabled": true
+      "enabled": false
     },
     "backups": {
       "enabled": true
@@ -58,7 +64,7 @@
       "enabled": true
     },
     "postVersioning": {
-      "enabled": true
+      "enabled": false
     }
   }
 }
