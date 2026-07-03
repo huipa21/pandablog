@@ -4,6 +4,7 @@ import { clearMfaEnroll, getMfaEnrollSecret, resolveMfaActor } from '../../../..
 import { enableUserMfa, getUserMfaState } from '../../../../utils/mfa/store'
 import { encryptMfaSecret } from '../../../../utils/mfa/secret-crypto'
 import { generateBackupCodes, verifyTotpToken } from '../../../../utils/mfa/totp'
+import { issueTrustedDevice, resolveTrustedDeviceContext } from '../../../../utils/mfa/trusted-devices'
 import { findUserById, toSessionUser, touchUserLogin } from '../../../../utils/users'
 
 // Confirm enrollment: verify a code from the pending secret, then persist the
@@ -11,7 +12,7 @@ import { findUserById, toSessionUser, touchUserLogin } from '../../../../utils/u
 // returned exactly once. When enrollment was forced at login (no prior
 // session), a full authenticated session is issued on success.
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ code?: string }>(event)
+  const body = await readBody<{ code?: string, trustDevice?: boolean }>(event)
   const code = String(body?.code ?? '').trim()
 
   const { userId, finalize } = await resolveMfaActor(event)
@@ -56,13 +57,20 @@ export default defineEventHandler(async (event) => {
       user: sessionUser,
       loggedInAt: new Date().toISOString()
     })
+    if (body?.trustDevice === true) {
+      try {
+        await issueTrustedDevice(event, sessionUser.id, await resolveTrustedDeviceContext(event))
+      } catch (error) {
+        console.warn('[auth.mfa.activate] trusted device issue failed; login continues', error)
+      }
+    }
     await touchUserLogin(sessionUser.id)
 
     recordActivity(event, {
       action: 'auth.login',
       resource_type: 'session',
       resource_id: sessionUser.id,
-      metadata: { username: sessionUser.username, role: sessionUser.role, mfa: true },
+      metadata: { username: sessionUser.username, role: sessionUser.role, mfa: true, trusted_device: body?.trustDevice === true },
       description: 'User signed in'
     })
     dispatchSecurityAlert('login.success', alertDetailsFromEvent(event, {

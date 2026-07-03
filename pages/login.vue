@@ -31,11 +31,6 @@
           >
         </label>
 
-        <label class="login-check">
-          <input v-model="trustDevice" type="checkbox">
-          <span>{{ t('public.login.mfa.trustDevice') }}</span>
-        </label>
-
         <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
 
         <button class="login-submit" type="submit" :disabled="loading" :aria-busy="loading">
@@ -58,6 +53,11 @@
             required
             autofocus
           >
+        </label>
+
+        <label class="login-check">
+          <input v-model="trustDevice" type="checkbox">
+          <span>{{ t('public.login.mfa.trustDevice') }}</span>
         </label>
 
         <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
@@ -91,6 +91,11 @@
             required
             autofocus
           >
+        </label>
+
+        <label class="login-check">
+          <input v-model="trustDevice" type="checkbox">
+          <span>{{ t('public.login.mfa.trustDevice') }}</span>
         </label>
 
         <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
@@ -234,7 +239,7 @@ async function activateEnroll() {
       '/api/admin/auth/mfa/activate',
       {
         method: 'POST',
-        body: { code: mfaCode.value }
+        body: { code: mfaCode.value, trustDevice: trustDevice.value }
       }
     )
     backupCodes.value = response.backup_codes ?? []
