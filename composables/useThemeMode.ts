@@ -42,7 +42,7 @@ export function useThemeMode(options: UseThemeModeOptions = {}) {
   }, { immediate: true })
 
   onMounted(() => {
-    const mountedMode = readStoredMode() ?? currentMode.value ?? systemMode()
+    const mountedMode = normalizeThemeMode(options.initialMode?.()) ?? readStoredMode() ?? currentMode.value ?? systemMode()
     currentMode.value = mountedMode
     applyThemeMode(mountedMode)
   })

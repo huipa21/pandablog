@@ -1,4 +1,5 @@
 import { requireSuperadmin } from '../../../utils/auth'
+import { invalidatePublicBootstrapCache } from '../../../utils/publicBootstrap'
 import { setActiveThemeId, loadTheme, invalidateThemeCache } from '../../../utils/theme-loader'
 
 export default defineEventHandler(async (event) => {
@@ -19,6 +20,7 @@ export default defineEventHandler(async (event) => {
 
   await setActiveThemeId(themeId)
   invalidateThemeCache()
+  invalidatePublicBootstrapCache()
 
   return { ok: true, activeId: themeId }
 })

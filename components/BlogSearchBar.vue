@@ -59,9 +59,11 @@
 const props = withDefaults(defineProps<{
   variant?: 'sidebar' | 'header' | 'hero' | 'compact'
   placeholder?: string
+  autofocus?: boolean
 }>(), {
   variant: 'sidebar',
-  placeholder: ''
+  placeholder: '',
+  autofocus: false
 })
 
 const { t } = useI18n()
@@ -102,6 +104,7 @@ const renderedPlaceholder = computed(() => hydratedPlaceholder.value || props.pl
 onMounted(() => {
   hydratedPlaceholder.value = resolvedPlaceholder.value
   syncSearchAttributes(resolvedPlaceholder.value)
+  if (props.autofocus) focusSearchInput()
 })
 
 watch(resolvedPlaceholder, (value) => {
@@ -109,6 +112,10 @@ watch(resolvedPlaceholder, (value) => {
     hydratedPlaceholder.value = value
   }
   syncSearchAttributes(value)
+})
+
+watch(() => props.autofocus, (value) => {
+  if (value) focusSearchInput()
 })
 
 function syncSearchAttributes(value: string) {
@@ -123,6 +130,12 @@ function syncSearchAttributes(value: string) {
     for (const button of form.querySelectorAll('button[type="submit"]')) {
       button.setAttribute('aria-label', value)
     }
+  })
+}
+
+function focusSearchInput() {
+  nextTick(() => {
+    formRef.value?.querySelector<HTMLInputElement>('input[type="search"]')?.focus()
   })
 }
 

@@ -17,7 +17,12 @@ export interface LoadedTheme {
 }
 
 const cache = new Map<string, LoadedTheme>()
+// Short TTL so the active theme id self-heals: activation in one process (or
+// worker) is picked up by every other reader within a few seconds instead of
+// being pinned to a stale in-memory value forever.
+const ACTIVE_THEME_TTL_MS = 5_000
 let activeThemeIdCache: string | null = null
+let activeThemeIdCachedAt = 0
 let activeThemeIdPromise: Promise<string> | null = null
 
 /**
@@ -119,6 +124,7 @@ export function invalidateThemeCache(themeId?: string) {
   else cache.clear()
 
   activeThemeIdCache = null
+  activeThemeIdCachedAt = 0
   activeThemeIdPromise = null
 }
 
@@ -126,7 +132,7 @@ export function invalidateThemeCache(themeId?: string) {
  * Get the active theme id from app_settings, falling back to "default".
  */
 export async function getActiveThemeId(): Promise<string> {
-  if (activeThemeIdCache) {
+  if (activeThemeIdCache && Date.now() - activeThemeIdCachedAt < ACTIVE_THEME_TTL_MS) {
     return activeThemeIdCache
   }
 
@@ -138,6 +144,7 @@ export async function getActiveThemeId(): Promise<string> {
 
   const themeId = await activeThemeIdPromise
   activeThemeIdCache = themeId
+  activeThemeIdCachedAt = Date.now()
   return themeId
 }
 
@@ -150,6 +157,7 @@ export async function setActiveThemeId(themeId: string): Promise<void> {
   )
 
   activeThemeIdCache = themeId
+  activeThemeIdCachedAt = Date.now()
   activeThemeIdPromise = null
 }
 

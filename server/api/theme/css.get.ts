@@ -15,8 +15,7 @@ export default defineEventHandler(async (event) => {
       setResponseStatus(event, 500)
       return '/* no theme loaded */'
     }
-    // Don't cache fallback aggressively
-    setResponseHeader(event, 'Cache-Control', 'public, max-age=60')
+    setResponseHeader(event, 'Cache-Control', 'no-store')
     return fallback.compiledCss
   }
 
@@ -25,9 +24,9 @@ export default defineEventHandler(async (event) => {
     setResponseHeader(event, 'Cache-Control', 'no-store')
   } else {
     // Theme activation changes app_settings without changing the URL, so always revalidate.
-    setResponseHeader(event, 'Cache-Control', 'public, max-age=0, must-revalidate')
-    setResponseHeader(event, 'ETag', `"${theme.version}"`)
+    setResponseHeader(event, 'Cache-Control', 'no-cache, must-revalidate')
   }
+  setResponseHeader(event, 'ETag', `"${theme.manifest.id}-${theme.version}"`)
 
   return theme.compiledCss
 })

@@ -1,4 +1,5 @@
 import type { CategoryRecord, TagRecord } from '~/types/content'
+import type { ThemeMode } from '~/utils/themeMode'
 
 export interface PublicThemeInfo {
   id: string
@@ -9,6 +10,7 @@ export interface PublicThemeInfo {
     leftSidebar: 'toc' | 'nav' | null
     rightSidebar: 'meta-graph' | 'meta' | 'related' | null
     maxContentWidth: string
+    variant?: string
     showCoverImage: boolean
     stickyHeader: boolean
   }
@@ -20,16 +22,20 @@ export interface PublicBootstrapResponse {
   tags: TagRecord[]
   categories: CategoryRecord[]
   theme: PublicThemeInfo | null
+  themeMode: ThemeMode | null
 }
 
 export function usePublicBootstrap() {
-  return useAsyncData('public-bootstrap', () => $fetch<PublicBootstrapResponse>('/api/site/bootstrap'), {
+  const requestFetch = useRequestFetch()
+
+  return useAsyncData('public-bootstrap', () => requestFetch<PublicBootstrapResponse>('/api/site/bootstrap'), {
     dedupe: 'defer',
     default: () => ({
       settings: {},
       tags: [],
       categories: [],
-      theme: null
+      theme: null,
+      themeMode: null
     })
   })
 }

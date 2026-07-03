@@ -1,7 +1,7 @@
 <template>
   <div class="flex min-h-screen flex-col bg-[var(--pb-app-bg)] text-[var(--pb-text)]" :style="siteShellStyle">
     <!-- Full-width hero header with optional photo (home only) -->
-    <header v-if="isHome" class="public-site-hero relative isolate hidden flex-col overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)] md:flex" :style="siteHeroStyle">
+    <header v-if="isHome && !useCompactPublicHeader" class="public-site-hero relative isolate hidden flex-col overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)] md:flex" :style="siteHeroStyle">
       <img
         v-if="siteBanner"
         :src="publicSiteBanner"
@@ -78,20 +78,29 @@
 
     <!-- Compact header on inner pages: keeps the hero photo, single navigation row.
          Sticky so it stays visible while scrolling the post content. -->
-    <header class="public-site-header-compact sticky top-0 z-30 isolate flex overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)]" :class="isHome ? 'md:hidden' : undefined" :style="siteCompactHeaderStyle">
+    <header class="public-site-header-compact sticky top-0 z-30 isolate flex overflow-hidden border-b border-[var(--pb-divider)] bg-[var(--pb-hero-bg)] text-[var(--pb-text)]" :class="[isHome && !useCompactPublicHeader ? 'md:hidden' : undefined, isHexagonTheme ? 'public-site-header-hexagon' : undefined, publicSearchOpen ? 'public-site-search-open' : undefined]" :style="siteCompactHeaderStyle">
       <img
-        v-if="siteBanner"
+        v-if="siteBanner && !useCompactPublicHeader"
         :src="publicSiteBanner"
         alt=""
         class="public-site-hero-image absolute inset-0 z-0 h-full w-full object-cover"
         :style="siteBannerStyle"
       >
-      <div v-else class="public-site-hero-fallback" aria-hidden="true" />
-      <div class="public-site-hero-overlay" aria-hidden="true" />
+      <div v-if="!useCompactPublicHeader && !siteBanner" class="public-site-hero-fallback" aria-hidden="true" />
+      <div v-if="!useCompactPublicHeader" class="public-site-hero-overlay" aria-hidden="true" />
 
       <div data-public-container="compact-nav" class="public-site-header-row relative z-10 mx-auto flex w-full max-w-[var(--pb-site-content-max)] items-center gap-2 px-5 sm:gap-3">
         <!-- Left cluster -->
-        <div class="flex items-center gap-1.5 sm:gap-2">
+        <div class="flex min-w-0 items-center gap-1.5 sm:gap-2">
+          <NuxtLink
+            v-if="isHexagonTheme"
+            to="/"
+            class="public-site-brand flex min-w-0 items-center gap-3 rounded-[var(--pb-radius-lg)] px-2 py-1.5 text-[var(--pb-text)] transition hover:bg-[var(--pb-surface-subtle)]"
+          >
+            <img v-if="publicSiteLogo" :src="publicSiteLogo" alt="" class="h-8 w-8 shrink-0 object-contain">
+            <PandaLogo v-else :size="32" class="shrink-0 text-[var(--pb-primary)]" />
+            <span class="min-w-0 truncate text-lg font-semibold leading-tight">{{ siteName }}</span>
+          </NuxtLink>
           <UButton
             to="/"
             variant="ghost"
@@ -105,16 +114,27 @@
 
         <!-- Right cluster: search + utilities -->
         <div class="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <BlogSearchBar :key="`compact-search-${publicLocale}`" variant="compact" class="hidden md:flex" />
           <UButton
-            class="md:hidden"
-            :to="searchRoute"
+            v-if="!publicSearchOpen"
             variant="ghost"
             color="neutral"
             icon="i-lucide-search"
             :aria-label="t('public.nav.search')"
+            :title="t('public.nav.search')"
             size="sm"
+            @click="openPublicSearch"
           />
+          <div v-else class="public-site-search-expanded flex items-center gap-1.5">
+            <BlogSearchBar :key="`header-search-${publicLocale}`" variant="header" :autofocus="publicSearchOpen" />
+            <UButton
+              variant="ghost"
+              color="neutral"
+              icon="i-lucide-x"
+              :aria-label="t('admin.common.close')"
+              size="sm"
+              @click="publicSearchOpen = false"
+            />
+          </div>
           <UButton
             v-if="showPostViewToggle"
             data-testid="post-view-toggle"
@@ -268,6 +288,7 @@
 const {
   siteName,
   siteSubtitle,
+  siteLogo,
   siteBanner,
   siteBannerPositionX,
   siteBannerPositionY,
@@ -284,10 +305,12 @@ const {
 
 const { t } = useI18n()
 const adminToast = useAdminToast()
+const { data: publicBootstrap, refresh: refreshPublicBootstrap } = await usePublicBootstrap()
 const { resolveMediaUrl } = useMediaUrl()
 const { locale: publicLocale } = usePublicLocale()
 const mobileNav = ref(false)
 const mobileSidebarOpen = ref(false)
+const publicSearchOpen = ref(false)
 const publicTouchStart = ref<{ x: number, y: number } | null>(null)
 const route = useRoute()
 const slots = useSlots()
@@ -295,7 +318,21 @@ const {
   toggleIcon: themeModeIcon,
   toggleLabel: themeModeLabel,
   toggleThemeMode
-} = useThemeMode({ storageKey: 'pb-public-color-mode' })
+} = useThemeMode({
+  storageKey: 'pb-public-color-mode',
+  initialMode: () => publicBootstrap.value.themeMode,
+  persist: async (mode) => {
+    if (!canManagePublicThemeMode.value) {
+      return
+    }
+
+    await $fetch('/api/theme/mode', {
+      method: 'POST',
+      body: { mode }
+    })
+    await refreshPublicBootstrap()
+  }
+})
 const {
   toggleIcon: postViewIcon,
   toggleLabel: postViewLabel,
@@ -305,6 +342,7 @@ const { data: authSession } = await usePublicAuthSession()
 const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const authRole = computed(() => authSession.value?.user?.role ?? null)
 const canCreateContent = computed(() => isLoggedIn.value && (authRole.value === 'superadmin' || authRole.value === 'admin' || authRole.value === 'author'))
+const canManagePublicThemeMode = computed(() => isLoggedIn.value && authRole.value === 'superadmin')
 const creatingQuickPost = ref(false)
 const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
@@ -315,9 +353,11 @@ const showPostViewToggle = computed(() => {
 })
 const hasLayoutSidebar = computed(() => !isHome.value || hasPageSidebar.value)
 const hasMobileSidebarDrawer = computed(() => hasLayoutSidebar.value && !isHome.value)
+const isHexagonTheme = computed(() => route.query.theme === 'hexagon' || publicBootstrap.value.theme?.id === 'hexagon' || publicBootstrap.value.theme?.layout.variant === 'hexagon')
+const useCompactPublicHeader = computed(() => isHexagonTheme.value)
 const publicSiteBanner = computed(() => resolveMediaUrl(siteBanner.value))
+const publicSiteLogo = computed(() => resolveMediaUrl(siteLogo.value))
 const publicSiteFavicon = computed(() => resolveMediaUrl(siteFavicon.value))
-const searchRoute = computed(() => route.path === '/search' ? '/search' : { path: '/search', query: { from: route.fullPath } })
 const sidebarClasses = computed(() => [
   'min-w-0 space-y-4',
   isHome.value ? undefined : 'hidden md:block lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto'
@@ -370,6 +410,10 @@ function openMediaUploader() {
   return navigateTo({ path: '/admin/media', query: { upload: '1' } })
 }
 
+function openPublicSearch() {
+  publicSearchOpen.value = true
+}
+
 async function logout() {
   loggingOut.value = true
   try {
@@ -383,6 +427,7 @@ async function logout() {
 
 watch(() => route.fullPath, () => {
   mobileSidebarOpen.value = false
+  publicSearchOpen.value = false
 })
 
 function onPublicTouchStart(event: TouchEvent) {
@@ -475,6 +520,46 @@ function isImageIcon(value: string | undefined) {
   /* Re-uses .public-site-hero-fallback / -overlay / -image rules above so the
      mini-banner has the same visual treatment as the home hero, just shorter. */
   isolation: isolate;
+}
+
+.public-site-header-hexagon {
+  background: var(--pb-surface);
+}
+
+.public-site-header-hexagon .public-site-header-row {
+  min-height: 3.5rem;
+}
+
+.public-site-brand {
+  max-width: min(46vw, 18rem);
+}
+
+.public-site-search-expanded {
+  min-width: min(18rem, 42vw);
+}
+
+@media (max-width: 767px) {
+  .public-site-header-hexagon .public-site-header-row,
+  .public-site-search-open .public-site-header-row {
+    flex-wrap: wrap;
+    gap: 0.375rem 0.5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .public-site-brand {
+    max-width: min(58vw, 18rem);
+  }
+
+  .public-site-search-expanded {
+    order: 10;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .public-site-search-expanded :deep(form) {
+    width: 100%;
+  }
 }
 
 .public-mobile-sidebar {

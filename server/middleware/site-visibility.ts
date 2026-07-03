@@ -3,6 +3,7 @@ import { isAuthenticated } from '../utils/auth'
 
 const ALWAYS_ALLOWED_PREFIXES = [
   '/api/auth',
+  '/api/site/bootstrap',
   '/api/site/visibility',
   '/api/health',
   '/_nuxt',

@@ -158,7 +158,7 @@ async function onUpload() {
 async function activate(themeId: string) {
   try {
     await $fetch('/api/admin/themes/activate', { method: 'POST', body: { themeId } })
-    refreshThemeStylesheet()
+    refreshThemeStylesheet(themeId)
     await refresh()
     adminToast.success(t('admin.settings.themes.activated'))
   } catch (err: any) {
@@ -166,11 +166,12 @@ async function activate(themeId: string) {
   }
 }
 
-function refreshThemeStylesheet() {
+function refreshThemeStylesheet(themeId: string) {
   if (!import.meta.client) return
   const link = document.querySelector<HTMLLinkElement>('link[data-theme-stylesheet="true"]')
   if (link) {
-    link.href = `/api/theme/css?t=${Date.now()}`
+    const params = new URLSearchParams({ theme: themeId, v: String(Date.now()) })
+    link.href = `/api/theme/css?${params.toString()}`
   }
 }
 

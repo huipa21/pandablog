@@ -73,7 +73,6 @@ const surface = ref<HTMLElement | null>(null)
 const cyContainer = ref<HTMLElement | null>(null)
 const surfaceStyle = computed(() => ({ '--graph-height': props.height }))
 const isEmpty = computed(() => props.nodes.length === 0)
-const isDarkMode = ref(false)
 const { t } = useI18n()
 
 let cy: Core | null = null
@@ -83,7 +82,6 @@ let renderFrame: number | null = null
 let cytoscapeRegistered = false
 
 onMounted(() => {
-  refreshThemeMode()
   resizeObserver = new ResizeObserver(() => {
     cy?.resize()
     cy?.fit(undefined, layoutPadding())
@@ -91,7 +89,6 @@ onMounted(() => {
   })
   if (surface.value) resizeObserver.observe(surface.value)
   themeObserver = new MutationObserver(() => {
-    refreshThemeMode()
     cy?.style(cytoscapeStyles() as never)
   })
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
@@ -282,39 +279,62 @@ function fitGraph() {
   cy?.fit(undefined, layoutPadding())
 }
 
-function refreshThemeMode() {
-  isDarkMode.value = document.documentElement.dataset.theme === 'dark'
+/**
+ * Read a CSS custom property from the graph surface (which lives inside the
+ * active `.theme-scope`), falling back through a list of alternatives and
+ * finally a literal default. This keeps the graph palette bound to the active
+ * theme's tokens so every theme stays independent.
+ */
+function readThemeColor(names: string[], fallback: string): string {
+  const el = surface.value ?? document.documentElement
+  const styles = getComputedStyle(el)
+  for (const name of names) {
+    const value = styles.getPropertyValue(name).trim()
+    if (value) return value
+  }
+  return fallback
+}
+
+/** Convert a #rgb / #rrggbb color to an `rgba()` string with the given alpha. */
+function withAlpha(color: string, alpha: number): string {
+  const hex = color.trim().replace(/^#/, '')
+  if (hex.length === 3) {
+    const r = parseInt(hex[0] + hex[0], 16)
+    const g = parseInt(hex[1] + hex[1], 16)
+    const b = parseInt(hex[2] + hex[2], 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+  if (hex.length === 6) {
+    const r = parseInt(hex.slice(0, 2), 16)
+    const g = parseInt(hex.slice(2, 4), 16)
+    const b = parseInt(hex.slice(4, 6), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+  // Already a functional color (rgb/rgba/hsl/named) — return as-is.
+  return color
 }
 
 function graphPalette() {
-  if (isDarkMode.value) {
-    return {
-      post: '#aebbb4',
-      category: '#8fc2aa',
-      tag: '#547a69',
-      focus: '#6fb094',
-      focusBorder: '#d9f0e7',
-      nodeBorder: 'rgba(226, 239, 232, 0.48)',
-      label: 'rgba(235, 241, 237, 0.88)',
-      textOutline: 'rgba(32, 34, 33, 0.9)',
-      edge: 'rgba(230, 238, 233, 0.16)',
-      taxonomyEdge: 'rgba(143, 194, 170, 0.36)',
-      cooccursEdge: 'rgba(143, 194, 170, 0.22)'
-    }
-  }
+  const primary = readThemeColor(['--pb-primary', '--color-primary', '--color-accent'], '#24a48c')
+  const primaryHover = readThemeColor(['--pb-primary-hover', '--color-primary-hover', '--color-accent-hover'], '#16826f')
+  const tag = readThemeColor(['--color-panda-400', '--pb-warm'], '#77bea9')
+  const focus = readThemeColor(['--color-panda-700', '--pb-link-hover'], primaryHover)
+  const surfaceColor = readThemeColor(['--pb-surface', '--color-surface'], '#ffffff')
+  const text = readThemeColor(['--pb-text', '--color-text'], '#14211f')
+  const textSubtle = readThemeColor(['--pb-text-subtle', '--color-text-subtle'], '#8aa09a')
 
   return {
-    post: '#72847a',
-    category: '#347761',
-    tag: '#97b9a6',
-    focus: '#2f7f64',
-    focusBorder: '#f8fff9',
-    nodeBorder: 'rgba(255, 255, 255, 0.86)',
-    label: 'rgba(38, 46, 42, 0.82)',
-    textOutline: 'rgba(250, 252, 248, 0.82)',
-    edge: 'rgba(69, 91, 78, 0.22)',
-    taxonomyEdge: 'rgba(52, 119, 97, 0.32)',
-    cooccursEdge: 'rgba(52, 119, 97, 0.18)'
+    post: primary,
+    category: primaryHover,
+    tag,
+    focus,
+    focusBorder: surfaceColor,
+    nodeBorder: withAlpha(primaryHover, 0.2),
+    label: withAlpha(text, 0.82),
+    textOutline: withAlpha(surfaceColor, 0.9),
+    edge: withAlpha(textSubtle, 0.32),
+    taxonomyEdge: withAlpha(primary, 0.32),
+    cooccursEdge: withAlpha(primary, 0.18)
   }
 }
 </script>
@@ -325,7 +345,7 @@ function graphPalette() {
   min-height: var(--graph-height);
   overflow: hidden;
   border-radius: var(--pb-radius-card-inner);
-  background: color-mix(in srgb, var(--pb-card-bg) 86%, var(--pb-link) 14%);
+  background: var(--pb-surface, var(--color-surface, #ffffff));
 }
 
 .graph-surface.is-compact {
@@ -394,9 +414,5 @@ function graphPalette() {
 .graph-control-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--pb-link) 64%, transparent);
   outline-offset: 2px;
-}
-
-:global([data-theme="dark"]) .graph-surface {
-  background: #202322;
 }
 </style>

@@ -15,16 +15,16 @@ export default defineNuxtPlugin(async () => {
   const route = useRoute()
   const themeQuery = route.query.theme
   const previewThemeId = typeof themeQuery === 'string' ? themeQuery : null
-  const isAdminRoute = route.path === '/admin' || route.path.startsWith('/admin/')
-  const themeId = previewThemeId ?? (isAdminRoute ? 'default' : await getActiveThemeId())
+  const themeId = previewThemeId ?? await getActiveThemeId()
   const theme = await loadTheme(themeId)
   const variant = theme?.manifest.layout.variant ?? themeId
+  const themeVersion = theme?.version ?? Date.now()
 
   useHead({
     link: [
       {
         rel: 'stylesheet',
-        href: `/api/theme/css?theme=${encodeURIComponent(themeId)}`,
+        href: `/api/theme/css?theme=${encodeURIComponent(themeId)}&v=${encodeURIComponent(String(themeVersion))}`,
         // Identify so previews can swap it client-side
         'data-theme-stylesheet': 'true'
       }

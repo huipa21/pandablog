@@ -5,6 +5,7 @@ import { normalizeCategory, normalizeTag } from './taxonomy'
 import { loadTheme } from './theme-loader'
 import type { ThemeManifest } from './theme-validator'
 import type { CategoryRecord, TagRecord } from '~/types/content'
+import { normalizeThemeMode, PUBLIC_THEME_MODE_KEY, type ThemeMode } from '~/utils/themeMode'
 
 const CACHE_TTL_MS = 30_000
 
@@ -15,6 +16,7 @@ interface PublicBootstrapPayload {
   tags: TagRecord[]
   categories: CategoryRecord[]
   theme: PublicThemeInfo | null
+  themeMode: ThemeMode | null
 }
 
 let cachedPayload: PublicBootstrapPayload | null = null
@@ -103,7 +105,8 @@ async function loadPublicBootstrap(): Promise<PublicBootstrapPayload> {
     settings: normalizePublicSettings(settings),
     tags,
     categories,
-    theme
+    theme,
+    themeMode: normalizeThemeMode(settings[PUBLIC_THEME_MODE_KEY])
   }
 }
 

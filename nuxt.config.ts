@@ -19,8 +19,11 @@ function envFlag(name: string, fallback = false): boolean {
 const isProd = process.env.NODE_ENV === 'production'
 const publicThemeInitScript = `(() => {
   try {
+    const serverMode = document.documentElement.dataset.theme
     const storedMode = localStorage.getItem('pb-public-color-mode')
-    const mode = storedMode === 'light' || storedMode === 'dark'
+    const mode = serverMode === 'light' || serverMode === 'dark'
+      ? serverMode
+      : storedMode === 'light' || storedMode === 'dark'
       ? storedMode
       : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 
