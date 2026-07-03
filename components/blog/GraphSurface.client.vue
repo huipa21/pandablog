@@ -299,9 +299,9 @@ function readThemeColor(names: string[], fallback: string): string {
 function withAlpha(color: string, alpha: number): string {
   const hex = color.trim().replace(/^#/, '')
   if (hex.length === 3) {
-    const r = parseInt(hex[0] + hex[0], 16)
-    const g = parseInt(hex[1] + hex[1], 16)
-    const b = parseInt(hex[2] + hex[2], 16)
+    const r = parseInt(hex.charAt(0) + hex.charAt(0), 16)
+    const g = parseInt(hex.charAt(1) + hex.charAt(1), 16)
+    const b = parseInt(hex.charAt(2) + hex.charAt(2), 16)
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
   }
   if (hex.length === 6) {
@@ -318,7 +318,14 @@ function graphPalette() {
   const primary = readThemeColor(['--pb-primary', '--color-primary', '--color-accent'], '#24a48c')
   const primaryHover = readThemeColor(['--pb-primary-hover', '--color-primary-hover', '--color-accent-hover'], '#16826f')
   const tag = readThemeColor(['--color-panda-400', '--pb-warm'], '#77bea9')
-  const focus = readThemeColor(['--color-panda-700', '--pb-link-hover'], primaryHover)
+  const focus = readThemeColor([
+    '--pb-link-hover',
+    '--pb-primary-hover',
+    '--color-link-hover',
+    '--color-primary-hover',
+    '--color-accent-hover',
+    '--color-panda-700'
+  ], primaryHover)
   const surfaceColor = readThemeColor(['--pb-surface', '--color-surface'], '#ffffff')
   const text = readThemeColor(['--pb-text', '--color-text'], '#14211f')
   const textSubtle = readThemeColor(['--pb-text-subtle', '--color-text-subtle'], '#8aa09a')
