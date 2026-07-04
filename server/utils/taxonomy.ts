@@ -1,5 +1,5 @@
 import type { Surreal } from 'surrealdb'
-import { slugify } from './content'
+import { containsEmoji, slugify } from '../../utils/slug'
 import { findBySlug, queryDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { CategoryRecord, TagRecord } from '~/types/content'
@@ -36,6 +36,13 @@ export function normalizeTag(record: Record<string, unknown>): TagRecord {
 
 export async function uniqueTaxonomySlug(db: Surreal, table: 'category' | 'tag', desired: string, currentRecordId?: string) {
   const base = slugify(desired)
+
+  if (!base) {
+    throw createError({
+      statusCode: 400,
+      message: 'Please use a name or slug that contains letters or numbers so it can have a valid URL.'
+    })
+  }
 
   for (let suffix = 0; suffix < 100; suffix += 1) {
     const candidate = suffix === 0 ? base : `${base}-${suffix + 1}`
@@ -154,6 +161,9 @@ export function taxonomyName(value: unknown) {
   const name = typeof value === 'string' ? value.trim() : ''
   if (!name) {
     throw createError({ statusCode: 400, message: 'Name is required' })
+  }
+  if (containsEmoji(name)) {
+    throw createError({ statusCode: 400, message: 'Emoji are not allowed in category or tag names.' })
   }
   return name
 }
@@ -297,6 +307,10 @@ async function ensureTaxonomyIds(
   )
 
   for (const name of normalizeTaxonomyNames(namesInput)) {
+    if (containsEmoji(name)) {
+      throw createError({ statusCode: 400, message: 'Emoji are not allowed in category or tag names.' })
+    }
+
     const baseSlug = slugify(name)
     const existing = await findBySlug(db, table, baseSlug)
 

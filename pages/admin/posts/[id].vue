@@ -1021,13 +1021,7 @@ function effectivePasswordSource() {
 }
 
 function slugifyTitle(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-    .slice(0, 96) || 'untitled'
+  return slugify(value)
 }
 
 function emptyDoc(): JsonContent {

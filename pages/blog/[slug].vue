@@ -111,7 +111,7 @@ const fetchWithSession: PublicFetch = (url) => {
 
 const { data: post, error } = await useAsyncData(
   `post-${slug.value}`,
-  () => fetchWithSession<PostRecord | PostLockedResponse>(`/api/posts/${slug.value}`),
+  () => fetchWithSession<PostRecord | PostLockedResponse>(`/api/posts/${encodeURIComponent(slug.value)}`),
   {
     deep: false,
     transform: markPostContentRaw

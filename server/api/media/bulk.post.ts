@@ -4,6 +4,7 @@ import { mediaDeleteStoredObjects } from '../../utils/fileStorage'
 import { mediaNormalizeHash, mediaNormalizeFolderId, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
 import { mediaRecordManageableByUser } from '../../utils/mediaPermissions'
 import { queryRows } from '../../utils/surrealResult'
+import { containsEmoji } from '../../../utils/slug'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
@@ -152,6 +153,7 @@ function normalizeBulkTags(value: unknown) {
       .filter((tag): tag is string => typeof tag === 'string')
       .map((tag) => tag.trim())
       .filter(Boolean)
+      .filter((tag) => !containsEmoji(tag))
       .map((tag) => tag.slice(0, 80))
   ))
 }

@@ -1,6 +1,7 @@
 import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
-import { slugify, serializeDate } from '../../utils/content'
+import { serializeDate } from '../../utils/content'
+import { containsEmoji, slugify } from '../../../utils/slug'
 import { queryRows } from '../../utils/surrealResult'
 import type { MediaTagSummary } from '~/types/content'
 
@@ -20,6 +21,11 @@ export default defineEventHandler(async (event) => {
       const name = String(rawTag).trim()
       if (!name || (search && !name.toLowerCase().includes(search))) continue
 
+      // Emoji are not allowed in tags; skip names that carry them or that have
+      // no usable slug characters so the listing only surfaces valid tags.
+      const slug = slugify(name)
+      if (!slug || containsEmoji(name)) continue
+
       const key = name.toLowerCase()
       const existing = counts.get(key)
 
@@ -32,7 +38,7 @@ export default defineEventHandler(async (event) => {
         counts.set(key, {
           id: key,
           name,
-          slug: slugify(name),
+          slug,
           count: 1,
           latest_uploaded_at: uploadedAt
         })

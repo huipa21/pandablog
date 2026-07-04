@@ -1,18 +1,13 @@
 import type { PostPasswordSource, PostRecord, PostStatus, PostVisibility } from '~/types/content'
+import { slugify } from '../../utils/slug'
 import { emptyDoc } from './blocks'
 import { stringifyRecordId } from './surrealResult'
 
 const allowedStatuses: PostStatus[] = ['draft', 'published', 'archived']
 
-export function slugify(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '')
-    .slice(0, 96) || 'untitled'
-}
+// Re-exported so existing server imports (`import { slugify } from './content'`)
+// keep working while the implementation lives in the shared util.
+export { slugify }
 
 export function cleanStatus(value: unknown): PostStatus {
   return allowedStatuses.includes(value as PostStatus) ? value as PostStatus : 'draft'
@@ -99,9 +94,19 @@ export function buildPostPayload(input: Record<string, unknown>, authorUsername:
   const now = new Date()
   const summary = stringOrNull(input.summary)
   const coverImage = stringOrNull(input.cover_image)
+  const slugSource = String(input.slug || title)
+  const slug = slugify(slugSource)
+
+  if (!slug && slugSource.trim()) {
+    throw createError({
+      statusCode: 400,
+      message: 'Please use a title or slug that contains letters or numbers so the post can have a valid URL.'
+    })
+  }
+
   const payload: Record<string, unknown> = {
     title,
-    slug: slugify(String(input.slug || title)),
+    slug,
     status,
     author_username: authorUsername,
     updated_at: now

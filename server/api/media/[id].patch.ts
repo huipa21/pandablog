@@ -2,6 +2,7 @@ import { requireContentManager } from '../../utils/auth'
 import { queryDb, queryDbRecord, useDb } from '../../utils/db'
 import { mediaNormalizeFileRecord, mediaNormalizeFolderId, mediaNormalizeHash } from '../../utils/mediaLibrary'
 import { mediaRecordManageableByUser } from '../../utils/mediaPermissions'
+import { containsEmoji } from '../../../utils/slug'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
@@ -83,6 +84,7 @@ function normalizeTags(value: unknown) {
       .filter((item): item is string => typeof item === 'string')
       .map((item) => item.trim())
       .filter(Boolean)
+      .filter((item) => !containsEmoji(item))
       .map((item) => item.slice(0, 80))
   ))
 }
