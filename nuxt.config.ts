@@ -56,8 +56,8 @@ export default defineNuxtConfig({
       {
         name: 'Lora',
         provider: 'google',
-        weights: [400, 500, 600, 700],
-        styles: ['normal', 'italic'],
+        weights: [400, 600, 700],
+        styles: ['normal'],
         global: true
       }
     ]
@@ -119,6 +119,10 @@ export default defineNuxtConfig({
     }
   },
   nitro: {
+    compressPublicAssets: {
+      brotli: true,
+      gzip: true
+    },
     storage: {
       'rate-limit': {
         driver: 'fs',
@@ -127,6 +131,7 @@ export default defineNuxtConfig({
     }
   },
   routeRules: {
+    '/': { cache: { maxAge: 60, swr: true, staleMaxAge: 120, varies: ['cookie'] } },
     '/_ipx/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }

@@ -29,6 +29,9 @@
             :src="postCoverImage(post)"
             :alt="post.title"
             :class="imageClasses"
+            loading="lazy"
+            decoding="async"
+            @error="onCoverError(post, $event)"
           >
           <div v-else :class="placeholderClasses">
             <UIcon name="i-lucide-newspaper" class="size-10 text-[var(--pb-icon-muted)]" />
@@ -78,7 +81,7 @@ import type { PostListItem } from '~/types/content'
 
 type PostCardViewMode = 'grid' | 'list'
 
-const { resolveMediaUrl } = useMediaUrl()
+const { resolveMediaUrl, toPublicMediaVariantUrl } = useMediaUrl()
 
 const props = withDefaults(defineProps<{
   posts: PostListItem[]
@@ -176,7 +179,25 @@ function hasViewCount(post: PostListItem) {
 }
 
 function postCoverImage(post: PostListItem) {
-  return resolveMediaUrl(post.cover_image ?? '')
+  return toPublicMediaVariantUrl(post.cover_image ?? '', 'medium')
+}
+
+// If a resized variant is missing (e.g. an older upload without generated
+// variants), fall back once to the full-size original so the card still shows
+// an image instead of a broken icon.
+function onCoverError(post: PostListItem, event: Event) {
+  const img = event.target as HTMLImageElement | null
+  if (!img || img.dataset.coverFallback === 'true') {
+    return
+  }
+
+  const original = resolveMediaUrl(post.cover_image ?? '')
+  if (!original || original === img.src) {
+    return
+  }
+
+  img.dataset.coverFallback = 'true'
+  img.src = original
 }
 
 function formatViews(value: number | null | undefined) {

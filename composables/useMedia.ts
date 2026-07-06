@@ -35,6 +35,8 @@ interface MediaListOptions {
   uploaded_to?: string
   orphan?: boolean
   visibility?: 'all' | 'public' | 'private'
+  size_min?: number
+  size_max?: number
 }
 
 interface UploadOptions {
@@ -66,6 +68,8 @@ export function useMedia() {
     if (options.uploaded_to) query.set('uploaded_to', options.uploaded_to)
     if (options.orphan) query.set('orphan', 'true')
     if (options.visibility && options.visibility !== 'all') query.set('visibility', options.visibility)
+    if (options.size_min && options.size_min > 0) query.set('size_min', String(Math.floor(options.size_min)))
+    if (options.size_max && options.size_max > 0) query.set('size_max', String(Math.floor(options.size_max)))
 
     return await $fetch<MediaListResponse>(`/api/media/search?${query}`)
   }

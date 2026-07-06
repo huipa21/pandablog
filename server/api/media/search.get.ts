@@ -36,6 +36,8 @@ export default defineEventHandler(async (event) => {
     uploaded_to: stringQuery(query.uploaded_to),
     orphan: query.orphan === 'true',
     visibility: stringQuery(query.visibility),
+    size_min: nonNegativeIntQuery(query.size_min),
+    size_max: nonNegativeIntQuery(query.size_max),
     visibleToUser: user
   })
 })
@@ -60,6 +62,12 @@ function safeRegexQuery(value: unknown) {
 
 function searchTextQuery(value: unknown) {
   return stringQuery(value).trim().slice(0, 500)
+}
+
+function nonNegativeIntQuery(value: unknown) {
+  const parsed = Number(stringQuery(value).trim())
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined
+  return Math.floor(parsed)
 }
 
 function tagsQuery(value: unknown) {

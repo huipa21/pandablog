@@ -43,7 +43,7 @@ const fetchWithSession: PublicFetch = (url) => {
 
 const { data, pending, error } = await useAsyncData('public-graph-overview', () =>
   fetchWithSession<GraphOverviewResponse>('/api/graph/overview')
-)
+, { lazy: true })
 const surfaceMode = computed(() => data.value?.clusters.length ? 'overview' : 'detail')
 
 function openNode(node: GraphNode) {

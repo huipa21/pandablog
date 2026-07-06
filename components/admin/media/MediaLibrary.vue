@@ -62,6 +62,7 @@
           <span v-if="filters.tags.length" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterTags', { relation: filters.tags.length > 1 ? ` (${selectedTagRelationLabel})` : '', value: filters.tags.join(', ') }) }}</span>
           <span v-if="filters.type && filters.type !== 'all'" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterType', { value: filters.type }) }}</span>
           <span v-if="filters.uploaded_from || filters.uploaded_to" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.dateRange') }}</span>
+          <span v-if="filters.size_min || filters.size_max" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterSize', { value: `${filters.size_min || '0'}–${filters.size_max || '∞'} ${filters.size_unit}` }) }}</span>
           <span v-if="filters.orphan" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.orphanOnly') }}</span>
           <span v-if="filters.advanced" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.advancedQuery') }}</span>
           <UButton type="button" icon="i-lucide-x" size="xs" color="warning" variant="soft" class="ml-auto" @click="clearFilters">{{ t('admin.media.clearFilters') }}</UButton>
@@ -320,6 +321,9 @@ interface MediaFilters {
   case_insensitive: boolean
   filename_regex: string
   filename_regex_case_insensitive: boolean
+  size_min: string
+  size_max: string
+  size_unit: 'KB' | 'MB' | 'GB'
   advanced: unknown | null
 }
 
@@ -422,6 +426,9 @@ const filters = ref<MediaFilters>({
   case_insensitive: true,
   filename_regex: '',
   filename_regex_case_insensitive: true,
+  size_min: '',
+  size_max: '',
+  size_unit: 'KB',
   advanced: null
 })
 
@@ -429,7 +436,7 @@ const searchPayload = computed(() => filters.value)
 
 const hasActiveFilters = computed(() => {
   const f = filters.value
-  return !!(f.file_name || f.extension || f.comment || f.tags.length || (f.type && f.type !== 'all') || f.uploaded_from || f.uploaded_to || f.orphan || f.advanced || f.filename_regex || f.search)
+  return !!(f.file_name || f.extension || f.comment || f.tags.length || (f.type && f.type !== 'all') || f.uploaded_from || f.uploaded_to || f.size_min || f.size_max || f.orphan || f.advanced || f.filename_regex || f.search)
 })
 
 const selectedTagRelationLabel = computed(() => selectedTagRelation.value.toUpperCase())
@@ -536,6 +543,8 @@ async function loadMedia() {
       type: filters.value.type as any,
       uploaded_from: filters.value.uploaded_from,
       uploaded_to: filters.value.uploaded_to,
+      size_min: sizeToBytes(filters.value.size_min, filters.value.size_unit),
+      size_max: sizeToBytes(filters.value.size_max, filters.value.size_unit),
       folder: mode.value === 'folder' ? selectedFolder.value : undefined,
       orphan: filters.value.orphan
     })
@@ -1189,6 +1198,13 @@ async function confirmDeleteSmartFolder() {
   }
 }
 
+function sizeToBytes(value: string, unit: 'KB' | 'MB' | 'GB'): number | undefined {
+  const amount = Number(String(value).trim())
+  if (!Number.isFinite(amount) || amount <= 0) return undefined
+  const factor = unit === 'GB' ? 1024 ** 3 : unit === 'MB' ? 1024 ** 2 : 1024
+  return Math.floor(amount * factor)
+}
+
 function defaultFilters(): MediaFilters {
   return {
     search: '',
@@ -1205,6 +1221,9 @@ function defaultFilters(): MediaFilters {
     case_insensitive: true,
     filename_regex: '',
     filename_regex_case_insensitive: true,
+    size_min: '',
+    size_max: '',
+    size_unit: 'KB',
     advanced: null
   }
 }

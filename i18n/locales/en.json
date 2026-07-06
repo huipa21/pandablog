@@ -499,6 +499,7 @@
       "filterComment": "Comment: {value}",
       "filterTags": "Tags{relation}: {value}",
       "filterType": "Type: {value}",
+      "filterSize": "Size: {value}",
       "dateRange": "Date range",
       "advancedQuery": "Advanced query",
       "clearFilters": "Clear filters",
@@ -651,7 +652,13 @@
       "summaryTags": "Tags: {value}",
       "summaryFrom": "From: {value}",
       "summaryTo": "To: {value}",
-      "summaryType": "Type: {value}"
+      "summaryType": "Type: {value}",
+      "summarySize": "Size: {value}",
+      "fileSize": "File size",
+      "sizeMin": "Min",
+      "sizeMax": "Max",
+      "sizeUnit": "Unit",
+      "sizeAny": "Any"
     },
     "editor": {
       "backToPosts": "Posts",

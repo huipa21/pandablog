@@ -135,7 +135,7 @@ const selectedYear = ref(String(currentYear))
 
 const { data, pending, error } = await useAsyncData('public-publish-frequency', () =>
   fetchWithSession<PublishFrequencyResponse>('/api/posts/publish-frequency')
-)
+, { lazy: true })
 
 const monthShort = computed(() => Array.from({ length: 12 }, (_, month) => new Intl.DateTimeFormat(locale.value, { month: 'short' }).format(new Date(2024, month, 1))))
 const weekdayLabels = computed(() => ['', weekdayLabel(1), '', weekdayLabel(3), '', weekdayLabel(5), ''])

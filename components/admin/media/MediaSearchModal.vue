@@ -51,6 +51,21 @@
               </UFormField>
             </div>
 
+            <div class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
+              <div class="mb-2 text-sm font-medium text-[var(--pb-text)]">{{ t('admin.media.fileSize') }}</div>
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px]">
+                <UFormField :label="t('admin.media.sizeMin')">
+                  <UInput v-model="form.size_min" type="number" min="0" step="any" icon="i-lucide-minimize-2" :placeholder="t('admin.media.sizeAny')" />
+                </UFormField>
+                <UFormField :label="t('admin.media.sizeMax')">
+                  <UInput v-model="form.size_max" type="number" min="0" step="any" icon="i-lucide-maximize-2" :placeholder="t('admin.media.sizeAny')" />
+                </UFormField>
+                <UFormField :label="t('admin.media.sizeUnit')">
+                  <USelect v-model="form.size_unit" :items="sizeUnitItems" :content="selectContent" :ui="selectUi" />
+                </UFormField>
+              </div>
+            </div>
+
             <div class="flex flex-wrap gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
               <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
                 <input v-model="form.search_regex" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
@@ -225,6 +240,9 @@ export interface MediaSearchPayload {
   case_insensitive: boolean
   filename_regex: string
   filename_regex_case_insensitive: boolean
+  size_min: string
+  size_max: string
+  size_unit: SizeUnit
   advanced: unknown | null
 }
 
@@ -246,10 +264,15 @@ interface SearchForm {
   orphan: boolean
   search_regex: boolean
   case_insensitive: boolean
+  size_min: string
+  size_max: string
+  size_unit: SizeUnit
   rootOp: 'AND' | 'OR'
   conditions: SearchCondition[]
   groups: SearchGroup[]
 }
+
+type SizeUnit = 'KB' | 'MB' | 'GB'
 
 const props = defineProps<{
   modelValue: MediaSearchPayload
@@ -310,6 +333,16 @@ const opItems = [
   { label: 'OR', value: 'OR' }
 ]
 
+const sizeUnitItems = [
+  { label: 'KB', value: 'KB' },
+  { label: 'MB', value: 'MB' },
+  { label: 'GB', value: 'GB' }
+]
+
+function normalizeSizeUnit(value: unknown): SizeUnit {
+  return value === 'MB' || value === 'GB' ? value : 'KB'
+}
+
 const fieldItems = computed(() => [
   { label: t('admin.media.fieldFileName'), value: 'original_name' },
   { label: t('admin.media.fieldFileExtension'), value: 'extension' },
@@ -350,6 +383,9 @@ function payloadToForm(payload: Partial<MediaSearchPayload>): SearchForm {
     orphan: payload.orphan || false,
     search_regex: payload.search_regex || false,
     case_insensitive: payload.case_insensitive !== false,
+    size_min: payload.size_min || '',
+    size_max: payload.size_max || '',
+    size_unit: normalizeSizeUnit(payload.size_unit),
     rootOp: parsedAdvanced.rootOp,
     conditions: parsedAdvanced.conditions,
     groups: parsedAdvanced.groups
@@ -464,6 +500,9 @@ function payloadFromForm(value: SearchForm): MediaSearchPayload {
     case_insensitive: value.case_insensitive,
     filename_regex: '',
     filename_regex_case_insensitive: value.case_insensitive,
+    size_min: value.size_min.trim(),
+    size_max: value.size_max.trim(),
+    size_unit: normalizeSizeUnit(value.size_unit),
     advanced: advancedConditions.length ? { op: value.rootOp, conditions: advancedConditions } : null
   }
 }
@@ -543,6 +582,7 @@ function savedSummary(savedForm: SearchForm) {
     savedForm.uploaded_from ? t('admin.media.summaryFrom', { value: savedForm.uploaded_from }) : '',
     savedForm.uploaded_to ? t('admin.media.summaryTo', { value: savedForm.uploaded_to }) : '',
     savedForm.type && savedForm.type !== 'all' ? t('admin.media.summaryType', { value: savedForm.type }) : '',
+    savedForm.size_min || savedForm.size_max ? t('admin.media.summarySize', { value: `${savedForm.size_min || '0'}–${savedForm.size_max || '∞'} ${savedForm.size_unit}` }) : '',
     savedForm.conditions.length || savedForm.groups.length ? t('admin.media.advancedSummary', { op: savedForm.rootOp }) : '',
     savedForm.search_regex ? t('admin.media.regex') : ''
   ].filter(Boolean)
@@ -570,6 +610,9 @@ function defaultPayload(): MediaSearchPayload {
     case_insensitive: true,
     filename_regex: '',
     filename_regex_case_insensitive: true,
+    size_min: '',
+    size_max: '',
+    size_unit: 'KB',
     advanced: null
   }
 }

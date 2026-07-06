@@ -72,6 +72,8 @@ export interface MediaSearchOptions {
   uploaded_to?: string
   orphan?: boolean
   visibility?: string
+  size_min?: number
+  size_max?: number
   visibleToUser?: SessionUser
 }
 
@@ -306,6 +308,9 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   const filenameRegex = compileRegex(options.filename_regex, options.filename_regex_case_insensitive !== false)
   const tagRelation = options.tag_relation === 'or' ? 'or' : 'and'
 
+  const sizeMin = Number.isFinite(options.size_min) && (options.size_min as number) > 0 ? Number(options.size_min) : null
+  const sizeMax = Number.isFinite(options.size_max) && (options.size_max as number) > 0 ? Number(options.size_max) : null
+
   const filtered = allFiles
     .filter((file) => mediaRecordVisibleToUser(file, options.visibleToUser))
     .filter((file) => !options.visibility || options.visibility === 'all' || file.visibility === options.visibility)
@@ -316,6 +321,8 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     .filter((file) => !tagQueries.length || mediaTagsMatch(file.tags || [], tagQueries, { useRegex, caseInsensitive, relation: tagRelation }))
     .filter((file) => !fromDate || new Date(file.uploaded_at || file.created_at).getTime() >= fromDate.getTime())
     .filter((file) => !toDate || new Date(file.uploaded_at || file.created_at).getTime() <= toDate.getTime())
+    .filter((file) => sizeMin === null || (file.size || 0) >= sizeMin)
+    .filter((file) => sizeMax === null || (file.size || 0) <= sizeMax)
     .filter((file) => !options.orphan || ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length))
     .filter((file) => !search || (ftsSearchIds ? ftsSearchIds.has(file.id) : mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive })))
     .filter((file) => !fileName || mediaTextMatches(file.original_name, fileName, { useRegex, caseInsensitive }))

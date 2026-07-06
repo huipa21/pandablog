@@ -499,6 +499,7 @@
       "filterComment": "备注：{value}",
       "filterTags": "标签{relation}：{value}",
       "filterType": "类型：{value}",
+      "filterSize": "大小：{value}",
       "dateRange": "日期范围",
       "advancedQuery": "高级查询",
       "clearFilters": "清除筛选",
@@ -651,7 +652,13 @@
       "summaryTags": "标签：{value}",
       "summaryFrom": "开始：{value}",
       "summaryTo": "结束：{value}",
-      "summaryType": "类型：{value}"
+      "summaryType": "类型：{value}",
+      "summarySize": "大小：{value}",
+      "fileSize": "文件大小",
+      "sizeMin": "最小",
+      "sizeMax": "最大",
+      "sizeUnit": "单位",
+      "sizeAny": "不限"
     },
     "editor": {
       "backToPosts": "文章",
