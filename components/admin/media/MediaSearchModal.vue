@@ -174,6 +174,9 @@
 import MediaTagInput from '~/components/admin/media/MediaTagInput.vue'
 
 type SearchTab = 'simple' | 'advanced' | 'favorites' | 'recent'
+type FormTextValue = string | number
+
+const OWNER_ANY = '__any_owner__'
 
 export interface MediaSearchPayload {
   search: string
@@ -215,8 +218,8 @@ interface SearchForm {
   orphan: boolean
   search_regex: boolean
   case_insensitive: boolean
-  size_min: string
-  size_max: string
+  size_min: FormTextValue
+  size_max: FormTextValue
   size_unit: SizeUnit
 }
 
@@ -286,10 +289,14 @@ function normalizeSizeUnit(value: unknown): SizeUnit {
   return value === 'MB' || value === 'GB' ? value : 'KB'
 }
 
+function cleanString(value: unknown) {
+  return String(value ?? '').trim()
+}
+
 const owners = ref<string[]>([])
 
 const ownerItems = computed(() => [
-  { label: t('admin.media.ownerAny'), value: '' },
+  { label: t('admin.media.ownerAny'), value: OWNER_ANY },
   ...owners.value.map((name) => ({ label: name, value: name }))
 ])
 
@@ -318,7 +325,7 @@ function payloadToForm(payload: Partial<MediaSearchPayload>): SearchForm {
     comment: payload.comment || '',
     tags,
     type: payload.type || 'all',
-    owner: payload.owner || '',
+    owner: payload.owner || OWNER_ANY,
     uploaded_from: payload.uploaded_from || '',
     uploaded_to: payload.uploaded_to || '',
     orphan: payload.orphan || false,
@@ -341,15 +348,17 @@ function formToPayload(): MediaSearchPayload {
 }
 
 function payloadFromForm(value: SearchForm): MediaSearchPayload {
+  const owner = value.owner === OWNER_ANY ? '' : cleanString(value.owner)
+
   return {
-    search: value.search.trim(),
-    file_name: value.file_name.trim(),
-    extension: value.extension.trim(),
-    comment: value.comment.trim(),
+    search: cleanString(value.search),
+    file_name: cleanString(value.file_name),
+    extension: cleanString(value.extension),
+    comment: cleanString(value.comment),
     tags: [...value.tags],
     type: value.type,
     tag: value.tags[0] || '',
-    owner: value.owner.trim(),
+    owner,
     uploaded_from: value.uploaded_from,
     uploaded_to: value.uploaded_to,
     orphan: value.orphan,
@@ -357,8 +366,8 @@ function payloadFromForm(value: SearchForm): MediaSearchPayload {
     case_insensitive: value.case_insensitive,
     filename_regex: '',
     filename_regex_case_insensitive: value.case_insensitive,
-    size_min: value.size_min.trim(),
-    size_max: value.size_max.trim(),
+    size_min: cleanString(value.size_min),
+    size_max: cleanString(value.size_max),
     size_unit: normalizeSizeUnit(value.size_unit)
   }
 }
@@ -419,13 +428,14 @@ function searchLabel(payload: MediaSearchPayload) {
 }
 
 function savedSummary(savedForm: SearchForm) {
+  const owner = savedForm.owner === OWNER_ANY ? '' : savedForm.owner
   const parts = [
     savedForm.search ? t('admin.media.summarySearch', { value: savedForm.search }) : '',
     savedForm.file_name ? t('admin.media.summaryName', { value: savedForm.file_name }) : '',
     savedForm.extension ? t('admin.media.summaryExtension', { value: savedForm.extension }) : '',
     savedForm.comment ? t('admin.media.summaryComments', { value: savedForm.comment }) : '',
     savedForm.tags.length ? t('admin.media.summaryTags', { value: savedForm.tags.join(', ') }) : '',
-    savedForm.owner ? t('admin.media.summaryOwner', { value: savedForm.owner }) : '',
+    owner ? t('admin.media.summaryOwner', { value: owner }) : '',
     savedForm.uploaded_from ? t('admin.media.summaryFrom', { value: savedForm.uploaded_from }) : '',
     savedForm.uploaded_to ? t('admin.media.summaryTo', { value: savedForm.uploaded_to }) : '',
     savedForm.type && savedForm.type !== 'all' ? t('admin.media.summaryType', { value: savedForm.type }) : '',
@@ -489,12 +499,13 @@ function writeSaved(key: string, value: SavedSearch[]) {
 
 function normalizeForm(value: Partial<SearchForm>): SearchForm {
   const base = payloadToForm(defaultPayload())
+  const owner = typeof value.owner === 'string' && value.owner ? value.owner : OWNER_ANY
 
   return {
     ...base,
     ...value,
     tags: Array.isArray(value.tags) ? value.tags : [],
-    owner: typeof value.owner === 'string' ? value.owner : '',
+    owner,
     case_insensitive: value.case_insensitive !== false
   }
 }
