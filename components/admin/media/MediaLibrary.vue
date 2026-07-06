@@ -56,15 +56,16 @@
         <div v-if="hasActiveFilters && mode !== 'smart'" class="flex flex-wrap items-center gap-2 rounded-[var(--pb-radius-card-inner)] border border-amber-300/50 bg-amber-500/10 p-3">
           <UIcon name="i-lucide-filter" class="size-4 text-amber-700" />
           <span class="text-sm font-medium text-amber-800">{{ t('admin.media.activeFilters') }}</span>
+          <span v-if="filters.search" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterSearch', { value: filters.search }) }}</span>
           <span v-if="filters.file_name" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterName', { value: filters.file_name }) }}</span>
           <span v-if="filters.extension" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterExt', { value: filters.extension }) }}</span>
           <span v-if="filters.comment" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterComment', { value: filters.comment }) }}</span>
           <span v-if="filters.tags.length" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterTags', { relation: filters.tags.length > 1 ? ` (${selectedTagRelationLabel})` : '', value: filters.tags.join(', ') }) }}</span>
+          <span v-if="filters.owner" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterOwner', { value: filters.owner }) }}</span>
           <span v-if="filters.type && filters.type !== 'all'" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterType', { value: filters.type }) }}</span>
           <span v-if="filters.uploaded_from || filters.uploaded_to" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.dateRange') }}</span>
           <span v-if="filters.size_min || filters.size_max" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.filterSize', { value: `${filters.size_min || '0'}–${filters.size_max || '∞'} ${filters.size_unit}` }) }}</span>
           <span v-if="filters.orphan" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.orphanOnly') }}</span>
-          <span v-if="filters.advanced" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ t('admin.media.advancedQuery') }}</span>
           <UButton type="button" icon="i-lucide-x" size="xs" color="warning" variant="soft" class="ml-auto" @click="clearFilters">{{ t('admin.media.clearFilters') }}</UButton>
         </div>
 
@@ -142,11 +143,15 @@
           </div>
         </div>
 
-        <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950">{{ error }}</div>
-
         <template v-if="mode !== 'tag' || selectedMediaTags.length">
           <div v-if="loading" class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
             <USkeleton v-for="index in 10" :key="index" class="aspect-square rounded-lg" />
+          </div>
+
+          <div v-else-if="error" class="rounded-[var(--pb-radius-card-outer)] border border-dashed border-red-300 bg-red-50/60 py-14 text-center">
+            <UIcon name="i-lucide-triangle-alert" class="mx-auto mb-2 size-10 text-red-500" />
+            <p class="text-sm text-red-900">{{ error }}</p>
+            <UButton type="button" size="xs" color="neutral" variant="soft" icon="i-lucide-rotate-ccw" class="mt-3" @click="loadMedia">{{ t('admin.media.retry') }}</UButton>
           </div>
 
           <div v-else-if="!files.length" class="rounded-[var(--pb-radius-card-outer)] border border-dashed border-[var(--pb-border-strong)] bg-[var(--pb-card-bg)] py-14 text-center">
@@ -314,6 +319,7 @@ interface MediaFilters {
   tags: string[]
   type: string
   tag: string
+  owner: string
   uploaded_from: string
   uploaded_to: string
   orphan: boolean
@@ -324,7 +330,6 @@ interface MediaFilters {
   size_min: string
   size_max: string
   size_unit: 'KB' | 'MB' | 'GB'
-  advanced: unknown | null
 }
 
 interface SmartFolder {
@@ -419,6 +424,7 @@ const filters = ref<MediaFilters>({
   tags: [],
   type: 'all',
   tag: '',
+  owner: '',
   uploaded_from: '',
   uploaded_to: '',
   orphan: false,
@@ -429,14 +435,14 @@ const filters = ref<MediaFilters>({
   size_min: '',
   size_max: '',
   size_unit: 'KB',
-  advanced: null
+  owner: ''
 })
 
 const searchPayload = computed(() => filters.value)
 
 const hasActiveFilters = computed(() => {
   const f = filters.value
-  return !!(f.file_name || f.extension || f.comment || f.tags.length || (f.type && f.type !== 'all') || f.uploaded_from || f.uploaded_to || f.size_min || f.size_max || f.orphan || f.advanced || f.filename_regex || f.search)
+  return !!(f.file_name || f.extension || f.comment || f.tags.length || (f.type && f.type !== 'all') || f.uploaded_from || f.uploaded_to || f.size_min || f.size_max || f.orphan || f.owner || f.filename_regex || f.search)
 })
 
 const selectedTagRelationLabel = computed(() => selectedTagRelation.value.toUpperCase())
@@ -538,9 +544,9 @@ async function loadMedia() {
       case_insensitive: filters.value.case_insensitive,
       filename_regex: filters.value.filename_regex || undefined,
       filename_regex_case_insensitive: filters.value.filename_regex_case_insensitive,
-      advanced: filters.value.advanced,
       sort: sortBy.value,
       type: filters.value.type as any,
+      owner: filters.value.owner || undefined,
       uploaded_from: filters.value.uploaded_from,
       uploaded_to: filters.value.uploaded_to,
       size_min: sizeToBytes(filters.value.size_min, filters.value.size_unit),
@@ -552,7 +558,13 @@ async function loadMedia() {
     total.value = response.total
     pages.value = response.pages || 1
   } catch (err: any) {
-    error.value = err?.statusMessage || err?.message || t('admin.media.noMediaFiles')
+    files.value = []
+    total.value = 0
+    pages.value = 1
+    const status = err?.statusCode ?? err?.response?.status
+    error.value = status
+      ? (err?.data?.statusMessage || err?.statusMessage || err?.message || t('admin.media.searchError'))
+      : t('admin.media.searchNetworkError')
   } finally {
     loading.value = false
   }
@@ -602,7 +614,7 @@ function selectAll() {
   filters.value.tags = []
   filters.value.filename_regex = ''
   filters.value.filename_regex_case_insensitive = true
-  filters.value.advanced = null
+  filters.value.owner = ''
   page.value = 1
   void loadMedia()
 }
@@ -635,7 +647,7 @@ function selectFolder(id: string) {
   selectedSmartFolder.value = ''
   filters.value.filename_regex = ''
   filters.value.filename_regex_case_insensitive = true
-  filters.value.advanced = null
+  filters.value.owner = ''
   filters.value.tag = ''
   filters.value.tags = []
   page.value = 1
@@ -715,11 +727,14 @@ function selectSmartFolderById(id: string) {
     case_insensitive: true,
     filename_regex: sf.filters.filename_regex || '',
     filename_regex_case_insensitive: sf.filters.filename_regex_case_insensitive !== false,
-    advanced: null,
+    owner: '',
     type: sf.filters.file_type || 'all',
     tag: '',
     uploaded_from: sf.filters.date_from || '',
     uploaded_to: sf.filters.date_to || '',
+    size_min: '',
+    size_max: '',
+    size_unit: 'KB',
     orphan: sf.filters.orphan_only || false
   }
   page.value = 1
@@ -1214,6 +1229,7 @@ function defaultFilters(): MediaFilters {
     tags: [],
     type: 'all',
     tag: '',
+    owner: '',
     uploaded_from: '',
     uploaded_to: '',
     orphan: false,
@@ -1223,8 +1239,7 @@ function defaultFilters(): MediaFilters {
     filename_regex_case_insensitive: true,
     size_min: '',
     size_max: '',
-    size_unit: 'KB',
-    advanced: null
+    size_unit: 'KB'
   }
 }
 </script>

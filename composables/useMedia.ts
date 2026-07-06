@@ -26,10 +26,10 @@ interface MediaListOptions {
   search_regex?: boolean
   case_insensitive?: boolean
   sort?: string
-  advanced?: unknown
   type?: 'all' | MediaFileType
   folder?: string
   tag?: string
+  owner?: string
   mime_type?: string
   uploaded_from?: string
   uploaded_to?: string
@@ -59,10 +59,10 @@ export function useMedia() {
     if (options.search_regex) query.set('search_regex', 'true')
     if (options.case_insensitive) query.set('case_insensitive', 'true')
     if (options.sort) query.set('sort', options.sort)
-    if (options.advanced) query.set('advanced', JSON.stringify(options.advanced))
     if (options.type && options.type !== 'all') query.set('type', options.type)
     if (options.folder) query.set('folder', options.folder)
     if (options.tag) query.set('tag', options.tag)
+    if (options.owner) query.set('owner', options.owner)
     if (options.mime_type) query.set('mime_type', options.mime_type)
     if (options.uploaded_from) query.set('uploaded_from', options.uploaded_from)
     if (options.uploaded_to) query.set('uploaded_to', options.uploaded_to)

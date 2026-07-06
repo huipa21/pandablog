@@ -1,7 +1,6 @@
 import { requireContentManager } from '../../utils/auth'
 import { useDb } from '../../utils/db'
 import { mediaSearchFileRecords } from '../../utils/mediaLibrary'
-import type { MediaAdvancedGroup } from '../../utils/mediaLibrary'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
@@ -27,11 +26,11 @@ export default defineEventHandler(async (event) => {
     search_regex: searchRegex,
     case_insensitive: caseInsensitive,
     sort: stringQuery(query.sort),
-    advanced: advancedQuery(query.advanced),
     type: stringQuery(query.type) || 'all',
     mime_type: stringQuery(query.mime_type),
     folder: stringQuery(query.folder),
     tag: stringQuery(query.tag),
+    owner: searchTextQuery(query.owner),
     uploaded_from: stringQuery(query.uploaded_from),
     uploaded_to: stringQuery(query.uploaded_to),
     orphan: query.orphan === 'true',
@@ -90,17 +89,4 @@ function tagsQuery(value: unknown) {
 
 function tagRelationQuery(value: unknown) {
   return stringQuery(value).toLowerCase() === 'or' ? 'or' : 'and'
-}
-
-function advancedQuery(value: unknown): MediaAdvancedGroup | null {
-  const raw = stringQuery(value).trim()
-  if (!raw || raw.length > 6000) return null
-
-  try {
-    const parsed = JSON.parse(raw) as { op?: unknown, conditions?: unknown }
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.conditions)) return null
-    return parsed as MediaAdvancedGroup
-  } catch {
-    return null
-  }
 }

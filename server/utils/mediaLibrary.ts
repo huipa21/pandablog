@@ -63,11 +63,11 @@ export interface MediaSearchOptions {
   search_regex?: boolean
   case_insensitive?: boolean
   sort?: string
-  advanced?: MediaAdvancedGroup | null
   type?: string
   mime_type?: string
   folder?: string
   tag?: string
+  owner?: string
   uploaded_from?: string
   uploaded_to?: string
   orphan?: boolean
@@ -75,19 +75,6 @@ export interface MediaSearchOptions {
   size_min?: number
   size_max?: number
   visibleToUser?: SessionUser
-}
-
-export interface MediaAdvancedGroup {
-  op?: 'AND' | 'OR'
-  conditions?: Array<MediaAdvancedGroup | MediaAdvancedCondition>
-}
-
-export interface MediaAdvancedCondition {
-  field?: string
-  operator?: string
-  value?: string
-  valueTo?: string
-  caseInsensitive?: boolean
 }
 
 export function mediaNormalizeFileRecord(record: Record<string, unknown>): MediaRecord {
@@ -310,6 +297,7 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
 
   const sizeMin = Number.isFinite(options.size_min) && (options.size_min as number) > 0 ? Number(options.size_min) : null
   const sizeMax = Number.isFinite(options.size_max) && (options.size_max as number) > 0 ? Number(options.size_max) : null
+  const owner = String(options.owner || '').trim().toLowerCase()
 
   const filtered = allFiles
     .filter((file) => mediaRecordVisibleToUser(file, options.visibleToUser))
@@ -323,13 +311,13 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     .filter((file) => !toDate || new Date(file.uploaded_at || file.created_at).getTime() <= toDate.getTime())
     .filter((file) => sizeMin === null || (file.size || 0) >= sizeMin)
     .filter((file) => sizeMax === null || (file.size || 0) <= sizeMax)
+    .filter((file) => !owner || String(file.uploaded_by || '').toLowerCase() === owner)
     .filter((file) => !options.orphan || ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length))
     .filter((file) => !search || (ftsSearchIds ? ftsSearchIds.has(file.id) : mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive })))
     .filter((file) => !fileName || mediaTextMatches(file.original_name, fileName, { useRegex, caseInsensitive }))
     .filter((file) => !extension || mediaTextMatches(file.extension, extension, { useRegex, caseInsensitive }))
     .filter((file) => !comment || mediaTextMatches(file.comment || '', comment, { useRegex, caseInsensitive }))
     .filter((file) => !filenameRegex || filenameRegex.test(file.original_name))
-    .filter((file) => !options.advanced || mediaAdvancedMatches(file, options.advanced))
 
   const files = [...filtered].sort((a, b) => mediaCompareRecords(a, b, options.sort)).slice(offset, offset + limit)
   const total = filtered.length
@@ -399,6 +387,7 @@ function mediaTextMatches(value: string, query: string, options: { useRegex: boo
 
 function mediaGlobalTextMatches(file: MediaRecord, query: string, options: { useRegex: boolean, caseInsensitive: boolean }) {
   return mediaTextMatches(file.original_name, query, options)
+    || mediaTextMatches(file.extension, query, options)
     || mediaTextMatches(file.comment || '', query, options)
 }
 
@@ -464,81 +453,6 @@ function mediaCompareRecords(a: MediaRecord, b: MediaRecord, sort: string | unde
       return b.size - a.size
     default:
       return new Date(b.uploaded_at || b.created_at).getTime() - new Date(a.uploaded_at || a.created_at).getTime()
-  }
-}
-
-function mediaAdvancedMatches(file: MediaRecord, group: MediaAdvancedGroup): boolean {
-  const conditions = Array.isArray(group.conditions) ? group.conditions : []
-  if (!conditions.length) return true
-
-  const op = group.op === 'OR' ? 'OR' : 'AND'
-  const results: boolean[] = conditions.map((condition): boolean => {
-    if ('conditions' in condition) {
-      return mediaAdvancedMatches(file, condition as MediaAdvancedGroup)
-    }
-
-    return mediaAdvancedConditionMatches(file, condition as MediaAdvancedCondition)
-  })
-
-  return op === 'OR' ? results.some(Boolean) : results.every(Boolean)
-}
-
-function mediaAdvancedConditionMatches(file: MediaRecord, condition: MediaAdvancedCondition) {
-  const field = condition.field || 'name'
-  const operator = condition.operator || 'contains'
-  const value = String(condition.value || '')
-  const valueTo = String(condition.valueTo || '')
-  const caseInsensitive = condition.caseInsensitive !== false
-
-  if (field === 'uploaded_at') {
-    const uploadedTime = new Date(file.uploaded_at || file.created_at).getTime()
-    if (operator === 'before') return uploadedTime <= normalizeDateBoundary(value, 'end').getTime()
-    if (operator === 'after') return uploadedTime >= normalizeDateBoundary(value, 'start').getTime()
-    if (operator === 'between') {
-      return uploadedTime >= normalizeDateBoundary(value, 'start').getTime()
-        && uploadedTime <= normalizeDateBoundary(valueTo || value, 'end').getTime()
-    }
-  }
-
-  if (field === 'orphan') {
-    return ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length) === (value !== 'false')
-  }
-
-  if (field === 'type') {
-    return mediaRecordMatchesType(file, value)
-  }
-
-  const target = mediaAdvancedFieldText(file, field)
-  if (operator === 'equals') {
-    return caseInsensitive ? target.toLowerCase() === value.toLowerCase() : target === value
-  }
-  if (operator === 'regex') {
-    const regex = compileRegex(value, caseInsensitive)
-    return regex ? regex.test(target) : false
-  }
-
-  return mediaTextMatches(target, value, { useRegex: false, caseInsensitive })
-}
-
-function mediaAdvancedFieldText(file: MediaRecord, field: string) {
-  switch (field) {
-    case 'original_name':
-    case 'name':
-    case 'file_name':
-      return file.original_name
-    case 'extension':
-    case 'file_extension':
-      return file.extension
-    case 'comment':
-    case 'comments':
-      return file.comment || ''
-    case 'tag':
-    case 'tags':
-      return (file.tags || []).join(' ')
-    case 'mime_type':
-      return file.mime_type
-    default:
-      return file.original_name
   }
 }
 

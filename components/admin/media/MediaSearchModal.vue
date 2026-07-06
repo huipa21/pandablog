@@ -25,6 +25,28 @@
 
         <div class="min-h-0 flex-1 overflow-y-auto p-4">
           <section v-if="activeTab === 'simple'" class="space-y-4">
+            <UFormField :label="t('admin.media.search')">
+              <UInput v-model="form.search" icon="i-lucide-search" placeholder="example.txt" @keydown.enter.prevent="applySearch" />
+            </UFormField>
+            <p class="text-xs text-[var(--pb-text-subtle)]">{{ t('admin.media.simpleSearchHint') }}</p>
+
+            <div class="flex flex-wrap gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
+              <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+                <input v-model="form.search_regex" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
+                <span>{{ t('admin.media.regex') }}</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+                <input v-model="form.case_insensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
+                <span>{{ t('admin.media.caseInsensitive') }}</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm text-[var(--pb-text-muted)]">
+                <input v-model="form.orphan" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
+                <span>{{ t('admin.media.orphanOnly') }}</span>
+              </label>
+            </div>
+          </section>
+
+          <section v-else-if="activeTab === 'advanced'" class="space-y-4">
             <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               <UFormField :label="t('admin.media.fileName')">
                 <UInput v-model="form.file_name" icon="i-lucide-file-search" placeholder="holiday|report" />
@@ -40,14 +62,17 @@
                   <MediaTagInput v-model="form.tags" />
                 </div>
               </UFormField>
+              <UFormField :label="t('admin.media.owner')">
+                <USelect v-model="form.owner" :items="ownerItems" :content="selectContent" :ui="selectUi" />
+              </UFormField>
+              <UFormField :label="t('admin.media.type')">
+                <USelect v-model="form.type" :items="typeItems" :content="selectContent" :ui="selectUi" />
+              </UFormField>
               <UFormField :label="t('admin.media.from')">
                 <UInput v-model="form.uploaded_from" type="date" />
               </UFormField>
               <UFormField :label="t('admin.media.to')">
                 <UInput v-model="form.uploaded_to" type="date" />
-              </UFormField>
-              <UFormField :label="t('admin.media.type')">
-                <USelect v-model="form.type" :items="typeItems" :content="selectContent" :ui="selectUi" />
               </UFormField>
             </div>
 
@@ -79,66 +104,6 @@
                 <input v-model="form.orphan" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
                 <span>{{ t('admin.media.orphanOnly') }}</span>
               </label>
-            </div>
-          </section>
-
-          <section v-else-if="activeTab === 'advanced'" class="space-y-3 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-sm font-medium text-[var(--pb-text)]">{{ t('admin.media.advancedConditions') }}</h3>
-              <div class="ml-auto w-32">
-                <USelect v-model="form.rootOp" :items="opItems" :content="selectContent" :ui="selectUi" />
-              </div>
-              <UButton type="button" size="xs" icon="i-lucide-plus" color="neutral" variant="soft" @click="addCondition(form.conditions)">{{ t('admin.media.condition') }}</UButton>
-              <UButton type="button" size="xs" icon="i-lucide-folder-plus" color="neutral" variant="soft" @click="addGroup">{{ t('admin.media.group') }}</UButton>
-            </div>
-
-            <div class="space-y-2">
-              <div
-                v-for="condition in form.conditions"
-                :key="condition.id"
-                class="grid gap-2 rounded-[var(--pb-radius-md)] bg-[var(--pb-surface-subtle)] p-2 md:grid-cols-[160px_140px_minmax(160px,1fr)_minmax(120px,1fr)_auto]"
-              >
-                <USelect v-model="condition.field" :items="fieldItems" :content="selectContent" :ui="selectUi" />
-                <USelect v-model="condition.operator" :items="operatorItems" :content="selectContent" :ui="selectUi" />
-                <UInput v-model="condition.value" :placeholder="t('admin.media.value')" />
-                <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" :placeholder="t('admin.media.to')" />
-                <label v-else class="flex items-center gap-2 text-xs text-[var(--pb-text-muted)]">
-                  <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
-                  <span>{{ t('admin.media.caseInsensitive') }}</span>
-                </label>
-                <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="removeCondition(form.conditions, condition.id)" />
-              </div>
-            </div>
-
-            <div
-              v-for="group in form.groups"
-              :key="group.id"
-              class="space-y-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3"
-            >
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium text-[var(--pb-text-muted)]">{{ t('admin.media.group') }}</span>
-                <div class="w-28">
-                  <USelect v-model="group.op" :items="opItems" :content="selectContent" :ui="selectUi" />
-                </div>
-                <UButton type="button" size="xs" icon="i-lucide-plus" color="neutral" variant="soft" @click="addCondition(group.conditions)">{{ t('admin.media.condition') }}</UButton>
-                <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" class="ml-auto" @click="removeGroup(group.id)" />
-              </div>
-
-              <div
-                v-for="condition in group.conditions"
-                :key="condition.id"
-                class="grid gap-2 rounded-[var(--pb-radius-md)] bg-[var(--pb-surface-subtle)] p-2 md:grid-cols-[160px_140px_minmax(160px,1fr)_minmax(120px,1fr)_auto]"
-              >
-                <USelect v-model="condition.field" :items="fieldItems" :content="selectContent" :ui="selectUi" />
-                <USelect v-model="condition.operator" :items="operatorItems" :content="selectContent" :ui="selectUi" />
-                <UInput v-model="condition.value" :placeholder="t('admin.media.value')" />
-                <UInput v-if="condition.operator === 'between'" v-model="condition.valueTo" :placeholder="t('admin.media.to')" />
-                <label v-else class="flex items-center gap-2 text-xs text-[var(--pb-text-muted)]">
-                  <input v-model="condition.caseInsensitive" type="checkbox" class="rounded border-[var(--pb-border-strong)]">
-                  <span>{{ t('admin.media.caseInsensitive') }}</span>
-                </label>
-                <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" @click="removeCondition(group.conditions, condition.id)" />
-              </div>
             </div>
           </section>
 
@@ -210,21 +175,6 @@ import MediaTagInput from '~/components/admin/media/MediaTagInput.vue'
 
 type SearchTab = 'simple' | 'advanced' | 'favorites' | 'recent'
 
-interface SearchCondition {
-  id: string
-  field: string
-  operator: string
-  value: string
-  valueTo: string
-  caseInsensitive: boolean
-}
-
-interface SearchGroup {
-  id: string
-  op: 'AND' | 'OR'
-  conditions: SearchCondition[]
-}
-
 export interface MediaSearchPayload {
   search: string
   file_name: string
@@ -233,6 +183,7 @@ export interface MediaSearchPayload {
   tags: string[]
   type: string
   tag: string
+  owner: string
   uploaded_from: string
   uploaded_to: string
   orphan: boolean
@@ -243,7 +194,6 @@ export interface MediaSearchPayload {
   size_min: string
   size_max: string
   size_unit: SizeUnit
-  advanced: unknown | null
 }
 
 interface SavedSearch {
@@ -259,6 +209,7 @@ interface SearchForm {
   comment: string
   tags: string[]
   type: string
+  owner: string
   uploaded_from: string
   uploaded_to: string
   orphan: boolean
@@ -267,9 +218,6 @@ interface SearchForm {
   size_min: string
   size_max: string
   size_unit: SizeUnit
-  rootOp: 'AND' | 'OR'
-  conditions: SearchCondition[]
-  groups: SearchGroup[]
 }
 
 type SizeUnit = 'KB' | 'MB' | 'GB'
@@ -328,11 +276,6 @@ const typeItems = computed(() => [
   { label: t('admin.media.typeOther'), value: 'other' }
 ])
 
-const opItems = [
-  { label: 'AND', value: 'AND' },
-  { label: 'OR', value: 'OR' }
-]
-
 const sizeUnitItems = [
   { label: 'KB', value: 'KB' },
   { label: 'MB', value: 'MB' },
@@ -343,28 +286,25 @@ function normalizeSizeUnit(value: unknown): SizeUnit {
   return value === 'MB' || value === 'GB' ? value : 'KB'
 }
 
-const fieldItems = computed(() => [
-  { label: t('admin.media.fieldFileName'), value: 'original_name' },
-  { label: t('admin.media.fieldFileExtension'), value: 'extension' },
-  { label: t('admin.media.fieldComments'), value: 'comment' },
-  { label: t('admin.media.tags'), value: 'tags' },
-  { label: t('admin.media.fieldFileType'), value: 'type' },
-  { label: t('admin.media.mimeType'), value: 'mime_type' },
-  { label: t('admin.media.uploadedDate'), value: 'uploaded_at' },
-  { label: t('admin.media.orphan'), value: 'orphan' }
+const owners = ref<string[]>([])
+
+const ownerItems = computed(() => [
+  { label: t('admin.media.ownerAny'), value: '' },
+  ...owners.value.map((name) => ({ label: name, value: name }))
 ])
 
-const operatorItems = computed(() => [
-  { label: t('admin.media.contains'), value: 'contains' },
-  { label: t('admin.media.equals'), value: 'equals' },
-  { label: t('admin.media.regex'), value: 'regex' },
-  { label: t('admin.media.before'), value: 'before' },
-  { label: t('admin.media.after'), value: 'after' },
-  { label: t('admin.media.between'), value: 'between' }
-])
+onMounted(loadOwners)
+
+async function loadOwners() {
+  try {
+    const data = await $fetch<{ owners: string[] }>('/api/media/owners')
+    owners.value = Array.isArray(data.owners) ? data.owners : []
+  } catch {
+    owners.value = []
+  }
+}
 
 function payloadToForm(payload: Partial<MediaSearchPayload>): SearchForm {
-  const parsedAdvanced = advancedToForm(payload.advanced)
   const tags = Array.isArray(payload.tags) && payload.tags.length
     ? payload.tags
     : payload.tag
@@ -378,6 +318,7 @@ function payloadToForm(payload: Partial<MediaSearchPayload>): SearchForm {
     comment: payload.comment || '',
     tags,
     type: payload.type || 'all',
+    owner: payload.owner || '',
     uploaded_from: payload.uploaded_from || '',
     uploaded_to: payload.uploaded_to || '',
     orphan: payload.orphan || false,
@@ -385,83 +326,8 @@ function payloadToForm(payload: Partial<MediaSearchPayload>): SearchForm {
     case_insensitive: payload.case_insensitive !== false,
     size_min: payload.size_min || '',
     size_max: payload.size_max || '',
-    size_unit: normalizeSizeUnit(payload.size_unit),
-    rootOp: parsedAdvanced.rootOp,
-    conditions: parsedAdvanced.conditions,
-    groups: parsedAdvanced.groups
+    size_unit: normalizeSizeUnit(payload.size_unit)
   }
-}
-
-function advancedToForm(value: unknown): Pick<SearchForm, 'rootOp' | 'conditions' | 'groups'> {
-  const group = value && typeof value === 'object' ? value as { op?: unknown; conditions?: unknown } : null
-  const conditions = Array.isArray(group?.conditions) ? group.conditions : []
-  const rootConditions: SearchCondition[] = []
-  const groups: SearchGroup[] = []
-
-  for (const condition of conditions) {
-    if (condition && typeof condition === 'object' && Array.isArray((condition as { conditions?: unknown }).conditions)) {
-      const nested = condition as { op?: unknown; conditions?: unknown[] }
-      const nestedConditions = Array.isArray(nested.conditions) ? nested.conditions.map(conditionFromPayload).filter(isDefined) : []
-      if (nestedConditions.length) {
-        groups.push({
-          id: uid(),
-          op: nested.op === 'OR' ? 'OR' : 'AND',
-          conditions: nestedConditions
-        })
-      }
-    } else {
-      const parsed = conditionFromPayload(condition)
-      if (parsed) rootConditions.push(parsed)
-    }
-  }
-
-  return {
-    rootOp: group?.op === 'OR' ? 'OR' : 'AND',
-    conditions: rootConditions,
-    groups
-  }
-}
-
-function conditionFromPayload(value: unknown): SearchCondition | null {
-  if (!value || typeof value !== 'object') return null
-  const condition = value as Partial<SearchCondition>
-  return {
-    id: condition.id || uid(),
-    field: condition.field || 'original_name',
-    operator: condition.operator || 'contains',
-    value: condition.value || '',
-    valueTo: condition.valueTo || '',
-    caseInsensitive: condition.caseInsensitive !== false
-  }
-}
-
-function addCondition(target: SearchCondition[]) {
-  target.push({
-    id: uid(),
-    field: 'original_name',
-    operator: 'contains',
-    value: '',
-    valueTo: '',
-    caseInsensitive: true
-  })
-}
-
-function removeCondition(target: SearchCondition[], id: string) {
-  const index = target.findIndex((condition) => condition.id === id)
-  if (index !== -1) target.splice(index, 1)
-}
-
-function addGroup() {
-  form.groups.push({
-    id: uid(),
-    op: 'AND',
-    conditions: [{ id: uid(), field: 'original_name', operator: 'contains', value: '', valueTo: '', caseInsensitive: true }]
-  })
-}
-
-function removeGroup(id: string) {
-  const index = form.groups.findIndex((group) => group.id === id)
-  if (index !== -1) form.groups.splice(index, 1)
 }
 
 function applySearch() {
@@ -475,24 +341,15 @@ function formToPayload(): MediaSearchPayload {
 }
 
 function payloadFromForm(value: SearchForm): MediaSearchPayload {
-  const advancedConditions = [
-    ...value.conditions.map(conditionToPayload).filter(isDefined),
-    ...value.groups
-      .map((group) => ({
-        op: group.op,
-        conditions: group.conditions.map(conditionToPayload).filter(isDefined)
-      }))
-      .filter((group) => group.conditions.length)
-  ]
-
   return {
-    search: '',
+    search: value.search.trim(),
     file_name: value.file_name.trim(),
     extension: value.extension.trim(),
     comment: value.comment.trim(),
     tags: [...value.tags],
     type: value.type,
     tag: value.tags[0] || '',
+    owner: value.owner.trim(),
     uploaded_from: value.uploaded_from,
     uploaded_to: value.uploaded_to,
     orphan: value.orphan,
@@ -502,19 +359,7 @@ function payloadFromForm(value: SearchForm): MediaSearchPayload {
     filename_regex_case_insensitive: value.case_insensitive,
     size_min: value.size_min.trim(),
     size_max: value.size_max.trim(),
-    size_unit: normalizeSizeUnit(value.size_unit),
-    advanced: advancedConditions.length ? { op: value.rootOp, conditions: advancedConditions } : null
-  }
-}
-
-function conditionToPayload(condition: SearchCondition) {
-  if (!condition.value && condition.field !== 'orphan') return null
-  return {
-    field: condition.field,
-    operator: condition.operator,
-    value: condition.field === 'orphan' ? (condition.value || 'true') : condition.value,
-    valueTo: condition.valueTo,
-    caseInsensitive: condition.caseInsensitive
+    size_unit: normalizeSizeUnit(value.size_unit)
   }
 }
 
@@ -570,20 +415,21 @@ function makeSavedSearch(name: string, payload: MediaSearchPayload): SavedSearch
 }
 
 function searchLabel(payload: MediaSearchPayload) {
-  return payload.file_name || payload.extension || payload.comment || payload.tags[0] || payload.type || t('admin.media.mediaSearchDefault')
+  return payload.search || payload.file_name || payload.extension || payload.comment || payload.tags[0] || payload.owner || payload.type || t('admin.media.mediaSearchDefault')
 }
 
 function savedSummary(savedForm: SearchForm) {
   const parts = [
+    savedForm.search ? t('admin.media.summarySearch', { value: savedForm.search }) : '',
     savedForm.file_name ? t('admin.media.summaryName', { value: savedForm.file_name }) : '',
     savedForm.extension ? t('admin.media.summaryExtension', { value: savedForm.extension }) : '',
     savedForm.comment ? t('admin.media.summaryComments', { value: savedForm.comment }) : '',
     savedForm.tags.length ? t('admin.media.summaryTags', { value: savedForm.tags.join(', ') }) : '',
+    savedForm.owner ? t('admin.media.summaryOwner', { value: savedForm.owner }) : '',
     savedForm.uploaded_from ? t('admin.media.summaryFrom', { value: savedForm.uploaded_from }) : '',
     savedForm.uploaded_to ? t('admin.media.summaryTo', { value: savedForm.uploaded_to }) : '',
     savedForm.type && savedForm.type !== 'all' ? t('admin.media.summaryType', { value: savedForm.type }) : '',
     savedForm.size_min || savedForm.size_max ? t('admin.media.summarySize', { value: `${savedForm.size_min || '0'}–${savedForm.size_max || '∞'} ${savedForm.size_unit}` }) : '',
-    savedForm.conditions.length || savedForm.groups.length ? t('admin.media.advancedSummary', { op: savedForm.rootOp }) : '',
     savedForm.search_regex ? t('admin.media.regex') : ''
   ].filter(Boolean)
 
@@ -603,6 +449,7 @@ function defaultPayload(): MediaSearchPayload {
     tags: [],
     type: 'all',
     tag: '',
+    owner: '',
     uploaded_from: '',
     uploaded_to: '',
     orphan: false,
@@ -612,8 +459,7 @@ function defaultPayload(): MediaSearchPayload {
     filename_regex_case_insensitive: true,
     size_min: '',
     size_max: '',
-    size_unit: 'KB',
-    advanced: null
+    size_unit: 'KB'
   }
 }
 
@@ -643,36 +489,18 @@ function writeSaved(key: string, value: SavedSearch[]) {
 
 function normalizeForm(value: Partial<SearchForm>): SearchForm {
   const base = payloadToForm(defaultPayload())
-  const normalizedGroups: SearchGroup[] = Array.isArray(value.groups)
-    ? value.groups
-      .map((group) => {
-        const op: 'AND' | 'OR' = group.op === 'OR' ? 'OR' : 'AND'
-        return {
-          id: group.id || uid(),
-          op,
-          conditions: Array.isArray(group.conditions) ? group.conditions.map(conditionFromPayload).filter(isDefined) : []
-        }
-      })
-      .filter((group) => group.conditions.length)
-    : []
 
   return {
     ...base,
     ...value,
     tags: Array.isArray(value.tags) ? value.tags : [],
-    case_insensitive: value.case_insensitive !== false,
-    rootOp: value.rootOp === 'OR' ? 'OR' : 'AND',
-    conditions: Array.isArray(value.conditions) ? value.conditions.map(conditionFromPayload).filter(isDefined) : [],
-    groups: normalizedGroups
+    owner: typeof value.owner === 'string' ? value.owner : '',
+    case_insensitive: value.case_insensitive !== false
   }
 }
 
 function cloneForm(value: SearchForm): SearchForm {
   return JSON.parse(JSON.stringify(value)) as SearchForm
-}
-
-function isDefined<T>(value: T | null | undefined): value is T {
-  return value !== null && value !== undefined
 }
 
 function uid() {
