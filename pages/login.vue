@@ -122,6 +122,8 @@
 </template>
 
 <script setup lang="ts">
+import { resolveLoginRedirect, safeInternalPath } from '~/utils/authRedirect'
+
 definePageMeta({ layout: false })
 
 type Role = 'superadmin' | 'admin' | 'author' | 'viewer'
@@ -157,7 +159,7 @@ onMounted(async () => {
 
   const session = await $fetch<{ loggedIn: boolean, user: LoginUser | null }>('/api/auth/session').catch(() => null)
   if (session?.loggedIn && session.user) {
-    await navigateTo(targetForRole(session.user.role))
+    await navigateAfterLogin(session.user.role)
   }
 })
 
@@ -188,7 +190,7 @@ async function login() {
       return
     }
     if (response.user) {
-      await navigateTo(targetForRole(response.user.role))
+      await navigateAfterLogin(response.user.role)
     }
   } catch (error: any) {
     errorMessage.value = error?.data?.message ?? error?.statusMessage ?? t('public.login.invalid')
@@ -206,7 +208,7 @@ async function verifyMfa() {
       method: 'POST',
       body: { code: mfaCode.value, trustDevice: trustDevice.value }
     })
-    await navigateTo(targetForRole(response.user.role))
+    await navigateAfterLogin(response.user.role)
   } catch (error: any) {
     errorMessage.value = error?.data?.message ?? error?.statusMessage ?? t('public.login.mfa.invalid')
   } finally {
@@ -254,7 +256,7 @@ async function activateEnroll() {
 
 async function finishEnrollment() {
   if (pendingUser.value) {
-    await navigateTo(targetForRole(pendingUser.value.role))
+    await navigateAfterLogin(pendingUser.value.role)
     return
   }
   resetToCredentials()
@@ -275,23 +277,9 @@ function redirectTarget() {
   return safeInternalPath(route.query.redirect, '/')
 }
 
-function safeInternalPath(value: unknown, fallback: string) {
-  const raw = String(value ?? '')
-  // Same-origin paths only: must start with a single '/', never '//' (protocol
-  // relative) or '/\' (backslash trick), to prevent open redirects.
-  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) {
-    return fallback
-  }
-  return raw
-}
-
-function targetForRole(role: Role) {
-  const redirect = redirectTarget()
-  if (role === 'viewer') {
-    return redirect.startsWith('/admin') ? '/' : redirect
-  }
-
-  return redirect || '/admin/dashboard'
+async function navigateAfterLogin(role: Role) {
+  await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
+  await navigateTo(resolveLoginRedirect(role, route.query.redirect))
 }
 </script>
 

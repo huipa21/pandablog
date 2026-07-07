@@ -40,11 +40,14 @@ themes/*
 tests
 !tests/
 tests/*
+!tests/e2e/
 tests/e2e/*
+!tests/e2e/login-redirect.spec.ts
 !tests/e2e/public-responsive-layout.spec.ts
 !tests/unit/
 tests/unit/*
 !tests/unit/annotate.test.ts
+!tests/unit/authRedirect.test.ts
 !tests/unit/analytics.test.ts
 !tests/unit/db-reconnect.test.ts
 !tests/unit/renderedBlockDiff.test.ts
