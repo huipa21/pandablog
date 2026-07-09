@@ -51,6 +51,47 @@ test.describe('public responsive layout', () => {
     const columns = await firstCard.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)
     expect(columns, 'mobile list view should render media and content as separate columns').toBeGreaterThan(1)
   })
+
+  test('home grid keeps readable card widths on wider screens', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('pb-post-view-mode', 'grid'))
+
+    for (const viewport of [
+      { width: 1024, height: 900 },
+      { width: 1440, height: 1000 }
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.goto('/')
+      await page.waitForLoadState('networkidle')
+
+      const cards = page.locator('[data-post-card-layout="grid"] > article')
+      if (await cards.count() === 0) {
+        continue
+      }
+
+      const first = await cards.first().boundingBox()
+      expect(first, `first grid post card must be measurable at ${viewport.width}px`).toBeTruthy()
+      if (!first) continue
+
+      expect(first.width, `grid cards should stay readable at ${viewport.width}px`).toBeGreaterThanOrEqual(300)
+      await expectNoViewportOverflow(page, `${viewport.width}px public grid cards`)
+    }
+  })
+
+  test('list cover images do not stretch post rows', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('pb-post-view-mode', 'list'))
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+
+    const imageCard = page.locator('[data-post-card-layout="list"] > article:has(img)').first()
+    if (await imageCard.count() === 0) {
+      return
+    }
+
+    const imagePosition = await imageCard.locator('img').first().evaluate((element) => getComputedStyle(element).position)
+    expect(imagePosition, 'list cover image must be out of flow so it cannot set the row height').toBe('absolute')
+    await expectNoViewportOverflow(page, '1024px public list cards')
+  })
 })
 
 async function expectContainerEdgesToMatch(page: Page, viewportWidth: number) {

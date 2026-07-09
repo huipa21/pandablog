@@ -1,6 +1,6 @@
 <template>
   <div class="min-w-0">
-    <div v-if="pending" :class="layoutClasses" :style="gridStyle">
+    <div v-if="pending" :class="layoutClasses">
       <USkeleton v-for="index in skeletonCount" :key="index" :class="skeletonClasses" />
     </div>
 
@@ -12,7 +12,7 @@
       :description="isSitePrivateError ? t('public.postList.sitePrivateDescription') : undefined"
     />
 
-    <div v-else-if="posts.length" :class="layoutClasses" :style="gridStyle" :data-post-card-layout="isListView ? 'list' : 'grid'">
+    <div v-else-if="posts.length" :class="layoutClasses" :data-post-card-layout="isListView ? 'list' : 'grid'">
       <article
         v-for="post in posts"
         :key="post.id"
@@ -109,12 +109,8 @@ const resolvedEmptyDescription = computed(() => props.emptyDescription || t('pub
 const layoutClasses = computed(() => [
   'min-w-0 w-full',
   isListView.value ? 'post-card-list' : 'post-card-grid',
-  !isListView.value && props.gridColumns >= 1 ? 'post-card-grid-explicit' : undefined,
   !isListView.value && props.fixedColumns ? 'post-card-grid-fixed' : undefined
 ])
-const gridStyle = computed(() => (!isListView.value && props.gridColumns >= 1)
-  ? { '--post-card-grid-cols': String(Math.min(4, Math.max(1, props.gridColumns))) }
-  : undefined)
 const skeletonCount = computed(() => isListView.value ? 4 : 6)
 const skeletonClasses = computed(() => [
   'rounded-[var(--pb-radius-card-outer)]',
@@ -129,7 +125,7 @@ const mediaClasses = computed(() => [
   isListView.value ? 'h-full min-h-0' : 'h-full min-h-0'
 ])
 const imageClasses = computed(() => [
-  'h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]',
+  'absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]',
   isListView.value ? 'aspect-auto' : 'aspect-auto'
 ])
 const placeholderClasses = computed(() => [
@@ -223,13 +219,12 @@ function postExcerpt(post: PostListItem) {
 
 <style scoped>
 .post-card-grid {
-  --post-card-grid-min: 18rem;
-  --post-card-grid-max: 24rem;
+  --post-card-grid-min: 20rem;
 
   gap: clamp(1rem, 1.5vw, 2rem);
   display: grid;
   align-items: start;
-  justify-content: start;
+  justify-content: stretch;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -251,17 +246,12 @@ function postExcerpt(post: PostListItem) {
 
 @media (min-width: 640px) {
   .post-card-grid {
-    grid-template-columns: repeat(auto-fill, minmax(var(--post-card-grid-min), 1fr));
-  }
-
-  .post-card-grid-explicit {
-    grid-template-columns: repeat(var(--post-card-grid-cols, 2), minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(var(--post-card-grid-min), 100%), 1fr));
   }
 
   .post-card-grid-item {
-    justify-self: start;
+    justify-self: stretch;
     width: 100%;
-    max-width: var(--post-card-grid-max);
   }
 }
 
