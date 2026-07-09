@@ -58,10 +58,9 @@
             variant="soft"
             color="neutral"
             size="sm"
-            :to="viewLink || undefined"
-            target="_blank"
-            :disabled="!viewLink"
+            :disabled="!canOpenPreview || savingAction !== null"
             :aria-label="t('admin.editor.view')"
+            @click="openPostView"
           >
             <span class="hidden sm:inline">{{ t('admin.editor.view') }}</span>
           </UButton>
@@ -407,6 +406,8 @@ const viewLink = computed(() => {
   const slug = form.slug?.trim() || post.value?.slug?.trim() || ''
   return slug ? `/blog/${encodeURIComponent(slug)}` : ''
 })
+const localPreviewLink = computed(() => `/admin/posts/preview/${encodeURIComponent(id.value)}`)
+const canOpenPreview = computed(() => currentStatus.value === 'draft' || Boolean(viewLink.value))
 
 const [
   { data: post, pending, error: loadError },
@@ -509,7 +510,7 @@ function saveLocal() {
   if (editorReadOnly.value) {
     saveStatus.value = 'This post is open read-only because another editor holds the lock.'
     saveStatusType.value = 'error'
-    return
+    return false
   }
 
   savingAction.value = 'save-local'
@@ -535,12 +536,27 @@ function saveLocal() {
     const timeStr = formatTime(new Date())
     saveStatus.value = t('admin.editor.localSavedAt', { time: timeStr })
     saveStatusType.value = 'success'
+    return true
   } catch (err: any) {
     adminToast.error(err, t('admin.editor.localSaveFailed'))
     saveStatus.value = t('admin.editor.saveFailed')
     saveStatusType.value = 'error'
+    return false
   } finally {
     savingAction.value = null
+  }
+}
+
+function openPostView() {
+  if (currentStatus.value === 'draft') {
+    if (saveLocal()) {
+      window.open(localPreviewLink.value, '_blank', 'noopener')
+    }
+    return
+  }
+
+  if (viewLink.value) {
+    window.open(viewLink.value, '_blank', 'noopener')
   }
 }
 

@@ -678,6 +678,13 @@
       "update": "更新",
       "publish": "发布",
       "versions": "版本",
+      "preview": {
+        "title": "草稿预览",
+        "badge": "草稿预览",
+        "backToEditor": "返回编辑器",
+        "missingTitle": "未找到本地草稿",
+        "missingDescription": "请返回编辑器并再次点击查看，以保存最新的本地预览。"
+      },
       "view": "查看",
       "loadPostFailed": "无法加载这篇文章",
       "addTitle": "添加标题",

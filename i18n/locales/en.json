@@ -678,6 +678,13 @@
       "update": "Update",
       "publish": "Publish",
       "versions": "Versions",
+      "preview": {
+        "title": "Draft preview",
+        "badge": "Draft preview",
+        "backToEditor": "Back to editor",
+        "missingTitle": "No local draft found",
+        "missingDescription": "Return to the editor and click View again to save a fresh local preview."
+      },
       "versionsPanel": {
         "subtitle": "Editor-only snapshots",
         "current": "Current version",
