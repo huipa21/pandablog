@@ -651,20 +651,28 @@ function escapeAttr(value: string) {
 .codeblock-tail {
   display: flex;
   justify-content: center;
-  padding: 0 0 0.5rem;
+  padding: 0 0 0.6rem;
 }
 
 .codeblock-tail-btn {
-  border: 0;
-  background: transparent;
-  color: rgba(230, 237, 243, 0.75);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--code-fg, #d4d4d4) 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--code-fg, #d4d4d4) 8%, transparent);
+  color: color-mix(in srgb, var(--code-fg, #d4d4d4) 82%, transparent);
   font-size: 0.72rem;
+  font-weight: 500;
   letter-spacing: 0.01em;
-  padding: 0.1rem 0.4rem;
+  padding: 0.15rem 0.75rem;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .codeblock-tail-btn:hover {
-  color: rgba(230, 237, 243, 0.95);
+  background: color-mix(in srgb, var(--code-fg, #d4d4d4) 16%, transparent);
+  border-color: color-mix(in srgb, var(--code-fg, #d4d4d4) 42%, transparent);
+  color: var(--code-fg, #d4d4d4);
 }
 </style>

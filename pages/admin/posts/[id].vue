@@ -617,6 +617,10 @@ const LOCAL_CONFLICT_FIELDS: Array<{ key: LocalConflictFieldKey, label: string }
 
 function buildServerComparable(): Record<LocalConflictFieldKey, unknown> {
   const p = post.value
+  // Normalise the server content through the SAME `stripEmptyBlocks` pass the
+  // local draft uses (see `strippedContent`), otherwise an unedited draft that
+  // dropped a trailing empty block registers as a false-positive conflict.
+  const serverContent = p?.content_json ?? emptyDoc()
   return {
     title: p?.title ?? '',
     slug: p?.slug ?? '',
@@ -627,7 +631,7 @@ function buildServerComparable(): Record<LocalConflictFieldKey, unknown> {
     visibility: p?.visibility ?? 'public',
     password_hint: p?.password_hint ?? '',
     related_post_ids: p?.related_post_ids ?? [],
-    content_json: p?.content_json ?? emptyDoc()
+    content_json: stripEmptyBlocks(serverContent) ?? serverContent
   }
 }
 
