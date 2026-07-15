@@ -299,7 +299,7 @@ import RenderedBlockDiffSurface from '~/components/content/RenderedBlockDiffSurf
 import type { CategoryRecord, JsonContent, PostRecord, PostStatus, TagRecord } from '~/types/content'
 import type { AdminPostEditorForm } from '~/types/editor'
 import { docToDiffText } from '~/utils/contentDiffText'
-import { stripEmptyBlocks } from '~/utils/emptyBlocks'
+import { normalizeDocForComparison, normalizeDocForSave } from '~/utils/emptyBlocks'
 import { hasRenderedBlockChanges } from '~/utils/renderedBlockDiff'
 
 definePageMeta({ layout: 'admin', adminWide: true, adminHideSidebar: true })
@@ -617,9 +617,10 @@ const LOCAL_CONFLICT_FIELDS: Array<{ key: LocalConflictFieldKey, label: string }
 
 function buildServerComparable(): Record<LocalConflictFieldKey, unknown> {
   const p = post.value
-  // Normalise the server content through the SAME `stripEmptyBlocks` pass the
-  // local draft uses (see `strippedContent`), otherwise an unedited draft that
-  // dropped a trailing empty block registers as a false-positive conflict.
+  // Normalise the server content through the SAME pass the local draft uses (see
+  // `strippedContent`), otherwise an unedited draft that dropped a trailing empty
+  // block or trimmed whitespace registers as a false-positive conflict. Keep
+  // blockIds so `renderedBlockDiff` can still match blocks by id.
   const serverContent = p?.content_json ?? emptyDoc()
   return {
     title: p?.title ?? '',
@@ -631,7 +632,7 @@ function buildServerComparable(): Record<LocalConflictFieldKey, unknown> {
     visibility: p?.visibility ?? 'public',
     password_hint: p?.password_hint ?? '',
     related_post_ids: p?.related_post_ids ?? [],
-    content_json: stripEmptyBlocks(serverContent) ?? serverContent
+    content_json: normalizeDocForSave(serverContent) ?? serverContent
   }
 }
 
@@ -646,7 +647,7 @@ function buildLocalComparable(local: LocalDraftPayload): Record<LocalConflictFie
     visibility: local.visibility ?? 'public',
     password_hint: local.password_hint ?? '',
     related_post_ids: local.related_post_ids ?? [],
-    content_json: local.content_json ?? emptyDoc()
+    content_json: normalizeDocForSave(local.content_json ?? emptyDoc()) ?? emptyDoc()
   }
 }
 
@@ -1027,13 +1028,21 @@ function serializeDbPayload() {
     password_hint: form.password_hint,
     password_source: effectivePasswordSource(),
     related_post_ids: form.related_post_ids,
-    content_json: strippedContent(),
+    content_json: comparableContent(),
     status: currentStatus.value
   })
 }
 
+// Content used for DB dirty-detection. Ignores blockId churn (server mints ids)
+// on top of the save-time normalisation so an untouched post never looks dirty.
+function comparableContent() {
+  return normalizeDocForComparison(form.content) ?? form.content
+}
+
+// Content persisted to the DB / local draft: strips empty blocks (incl. nested)
+// and trims edge whitespace, but keeps blockIds for stable server-side diffing.
 function strippedContent() {
-  return stripEmptyBlocks(form.content) ?? form.content
+  return normalizeDocForSave(form.content) ?? form.content
 }
 
 function effectivePasswordSource() {

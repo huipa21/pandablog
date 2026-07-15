@@ -1048,7 +1048,7 @@
         "large": "Large",
         "fullOriginal": "Full / Original",
         "naturalAuto": "Natural / Auto",
-        "fillContainer": "Fill container",
+        "fillContainer": "Full Width (Auto Height)",
         "customPercent": "Custom percent",
         "customPx": "Custom px",
         "content": "Content",

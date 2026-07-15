@@ -459,7 +459,7 @@ html {
   padding: 1rem;
 }
 
-.pb-prose .ProseMirror img {
+.pb-prose .ProseMirror img:not(.imageblock-image) {
   border-radius: var(--pb-radius-lg);
   max-height: 34rem;
   object-fit: cover;

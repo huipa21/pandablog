@@ -9,7 +9,7 @@
           :width="displayWidthAttr || undefined"
           :height="lockAspect ? undefined : (height || undefined)"
           :style="imgStyle"
-          class="block max-w-full rounded-md"
+          class="imageblock-image block max-w-full rounded-md"
           loading="lazy"
         >
       </div>

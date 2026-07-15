@@ -1896,7 +1896,9 @@ function setImageSourceSize(value: unknown) {
 
 function setImageDisplaySize(value: unknown) {
   const displaySize = asSelectValue(value, 'fill-container')
-  updateAttrs({ displaySize })
+  updateAttrs(displaySize === 'custom-px'
+    ? { displaySize }
+    : { displaySize, displayPx: null, width: null, height: null })
 }
 
 function setImageWidth(value: unknown) {

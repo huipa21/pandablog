@@ -22,7 +22,7 @@
           :height="lockAspect ? undefined : (displayHeight ?? undefined)"
           :style="imgStyle"
           draggable="false"
-          class="block max-w-full rounded-md"
+          class="imageblock-image block max-w-full rounded-md"
           @load="onImageLoad"
         >
         <div v-else class="flex h-40 w-full items-center justify-center rounded-md border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-400" contenteditable="false">

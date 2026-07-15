@@ -14,6 +14,8 @@
       type="button"
       class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45"
       :class="index === selectedIndex ? 'bg-teal-50 text-teal-950' : 'text-stone-700 hover:bg-stone-50'"
+      :data-selected="index === selectedIndex"
+      :data-testid="`slash-command-item-${item.name}`"
       :disabled="!item.implemented"
       @mouseenter="$emit('select-index', index)"
       @mousedown.prevent="$emit('pick', item.name)"

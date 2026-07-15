@@ -1035,7 +1035,7 @@
         "large": "大图",
         "fullOriginal": "完整 / 原始",
         "naturalAuto": "自然 / 自动",
-        "fillContainer": "填充容器",
+        "fillContainer": "全宽（自动高度）",
         "customPercent": "自定义百分比",
         "customPx": "自定义 px",
         "content": "正文宽度",

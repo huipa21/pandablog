@@ -266,6 +266,7 @@ import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import { useAutoScroll } from '~/composables/editor/useAutoScroll'
 import { useMediaUrl } from '~/composables/useMediaUrl'
 import { mediaRecordToFileItem } from '~/utils/mediaFiles'
+import { pastedImageFilename } from '~/utils/pastedImage'
 import { resolveVideoEmbed } from '~/utils/videoEmbed'
 
 interface ActiveBlockRange {
@@ -657,14 +658,14 @@ const editor = useEditor({
       class: 'min-h-[360px] focus:outline-none'
     },
     handlePaste(view, event) {
-      if (uploadImagesFromList(event.clipboardData?.files)) {
+      if (uploadImagesFromList(event.clipboardData?.files, view.state.selection.from, true)) {
         return true
       }
 
       return pastePlainTextInsideTabPanel(view, event)
     },
-    handleDrop(_view, event) {
-      const handled = uploadImagesFromList(event.dataTransfer?.files)
+    handleDrop(view, event) {
+      const handled = uploadImagesFromList(event.dataTransfer?.files, view.state.selection.from)
       if (handled) event.preventDefault()
       return handled
     },
@@ -764,6 +765,41 @@ const editor = useEditor({
         }
       }
 
+      if (slashOpen.value) {
+        if (event.key === 'Escape') {
+          closeSlashMenu()
+          return true
+        }
+        if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (slashItems.value.length > 0) {
+            slashSelectedIndex.value = (slashSelectedIndex.value + 1) % slashItems.value.length
+          }
+          return true
+        }
+        if (event.key === 'ArrowUp' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (slashItems.value.length > 0) {
+            slashSelectedIndex.value = (slashSelectedIndex.value - 1 + slashItems.value.length) % slashItems.value.length
+          }
+          return true
+        }
+        if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const item = slashItems.value[slashSelectedIndex.value]
+          if (item) {
+            handleSlashPick(item.name)
+          } else {
+            // No matching items — close menu and remove the slash text
+            dismissSlashMenu()
+          }
+          return true
+        }
+        if (event.key === 'Backspace') {
+          if (slashQuery.value === '') {
+            closeSlashMenu()
+          }
+          return false
+        }
+      }
+
       if (event.key === 'ArrowDown' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
         const { selection } = view.state
         if (selection instanceof NodeSelection) {
@@ -780,37 +816,6 @@ const editor = useEditor({
             event.preventDefault()
             return true
           }
-        }
-        return false
-      }
-
-      if (!slashOpen.value) return false
-
-      if (event.key === 'Escape') {
-        closeSlashMenu()
-        return true
-      }
-      if (event.key === 'ArrowDown') {
-        slashSelectedIndex.value = (slashSelectedIndex.value + 1) % Math.max(slashItems.value.length, 1)
-        return true
-      }
-      if (event.key === 'ArrowUp') {
-        slashSelectedIndex.value = (slashSelectedIndex.value - 1 + slashItems.value.length) % Math.max(slashItems.value.length, 1)
-        return true
-      }
-      if (event.key === 'Enter') {
-        const item = slashItems.value[slashSelectedIndex.value]
-        if (item) {
-          handleSlashPick(item.name)
-        } else {
-          // No matching items — close menu and remove the slash text
-          dismissSlashMenu()
-        }
-        return true
-      }
-      if (event.key === 'Backspace') {
-        if (slashQuery.value === '') {
-          closeSlashMenu()
         }
         return false
       }
@@ -2422,10 +2427,16 @@ function plainTextToParagraphs(text: string): JsonContent[] {
   })
 }
 
-function uploadImagesFromList(fileList: FileList | undefined | null) {
+function uploadImagesFromList(fileList: FileList | undefined | null, insertPos: number, isPaste = false) {
   const files = [...(fileList ?? [])].filter((f) => f.type.startsWith('image/'))
   if (!files.length) return false
-  files.forEach((f) => void uploadImage(f))
+
+  files.forEach((file) => {
+    const uploadFile = isPaste
+      ? new File([file], pastedImageFilename(file), { type: file.type, lastModified: file.lastModified })
+      : file
+    void uploadImage(uploadFile, insertPos)
+  })
   return true
 }
 
@@ -2454,16 +2465,13 @@ function handleMediaPicked(files: MediaRecord[]) {
   if (insertPos !== null) {
     ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, insertPos, 'image'), content).run()
   } else {
-    for (const node of content) {
-      const chain = ed.chain().focus() as any
-      chain.setImage(node.attrs).run()
-    }
+    ed.chain().focus().insertContent(content).run()
   }
 
   pendingImageInsertPos.value = null
 }
 
-async function uploadImage(file: File) {
+async function uploadImage(file: File, insertPos: number) {
   try {
     const formData = new FormData()
     formData.append('file', file)
@@ -2474,37 +2482,25 @@ async function uploadImage(file: File) {
     if (asset.url) {
       const imageSrc = toPublicMediaUrl(asset.hash || asset.url)
       const ed = editor.value
-      const insertPos = pendingImageInsertPos.value
-      if (ed && insertPos !== null) {
+      if (ed) {
         ed.chain().focus().insertContentAt(normalizeStandaloneBlockInsertPos(ed, insertPos, 'image'), {
           type: 'image',
           attrs: {
             src: imageSrc,
-            alt: file.name,
+            alt: String(asset.original_name ?? file.name),
             sourceSize: 'full',
             displaySize: 'fill-container',
             displayPercent: 100,
             displayPx: null,
+            width: null,
+            height: null,
             widthPercent: 100
           }
-        }).run()
-      } else {
-        const chain = ed?.chain().focus() as any
-        chain?.setImage({
-          src: imageSrc,
-          alt: file.name,
-          sourceSize: 'full',
-          displaySize: 'fill-container',
-          displayPercent: 100,
-          displayPx: null,
-          widthPercent: 100
         }).run()
       }
     }
   } catch {
     debugEditor('Image upload failed.')
-  } finally {
-    pendingImageInsertPos.value = null
   }
 }
 
