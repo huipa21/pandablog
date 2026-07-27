@@ -1169,6 +1169,10 @@ function currentTextRange(editor: Editor): { from: number, to: number } | null {
 
 </script>
 
+<style>
+@import "katex/dist/katex.min.css";
+</style>
+
 <style scoped>
 .block-toolbar {
   display: inline-flex;

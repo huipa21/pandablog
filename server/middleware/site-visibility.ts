@@ -6,9 +6,11 @@ const ALWAYS_ALLOWED_PREFIXES = [
   '/api/site/bootstrap',
   '/api/site/visibility',
   '/api/health',
+  '/api/theme/css',
   '/_nuxt',
   '/__nuxt',
   '/_ipx',
+  '/_i18n',
   '/api/_nuxt'
 ]
 

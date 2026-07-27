@@ -311,6 +311,10 @@ function validateLatex(value: string, displayMode: boolean) {
 }
 </script>
 
+<style>
+@import "katex/dist/katex.min.css";
+</style>
+
 <style scoped>
 .math-nodeview {
   color: inherit;

@@ -51,6 +51,8 @@ const renderedHtml = computed(() => renderLatex(latex.value, { displayMode: true
 </script>
 
 <style>
+@import "katex/dist/katex.min.css";
+
 .block-math {
   display: block;
   margin: 1rem 0;

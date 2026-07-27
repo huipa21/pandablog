@@ -15,6 +15,8 @@ const renderedHtml = computed(() => renderLatex(latex.value, { displayMode: fals
 </script>
 
 <style>
+@import "katex/dist/katex.min.css";
+
 .inline-math {
   display: inline;
   color: inherit;

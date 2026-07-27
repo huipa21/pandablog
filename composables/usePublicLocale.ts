@@ -29,10 +29,6 @@ export function usePublicLocale() {
     return normalized
   }
 
-  if (import.meta.client) {
-    initPublicLocale()
-  }
-
   return {
     locale,
     initPublicLocale,
