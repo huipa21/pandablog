@@ -56,29 +56,6 @@
       </template>
     </form>
 
-    <form class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]" @submit.prevent="changePassword">
-      <header>
-        <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.profile.userInfo') }}</h2>
-        <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.profile.userInfoDescription') }}</p>
-      </header>
-
-      <UFormField :label="t('admin.settings.profile.currentPassword')" name="current_password">
-        <UInput v-model="securityForm.current_password" type="password" autocomplete="current-password" icon="i-lucide-key-round" />
-      </UFormField>
-
-      <UFormField :label="t('admin.settings.profile.newPassword')" name="new_password">
-        <UInput v-model="securityForm.new_password" type="password" autocomplete="new-password" icon="i-lucide-key-round" />
-      </UFormField>
-
-      <UFormField :label="t('admin.settings.profile.confirmNewPassword')" name="confirm_password">
-        <UInput v-model="securityForm.confirm_password" type="password" autocomplete="new-password" icon="i-lucide-key-round" />
-      </UFormField>
-
-      <div class="flex justify-end">
-        <UButton type="submit" icon="i-lucide-key-round" :loading="securitySaving">{{ t('admin.settings.profile.changePassword') }}</UButton>
-      </div>
-    </form>
-
     <MediaPicker
       :open="mediaPickerOpen"
       return-value="url"
@@ -124,14 +101,7 @@ const mediaPickerOpen = ref(false)
 const squareAvatarDialogOpen = ref(false)
 const pendingSquareAvatarUrl = ref('')
 const saving = ref(false)
-const securitySaving = ref(false)
 const adminToast = useAdminToast()
-
-const securityForm = reactive({
-  current_password: '',
-  new_password: '',
-  confirm_password: ''
-})
 
 watch(data, (value) => {
   const settings = value?.settings ?? {}
@@ -198,31 +168,6 @@ function isSquareImage(file: MediaRecord) {
   const width = file.width ?? file.image_meta?.width
   const height = file.height ?? file.image_meta?.height
   return typeof width === 'number' && width > 0 && width === height
-}
-
-async function changePassword() {
-  securitySaving.value = true
-
-  if (securityForm.new_password !== securityForm.confirm_password) {
-    adminToast.error(new Error(t('admin.settings.profile.passwordMismatch')), t('admin.settings.profile.passwordMismatch'))
-    securitySaving.value = false
-    return
-  }
-
-  try {
-    await $fetch('/api/auth/change-password', {
-      method: 'POST',
-      body: { ...securityForm }
-    })
-    securityForm.current_password = ''
-    securityForm.new_password = ''
-    securityForm.confirm_password = ''
-    adminToast.success(t('admin.settings.profile.passwordChanged'))
-  } catch (err: any) {
-    adminToast.error(err, t('admin.settings.profile.passwordChangeFailed'))
-  } finally {
-    securitySaving.value = false
-  }
 }
 
 function emptyDoc(): JsonContent {

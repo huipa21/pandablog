@@ -1434,16 +1434,7 @@
         "squareAvatarTitle": "Crop this profile photo?",
         "squareAvatarDescription": "This image is square. It will display naturally as a centered profile portrait, but choose another image if you need a tighter crop first.",
         "useAvatarAsIs": "Use as is",
-        "chooseDifferentAvatar": "Choose another image",
-        "userInfo": "User Info",
-        "userInfoDescription": "The admin username is fixed as admin. Change the password here when needed.",
-        "currentPassword": "Current password",
-        "newPassword": "New password",
-        "confirmNewPassword": "Confirm new password",
-        "changePassword": "Change password",
-        "passwordMismatch": "Passwords do not match",
-        "passwordChanged": "Password changed.",
-        "passwordChangeFailed": "Could not change password"
+        "chooseDifferentAvatar": "Choose another image"
       },
       "media": {
         "title": "Media",
@@ -1759,7 +1750,6 @@
       "newPost": "New post",
       "newMedia": "New media",
       "login": "Login",
-      "logout": "Logout",
       "search": "Search",
       "toggleNavigation": "Toggle navigation"
     },

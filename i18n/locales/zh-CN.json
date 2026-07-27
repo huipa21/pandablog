@@ -1421,16 +1421,7 @@
         "squareAvatarTitle": "需要裁剪这张头像吗？",
         "squareAvatarDescription": "这张图片是正方形，会以居中的头像形式自然显示；如果需要更紧的裁剪，请先选择另一张已裁剪的图片。",
         "useAvatarAsIs": "直接使用",
-        "chooseDifferentAvatar": "选择另一张图片",
-        "userInfo": "用户信息",
-        "userInfoDescription": "管理员用户名固定为 admin，需要时可在此修改密码。",
-        "currentPassword": "当前密码",
-        "newPassword": "新密码",
-        "confirmNewPassword": "确认新密码",
-        "changePassword": "修改密码",
-        "passwordMismatch": "两次输入的密码不一致",
-        "passwordChanged": "密码已修改。",
-        "passwordChangeFailed": "无法修改密码"
+        "chooseDifferentAvatar": "选择另一张图片"
       },
       "media": {
         "title": "媒体",
@@ -1746,7 +1737,6 @@
       "newPost": "新建文章",
       "newMedia": "新建媒体",
       "login": "登录",
-      "logout": "退出",
       "search": "搜索",
       "toggleNavigation": "切换导航"
     },

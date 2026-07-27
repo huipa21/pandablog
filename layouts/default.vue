@@ -65,10 +65,13 @@
             <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin/dashboard" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
               {{ t('public.nav.admin') }}
             </UButton>
-            <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
-              {{ t('public.nav.logout') }}
-            </UButton>
-            <UButton v-else to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
+            <UDropdownMenu v-if="isLoggedIn" :items="accountMenuItems">
+              <button type="button" class="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--pb-selected-bg)] text-xs font-semibold text-[var(--pb-primary)] transition hover:opacity-90" :disabled="loggingOut" :aria-label="accountName" :title="accountName">
+                <img v-if="accountAvatarUrl" :src="accountAvatarUrl" alt="" class="h-full w-full object-cover">
+                <span v-else>{{ accountInitials }}</span>
+              </button>
+            </UDropdownMenu>
+            <UButton v-if="!isLoggedIn" to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
               {{ t('public.nav.login') }}
             </UButton>
           </div>
@@ -164,10 +167,13 @@
           <UButton v-if="isLoggedIn && authRole !== 'viewer'" to="/admin/dashboard" variant="ghost" color="neutral" icon="i-lucide-layout-dashboard" size="sm">
             {{ t('public.nav.admin') }}
           </UButton>
-          <UButton v-else-if="isLoggedIn" variant="ghost" color="neutral" icon="i-lucide-log-out" size="sm" :loading="loggingOut" @click="logout">
-            <span class="hidden sm:inline">{{ t('public.nav.logout') }}</span>
-          </UButton>
-          <UButton v-else to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
+          <UDropdownMenu v-if="isLoggedIn" :items="accountMenuItems">
+            <button type="button" class="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--pb-selected-bg)] text-xs font-semibold text-[var(--pb-primary)] transition hover:opacity-90" :disabled="loggingOut" :aria-label="accountName" :title="accountName">
+              <img v-if="accountAvatarUrl" :src="accountAvatarUrl" alt="" class="h-full w-full object-cover">
+              <span v-else>{{ accountInitials }}</span>
+            </button>
+          </UDropdownMenu>
+          <UButton v-if="!isLoggedIn" to="/login" variant="ghost" color="neutral" icon="i-lucide-log-in" size="sm">
             <span class="hidden sm:inline">{{ t('public.nav.login') }}</span>
           </UButton>
         </div>
@@ -343,6 +349,15 @@ const isLoggedIn = computed(() => Boolean(authSession.value?.loggedIn))
 const authRole = computed(() => authSession.value?.user?.role ?? null)
 const canCreateContent = computed(() => isLoggedIn.value && (authRole.value === 'superadmin' || authRole.value === 'admin' || authRole.value === 'author'))
 const canManagePublicThemeMode = computed(() => isLoggedIn.value && authRole.value === 'superadmin')
+const accountUser = computed(() => authSession.value?.user ?? null)
+const accountName = computed(() => accountUser.value?.display_name || accountUser.value?.username || t('admin.layout.account'))
+const accountAvatarUrl = computed(() => accountUser.value?.avatar_url || '')
+const accountInitials = computed(() => initialsFor(accountName.value))
+const accountMenuItems = computed(() => [[
+  { label: t('admin.layout.myProfile'), icon: 'i-lucide-user', onSelect: () => navigateTo('/profile') }
+], [
+  { label: t('admin.layout.signOut'), icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }
+]])
 const creatingQuickPost = ref(false)
 const loggingOut = ref(false)
 const hasPageSidebar = computed(() => Boolean(slots.sidebar))
@@ -423,6 +438,12 @@ async function logout() {
   } finally {
     loggingOut.value = false
   }
+}
+
+function initialsFor(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  const letters = parts.length > 1 ? `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}` : value.slice(0, 2)
+  return letters.toUpperCase() || 'U'
 }
 
 watch(() => route.fullPath, () => {
