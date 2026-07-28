@@ -31,9 +31,15 @@
 
         <!-- Resize handles -->
         <template v-if="src && resizeEnabled">
+          <div class="imageblock-handle nw" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'nw')" />
+          <div class="imageblock-handle n" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'n')" />
+          <div class="imageblock-handle ne" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'ne')" />
           <div class="imageblock-handle e" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'e')" />
-          <div class="imageblock-handle s" contenteditable="false" @mousedown.stop.prevent="startResize($event, 's')" />
           <div class="imageblock-handle se" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'se')" />
+          <div class="imageblock-handle s" contenteditable="false" @mousedown.stop.prevent="startResize($event, 's')" />
+          <div class="imageblock-handle sw" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'sw')" />
+          <div class="imageblock-handle w" contenteditable="false" @mousedown.stop.prevent="startResize($event, 'w')" />
+          <div v-if="resizing" class="imageblock-size-badge" contenteditable="false">{{ sizeBadge }}</div>
         </template>
       </div>
       <figcaption v-if="title && titlePosition === 'bottom'" class="mt-2 text-center text-sm text-stone-500" contenteditable="false">{{ title }}</figcaption>
@@ -111,8 +117,10 @@ const figureEl = ref<HTMLElement | null>(null)
 const imgEl = ref<HTMLImageElement | null>(null)
 const previewWidth = ref<number | null>(null)
 const previewHeight = ref<number | null>(null)
+const previewPercent = ref<number | null>(null)
+const resizing = ref(false)
 
-const resizeEnabled = computed(() => displaySize.value === 'custom-px')
+const resizeEnabled = computed(() => Boolean(src.value))
 const displayWidth = computed(() => {
   if (displaySize.value !== 'custom-px' && displaySize.value !== 'natural') {
     return null
@@ -123,6 +131,14 @@ const displayWidth = computed(() => {
 const displayHeight = computed(() => previewHeight.value ?? height.value)
 
 const figureStyle = computed<CSSProperties>(() => {
+  if (resizing.value) {
+    if (lockAspect.value && previewPercent.value != null) {
+      return { width: `${previewPercent.value}%`, maxWidth: '100%' }
+    }
+    if (previewWidth.value != null) {
+      return { width: `${previewWidth.value}px`, maxWidth: '100%' }
+    }
+  }
   switch (displaySize.value) {
     case 'custom-percent':
       return { width: `${displayPercent.value}%`, maxWidth: '100%' }
@@ -160,87 +176,125 @@ function onImageLoad() {
   }
 }
 
+type ResizeDir = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
+
 interface ResizeState {
   startX: number
   startY: number
   startW: number
   startH: number
   ratio: number
-  dir: 'e' | 's' | 'se'
+  containerW: number
+  dir: ResizeDir
 }
 
 let resizeState: ResizeState | null = null
 
-function startResize(event: MouseEvent, dir: 'e' | 's' | 'se') {
+const sizeBadge = computed(() => {
+  if (lockAspect.value) {
+    return `${previewPercent.value ?? displayPercent.value}%`
+  }
+  const w = previewWidth.value ?? displayWidth.value ?? 0
+  const h = previewHeight.value ?? displayHeight.value ?? 0
+  return `${Math.round(w)} \u00d7 ${Math.round(h)}`
+})
+
+function clampPercent(value: number) {
+  return Math.max(1, Math.min(200, value))
+}
+
+function startResize(event: MouseEvent, dir: ResizeDir) {
   if (!resizeEnabled.value) return
-  const w = imgEl.value?.getBoundingClientRect().width ?? width.value ?? 0
-  const h = imgEl.value?.getBoundingClientRect().height ?? height.value ?? 0
+  const rect = imgEl.value?.getBoundingClientRect()
+  const w = rect?.width ?? width.value ?? 0
+  const h = rect?.height ?? height.value ?? 0
   if (!w || !h) return
+  const containerW = figureEl.value?.parentElement?.clientWidth || w
   resizeState = {
     startX: event.clientX,
     startY: event.clientY,
     startW: w,
     startH: h,
     ratio: w / h,
+    containerW,
     dir
   }
+  resizing.value = true
+  previewWidth.value = Math.round(w)
+  previewHeight.value = Math.round(h)
+  previewPercent.value = clampPercent(Math.round((w / containerW) * 100))
   window.addEventListener('mousemove', onResizeMove)
   window.addEventListener('mouseup', onResizeEnd)
 }
 
 function onResizeMove(event: MouseEvent) {
   if (!resizeState) return
+  const { dir, startW, startH, ratio, containerW } = resizeState
   const dx = event.clientX - resizeState.startX
   const dy = event.clientY - resizeState.startY
 
-  let newW = resizeState.startW
-  let newH = resizeState.startH
-
-  if (resizeState.dir === 'e' || resizeState.dir === 'se') {
-    newW = Math.max(40, resizeState.startW + dx)
-  }
-  if (resizeState.dir === 's' || resizeState.dir === 'se') {
-    newH = Math.max(40, resizeState.startH + dy)
-  }
+  const affectsX = dir.includes('e') || dir.includes('w')
+  const affectsY = dir.includes('n') || dir.includes('s')
+  const xDir = dir.includes('w') ? -1 : 1
+  const yDir = dir.includes('n') ? -1 : 1
+  const signedDx = affectsX ? dx * xDir : 0
+  const signedDy = affectsY ? dy * yDir : 0
 
   if (lockAspect.value) {
-    if (resizeState.dir === 'e') {
-      newH = newW / resizeState.ratio
-    } else if (resizeState.dir === 's') {
-      newW = newH * resizeState.ratio
+    let newW: number
+    if (affectsX && affectsY) {
+      // corner: scale by dominant axis
+      newW = Math.abs(signedDx) >= Math.abs(signedDy * ratio)
+        ? startW + signedDx
+        : (startH + signedDy) * ratio
+    } else if (affectsX) {
+      newW = startW + signedDx
     } else {
-      // se: maintain aspect via dominant axis
-      if (Math.abs(dx) > Math.abs(dy)) {
-        newH = newW / resizeState.ratio
-      } else {
-        newW = newH * resizeState.ratio
-      }
+      newW = (startH + signedDy) * ratio
     }
+    newW = Math.max(40, newW)
+    previewWidth.value = Math.round(newW)
+    previewHeight.value = Math.round(newW / ratio)
+    previewPercent.value = clampPercent(Math.round((newW / containerW) * 100))
+  } else {
+    let newW = startW
+    let newH = startH
+    if (affectsX) newW = Math.max(40, startW + signedDx)
+    if (affectsY) newH = Math.max(40, startH + signedDy)
+    previewWidth.value = Math.round(newW)
+    previewHeight.value = Math.round(newH)
+    previewPercent.value = clampPercent(Math.round((newW / containerW) * 100))
   }
-
-  previewWidth.value = Math.round(newW)
-  previewHeight.value = Math.round(newH)
 }
 
 function onResizeEnd() {
   if (resizeState && previewWidth.value && previewHeight.value) {
-    const naturalWidth = Number(props.node.attrs.naturalWidth ?? 0)
-    const widthPercentNext = Number.isFinite(naturalWidth) && naturalWidth > 0
-      ? Math.max(1, Math.min(200, Math.round((previewWidth.value / naturalWidth) * 100)))
-      : 100
-
-    props.updateAttributes({
-      displaySize: 'custom-px',
-      displayPx: previewWidth.value,
-      displayPercent: widthPercentNext,
-      width: previewWidth.value,
-      height: previewHeight.value,
-      widthPercent: widthPercentNext
-    })
+    if (lockAspect.value) {
+      const percent = previewPercent.value ?? clampPercent(Math.round((previewWidth.value / resizeState.containerW) * 100))
+      props.updateAttributes({
+        displaySize: 'custom-percent',
+        displayPercent: percent,
+        widthPercent: percent,
+        width: previewWidth.value,
+        height: previewHeight.value
+      })
+    } else {
+      const percent = clampPercent(Math.round((previewWidth.value / resizeState.containerW) * 100))
+      props.updateAttributes({
+        displaySize: 'custom-px',
+        displayPx: previewWidth.value,
+        displayPercent: percent,
+        widthPercent: percent,
+        width: previewWidth.value,
+        height: previewHeight.value
+      })
+    }
   }
 
   previewWidth.value = null
   previewHeight.value = null
+  previewPercent.value = null
+  resizing.value = false
   resizeState = null
   window.removeEventListener('mousemove', onResizeMove)
   window.removeEventListener('mouseup', onResizeEnd)
@@ -287,11 +341,11 @@ const selected = computed(() => Boolean(props.selected))
   opacity: 1;
 }
 
-.imageblock-handle.e {
-  right: -6px;
-  top: 50%;
-  margin-top: -6px;
-  cursor: ew-resize;
+.imageblock-handle.n {
+  top: -6px;
+  left: 50%;
+  margin-left: -6px;
+  cursor: ns-resize;
 }
 
 .imageblock-handle.s {
@@ -301,9 +355,58 @@ const selected = computed(() => Boolean(props.selected))
   cursor: ns-resize;
 }
 
+.imageblock-handle.e {
+  right: -6px;
+  top: 50%;
+  margin-top: -6px;
+  cursor: ew-resize;
+}
+
+.imageblock-handle.w {
+  left: -6px;
+  top: 50%;
+  margin-top: -6px;
+  cursor: ew-resize;
+}
+
+.imageblock-handle.ne {
+  right: -6px;
+  top: -6px;
+  cursor: nesw-resize;
+}
+
+.imageblock-handle.nw {
+  left: -6px;
+  top: -6px;
+  cursor: nwse-resize;
+}
+
 .imageblock-handle.se {
   right: -6px;
   bottom: -6px;
   cursor: nwse-resize;
+}
+
+.imageblock-handle.sw {
+  left: -6px;
+  bottom: -6px;
+  cursor: nesw-resize;
+}
+
+.imageblock-size-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgb(13 148 136);
+  color: white;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  z-index: 6;
+  pointer-events: none;
+  white-space: nowrap;
 }
 </style>
