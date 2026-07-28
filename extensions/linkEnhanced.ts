@@ -11,6 +11,14 @@ function normalizeOpenMode(rawMode: unknown, target: unknown): LinkOpenMode {
 }
 
 export const LinkEnhanced = Link.extend({
+  // Decouple mark inclusivity from `autolink` (which the base extension ties
+  // together). With `inclusive` false, typing/space/tab immediately after a
+  // link produces plain text instead of extending the link. Autolink and
+  // linkOnPaste keep working via their own append-transaction plugin.
+  inclusive() {
+    return false
+  },
+
   addAttributes() {
     const parent = this.parent?.() ?? {}
 

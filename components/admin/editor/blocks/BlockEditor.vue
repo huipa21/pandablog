@@ -218,7 +218,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import type { Editor, Extensions } from '@tiptap/core'
-import type { MarkType, Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
+import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model'
 import { Footnote } from '~/extensions/footnote'
 import { generateFootnoteId } from '~/extensions/footnote'
 import { FootnotesBlockNode } from '~/extensions/footnotesBlock'
@@ -873,23 +873,49 @@ const editor = useEditor({
   }
 })
 
+const LIST_CONTAINER_TYPES = new Set(['listItem', 'bulletList', 'orderedList'])
+
+function isInsideList($pos: ResolvedPos) {
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if (LIST_CONTAINER_TYPES.has($pos.node(depth).type.name)) {
+      return true
+    }
+  }
+  return false
+}
+
+// Unified Tab-to-exit for inline marks: with a collapsed caret carrying any
+// active inline mark (bold, italic, strike, code, highlight, sub/superscript,
+// link, textStyle color/font), Tab drops the caret to plain text after the
+// marked run. Lists are excluded so Tab keeps indenting there. Inside table
+// cells the first Tab exits the mark and the next Tab (no active mark) falls
+// through to native cell navigation.
 function handleInlineMarkTabExit(view: EditorView, event: KeyboardEvent) {
   if (event.key !== 'Tab' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
     return false
   }
 
   const { state } = view
-  const activeMarkTypes = ['code', 'highlight']
-    .map((name) => state.schema.marks[name])
-    .filter((markType): markType is MarkType => !!markType && (state.storedMarks ?? state.selection.$from.marks()).some((mark) => mark.type === markType))
+  const { selection } = state
 
-  if (!activeMarkTypes.length) {
+  // Only act on a collapsed caret; range selections keep native Tab behavior.
+  if (!selection.empty) {
     return false
   }
 
-  let exitPos = state.selection.to
-  for (const markType of activeMarkTypes) {
-    const range = getMarkRange(state.selection.$from, markType)
+  // Preserve list indentation — Tab must not hijack lists.
+  if (isInsideList(selection.$from)) {
+    return false
+  }
+
+  const activeMarks = state.storedMarks ?? selection.$from.marks()
+  if (!activeMarks.length) {
+    return false
+  }
+
+  let exitPos = selection.to
+  for (const mark of activeMarks) {
+    const range = getMarkRange(selection.$from, mark.type)
     if (range) {
       exitPos = Math.max(exitPos, range.to)
     }
