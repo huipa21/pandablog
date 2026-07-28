@@ -922,8 +922,12 @@ function handleInlineMarkTabExit(view: EditorView, event: KeyboardEvent) {
   }
 
   const safePos = Math.max(0, Math.min(exitPos, state.doc.content.size))
-  const tr = state.tr
-    .setSelection(TextSelection.create(state.doc, safePos))
+  // Insert a plain (unmarked) space so the caret visibly jumps a step, giving
+  // the user clear feedback that the mark has been exited.
+  const plainSpace = state.schema.text(' ')
+  const tr = state.tr.insert(safePos, plainSpace)
+  tr
+    .setSelection(TextSelection.create(tr.doc, safePos + 1))
     .setStoredMarks([])
 
   view.dispatch(tr)

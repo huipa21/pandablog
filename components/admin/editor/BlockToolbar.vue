@@ -8,6 +8,8 @@
       :style="dragStyle ?? floatingStyles"
       contenteditable="false"
       data-testid="block-popup-toolbar"
+      @mouseenter="onToolbarMouseEnter"
+      @mouseleave="onToolbarMouseLeave"
     >
       <!-- Drag grip (always visible) -->
       <button
@@ -33,7 +35,7 @@
         class="bt-btn bt-expand-btn"
         :title="isExpanded ? t('admin.editor.toolbar.collapseToolbar') : t('admin.editor.toolbar.expandToolbar')"
         :aria-label="isExpanded ? t('admin.editor.toolbar.collapseToolbar') : t('admin.editor.toolbar.expandToolbar')"
-        @mousedown.prevent="isExpanded = !isExpanded"
+        @mousedown.prevent="toggleExpanded"
       >
         <UIcon :name="isExpanded ? 'i-lucide-chevron-left' : 'i-lucide-chevron-right'" class="size-4" />
       </button>
@@ -364,17 +366,54 @@ const refEl = computed(() => props.referenceEl)
 const popupWindowOpen = ref(false)
 const toolbarVisible = computed(() => props.visible && !popupWindowOpen.value)
 
-const isExpanded = ref(false)
+const manualExpanded = ref<boolean | null>(null)
+const hovering = ref(false)
+let leaveTimer: ReturnType<typeof setTimeout> | null = null
 
-// Auto-expand when the user has a text selection inside this block
-watch(() => props.hasTextSelection, (v) => {
-  if (v) isExpanded.value = true
+// Derived expansion: an active text selection always expands; otherwise a
+// manual pin (< / > click) wins; otherwise the hover state drives it.
+const isExpanded = computed(() => {
+  if (props.hasTextSelection) return true
+  if (manualExpanded.value !== null) return manualExpanded.value
+  return hovering.value
 })
 
-// Collapse back when the toolbar hides (block deselected)
-watch(toolbarVisible, (v) => {
-  if (!v) isExpanded.value = false
-})
+// Keep the toolbar open while a popout spawned from it is active, so moving the
+// pointer into a teleported dropdown/dialog does not collapse it.
+function isInteractionLocked() {
+  return openDropdownMenu.value !== null
+    || highlightPaletteOpen.value
+    || annotateLangPickerOpen.value
+    || linkDialogOpen.value
+    || inlineMathDialogOpen.value
+    || dragging.value
+}
+
+function clearLeaveTimer() {
+  if (leaveTimer !== null) {
+    clearTimeout(leaveTimer)
+    leaveTimer = null
+  }
+}
+
+function onToolbarMouseEnter() {
+  clearLeaveTimer()
+  hovering.value = true
+}
+
+function onToolbarMouseLeave() {
+  clearLeaveTimer()
+  leaveTimer = setTimeout(() => {
+    leaveTimer = null
+    if (!isInteractionLocked()) hovering.value = false
+  }, 150)
+}
+
+// The < / > button pins the expanded/collapsed state against hover until the
+// referenced block changes.
+function toggleExpanded() {
+  manualExpanded.value = !isExpanded.value
+}
 const linkDialogOpen = ref(false)
 const linkDialogRange = ref<{ from: number; to: number } | null>(null)
 const inlineMathDialogOpen = ref(false)
@@ -430,11 +469,14 @@ function onDragMouseUp() {
 watch([() => props.referenceEl, () => props.referenceKey], () => {
   dragStyle.value = null
   dragging.value = false
-  isExpanded.value = false
+  manualExpanded.value = null
+  hovering.value = false
+  clearLeaveTimer()
   nextTick(() => updateFloatingPosition())
 })
 
 onBeforeUnmount(() => {
+  clearLeaveTimer()
   window.removeEventListener('mousemove', onDragMouseMove)
   window.removeEventListener('mouseup', onDragMouseUp)
   window.removeEventListener('pointerdown', closeHighlightPaletteOnOutsideClick)
