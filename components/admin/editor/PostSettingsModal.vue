@@ -182,7 +182,16 @@
   </UModal>
 
   <MediaPicker :open="coverPickerOpen" :dismissible="false" return-value="url" type-filter="image" @update:open="coverPickerOpen = $event" @select="onCoverPicked" />
-  <RelatedPostPicker v-if="relatedPostsEnabled" v-model="relatedPickerOpen" @confirm="addRelatedPost" />
+  <RelatedPostPicker
+    v-if="relatedPostsEnabled"
+    :open="relatedPickerOpen"
+    :current-post-id="currentPostId"
+    :current-slug="form.slug"
+    :selected-ids="form.related_post_ids"
+    :selected-slugs="relatedPostSlugs"
+    @update:open="relatedPickerOpen = $event"
+    @confirm="addRelatedPost"
+  />
 </template>
 
 <script setup lang="ts">
@@ -216,6 +225,7 @@ const newTagName = ref('')
 const selectedTemplate = ref('default')
 const templateItems = computed(() => [{ label: t('admin.editor.sidebar.defaultTemplate'), value: 'default' }])
 const nestedModalOpen = computed(() => coverPickerOpen.value || relatedPickerOpen.value)
+const relatedPostSlugs = computed(() => props.form.related_posts.map(post => post.slug))
 
 const open = computed({
   get: () => props.open,

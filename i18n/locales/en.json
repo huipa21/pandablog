@@ -914,6 +914,7 @@
         "placeholder": "Search post titles...",
         "searching": "Searching...",
         "noPosts": "No posts found.",
+        "alreadyAdded": "Already added",
         "startTyping": "No posts available to link.",
         "cancel": "Cancel"
       },

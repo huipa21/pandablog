@@ -901,6 +901,7 @@
         "placeholder": "搜索文章标题...",
         "searching": "正在搜索...",
         "noPosts": "未找到文章。",
+        "alreadyAdded": "已添加",
         "startTyping": "暂无可关联的文章。",
         "cancel": "取消"
       },
