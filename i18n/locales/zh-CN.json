@@ -1404,7 +1404,14 @@
         },
         "loading": "正在加载系统设置...",
         "saved": "系统设置已保存",
-        "saveFailed": "无法保存系统设置"
+        "saveFailed": "无法保存系统设置",
+        "buildTitle": "构建版本",
+        "buildDescription": "当前实例运行的确切代码。反馈问题时请附上此版本号。",
+        "buildVersion": "版本",
+        "buildCommit": "提交",
+        "buildRuntime": "Node 运行时",
+        "buildDirty": "包含未提交的改动",
+        "buildUnavailable": "无法加载构建信息"
       },
       "profile": {
         "title": "个人资料",

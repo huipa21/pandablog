@@ -14,6 +14,8 @@
     "lint:style-drift": "node scripts/check-style-drift.mjs",
     "lint:style-drift:update": "node scripts/check-style-drift.mjs --update",
     "configure": "tsx scripts/configure-modules.ts",
+    "version:print": "node scripts/version.mjs",
+    "docker:build": "node scripts/docker-build.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:e2e": "playwright test",

@@ -29,12 +29,28 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy sources and build
 COPY . .
 
+# Build identity. `.git` is excluded by .dockerignore, so the version CANNOT be
+# derived inside the image — it must be computed on the host and passed in.
+# Use `npm run docker:build`, or compute it yourself:
+#   docker build --build-arg APP_VERSION=$(node scripts/version.mjs) ... .
+ARG APP_VERSION
+ARG APP_COMMIT=""
+ARG APP_COMMIT_DATE=""
+RUN test -n "$APP_VERSION" || { \
+      echo "ERROR: APP_VERSION build arg is required." >&2; \
+      echo "Run 'npm run docker:build', or pass --build-arg APP_VERSION=\$(node scripts/version.mjs)" >&2; \
+      exit 1; \
+    }
+
 # Build does NOT need real secrets at runtime — runtimeConfig is overridden
 # at boot via NUXT_* env vars. We only set a placeholder session password to
 # satisfy nuxt.config.ts production guard.
 ENV NODE_ENV=production \
     NUXT_TELEMETRY_DISABLED=1 \
-    NUXT_SESSION_PASSWORD=build-time-placeholder-replace-via-runtime-env-vars
+    NUXT_SESSION_PASSWORD=build-time-placeholder-replace-via-runtime-env-vars \
+    APP_VERSION=${APP_VERSION} \
+    APP_COMMIT=${APP_COMMIT} \
+    APP_COMMIT_DATE=${APP_COMMIT_DATE}
 
 RUN npm run build
 
@@ -45,8 +61,20 @@ RUN mkdir -p /app/runtime \
  && mkdir -p /app/runtime/server/utils \
  && cp server/utils/schema.surql   /app/runtime/server/utils/schema.surql \
  && cp package.json                /app/runtime/package.json \
+ && cp -r bin                      /app/runtime/bin \
  && mkdir -p /app/runtime/.output/server/node_modules \
  && cp -r node_modules/node-cron   /app/runtime/.output/server/node_modules/node-cron
+
+# Freeze build identity for the `panda` CLI. git is not available at runtime,
+# so this file is the only source of truth inside the image.
+RUN node -e "const { writeFileSync } = require('node:fs'); \
+const version = process.env.APP_VERSION; \
+writeFileSync('/app/runtime/version.json', JSON.stringify({ \
+  version, \
+  sha: process.env.APP_COMMIT || null, \
+  committedAt: process.env.APP_COMMIT_DATE || null, \
+  dirty: /\.dirty\$/.test(version) \
+}, null, 2) + '\n')"
 
 RUN node -e "const { readFileSync, rmSync } = require('node:fs'); \
 const BUNDLED = ['tesla', 'clay', 'notion', 'hexagon']; \
@@ -57,6 +85,19 @@ for (const theme of BUNDLED) { const keep = themesEnabled && bundled[theme] !== 
 
 # ---------- Stage 2: runtime ----------
 FROM ${NODE_IMAGE} AS runtime
+
+# ARGs do not cross build stages; re-declare for the image labels below.
+ARG APP_VERSION
+ARG APP_COMMIT=""
+ARG APP_COMMIT_DATE=""
+
+# Standard OCI metadata so `docker inspect` reveals the build without exec'ing
+# into the container. `created` is the COMMIT date, not wall-clock time, so the
+# same commit always yields identical labels.
+LABEL org.opencontainers.image.title="PandaBlog" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${APP_COMMIT}" \
+      org.opencontainers.image.created="${APP_COMMIT_DATE}"
 
 # Runtime libs needed by sharp / argon2 native bindings
 RUN if command -v apt-get >/dev/null 2>&1; then \
@@ -88,10 +129,16 @@ COPY --from=builder --chown=nuxt:nodejs /app/runtime/ ./
 RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip storage/logs storage/rate-limit \
  && chown -R nuxt:nodejs storage
 
+# Operator CLI: `panda --version`, `panda info`, `panda health`.
+# Must be created while still root — the shim lives outside /app.
+RUN printf '#!/bin/sh\nexec node /app/bin/panda.mjs "$@"\n' > /usr/local/bin/panda \
+ && chmod 0755 /usr/local/bin/panda
+
 USER nuxt
 
 ENV NODE_ENV=production \
     NUXT_TELEMETRY_DISABLED=1 \
+    PANDABLOG_VERSION=${APP_VERSION} \
     NITRO_HOST=0.0.0.0 \
     NITRO_PORT=3000 \
     NODE_OPTIONS=--max-old-space-size=1024 \

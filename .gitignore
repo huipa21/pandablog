@@ -59,6 +59,8 @@ tools/*
 scripts/*
 !scripts/configure-modules.ts
 !scripts/print-modules.ts
+!scripts/version.mjs
+!scripts/docker-build.mjs
 !scripts/configure/
 !scripts/configure/index.html
 pandablog.modules.json.example

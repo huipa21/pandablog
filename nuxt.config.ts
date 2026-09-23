@@ -87,6 +87,10 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
+    // Build identity, injected at build time by modules/build-version.ts.
+    // Private on purpose: the exact build is only exposed to authenticated
+    // admins via /api/admin/system/version, never in the public bundle.
+    appVersion: '',
     surrealUrl: env('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
     surrealNamespace: env('SURREAL_NAMESPACE', 'main'),
     surrealDatabase: env('SURREAL_DATABASE', 'main'),

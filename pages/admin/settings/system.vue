@@ -38,6 +38,33 @@
         </div>
       </template>
     </form>
+
+    <section class="grid gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
+      <div>
+        <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.settings.system.buildTitle') }}</h2>
+        <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.system.buildDescription') }}</p>
+      </div>
+
+      <USkeleton v-if="buildPending" class="h-10" />
+      <UAlert v-else-if="buildError" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="t('admin.settings.system.buildUnavailable')" />
+      <dl v-else class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-[var(--pb-text-muted)]">{{ t('admin.settings.system.buildVersion') }}</dt>
+          <dd class="mt-1 font-mono text-sm text-[var(--pb-text)]">
+            {{ build?.version || '—' }}
+            <UBadge v-if="build?.dirty" color="warning" variant="subtle" size="sm" class="ml-2">{{ t('admin.settings.system.buildDirty') }}</UBadge>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-[var(--pb-text-muted)]">{{ t('admin.settings.system.buildCommit') }}</dt>
+          <dd class="mt-1 font-mono text-sm text-[var(--pb-text)]">{{ build?.commit || '—' }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-[var(--pb-text-muted)]">{{ t('admin.settings.system.buildRuntime') }}</dt>
+          <dd class="mt-1 font-mono text-sm text-[var(--pb-text)]">{{ build?.node || '—' }}</dd>
+        </div>
+      </dl>
+    </section>
   </section>
 </template>
 
@@ -65,6 +92,10 @@ definePageMeta({ layout: 'admin' })
 const { t, locale, setLocale } = useI18n()
 const sessionFetch = useSessionFetch()
 const { data, pending, error } = await useAsyncData('admin-settings-system', () => sessionFetch<{ settings: Record<string, unknown> }>('/api/admin/settings'))
+const { data: build, pending: buildPending, error: buildError } = await useAsyncData(
+  'admin-settings-build',
+  () => sessionFetch<{ version: string, commit: string | null, dirty: boolean, node: string }>('/api/admin/system/version')
+)
 const adminToast = useAdminToast()
 
 const form = reactive({

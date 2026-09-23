@@ -1417,7 +1417,14 @@
         },
         "loading": "Loading system settings...",
         "saved": "System settings saved",
-        "saveFailed": "Could not save system settings"
+        "saveFailed": "Could not save system settings",
+        "buildTitle": "Build",
+        "buildDescription": "The exact code this instance is running. Quote this version when reporting an issue.",
+        "buildVersion": "Version",
+        "buildCommit": "Commit",
+        "buildRuntime": "Node runtime",
+        "buildDirty": "Uncommitted changes",
+        "buildUnavailable": "Could not load build information"
       },
       "profile": {
         "title": "Profile",
