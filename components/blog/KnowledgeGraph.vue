@@ -28,6 +28,8 @@
 <script setup lang="ts">
 import type { GraphNode, GraphPostResponse } from '~/types/graph'
 
+type PublicFetch = <T>(url: string) => Promise<T>
+
 const props = defineProps<{
   currentSlug: string
 }>()
@@ -35,8 +37,18 @@ const props = defineProps<{
 const { t } = useI18n()
 const graphLink = computed(() => ({ path: '/graph', query: { focus: props.currentSlug } }))
 
+const fetchWithSession: PublicFetch = (url) => {
+  if (import.meta.server) {
+    const requestFetch = useRequestFetch() as unknown as PublicFetch
+    return requestFetch(url)
+  }
+
+  const clientFetch = $fetch as unknown as PublicFetch
+  return clientFetch(url)
+}
+
 const { data, pending, error } = await useAsyncData(`post-graph-${props.currentSlug}`, () =>
-  $fetch<GraphPostResponse>(`/api/graph/post/${encodeURIComponent(props.currentSlug)}`)
+  fetchWithSession<GraphPostResponse>(`/api/graph/post/${encodeURIComponent(props.currentSlug)}`)
 )
 
 function openNode(node: GraphNode) {

@@ -198,114 +198,32 @@ argon2id and stored in SurrealDB. You can change it later from **Admin → Setti
 | `npm run modules:print` | Print the normalized module manifest |
 | `npm run hash-password` | Generate an argon2 password hash |
 | `npm run version:print` | Print the build version for the current commit |
-| `npm run docker:build` | Build the Docker image with build identity wired in |
+| `npm run container:build` | Build container image (auto-detects Docker / Podman) |
+| `npm run docker:build` | Build container image with Docker |
+| `npm run podman:build` | Build container image with Podman |
 
 ---
 
 ## Versioning & the `panda` CLI
 
-### Version format
+PandaBlog uses a deterministic, date-based versioning scheme (`YYMMDD-N+g<sha>`, e.g. `260923-1+gedb176f`) and ships a lightweight operator CLI `panda` inside the runtime image.
 
-PandaBlog builds are labelled with a date-based, commit-pinned version:
-
-```
-260923-1+gedb176f
-│      │ │
-│      │ └─ abbreviated commit SHA
-│      └─── 1-based index of this commit among that day's commits
-└───────── committer date, YYMMDD, in UTC
-```
-
-Print it for the current checkout:
+Quick commands:
 
 ```bash
-npm run version:print          # 260923-1+gedb176f
-node scripts/version.mjs --json
-node scripts/version.mjs --commit c2d6a6e   # version of any past commit
-```
+# Print version for the current commit
+npm run version:print
 
-### The determinism contract
+# Build the container image (auto-detects Docker or Podman)
+npm run container:build
 
-**The same commit always produces the same version string**, on any machine,
-any number of times. Every component is a pure function of the commit object:
-the date is stored inside the commit, the SHA *is* the commit, and the sequence
-number counts only commits reachable from that commit via `--first-parent` — so
-commits that land later on the same day can never renumber an earlier build.
-
-To keep that contract honest, [scripts/version.mjs](scripts/version.mjs)
-**hard-fails instead of guessing**:
-
-| Condition | Why it fails |
-| --- | --- |
-| Not a git repository | No trustworthy date or SHA exists |
-| Shallow clone | The sequence number would be silently undercounted |
-| Dirty working tree | The bytes on disk no longer match the pinned SHA |
-
-The dirty check can be waived with `PANDA_ALLOW_DIRTY=1`, which appends a
-`.dirty` marker so such a build is never mistaken for a clean one. Local
-`nuxt dev`, `nuxt build` and `nuxt typecheck` waive it automatically — the
-strict gate applies to `npm run docker:build`, the only path that produces a
-shippable artifact.
-
-> **CI must use full history.** `actions/checkout` defaults to `fetch-depth: 1`,
-> which yields a shallow clone. [ci.yml](.github/workflows/ci.yml) sets
-> `fetch-depth: 0` for this reason.
-
-> **The sequence number is not unique across branches.** Two branches can each
-> produce a second commit on the same day, and both would read `260923-2`. The
-> `+g<sha>` suffix is what makes the version globally unambiguous — treat the
-> `YYMMDD-N` part as a human-readable label and the SHA as the identity.
-
-### Where the version comes from at runtime
-
-`.git` is excluded from the Docker build context, so the version **cannot** be
-derived inside the image. It is computed on the host and passed in as a build
-arg, then frozen into `/app/version.json` and the `PANDABLOG_VERSION` env var.
-`npm run docker:build` does this for you; see
-[Deploying with Docker](#deploying-with-docker) for the manual form.
-
-The build is exposed in three places:
-
-- **`panda version`** inside the container (see below)
-- **OCI image labels** — `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' pandablog:latest`
-- **Admin → Settings → System**, in the *Build* panel
-
-The version is kept in the **private** section of `runtimeConfig` and served
-only from the admin-authenticated `/api/admin/system/version`. It is never
-placed in the public client bundle, because publishing the exact build of a
-public site helps an attacker match it against known vulnerabilities.
-
-### The `panda` CLI
-
-The runtime image ships a small, dependency-free operator CLI at
-[bin/panda.mjs](bin/panda.mjs), exposed on `PATH` as `panda`:
-
-```bash
-docker exec pandablog-app panda --version     # 260923-1+gedb176f
+# Inspect inside the container
+docker exec pandablog-app panda --version   # or: podman exec pandablog-app panda --version
 docker exec pandablog-app panda info
 docker exec pandablog-app panda health
 ```
 
-| Command | Description |
-| --- | --- |
-| `panda version` | Print the build version |
-| `panda info` | Build identity, Node runtime, listen address, storage dir status |
-| `panda health` | Probe the local server; exits `0` healthy, `1` unhealthy |
-| `panda help` | Usage |
-
-Global options: `--json` for machine-readable output; `panda health` also
-accepts `--url <url>` and `--timeout <seconds>`.
-
-`panda health` backs the container healthcheck in
-[deploy/production/docker-compose.yml](deploy/production/docker-compose.yml).
-Any non-5xx response counts as healthy, so redirects and auth challenges pass
-while server faults do not.
-
-The CLI is intentionally thin: it reads build metadata and speaks loopback
-HTTP, but never imports the Nitro bundle or touches the database. The runtime
-image contains only a compiled server, and reaching into its internals would
-break on every Nitro upgrade. Commands that need real data should go through
-the authenticated `/api/admin/*` routes instead.
+See [docs/versioning-and-cli.md](docs/versioning-and-cli.md) for full documentation on the version format, determinism guarantees, OCI labels, admin API, and CLI reference.
 
 ---
 
@@ -548,31 +466,24 @@ A production-ready `Dockerfile` and Compose setup are included.
 2. **Build the image** from the project root:
 
    ```bash
+   # Auto-detects Docker or Podman
+   npm run container:build
+
+   # Or explicitly choose engine:
    npm run docker:build
+   npm run podman:build
    ```
 
    This computes the build version from git and passes it in, tagging the result as both
-   `pandablog:<version>` and `pandablog:latest`. Extra arguments are forwarded to `docker build`.
+   `pandablog:<version>` and `pandablog:latest`. Extra arguments are forwarded to the container engine.
 
-   `.git` is excluded from the build context, so a bare `docker build` **cannot** derive the
-   version and will fail with a clear error. To build manually, supply the args yourself:
-
-   ```bash
-   docker build \
-     --build-arg APP_VERSION="$(node scripts/version.mjs)" \
-     --build-arg APP_COMMIT="$(git rev-parse HEAD)" \
-     --build-arg APP_COMMIT_DATE="$(git show -s --date=iso-strict-local --format=%cd HEAD)" \
-     -t pandablog:latest .
-   ```
-
-   See [Versioning & the `panda` CLI](#versioning--the-panda-cli) for the version format and the
-   guarantees it provides.
+   See [docs/versioning-and-cli.md](docs/versioning-and-cli.md) for details.
 
    The default base image is `node:22-bookworm-slim` for native-module compatibility. To
    experiment with a smaller image, build from Alpine:
 
    ```bash
-   npm run docker:build -- --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine
+   npm run container:build -- --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine
    ```
 
    Only promote the Alpine image after smoke-testing login, image upload/variant generation,

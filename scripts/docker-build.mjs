@@ -1,18 +1,22 @@
 #!/usr/bin/env node
 /**
- * Build the PandaBlog Docker image with build identity wired in.
+ * Build the PandaBlog container image with build identity wired in.
+ *
+ * Supports both `docker` and `podman` interchangeably:
+ *   - Auto-detects `docker` or `podman` if installed (checks `docker` first, then `podman`).
+ *   - Can be overridden via `CONTAINER_ENGINE=podman npm run container:build`
+ *     or `npm run podman:build`.
  *
  * `.git` is excluded by .dockerignore, so the version must be computed on the
- * host and handed to the build as args. This wrapper does that in one step and
- * works identically on Windows, macOS and Linux.
+ * host and handed to the build as build-args. This wrapper does that in one step
+ * and works identically on Windows, macOS, and Linux.
  *
  * Usage:
+ *   npm run container:build
  *   npm run docker:build
- *   npm run docker:build -- -t myregistry/pandablog:custom
- *   npm run docker:build -- --build-arg NODE_IMAGE=node:22-alpine
- *
- * Any extra arguments are forwarded verbatim to `docker build`. When no -t is
- * given the image is tagged twice: `pandablog:<version>` and `pandablog:latest`.
+ *   npm run podman:build
+ *   npm run container:build -- -t myregistry/pandablog:custom
+ *   npm run container:build -- --build-arg NODE_IMAGE=node:22-alpine
  */
 
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -20,6 +24,39 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+function parseCliArgs(argv) {
+  let engine = process.env.CONTAINER_ENGINE?.trim()
+  const passthrough = []
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg.startsWith('--engine=')) {
+      engine = arg.slice('--engine='.length).trim()
+    } else if (arg === '--engine' && i + 1 < argv.length) {
+      engine = argv[++i].trim()
+    } else {
+      passthrough.push(arg)
+    }
+  }
+
+  return { engine: resolveEngine(engine), passthrough }
+}
+
+function resolveEngine(preferred) {
+  if (preferred) return preferred
+
+  // Check which executable is available
+  for (const candidate of ['docker', 'podman']) {
+    try {
+      execFileSync(candidate, ['--version'], { stdio: 'ignore' })
+      return candidate
+    } catch {}
+  }
+  return 'docker'
+}
+
+const { engine, passthrough } = parseCliArgs(process.argv.slice(2))
 
 let info
 try {
@@ -31,14 +68,13 @@ try {
   info = JSON.parse(raw)
 } catch (error) {
   process.stderr.write(String(error.stderr || error.message))
-  process.stderr.write('\n[docker:build] aborted — the image must be traceable to a commit.\n')
+  process.stderr.write('\n[container:build] aborted — the image must be traceable to a commit.\n')
   process.exit(1)
 }
 
-const passthrough = process.argv.slice(2)
 const hasTag = passthrough.some((arg) => arg === '-t' || arg === '--tag')
 
-// Docker tags cannot contain '+', which the version uses before the SHA.
+// Image tags cannot contain '+', which the version uses before the SHA.
 const tag = info.version.replace('+', '_')
 
 const args = [
@@ -51,12 +87,13 @@ const args = [
   '.'
 ]
 
-process.stdout.write(`[docker:build] version ${info.version}\n`)
-process.stdout.write(`[docker:build] docker ${args.join(' ')}\n\n`)
+process.stdout.write(`[container:build] engine: ${engine}\n`)
+process.stdout.write(`[container:build] version: ${info.version}\n`)
+process.stdout.write(`[container:build] ${engine} ${args.join(' ')}\n\n`)
 
-const result = spawnSync('docker', args, { cwd: ROOT, stdio: 'inherit' })
+const result = spawnSync(engine, args, { cwd: ROOT, stdio: 'inherit' })
 if (result.error) {
-  process.stderr.write(`\n[docker:build] failed to run docker: ${result.error.message}\n`)
+  process.stderr.write(`\n[container:build] failed to run '${engine}': ${result.error.message}\n`)
   process.exit(1)
 }
 process.exit(result.status ?? 1)
