@@ -11,6 +11,7 @@ import { mediaRecordVisibleToUser } from './mediaPermissions'
 import type { MediaSettings } from './settings'
 import type { SessionUser } from './users'
 import type { MediaFolderRecord, MediaRecord, MediaVariantRecord, MediaVariantSize, UploadFileResult } from '~/types/content'
+import { buildFuzzyVariants, clampFtsNeedle, extractVocabularyWords, findFuzzyCandidates, fuzzyLookupWords, type FuzzyCandidate } from './fuzzy'
 
 export const MEDIA_FILE_RECORD_COLUMNS = [
   'id',
@@ -284,9 +285,11 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   const tagQueries = normalizeStringArray(options.tags)
   const useRegex = options.search_regex === true
   const caseInsensitive = options.case_insensitive !== false
-  const ftsSearchIds = search && !useRegex ? await mediaSearchFtsIds(db, search) : null
   const response = await queryDb(db, `SELECT ${MEDIA_FILE_RECORD_COLUMNS} FROM files;`)
   const allFiles = queryRows<Record<string, unknown>>(response).map(mediaNormalizeFileRecord)
+  // Global search box: exact full-text matches (tier 0) rank above
+  // typo-tolerant matches (tier 1). Regex mode stays exact.
+  const searchTiers = search && !useRegex ? await mediaSearchTiers(db, search, allFiles) : null
   const fromDate = options.uploaded_from ? normalizeDateBoundary(options.uploaded_from, 'start') : null
   const toDate = options.uploaded_to ? normalizeDateBoundary(options.uploaded_to, 'end') : null
   const normalizedFolderId = options.folder ? `folder:${mediaNormalizeFolderId(options.folder)}` : ''
@@ -313,13 +316,15 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
     .filter((file) => sizeMax === null || (file.size || 0) <= sizeMax)
     .filter((file) => !owner || String(file.uploaded_by || '').toLowerCase() === owner)
     .filter((file) => !options.orphan || ((file.reference_count || 0) === 0 && !(file.referenced_by || []).length))
-    .filter((file) => !search || (ftsSearchIds ? ftsSearchIds.has(file.id) : mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive })))
+    .filter((file) => !search || (searchTiers ? searchTiers.has(file.id) : mediaGlobalTextMatches(file, search, { useRegex, caseInsensitive })))
     .filter((file) => !fileName || mediaTextMatches(file.original_name, fileName, { useRegex, caseInsensitive }))
     .filter((file) => !extension || mediaTextMatches(file.extension, extension, { useRegex, caseInsensitive }))
     .filter((file) => !comment || mediaTextMatches(file.comment || '', comment, { useRegex, caseInsensitive }))
     .filter((file) => !filenameRegex || filenameRegex.test(file.original_name))
 
-  const files = [...filtered].sort((a, b) => mediaCompareRecords(a, b, options.sort)).slice(offset, offset + limit)
+  const files = [...filtered]
+    .sort((a, b) => (searchTiers ? (searchTiers.get(a.id) ?? 0) - (searchTiers.get(b.id) ?? 0) : 0) || mediaCompareRecords(a, b, options.sort))
+    .slice(offset, offset + limit)
   const total = filtered.length
 
   return {
@@ -331,16 +336,41 @@ export async function mediaSearchFileRecords(db: Surreal, options: MediaSearchOp
   }
 }
 
-async function mediaSearchFtsIds(db: Surreal, search: string) {
-  const response = await queryDb(
-    db,
-    `SELECT id
-     FROM files
-     WHERE original_name @0@ $needle OR comment @1@ $needle;`,
-    { needle: search }
-  )
+/**
+ * Full-text search over file names and comments with a typo-tolerant fallback.
+ * The word list is built from the already-loaded file records, so it never
+ * drifts. Returns file id -> tier (0 exact, 1 fuzzy).
+ */
+async function mediaSearchTiers(db: Surreal, search: string, files: MediaRecord[]) {
+  const vocabulary = new Map<string, number>()
+  for (const file of files) {
+    for (const word of extractVocabularyWords(`${file.original_name} ${file.comment ?? ''}`)) {
+      vocabulary.set(word, (vocabulary.get(word) ?? 0) + 1)
+    }
+  }
+  const candidatesByWord = new Map<string, FuzzyCandidate[]>()
+  for (const word of fuzzyLookupWords(search)) {
+    const lookup = findFuzzyCandidates(word, vocabulary)
+    if (!lookup.known && lookup.candidates.length) {
+      candidatesByWord.set(word, lookup.candidates)
+    }
+  }
+  const needles = [search, ...buildFuzzyVariants(search, candidatesByWord).map((variant) => variant.text)].map(clampFtsNeedle)
+  const params: Record<string, unknown> = {}
+  const statements = needles.map((needle, index) => {
+    params[`needle_${index}`] = needle
+    return `SELECT id FROM files WHERE original_name @0@ $needle_${index} OR comment @1@ $needle_${index};`
+  })
+  const response = await queryDb(db, statements.join('\n'), params, { label: 'media search full-text' })
 
-  return new Set(queryRows<{ id: unknown }>(response).map((record) => stringifyRecordId(record.id)))
+  const tiers = new Map<string, number>()
+  needles.forEach((_, index) => {
+    for (const record of queryRows<{ id: unknown }>(response, index)) {
+      const id = stringifyRecordId(record.id)
+      if (!tiers.has(id)) tiers.set(id, index === 0 ? 0 : 1)
+    }
+  })
+  return tiers
 }
 
 async function mediaReadFolderById(db: Surreal, folderId: string) {

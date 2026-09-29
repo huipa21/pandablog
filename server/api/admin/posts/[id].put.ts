@@ -17,6 +17,7 @@ import {
   syncPostBlocks,
   syncPostRelatedLinks
 } from '../../../utils/blocks'
+import { syncPostSearchTerms } from '../../../utils/searchTerms'
 import type { JsonContent, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -114,6 +115,12 @@ export default defineEventHandler(async (event) => {
   }
   normalizedPost.word_count = stats.word_count
   normalizedPost.cjk_char_count = stats.cjk_char_count
+  await syncPostSearchTerms(db, normalizedPost.id, {
+    status: normalizedPost.status,
+    title: normalizedPost.title,
+    summary: normalizedPost.summary,
+    blockTexts: blocks.map((block) => block.text)
+  })
 
   await syncPostTaxonomy(
     db,

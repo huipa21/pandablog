@@ -17,7 +17,7 @@
           <h1 class="font-[var(--pb-font-display)] text-[clamp(2.5rem,6vw,5.25rem)] font-medium leading-none tracking-normal text-[var(--pb-text-muted)] opacity-70">{{ siteName }}</h1>
           <p v-if="siteSubtitle" class="mx-auto max-w-2xl text-base leading-relaxed text-[var(--pb-text-muted)] md:text-lg">{{ siteSubtitle }}</p>
         </div>
-        <BlogSearchBar :key="`hero-search-${publicLocale}`" variant="hero" />
+        <BlogSearchBar :key="`hero-search-${publicLocale}`" variant="hero" advanced />
       </div>
 
       <!-- Bottom navigation strip -->
@@ -128,7 +128,7 @@
             @click="openPublicSearch"
           />
           <div v-else class="public-site-search-expanded flex items-center gap-1.5">
-            <BlogSearchBar :key="`header-search-${publicLocale}`" variant="header" :autofocus="publicSearchOpen" />
+            <BlogSearchBar :key="`header-search-${publicLocale}`" variant="header" advanced :autofocus="publicSearchOpen" />
             <UButton
               variant="ghost"
               color="neutral"

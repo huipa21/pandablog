@@ -4,6 +4,7 @@ import { recordIdPart } from '../../../../../../utils/surrealResult'
 import { requireContentManager } from '../../../../../../utils/auth'
 import { assertCanManagePostRecord } from '../../../../../../utils/permissions'
 import { normalizePost } from '../../../../../../utils/content'
+import { syncPostSearchTerms } from '../../../../../../utils/searchTerms'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
@@ -34,6 +35,12 @@ export default defineEventHandler(async (event) => {
   const normalized = normalizePost(updated ?? post)
   normalized.word_count = stats.word_count
   normalized.cjk_char_count = stats.cjk_char_count
+  await syncPostSearchTerms(db, normalized.id, {
+    status: normalized.status,
+    title: normalized.title,
+    summary: normalized.summary,
+    blockTexts: blocks.map((block) => block.text)
+  })
 
   return {
     ...normalized,

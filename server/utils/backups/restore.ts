@@ -16,6 +16,21 @@ import { queryDb, useDb } from '../db'
 import { queryRows } from '../surrealResult'
 import { mediaNormalizeFileRecord } from '../mediaLibrary'
 import { mediaProcessImageBuffer } from '../imageProcessor'
+import { rebuildPostSearchTerms } from '../searchTerms'
+
+/**
+ * The restored dump may predate the fuzzy word list or hold a stale one, so
+ * rebuild it from the restored posts in the background (non-fatal).
+ */
+function rebuildSearchTermsBackground() {
+  useDb()
+    .then((db) => rebuildPostSearchTerms(db))
+    .catch((err) => {
+      if (import.meta.dev) {
+        console.warn('[backup] Search word list rebuild failed:', err?.message)
+      }
+    })
+}
 
 /**
  * Acquires the mutex, marks the backup as restoring, fires the heavy work in background,
@@ -163,6 +178,7 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
     }
 
     // --- 13. Background variant regen (non-fatal) ---
+    rebuildSearchTermsBackground()
     regenerateVariantsBackground().catch((err) => {
       if (import.meta.dev) {
         console.warn('[backup] Variant regeneration failed:', err?.message)
@@ -184,6 +200,7 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
         await replaceBackupRecords(await listBackups().catch(() => [])).catch(() => {})
         await initializeRuntimeSettings(true).catch(() => {})
         await initializeLoggingSettings().catch(() => {})
+        rebuildSearchTermsBackground()
         rolledBack = true
         finalError = `${message} — restore was rolled back to the pre-restore state.`
         await rm(safetyPath, { force: true }).catch(() => {})

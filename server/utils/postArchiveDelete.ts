@@ -3,6 +3,7 @@ import { normalizePost } from './content'
 import { firstRow, recordIdPart } from './surrealResult'
 import { deleteAllBlocksForPost } from './blocks'
 import { mediaRemoveAllReferencesForSource } from './referenceTracker'
+import { removePostSearchTerms } from './searchTerms'
 
 export type ArchiveDeleteResult =
   | { kind: 'archived', post: ReturnType<typeof normalizePost> }
@@ -20,9 +21,21 @@ export async function archiveOrDeletePostById(
 
   if (currentPost.status === 'archived') {
     await hardDeletePost(db, currentPost)
+    await removePostSearchTerms(db, `post:${id}`)
     return { kind: 'hard-deleted', id: `post:${id}` }
   }
 
+  // Archived posts are never searchable, so their words leave the fuzzy word
+  // list now; un-archiving (a normal save) syncs them back.
+  const result = await archivePostWithRecovery(db, id)
+  await removePostSearchTerms(db, `post:${id}`)
+  return result
+}
+
+async function archivePostWithRecovery(
+  db: Awaited<ReturnType<typeof useDb>>,
+  id: string
+): Promise<ArchiveDeleteResult> {
   try {
     const response = await archivePost(db, id)
     const post = firstRow<Record<string, unknown>>(response)

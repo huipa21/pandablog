@@ -102,15 +102,53 @@ export interface SearchPostResult {
   score: number
   matches: SearchBlockMatch[]
   totalMatches: number
+  /** `exact` results always rank above `fuzzy` (typo-tolerant) ones. */
+  tier: SearchMatchTier
+  status: PostStatus
+  /** Password-protected post the viewer has not unlocked: title-only matching. */
+  locked: boolean
 }
 
+export type SearchMatchTier = 'exact' | 'fuzzy'
+
 export interface SearchResponse {
+  /** Readable keyword expression (empty for filter-only searches). */
   query: string
   sort: SearchSort
   limit: number
+  page: number
+  pages: number
   total: number
   maxPerPost: number
   results: SearchPostResult[]
+}
+
+export interface SearchOptionTag {
+  slug: string
+  name: string
+  count: number
+}
+
+export interface SearchOptionCategory {
+  slug: string
+  name: string
+  /** Full path label, e.g. `Parent › Child`. */
+  label: string
+  parent: string | null
+  /** Visible published posts in this category and its sub-categories. */
+  count: number
+}
+
+export interface SearchOptionAuthor {
+  /** Opaque, non-reversible author id (never the username). */
+  id: string
+  name: string
+}
+
+export interface SearchOptionsResponse {
+  tags: SearchOptionTag[]
+  categories: SearchOptionCategory[]
+  authors: SearchOptionAuthor[]
 }
 
 export type SearchSort = 'relevance' | 'date_desc' | 'date_asc' | 'title'

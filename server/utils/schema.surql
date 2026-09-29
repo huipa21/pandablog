@@ -127,6 +127,27 @@ DEFINE FIELD IF NOT EXISTS updated_at ON block TYPE datetime DEFAULT time::now()
 DEFINE INDEX IF NOT EXISTS block_type ON block FIELDS type;
 DEFINE INDEX IF NOT EXISTS block_text_fts ON TABLE block COLUMNS text FULLTEXT ANALYZER blog_analyzer BM25 HIGHLIGHTS;
 
+-- ============ SEARCH TERMS (fuzzy-search word list) ============
+-- One row per (scope, word); record id is [scope, term]. `df` counts the source
+-- records containing the word. Only Latin/Greek/Cyrillic words of 4-30 chars.
+-- Maintained by server/utils/searchTerms.ts (diff per source + full rebuild).
+DEFINE TABLE OVERWRITE search_term SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS scope ON search_term TYPE string;
+DEFINE FIELD IF NOT EXISTS term ON search_term TYPE string;
+DEFINE FIELD IF NOT EXISTS first_char ON search_term TYPE string;
+DEFINE FIELD IF NOT EXISTS term_len ON search_term TYPE int;
+DEFINE FIELD IF NOT EXISTS df ON search_term TYPE int DEFAULT 0;
+DEFINE INDEX IF NOT EXISTS search_term_lookup ON TABLE search_term FIELDS scope, first_char, term_len;
+
+-- Words contributed by each source record; record id is [scope, source].
+DEFINE TABLE OVERWRITE search_term_source SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS scope ON search_term_source TYPE string;
+DEFINE FIELD IF NOT EXISTS source ON search_term_source TYPE string;
+DEFINE FIELD IF NOT EXISTS terms ON search_term_source TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS updated_at ON search_term_source TYPE datetime DEFAULT time::now();
+DEFINE INDEX IF NOT EXISTS search_term_source_source ON TABLE search_term_source FIELDS source;
+DEFINE INDEX IF NOT EXISTS search_term_source_scope ON TABLE search_term_source FIELDS scope;
+
 -- ============ VERSIONS (post content snapshots; block content lives in `block`) ============
 DEFINE TABLE OVERWRITE versions SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS version ON versions TYPE string;

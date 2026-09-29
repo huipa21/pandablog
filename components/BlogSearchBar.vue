@@ -16,6 +16,15 @@
         type="search"
         autocomplete="off"
       >
+      <SearchAdvancedToggle
+        v-if="advanced"
+        v-model:open="advancedOpen"
+        :reference="formRef"
+        :criteria="currentCriteria"
+        :active="advancedActive"
+        align="center"
+        @submit="submitAdvanced"
+      />
       <button :key="`hero-submit-${renderedPlaceholder}`" type="submit" class="blog-search-hero-submit" :aria-label="renderedPlaceholder">
         <UIcon name="i-lucide-arrow-right" class="size-5" />
       </button>
@@ -31,6 +40,15 @@
         type="search"
         autocomplete="off"
       >
+      <SearchAdvancedToggle
+        v-if="advanced"
+        v-model:open="advancedOpen"
+        :reference="formRef"
+        :criteria="currentCriteria"
+        :active="advancedActive"
+        align="end"
+        @submit="submitAdvanced"
+      />
     </div>
 
     <template v-else>
@@ -39,10 +57,21 @@
         v-model="query"
         :placeholder="renderedPlaceholder"
         icon="i-lucide-search"
-        :ui="{ root: 'w-full' }"
+        :ui="{ root: 'w-full', trailing: advanced ? 'pe-1' : undefined }"
         type="search"
         autocomplete="off"
-      />
+      >
+        <template v-if="advanced" #trailing>
+          <SearchAdvancedToggle
+            v-model:open="advancedOpen"
+            :reference="formRef"
+            :criteria="currentCriteria"
+            :active="advancedActive"
+            :align="variant === 'header' ? 'end' : 'start'"
+            @submit="submitAdvanced"
+          />
+        </template>
+      </UInput>
       <UButton
         v-if="variant === 'sidebar'"
         :key="`search-submit-${renderedPlaceholder}`"
@@ -56,14 +85,26 @@
 </template>
 
 <script setup lang="ts">
+import {
+  buildSearchCriteriaQuery,
+  createEmptySearchCriteria,
+  hasAdvancedSearchCriteria,
+  hasAnySearchCriteria,
+  parseSearchCriteria,
+  type AdvancedSearchCriteria
+} from '~/utils/searchQuery'
+
 const props = withDefaults(defineProps<{
   variant?: 'sidebar' | 'header' | 'hero' | 'compact'
   placeholder?: string
   autofocus?: boolean
+  /** Show the ▾ advanced-search dropdown (public search bars). */
+  advanced?: boolean
 }>(), {
   variant: 'sidebar',
   placeholder: '',
-  autofocus: false
+  autofocus: false,
+  advanced: false
 })
 
 const { t } = useI18n()
@@ -75,6 +116,18 @@ const query = ref<string>(typeof route.query.q === 'string' ? route.query.q : ''
 
 watch(() => route.query.q, (q) => {
   if (typeof q === 'string') query.value = q
+  else if (route.path === '/search') query.value = ''
+})
+
+const advancedOpen = ref(false)
+/** Criteria currently applied (only the /search page carries them in the URL). */
+const currentCriteria = computed<AdvancedSearchCriteria>(() => route.path === '/search'
+  ? parseSearchCriteria(route.query)
+  : createEmptySearchCriteria())
+const advancedActive = computed(() => hasAdvancedSearchCriteria(currentCriteria.value))
+
+watch(() => route.fullPath, () => {
+  advancedOpen.value = false
 })
 
 const formClass = computed(() => {
@@ -140,10 +193,24 @@ function focusSearchInput() {
 }
 
 function submit() {
-  const q = query.value.trim()
-  if (!q) return
+  // Enter in the bar keeps any advanced criteria already applied on /search.
+  navigateToSearch({ ...currentCriteria.value, q: query.value.trim() })
+}
+
+function submitAdvanced(criteria: AdvancedSearchCriteria) {
+  advancedOpen.value = false
+  navigateToSearch({ ...criteria, q: query.value.trim() })
+}
+
+function navigateToSearch(criteria: AdvancedSearchCriteria) {
+  if (!hasAnySearchCriteria(criteria)) return
+  const nextQuery: Record<string, string> = buildSearchCriteriaQuery(criteria)
+  if (route.path === '/search' && typeof route.query.sort === 'string') {
+    nextQuery.sort = route.query.sort
+  }
   const from = getSearchReturnPath()
-  navigateTo({ path: '/search', query: from ? { q, from } : { q } })
+  if (from) nextQuery.from = from
+  navigateTo({ path: '/search', query: nextQuery })
 }
 
 function getSearchReturnPath() {

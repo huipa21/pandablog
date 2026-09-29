@@ -6,6 +6,7 @@ import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, 
 import { initializeLoggingSettings } from '../utils/logging'
 import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
+import { rebuildPostSearchTerms } from '../utils/searchTerms'
 import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE } from '~/utils/adminLocale'
 import { computeContentStats } from '~/utils/contentStats'
 import type { JsonContent } from '~/types/content'
@@ -25,6 +26,7 @@ const POST_VERSION_GRAPH_MIGRATION_KEY = '__post_version_graph_migration_v1'
 const POST_VERSION_DEDUP_MIGRATION_KEY = '__post_version_dedup_migration_v1'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v2'
 const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
+const SEARCH_TERMS_BUILD_KEY = '__search_terms_build_v1'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const APP_SETTINGS_TABLE = 'app_settings'
 const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
@@ -535,6 +537,7 @@ async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
   try {
     await backfillPostStats(db)
     await backfillBlockText(db)
+    await backfillSearchTerms(db)
   } catch (error) {
     console.warn('[db-init] deferred backfills failed', error)
   }
@@ -638,6 +641,30 @@ async function backfillBlockText(db: Awaited<ReturnType<typeof useDb>>) {
   }
 
   await setAppSetting(db, BLOCK_TEXT_REINDEX_KEY, new Date().toISOString(), 'block text reindex marker')
+}
+
+/**
+ * Build the fuzzy-search word list (`search_term`) once from existing posts.
+ * Runs after the block text reindex so the words come from the latest text.
+ * Afterwards the list is kept up to date incrementally on every post save.
+ */
+async function backfillSearchTerms(db: Awaited<ReturnType<typeof useDb>>) {
+  const existing = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: SEARCH_TERMS_BUILD_KEY },
+    { label: 'search terms build marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(existing)) {
+    return
+  }
+
+  if (!await rebuildPostSearchTerms(db)) {
+    return
+  }
+
+  await setAppSetting(db, SEARCH_TERMS_BUILD_KEY, new Date().toISOString(), 'search terms build marker')
 }
 
 async function resetPostStatsFieldDefinitionsBeforeSchema(db: Awaited<ReturnType<typeof useDb>>) {

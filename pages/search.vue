@@ -13,18 +13,10 @@
           {{ t('public.search.back') }}
         </UButton>
       </div>
-      <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-end">
-        <form class="flex min-w-0 flex-1 items-center gap-2" role="search" @submit.prevent="onSubmit">
-          <UInput
-            v-model="query"
-            :placeholder="t('public.search.placeholder')"
-            icon="i-lucide-search"
-            type="search"
-            class="flex-1"
-            :ui="{ root: 'w-full' }"
-          />
-          <UButton type="submit" color="primary" icon="i-lucide-arrow-right">{{ t('public.search.button') }}</UButton>
-        </form>
+      <div class="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+        <div class="min-w-0 flex-1">
+          <BlogSearchBar variant="sidebar" advanced />
+        </div>
         <USelectMenu
           v-model="sort"
           :items="sortOptions"
@@ -32,27 +24,56 @@
           class="w-full sm:w-44"
         />
       </div>
-      <p v-if="data" class="text-sm text-[var(--pb-text-subtle)]">
-        <template v-if="data.query">
-          {{ resultSummary }}
-        </template>
-        <template v-else>{{ t('public.search.prompt') }}</template>
-      </p>
+
+      <div v-if="chips.length" class="flex flex-wrap items-center gap-2" data-testid="search-active-filters">
+        <span
+          v-for="chip in chips"
+          :key="chip.key"
+          class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] py-1 pr-1 pl-3 text-xs text-[var(--pb-text-muted)]"
+        >
+          <span class="font-semibold text-[var(--pb-text-subtle)]">{{ chip.label }}</span>
+          <span class="truncate text-[var(--pb-text)]">{{ chip.value }}</span>
+          <button
+            type="button"
+            class="grid size-5 shrink-0 place-items-center rounded-full text-[var(--pb-text-subtle)] transition hover:bg-[var(--pb-selected-bg)] hover:text-[var(--pb-text)]"
+            :aria-label="t('public.search.removeFilter', { filter: `${chip.label} ${chip.value}` })"
+            @click="removeChip(chip)"
+          >
+            <UIcon name="i-lucide-x" class="size-3.5" />
+          </button>
+        </span>
+        <UButton v-if="chips.length > 1" variant="link" color="neutral" size="xs" @click="clearAll">
+          {{ t('public.search.clearAll') }}
+        </UButton>
+      </div>
+
+      <p v-if="data" class="text-sm text-[var(--pb-text-subtle)]">{{ resultSummary }}</p>
+      <p v-else-if="!hasCriteria" class="text-sm text-[var(--pb-text-subtle)]">{{ t('public.search.prompt') }}</p>
     </header>
 
     <div v-if="pending" class="text-[var(--pb-text-subtle)]">{{ t('public.search.searching') }}</div>
 
-    <ul v-else-if="data && data.results.length" class="space-y-6">
+    <ul v-else-if="data && data.results.length" class="space-y-6" data-testid="search-results">
       <li
         v-for="result in data.results"
         :key="result.post.id"
         class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]"
       >
-        <NuxtLink :to="`/blog/${result.post.slug}`" class="text-lg font-semibold text-[var(--pb-link)] hover:text-[var(--pb-link-hover)]">
-          {{ result.post.title || result.post.slug }}
-        </NuxtLink>
+        <div class="flex flex-wrap items-center gap-2">
+          <NuxtLink :to="`/blog/${result.post.slug}`" class="text-lg font-semibold text-[var(--pb-link)] hover:text-[var(--pb-link-hover)]">
+            {{ result.post.title || result.post.slug }}
+          </NuxtLink>
+          <UBadge v-if="result.status === 'draft'" color="warning" variant="subtle" size="sm">{{ t('public.search.draft') }}</UBadge>
+          <UIcon
+            v-if="result.locked"
+            name="i-lucide-lock"
+            class="size-4 text-[var(--pb-text-subtle)]"
+            :aria-label="t('public.search.locked')"
+            :title="t('public.search.locked')"
+          />
+        </div>
         <p v-if="result.post.summary" class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ result.post.summary }}</p>
-        <div class="mt-3 space-y-2">
+        <div v-if="result.matches.length" class="mt-3 space-y-2">
           <div
             v-for="match in result.matches"
             :key="match.blockId"
@@ -70,17 +91,52 @@
       </li>
     </ul>
 
-    <p v-else-if="data && data.query" class="text-[var(--pb-text-subtle)]">{{ t('public.search.noMatches', { query: data.query }) }}</p>
+    <p v-else-if="data" class="text-[var(--pb-text-subtle)]">
+      {{ data.query ? t('public.search.noMatches', { query: data.query }) : t('public.search.noFilterMatches') }}
+    </p>
+
+    <div v-if="data && data.pages > 1" class="flex justify-center">
+      <UPagination
+        :page="data.page"
+        :total="data.total"
+        :items-per-page="data.limit"
+        :sibling-count="1"
+        size="md"
+        color="neutral"
+        active-color="primary"
+        variant="outline"
+        active-variant="solid"
+        @update:page="goToPage"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { SearchResponse, SearchSort } from '~/types/content'
+import {
+  buildSearchCriteriaQuery,
+  createEmptySearchCriteria,
+  hasAnySearchCriteria,
+  hasSearchDateRange,
+  parseSearchCriteria,
+  type AdvancedSearchCriteria
+} from '~/utils/searchQuery'
+
+interface CriteriaChip {
+  key: string
+  label: string
+  value: string
+  remove: (criteria: AdvancedSearchCriteria) => AdvancedSearchCriteria
+}
 
 const route = useRoute()
 const { t } = useI18n()
+const sessionFetch = useSessionFetch()
+const { options: searchOptions, load: loadSearchOptions } = useSearchOptions()
 
-const query = ref<string>(typeof route.query.q === 'string' ? route.query.q : '')
+const criteria = computed(() => parseSearchCriteria(route.query))
+const hasCriteria = computed(() => hasAnySearchCriteria(criteria.value))
 const sort = ref<SearchSort>(normalizeSort(route.query.sort))
 const returnPath = computed(() => normalizeReturnPath(route.query.from))
 const backRoute = computed(() => returnPath.value || '/')
@@ -92,34 +148,129 @@ const sortOptions = computed(() => [
   { label: t('public.search.sort.title'), value: 'title' as const }
 ])
 
-const params = computed(() => ({
-  q: typeof route.query.q === 'string' ? route.query.q : '',
-  sort: normalizeSort(route.query.sort)
+const apiParams = computed(() => ({
+  ...buildSearchCriteriaQuery(criteria.value),
+  sort: normalizeSort(route.query.sort),
+  page: String(normalizePage(route.query.page))
 }))
 
 const { data, pending } = await useAsyncData<SearchResponse | null>(
-  () => `search:${params.value.q}:${params.value.sort}`,
+  () => `search:${JSON.stringify(apiParams.value)}`,
   async () => {
-    if (!params.value.q) return null
-    return await $fetch<SearchResponse>('/api/search', { params: { q: params.value.q, sort: params.value.sort } })
+    if (!hasAnySearchCriteria(criteria.value)) return null
+    return await sessionFetch<SearchResponse>('/api/search', { params: apiParams.value })
   },
-  { watch: [params] }
+  { watch: [apiParams] }
 )
+
 const resultSummary = computed(() => {
-  if (!data.value?.query) return ''
-  const key = data.value.total === 1 ? 'public.search.resultSummaryOne' : 'public.search.resultSummary'
-  return t(key, { total: data.value.total, query: data.value.query })
+  if (!data.value) return ''
+  const total = data.value.total
+  if (data.value.query) {
+    return t(total === 1 ? 'public.search.resultSummaryOne' : 'public.search.resultSummary', { total, query: data.value.query })
+  }
+  return t(total === 1 ? 'public.search.filterSummaryOne' : 'public.search.filterSummary', { total })
 })
+
+// Names for category / tag / author chips come from the autocomplete data.
+onMounted(() => {
+  if (criteria.value.categories.length || criteria.value.tags.length || criteria.value.authors.length) {
+    void loadSearchOptions()
+  }
+})
+watch(() => criteria.value.categories.length + criteria.value.tags.length + criteria.value.authors.length, (count) => {
+  if (count) void loadSearchOptions()
+})
+
+const chips = computed<CriteriaChip[]>(() => {
+  const current = criteria.value
+  const list: CriteriaChip[] = []
+  const categoryLabels = new Map(searchOptions.value.categories.map((item) => [item.slug, item.label]))
+  const tagLabels = new Map(searchOptions.value.tags.map((item) => [item.slug, item.name]))
+  const authorLabels = new Map(searchOptions.value.authors.map((item) => [item.id, item.name]))
+
+  current.groups.forEach((group, index) => {
+    list.push({
+      key: `kw-${index}`,
+      label: t('public.search.chips.keywords'),
+      value: group.terms.join(group.op === 'and' ? ` ${t('public.search.advanced.and')} ` : ` ${t('public.search.advanced.or')} `),
+      remove: (value) => ({ ...value, groups: value.groups.filter((_, groupIndex) => groupIndex !== index) })
+    })
+  })
+  for (const slug of current.categories) {
+    list.push({
+      key: `cat-${slug}`,
+      label: t('public.search.chips.category'),
+      value: categoryLabels.get(slug) ?? slug,
+      remove: (value) => ({ ...value, categories: value.categories.filter((item) => item !== slug) })
+    })
+  }
+  for (const slug of current.tags) {
+    list.push({
+      key: `tag-${slug}`,
+      label: t('public.search.chips.tag'),
+      value: tagLabels.get(slug) ?? slug,
+      remove: (value) => ({ ...value, tags: value.tags.filter((item) => item !== slug) })
+    })
+  }
+  for (const id of current.authors) {
+    list.push({
+      key: `author-${id}`,
+      label: t('public.search.chips.author'),
+      value: authorLabels.get(id) ?? t('public.search.advanced.unknownAuthor'),
+      remove: (value) => ({ ...value, authors: value.authors.filter((item) => item !== id) })
+    })
+  }
+  if (hasSearchDateRange(current)) {
+    list.push({
+      key: 'date',
+      label: t('public.search.chips.date'),
+      value: dateChipLabel(current),
+      remove: (value) => ({ ...value, date: '', start: '', end: '', tz: null })
+    })
+  }
+  return list
+})
+
+function dateChipLabel(current: AdvancedSearchCriteria) {
+  switch (current.date) {
+    case '7d': return t('public.search.advanced.date7d')
+    case '30d': return t('public.search.advanced.date30d')
+    case '12m': return t('public.search.advanced.date12m')
+    case 'year': return t('public.search.advanced.dateYear')
+    default: return `${current.start || '…'} – ${current.end || '…'}`
+  }
+}
 
 watch(sort, (next) => {
-  if (next === params.value.sort) return
-  navigateTo({ path: '/search', query: withReturnQuery({ q: params.value.q, sort: next }) })
+  if (next === normalizeSort(route.query.sort)) return
+  navigateWith(criteria.value, { sort: next })
 })
 
-function onSubmit() {
-  const q = query.value.trim()
-  if (!q) return
-  navigateTo({ path: '/search', query: withReturnQuery({ q, sort: sort.value }) })
+watch(() => route.query.sort, (value) => {
+  sort.value = normalizeSort(value)
+})
+
+function removeChip(chip: CriteriaChip) {
+  navigateWith(chip.remove(criteria.value))
+}
+
+function clearAll() {
+  navigateWith({ ...createEmptySearchCriteria(), q: criteria.value.q })
+}
+
+function goToPage(page: number) {
+  navigateWith(criteria.value, { page: String(page) })
+  if (import.meta.client) window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function navigateWith(next: AdvancedSearchCriteria, extra: Record<string, string> = {}) {
+  const query: Record<string, string> = { ...buildSearchCriteriaQuery(next) }
+  const currentSort = normalizeSort(route.query.sort)
+  if (currentSort !== 'relevance') query.sort = currentSort
+  Object.assign(query, extra)
+  if (returnPath.value) query.from = returnPath.value
+  navigateTo({ path: '/search', query })
 }
 
 function normalizeSort(value: unknown): SearchSort {
@@ -129,19 +280,20 @@ function normalizeSort(value: unknown): SearchSort {
   return 'relevance'
 }
 
+function normalizePage(value: unknown) {
+  const page = Number(typeof value === 'string' ? value : 1)
+  return Number.isFinite(page) && page >= 1 ? Math.min(Math.floor(page), 500) : 1
+}
+
 function normalizeReturnPath(value: unknown) {
   if (typeof value !== 'string') return ''
   if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/search')) return ''
   return value
 }
 
-function withReturnQuery(queryValue: Record<string, string>) {
-  return returnPath.value ? { ...queryValue, from: returnPath.value } : queryValue
-}
-
 function moreMatchesLabel(count: number) {
   return t(count === 1 ? 'public.search.moreMatchesOne' : 'public.search.moreMatches', { count })
 }
 
-useHead(() => ({ title: params.value.q ? t('public.search.headWithQuery', { query: params.value.q }) : t('public.search.title') }))
+useHead(() => ({ title: data.value?.query ? t('public.search.headWithQuery', { query: data.value.query }) : t('public.search.title') }))
 </script>
