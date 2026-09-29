@@ -174,7 +174,6 @@
 import MediaTagInput from '~/components/admin/media/MediaTagInput.vue'
 
 type SearchTab = 'simple' | 'advanced' | 'favorites' | 'recent'
-type FormTextValue = string | number
 
 const OWNER_ANY = '__any_owner__'
 
@@ -218,8 +217,8 @@ interface SearchForm {
   orphan: boolean
   search_regex: boolean
   case_insensitive: boolean
-  size_min: FormTextValue
-  size_max: FormTextValue
+  size_min: string
+  size_max: string
   size_unit: SizeUnit
 }
 
@@ -506,6 +505,9 @@ function normalizeForm(value: Partial<SearchForm>): SearchForm {
     ...value,
     tags: Array.isArray(value.tags) ? value.tags : [],
     owner,
+    // Older saved searches may hold numbers; the size inputs are string-bound.
+    size_min: value.size_min === undefined || value.size_min === null ? base.size_min : String(value.size_min),
+    size_max: value.size_max === undefined || value.size_max === null ? base.size_max : String(value.size_max),
     case_insensitive: value.case_insensitive !== false
   }
 }

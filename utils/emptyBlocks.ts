@@ -102,7 +102,13 @@ function normalizeNode(node: JsonContent, stripBlockId: boolean): JsonContent {
   }
 
   if (Array.isArray(node.marks)) {
-    out.marks = node.marks.map((mark) => normalizeNode(mark as JsonContent, stripBlockId))
+    out.marks = node.marks.map((mark) => {
+      // Marks always carry a type; keep the normalized attrs alongside it.
+      const normalized = normalizeNode(mark as JsonContent, stripBlockId)
+      return normalized.attrs
+        ? { type: String(mark.type ?? ''), attrs: normalized.attrs }
+        : { type: String(mark.type ?? '') }
+    })
   }
 
   return out

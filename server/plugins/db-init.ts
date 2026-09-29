@@ -7,6 +7,7 @@ import { initializeLoggingSettings } from '../utils/logging'
 import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { rebuildPostSearchTerms } from '../utils/searchTerms'
+import { repairMisaddressedTaxonomyEdges } from '../utils/taxonomy'
 import { ADMIN_LOCALE_KEY, DEFAULT_ADMIN_LOCALE } from '~/utils/adminLocale'
 import { computeContentStats } from '~/utils/contentStats'
 import type { JsonContent } from '~/types/content'
@@ -27,6 +28,7 @@ const POST_VERSION_DEDUP_MIGRATION_KEY = '__post_version_dedup_migration_v1'
 const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v2'
 const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const SEARCH_TERMS_BUILD_KEY = '__search_terms_build_v1'
+const TAXONOMY_EDGE_REPAIR_KEY = '__taxonomy_edge_repair_v1'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const APP_SETTINGS_TABLE = 'app_settings'
 const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
@@ -535,12 +537,42 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
 
 async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
   try {
+    await repairTaxonomyEdges(db)
     await backfillPostStats(db)
     await backfillBlockText(db)
     await backfillSearchTerms(db)
   } catch (error) {
     console.warn('[db-init] deferred backfills failed', error)
   }
+}
+
+/**
+ * Re-point tag / category edges that were written against the double-prefixed
+ * post id post:`post:abc` (see repairMisaddressedTaxonomyEdges).
+ */
+async function repairTaxonomyEdges(db: Awaited<ReturnType<typeof useDb>>) {
+  const existing = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: TAXONOMY_EDGE_REPAIR_KEY },
+    { label: 'taxonomy edge repair marker check', timeoutMs: 5_000 }
+  )
+
+  if (firstRow(existing)) {
+    return
+  }
+
+  try {
+    const result = await repairMisaddressedTaxonomyEdges(db)
+    if (result.removed) {
+      console.info(`[db-init] taxonomy edge repair: ${result.removed} broken edges removed, ${result.relinked} re-linked`)
+    }
+  } catch (error) {
+    console.warn('[db-init] taxonomy edge repair failed', error)
+    return
+  }
+
+  await setAppSetting(db, TAXONOMY_EDGE_REPAIR_KEY, new Date().toISOString(), 'taxonomy edge repair marker')
 }
 
 async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
@@ -558,14 +590,22 @@ async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
   try {
     const response = await queryDb(
       db,
-      `SELECT <-has_version<-post[0].id AS post_id, out.node AS node
+      // `in` is the version record; hop back to its post. (A bare
+      // `<-has_version<-post` would start from the has_blocks edge itself and
+      // always resolve to null.)
+      `SELECT (in<-has_version.in)[0] AS post_id, out.node AS node
        FROM has_blocks
        WHERE in.version = 'current'
-       FETCH out;`,
+       FETCH out;
+       SELECT id, word_count, cjk_char_count FROM post;`,
       undefined,
       { label: 'post stats backfill load blocks', timeoutMs: 30_000 }
     )
     const rows = queryRows<{ post_id?: unknown, node?: unknown }>(response, 0)
+    const storedStats = new Map(
+      queryRows<{ id?: unknown, word_count?: unknown, cjk_char_count?: unknown }>(response, 1)
+        .map((post) => [stringifyRecordId(post.id), { word_count: Number(post.word_count ?? 0), cjk_char_count: Number(post.cjk_char_count ?? 0) }] as const)
+    )
     const textsByPost = new Map<string, string[]>()
     for (const row of rows) {
       const postId = stringifyRecordId(row.post_id)
@@ -577,6 +617,10 @@ async function backfillPostStats(db: Awaited<ReturnType<typeof useDb>>) {
 
     for (const [postId, texts] of textsByPost) {
       const stats = computeContentStats(texts.join('\n'))
+      const stored = storedStats.get(postId)
+      if (stored && stored.word_count === stats.word_count && stored.cjk_char_count === stats.cjk_char_count) {
+        continue
+      }
       const id = postId.startsWith('post:') ? postId.slice(5) : postId
       await queryDb(
         db,

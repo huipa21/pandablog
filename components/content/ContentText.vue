@@ -166,23 +166,23 @@ function handleLinkClick(event: MouseEvent) {
 }
 
 .content-diff-highlight.is-added {
-  background: color-mix(in srgb, var(--pb-success, #16a34a) 26%, transparent);
+  background: color-mix(in srgb, var(--pb-success) 26%, transparent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--pb-success, #16a34a) 55%, transparent),
-    0 2px 6px -1px color-mix(in srgb, var(--pb-success, #16a34a) 45%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--pb-success) 55%, transparent),
+    0 2px 6px -1px color-mix(in srgb, var(--pb-success) 45%, transparent);
 }
 
 .content-diff-highlight.is-removed {
-  background: color-mix(in srgb, var(--pb-danger, #dc2626) 26%, transparent);
+  background: color-mix(in srgb, var(--pb-danger) 26%, transparent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--pb-danger, #dc2626) 55%, transparent),
-    0 2px 6px -1px color-mix(in srgb, var(--pb-danger, #dc2626) 45%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--pb-danger) 55%, transparent),
+    0 2px 6px -1px color-mix(in srgb, var(--pb-danger) 45%, transparent);
 }
 
 .content-diff-highlight.is-changed {
-  background: color-mix(in srgb, var(--pb-warning, #d97706) 30%, transparent);
+  background: color-mix(in srgb, var(--pb-warning) 30%, transparent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--pb-warning, #d97706) 60%, transparent),
-    0 2px 6px -1px color-mix(in srgb, var(--pb-warning, #d97706) 48%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--pb-warning) 60%, transparent),
+    0 2px 6px -1px color-mix(in srgb, var(--pb-warning) 48%, transparent);
 }
 </style>

@@ -70,11 +70,11 @@ export default defineNuxtConfig({
       { code: 'en', name: 'English', language: 'en-US', file: 'en.json' },
       { code: 'zh-CN', name: '简体中文', language: 'zh-CN', file: 'zh-CN.json' }
     ],
-    detectBrowserLanguage: {
-      useCookie: false,
-      alwaysRedirect: false,
-      fallbackLocale: 'en'
-    }
+    // Disabled: Nuxt i18n would detect Accept-Language on the server and
+    // navigator.language on the client, which disagree and cause hydration
+    // mismatches. The public language comes from the `pb-public-locale` cookie
+    // (plugins/i18n-locale.ts); the admin language from the admin setting.
+    detectBrowserLanguage: false
   },
   css: ['~/assets/css/main.css'],
   icon: {

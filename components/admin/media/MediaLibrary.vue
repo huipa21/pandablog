@@ -434,8 +434,7 @@ const filters = ref<MediaFilters>({
   filename_regex_case_insensitive: true,
   size_min: '',
   size_max: '',
-  size_unit: 'KB',
-  owner: ''
+  size_unit: 'KB'
 })
 
 const searchPayload = computed(() => filters.value)

@@ -65,13 +65,80 @@ export async function readPostTaxonomy(db: Surreal, postId: string) {
     db,
     `SELECT out FROM tagged WHERE in = type::record($postTable, $postId);
      SELECT out FROM categorized_as WHERE in = type::record($postTable, $postId);`,
-    { postTable: 'post', postId }
+    // Accept both `abc` and `post:abc`; type::record('post', 'post:abc') would
+    // otherwise address the non-existent record post:`post:abc`.
+    { postTable: 'post', postId: recordIdPart(postId, 'post') }
   )
 
   return {
     tag_ids: queryRows<Record<string, unknown>>(response, 0).map((row) => stringifyRecordId(row.out)),
     category_ids: queryRows<Record<string, unknown>>(response, 1).map((row) => stringifyRecordId(row.out))
   }
+}
+
+/**
+ * One-time repair for taxonomy edges written with a double-prefixed post id.
+ * `POST /api/admin/posts` used to pass `post:abc` into syncPostTaxonomy, which
+ * produced edges pointing at the non-existent record post:`post:abc`.
+ *
+ * Per affected post and relation:
+ *  - the post has no valid edges of that relation -> re-link the broken ones
+ *    to the real post (they are the only taxonomy the post ever received);
+ *  - the post already has valid edges -> those are authoritative (a later
+ *    save replaced them), so the stale broken edges are only removed;
+ *  - the post no longer exists -> the broken edges are removed.
+ */
+export async function repairMisaddressedTaxonomyEdges(db: Surreal): Promise<{ relinked: number, removed: number }> {
+  let relinked = 0
+  let removed = 0
+  const relations = ['tagged', 'categorized_as'] as const
+
+  for (const relation of relations) {
+    const response = await queryDb(
+      db,
+      `SELECT id, record::id(in) AS post_key, out FROM ${relation} WHERE string::starts_with(<string> record::id(in), 'post:');`,
+      undefined,
+      { label: `taxonomy edge repair scan ${relation}`, timeoutMs: 30_000 }
+    )
+    const edgesByPost = new Map<string, Array<{ id: unknown, out: unknown }>>()
+    for (const row of queryRows<{ id: unknown, post_key?: unknown, out: unknown }>(response, 0)) {
+      const postId = recordIdPart(String(row.post_key ?? ''), 'post')
+      if (!postId) continue
+      const list = edgesByPost.get(postId) ?? []
+      list.push({ id: row.id, out: row.out })
+      edgesByPost.set(postId, list)
+    }
+
+    for (const [postId, edges] of edgesByPost) {
+      const stateResponse = await queryDb(
+        db,
+        `SELECT id FROM type::record('post', $postId);
+         SELECT count() AS total FROM ${relation} WHERE in = type::record('post', $postId) GROUP ALL;`,
+        { postId },
+        { label: `taxonomy edge repair state ${relation}` }
+      )
+      const postExists = queryRows(stateResponse, 0).length > 0
+      const validEdges = Number(firstRow<{ total?: unknown }>(stateResponse, 1)?.total ?? 0)
+
+      const statements = ['BEGIN TRANSACTION;']
+      const params: Record<string, unknown> = { postId, edgeIds: edges.map((edge) => edge.id) }
+      if (postExists && validEdges === 0) {
+        const targets = new Map(edges.map((edge) => [stringifyRecordId(edge.out), edge.out] as const))
+        let index = 0
+        for (const target of targets.values()) {
+          params[`out_${index}`] = target
+          statements.push(`RELATE (type::record('post', $postId))->${relation}->($out_${index});`)
+          index += 1
+        }
+        relinked += targets.size
+      }
+      statements.push('FOR $edge IN $edgeIds { DELETE $edge; };', 'COMMIT TRANSACTION;')
+      removed += edges.length
+      await queryDb(db, statements.join('\n'), params, { label: `taxonomy edge repair apply ${relation}` })
+    }
+  }
+
+  return { relinked, removed }
 }
 
 export async function syncPostTaxonomy(
@@ -83,7 +150,8 @@ export async function syncPostTaxonomy(
   categoryNames?: unknown
 ) {
   const stmts: string[] = []
-  const params: Record<string, unknown> = { postTable: 'post', postId }
+  // Accept both `abc` and `post:abc` (see readPostTaxonomy).
+  const params: Record<string, unknown> = { postTable: 'post', postId: recordIdPart(postId, 'post') }
 
   if (Array.isArray(tagIds) || Array.isArray(tagNames)) {
     stmts.push('DELETE tagged WHERE in = type::record($postTable, $postId);')

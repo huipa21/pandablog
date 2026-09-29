@@ -201,28 +201,33 @@
           </template>
         </aside>
 
-        <Teleport to="body">
-          <div v-if="hasMobileSidebarDrawer" class="public-mobile-sidebar md:hidden" :class="mobileSidebarOpen ? 'is-open' : undefined">
-            <button
-              type="button"
-              class="public-mobile-sidebar-backdrop"
-              aria-label="Close sidebar"
-              @click="mobileSidebarOpen = false"
-            />
-            <aside class="public-mobile-sidebar-panel" data-public-mobile-sidebar>
-              <div class="mb-4 flex items-center justify-between gap-3 border-b border-[var(--pb-divider)] pb-3">
-                <span class="text-sm font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Menu</span>
-                <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" aria-label="Close sidebar" @click="mobileSidebarOpen = false" />
-              </div>
-              <slot v-if="hasPageSidebar" name="sidebar" />
-              <template v-else>
-                <BlogOwnerBio />
-                <BlogTagCloud />
-                <BlogCategoryList />
-              </template>
-            </aside>
-          </div>
-        </Teleport>
+        <!-- Client-only: Nuxt server-renders teleports only to #teleports, and
+             the drawer is closed on load anyway. Rendering it on the server
+             caused hydration mismatches on every public page. -->
+        <ClientOnly>
+          <Teleport to="body">
+            <div v-if="hasMobileSidebarDrawer" class="public-mobile-sidebar md:hidden" :class="mobileSidebarOpen ? 'is-open' : undefined">
+              <button
+                type="button"
+                class="public-mobile-sidebar-backdrop"
+                aria-label="Close sidebar"
+                @click="mobileSidebarOpen = false"
+              />
+              <aside class="public-mobile-sidebar-panel" data-public-mobile-sidebar>
+                <div class="mb-4 flex items-center justify-between gap-3 border-b border-[var(--pb-divider)] pb-3">
+                  <span class="text-sm font-semibold uppercase tracking-wider text-[var(--pb-text-subtle)]">Menu</span>
+                  <UButton type="button" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" aria-label="Close sidebar" @click="mobileSidebarOpen = false" />
+                </div>
+                <slot v-if="hasPageSidebar" name="sidebar" />
+                <template v-else>
+                  <BlogOwnerBio />
+                  <BlogTagCloud />
+                  <BlogCategoryList />
+                </template>
+              </aside>
+            </div>
+          </Teleport>
+        </ClientOnly>
       </div>
 
       <main v-else class="min-w-0">

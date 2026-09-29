@@ -391,6 +391,18 @@ async function loadAnnotationExtensions(): Promise<Extensions> {
   ]
 }
 
+// Must run before the first top-level `await` (vue/no-expose-after-await).
+// `editor` is created further down, so it is exposed through a getter that is
+// only read after setup; proxyRefs still unwraps the returned ref reactively.
+defineExpose({
+  get editor() {
+    return editor
+  },
+  openInserter: openInserterWithoutTarget,
+  closeInserter,
+  pickBlock: handleInserterPick
+})
+
 const codeBlockExtensions = await loadCodeBlockExtensions()
 const mermaidExtensions = await loadMermaidExtensions()
 const blockMathExtensions = await loadBlockMathExtensions()
@@ -946,8 +958,6 @@ function updateSelectionState(ed: Editor) {
 
   selectionTick.value += 1
 }
-
-defineExpose({ editor, openInserter: openInserterWithoutTarget, closeInserter, pickBlock: handleInserterPick })
 
 function emitEditorModelValue(ed: Editor) {
   const nextValue = ed.getJSON() as JsonContent

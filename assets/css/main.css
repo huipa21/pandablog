@@ -82,6 +82,10 @@
   --pb-inline-code-border: color-mix(in srgb, var(--pb-text) 12%, transparent);
   --pb-inline-code-shadow: transparent;
   --pb-math-error: var(--color-danger, crimson);
+  /* Status colors (diff highlights, validation). Themes override via --color-*. */
+  --pb-success: var(--color-success, #16a34a);
+  --pb-danger: var(--color-danger, #dc2626);
+  --pb-warning: var(--color-warning, #d97706);
   --pb-table-border: var(--pb-border);
   --pb-table-header-bg: var(--pb-surface-subtle);
   --pb-table-cell-padding: 0.5rem;

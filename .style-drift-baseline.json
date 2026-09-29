@@ -107,7 +107,8 @@
     "#0f1115": 1,
     "#10172d": 2,
     "#111827": 1,
-    "#171a20": 4,
+    "#16a34a": 1,
+    "#171a20": 3,
     "#182342": 2,
     "#202f5f": 2,
     "#262a31": 1,
@@ -121,46 +122,45 @@
     "#93b3ff": 2,
     "#bbcffd": 2,
     "#d0d1d2": 2,
+    "#d97706": 1,
+    "#dc2626": 1,
     "#dde7ff": 2,
     "#eeeeee": 3,
     "#eef3ff": 4,
-    "#f4f4f4": 3,
+    "#f4f4f4": 2,
     "#f59e0b": 1,
     "#f8f8f8": 1,
     "#f8fafc": 1,
     "#ffffff": 3
-  },
-  "components/admin/editor/blocks/BlockEditor.vue": {
-    "#000": 1,
-    "#64748b": 1,
-    "#fff": 1
   },
   "components/admin/editor/blocks/BlockSettings.vue": {
     "#ffffff": 1
   },
   "components/admin/editor/CodeBlockNodeView.vue": {
     "#1e1e1e": 2,
-    "#d4d4d4": 1
+    "#d4d4d4": 7
   },
   "components/admin/editor/CustomHtmlNodeView.vue": {
-    "#1c1917": 1,
-    "#2e3440": 5,
-    "#d8dee9": 6,
-    "#fff": 1
+    "#2e3440": 4,
+    "#d8dee9": 6
   },
   "components/admin/editor/QuoteBlockNodeView.vue": {
     "#3e6ae1": 1
   },
+  "components/blog/GraphSurface.client.vue": {
+    "#14211f": 1,
+    "#16826f": 1,
+    "#24a48c": 1,
+    "#77bea9": 1,
+    "#8aa09a": 1,
+    "#ffffff": 2
+  },
   "components/content/NodeCodeBlock.vue": {
     "#1e1e1e": 2,
-    "#d4d4d4": 1
+    "#d4d4d4": 7
   },
   "components/content/NodeQuoteBlock.vue": {
     "#3e6ae1": 1
-  },
-  "components/PandaLogo.vue": {
-    "#ffe9c8": 2,
-    "#ffffff": 3
   },
   "extensions/blockquoteEnhanced.ts": {
     "#0f766e": 1,
