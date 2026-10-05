@@ -4,12 +4,11 @@ import * as path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { createGzip } from 'node:zlib'
 import { BACKUPS_ROOT } from './config'
-import { chainHashUnion, createBackupRecord, getBackup, listDatabaseTables, pruneBackups, updateBackupRecord } from './registry'
+import { chainHashUnion, createBackupRecord, getBackup, pruneBackups, updateBackupRecord } from './registry'
 import { acquireJob, releaseJob, updateJobProgress } from './jobMutex'
 import { exportSurrealDb, sha256File } from './surrealHttp'
 import { collectOriginalPaths, createMediaTar } from './tarStream'
 import { getBackupSettings } from '../settings'
-import { buildFullBackupSelection } from './selection'
 
 export interface CreateBackupOptions {
   type: 'full' | 'incremental' | 'partial'
@@ -113,10 +112,9 @@ async function runBackupWork(
     // --- 1. Export and gzip the database ---
     updateJobProgress({ phase: 'db-export', percent: 5 })
     const dbOutPath = path.join(backupDir, 'db.surql.gz')
-    const selection = type === 'partial'
-      ? { tables: includedTables ?? [] }
-      : buildFullBackupSelection(await listDatabaseTables(), (await getBackupSettings()).include_access_logs)
-    const excludedTables = type !== 'partial' && selection ? ['access_logs'] : []
+    const selection = type === 'partial' ? { tables: includedTables ?? [] } : undefined
+    // Access files are outside DB snapshots. Keep legacy manifest metadata readable.
+    const excludedTables: string[] = []
     const dbStream = await exportSurrealDb(selection)
     const gzip = createGzip({ level: 6 })
     await pipeline(dbStream, gzip, createWriteStream(dbOutPath))

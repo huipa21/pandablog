@@ -1,7 +1,9 @@
 import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, useDb } from '../utils/db'
-import { defaultLoggingSettings, reloadLoggingSettings } from '../utils/logging'
+import { defaultLoggingSettings, getLoggingSettings, reloadLoggingSettings } from '../utils/logging'
+import { removeMigratedAccessTable, runAccessLogMigration } from '../utils/access-log-migration'
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import { mergeExcludedPaths } from '../utils/logging-logic'
 import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
@@ -85,6 +87,9 @@ export default defineNitroPlugin(async () => {
       await ensureLoggingExcludedPathsMigration(db)
       // Other plugins may have loaded settings already; refresh after the merge.
       await reloadLoggingSettings()
+      if (resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
+        await removeMigratedAccessTable(db)
+      }
     }
 
     // One-time, marker-guarded backfills do a full-table scan + FTS reindex.
@@ -551,6 +556,9 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
 }
 
 async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
+  if (__PB_MODULE_LOGS__ && resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
+    await runAccessLogMigration(db, getLoggingSettings())
+  }
   try {
     await repairTaxonomyEdges(db)
     await backfillPostStats(db)

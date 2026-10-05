@@ -23,7 +23,7 @@ beforeEach(async () => {
   vi.resetAllMocks()
   mocks.root = await mkdtemp(join(tmpdir(), 'pb-backup-test-'))
   mocks.listDatabaseTables.mockResolvedValue(['access_logs', 'activity_logs', 'error_logs', 'post'])
-  mocks.getBackupSettings.mockResolvedValue({ include_access_logs: false, max_backups: 0 })
+  mocks.getBackupSettings.mockResolvedValue({ max_backups: 0 })
   mocks.exportSurrealDb.mockImplementation(() => Promise.resolve(Readable.from('fixture dump')))
   mocks.sha256File.mockResolvedValue('sha256')
   mocks.collectOriginalPaths.mockResolvedValue([])
@@ -45,15 +45,15 @@ async function manifest(id: string) {
 }
 
 describe('backup creation', () => {
-  it.each(['full', 'incremental'] as const)('excludes access logs from %s snapshots without marking them partial', async type => {
+  it.each(['full', 'incremental'] as const)('exports all remaining DB tables for %s snapshots without marking them partial', async type => {
     const id = await create(type)
-    expect(mocks.exportSurrealDb).toHaveBeenCalledExactlyOnceWith({ tables: ['activity_logs', 'error_logs', 'post'] })
+    expect(mocks.exportSurrealDb).toHaveBeenCalledExactlyOnceWith(undefined)
     expect(mocks.createBackupRecord.mock.calls[0]![0].included_tables).toBeNull()
-    expect(await manifest(id)).toMatchObject({ type, included_tables: null, excluded_tables: ['access_logs'] })
+    expect(await manifest(id)).toMatchObject({ type, included_tables: null, excluded_tables: [] })
     expect(gunzipSync(await readFile(join(mocks.root, id, 'db.surql.gz'))).toString()).toBe('fixture dump')
     expect(mocks.updateBackupRecord).toHaveBeenCalledWith(id, expect.objectContaining({ status: 'ready' }))
   })
-  it('keeps the unrestricted export when opted in', async () => {
+  it('ignores legacy include_access_logs settings', async () => {
     mocks.getBackupSettings.mockResolvedValue({ include_access_logs: true, max_backups: 0 })
     const id = await create('full')
     expect(mocks.exportSurrealDb).toHaveBeenCalledExactlyOnceWith(undefined)
@@ -81,10 +81,10 @@ describe('backup creation', () => {
       manifestBuffer: Buffer.from(JSON.stringify({ excluded_tables: ['access_logs', 42, null] })) })
     expect((await manifest(id)).excluded_tables).toEqual(['access_logs'])
   })
-  it('fails closed rather than exporting everything if settings cannot be loaded', async () => {
+  it('does not depend on the retired selection setting to export a full snapshot', async () => {
     mocks.getBackupSettings.mockRejectedValue(new Error('settings unavailable'))
     const id = await create('full')
-    expect(mocks.exportSurrealDb).not.toHaveBeenCalled()
-    expect(mocks.updateBackupRecord).toHaveBeenCalledWith(id, expect.objectContaining({ status: 'failed', error: 'settings unavailable' }))
+    expect(mocks.exportSurrealDb).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(mocks.updateBackupRecord).toHaveBeenCalledWith(id, expect.objectContaining({ status: 'ready' }))
   })
 })

@@ -36,6 +36,14 @@ export interface AccessLogEntry {
   referrer?: string | null
 }
 
+export interface AccessHourlyBucket {
+  /** UTC hour-start ISO timestamp; the final bucket is the current partial hour. */
+  hour: string
+  count: number
+  /** Requests with status_code >= 500. */
+  errors: number
+}
+
 export interface ActivityLogEntry {
   timestamp?: string
   action: string
@@ -83,5 +91,6 @@ export interface CleanupResult {
   type: LogCleanupType
   mode: LogCleanupMode
   value: number
+  /** Rows for DB streams; physical day files for access age cleanup. */
   deleted: number
 }

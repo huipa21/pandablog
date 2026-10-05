@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
-import { bufferAccessLog, flushAccessBuffer } from './logging-access-buffer'
+import { appendAccessLog, maintainAccessLogFiles, purgeAccessLogFiles } from './access-log-store'
+import { accessStats, readAccessLogById } from './access-log-reader'
 import { deleteLogsKeepLatest, deleteLogsOlderThan, purgeLogTable } from './log-retention'
-import { applySettingsPatch, extractErrorContext, isHealthCheckPath, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog } from './logging-logic'
+import { applySettingsPatch, extractErrorContext, isHealthCheckPath, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog } from './logging-logic'
 import { sanitizeLogContext, writeConsoleEntry } from './log-console'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
 import { DEFAULT_LOGGING_EXCLUDED_PATHS } from '~/utils/loggingSettings'
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 const APP_SETTINGS_TABLE = 'app_settings'
 const LOGGING_SETTINGS_KEY = 'logging'
@@ -185,6 +187,7 @@ export function error(message: string, data?: Record<string, unknown>) {
 }
 
 export function logAccess(entry: AccessLogEntry) {
+  if (!__PB_MODULE_LOGS__ || !resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) return
   const settings = settingsCache
   // Filters and sampling apply to both sinks; enable switches control storage only.
   if (!shouldRecordAccessLog(entry.path, entry.status_code, { ...settings, enabled: true, access_log_enabled: true })) {
@@ -193,8 +196,8 @@ export function logAccess(entry: AccessLogEntry) {
 
   const payload = {
     ...entry,
-    timestamp: loggingTimestamp(entry.timestamp),
-    query_params: sanitizeAndTrim(entry.query_params ?? {})
+    timestamp: loggingTimestamp(entry.timestamp).toISOString(),
+    query_params: sanitizeAndTrim(entry.query_params ?? {}) as Record<string, unknown>
   }
   writeConsoleEntry({
     ts: payload.timestamp,
@@ -213,11 +216,9 @@ export function logAccess(entry: AccessLogEntry) {
   if (!settings.enabled || !settings.access_log_enabled) {
     return
   }
-  const dbPayload = compactLogPayload(payload)
-  // Access logs are the highest-volume stream; buffer to a local file and
-  // bulk-insert into the DB on view / size cap / timer instead of one write
-  // per request.
-  bufferAccessLog(dbPayload)
+  // Keep the full-field redaction semantics of the console sink before mapping
+  // to short file keys. New entries never enter the legacy DB buffer.
+  appendAccessLog(redactDeep(payload, settings.redact_fields) as AccessLogEntry)
 }
 
 export function logActivity(entry: ActivityLogEntry) {
@@ -301,14 +302,14 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
 }
 
 export async function runManualLogCleanup(options: { type: LogCleanupType, mode: LogCleanupMode, value: number }) {
-  const table = typeToTable(options.type)
-  // Drain buffered access entries first so cleanup operates on the full set.
-  if (options.type === 'access') {
-    await flushAccessBuffer()
+  if (options.type === 'access' && options.mode === 'keep_latest') {
+    throw createError({ statusCode: 400, statusMessage: 'keep_latest is not supported for access log files; use older_than_days instead' })
   }
-  const deleted = options.mode === 'older_than_days'
-    ? await deleteLogsOlderThan(table, new Date(Date.now() - options.value * 86_400_000))
-    : await deleteLogsKeepLatest(table, options.value)
+  const deleted = options.type === 'access'
+    ? (await maintainAccessLogFiles(new Date(), options.value)).deleted
+    : options.mode === 'older_than_days'
+      ? await deleteLogsOlderThan(typeToTable(options.type), new Date(Date.now() - options.value * 86_400_000))
+      : await deleteLogsKeepLatest(typeToTable(options.type), options.value)
 
   const result: CleanupResult = {
     type: options.type,
@@ -324,39 +325,34 @@ export async function runManualLogCleanup(options: { type: LogCleanupType, mode:
     metadata: {
       ...result
     },
-    description: `Manual log cleanup completed (${deleted} rows deleted)`
+    description: `Manual log cleanup completed (${deleted} ${options.type === 'access' ? 'files' : 'rows'} deleted)`
   })
 
   return result
 }
 
 export async function gatherLogStats() {
-  // Ensure buffered access entries are reflected in the counts.
-  await flushAccessBuffer()
+  const flags = resolveModuleFlags(getRuntimeModuleConfig())
+  const access = flags.logs && flags.accessLogs
+    ? await accessStats()
+    : { count: 0, oldest: null, newest: null, bytes: 0, files: 0 }
   const db = await useDb()
   const response = await queryDb(
     db,
-    `SELECT count() AS total, math::min(timestamp) AS oldest, math::max(timestamp) AS newest FROM access_logs GROUP ALL;
-     SELECT count() AS total, math::min(timestamp) AS oldest, math::max(timestamp) AS newest FROM activity_logs GROUP ALL;
+    `SELECT count() AS total, math::min(timestamp) AS oldest, math::max(timestamp) AS newest FROM activity_logs GROUP ALL;
      SELECT count() AS total, math::min(timestamp) AS oldest, math::max(timestamp) AS newest FROM error_logs GROUP ALL;`,
     undefined,
     { label: 'log stats', timeoutMs: 10_000 }
   )
 
-  const access = firstRow<{ total?: number, oldest?: string, newest?: string }>(response, 0)
-  const activity = firstRow<{ total?: number, oldest?: string, newest?: string }>(response, 1)
-  const errors = firstRow<{ total?: number, oldest?: string, newest?: string }>(response, 2)
+  const activity = firstRow<{ total?: number, oldest?: string, newest?: string }>(response, 0)
+  const errors = firstRow<{ total?: number, oldest?: string, newest?: string }>(response, 1)
   const estimate =
-    Number(access?.total ?? 0) * 700 +
     Number(activity?.total ?? 0) * 900 +
     Number(errors?.total ?? 0) * 1200
 
   return {
-    access: {
-      count: Number(access?.total ?? 0),
-      oldest: access?.oldest ?? null,
-      newest: access?.newest ?? null
-    },
+    access,
     activity: {
       count: Number(activity?.total ?? 0),
       oldest: activity?.oldest ?? null,
@@ -367,23 +363,19 @@ export async function gatherLogStats() {
       oldest: errors?.oldest ?? null,
       newest: errors?.newest ?? null
     },
-    estimate_bytes: estimate
+    db_estimate_bytes: estimate,
+    access_files_bytes: access.bytes
   }
 }
 
 export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
-  const table = typeToTable(type)
-  if (type === 'access') {
-    await flushAccessBuffer()
-  }
-  return purgeLogTable(table)
+  if (type === 'access') return purgeAccessLogFiles()
+  return purgeLogTable(typeToTable(type))
 }
 
 export async function readLogById(type: 'access' | 'activity' | 'errors', id: string) {
+  if (type === 'access') return readAccessLogById(id)
   const table = typeToTable(type)
-  if (type === 'access') {
-    await flushAccessBuffer()
-  }
   const db = await useDb()
   return await queryDbRecord(db, table, id.includes(':') ? stringifyRecordId(id) : id, {
     label: `read ${type} log detail`,
@@ -615,11 +607,7 @@ function asSamplingRate(value: unknown, fallback: number) {
   return value
 }
 
-function typeToTable(type: LogCleanupType) {
-  if (type === 'access') {
-    return 'access_logs'
-  }
-
+function typeToTable(type: Exclude<LogCleanupType, 'access'>) {
   if (type === 'activity') {
     return 'activity_logs'
   }

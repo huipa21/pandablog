@@ -21,12 +21,6 @@
             <p class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.backups.settingsDialog.maxBackupsHint') }}</p>
           </div>
 
-          <!-- Access logs in full/incremental snapshots -->
-          <div class="mt-4">
-            <UCheckbox v-model="form.include_access_logs" :label="t('admin.backups.settingsDialog.includeAccessLogs')" />
-            <p class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.backups.settingsDialog.includeAccessLogsHint') }}</p>
-          </div>
-
           <!-- Validate before restore -->
           <div class="mt-4 flex items-start justify-between gap-3">
             <div>
@@ -66,7 +60,6 @@ interface BackupSettings {
   max_backups: number
   validate_before_restore: boolean
   auto_safety_snapshot: boolean
-  include_access_logs: boolean
   default_excluded_tables: string[]
 }
 
@@ -85,7 +78,6 @@ const form = reactive<BackupSettings>({
   max_backups: 10,
   validate_before_restore: true,
   auto_safety_snapshot: true,
-  include_access_logs: false,
   default_excluded_tables: [],
 })
 
@@ -123,7 +115,6 @@ async function save() {
         max_backups: form.max_backups,
         validate_before_restore: form.validate_before_restore,
         auto_safety_snapshot: form.auto_safety_snapshot,
-        include_access_logs: form.include_access_logs,
         default_excluded_tables: form.default_excluded_tables,
       },
     })

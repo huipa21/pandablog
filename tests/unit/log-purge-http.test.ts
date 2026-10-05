@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({ requireSuperadmin: vi.fn(), purgeLogType: vi.f
 vi.mock('../../server/utils/auth', () => ({ requireSuperadmin: mocks.requireSuperadmin }))
 vi.mock('../../server/utils/logging', () => ({ purgeLogType: mocks.purgeLogType }))
 vi.mock('../../server/utils/db', () => ({ useDb: vi.fn(), queryDb: vi.fn() }))
-vi.mock('../../server/utils/logging-access-buffer', () => ({ flushAccessBuffer: vi.fn() }))
 
 let server: Server
 let base: string

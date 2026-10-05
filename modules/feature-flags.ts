@@ -32,14 +32,14 @@ export default defineNuxtModule({
       ignore.add('server/api/admin/logs/**')
       ignore.add('server/api/admin/settings/logging/**')
       ignore.add('server/middleware/access-logging.ts')
-      ignore.add('server/plugins/access-log-flush.ts')
+      ignore.add('server/plugins/access-log-store.ts')
       ignore.add('server/plugins/logging-error-hook.ts')
       ignore.add('server/plugins/log-retention.ts')
       ignore.add('pages/admin/logs/**')
       ignore.add('pages/admin/dashboard/logs/**')
     } else if (!modules.logs.accessLogs) {
       ignore.add('server/middleware/access-logging.ts')
-      ignore.add('server/plugins/access-log-flush.ts')
+      ignore.add('server/plugins/access-log-store.ts')
     }
 
     if (modules.logs.enabled && !modules.logs.accessLogs) {

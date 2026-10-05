@@ -4,7 +4,6 @@ import type { MockInstance } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ queryDb: vi.fn(), useDb: vi.fn().mockResolvedValue({}) }))
 vi.mock('../../server/utils/db', () => ({ ...mocks, queryDbRecord: vi.fn() }))
-vi.mock('../../server/utils/logging-access-buffer', () => ({ bufferAccessLog: vi.fn(), flushAccessBuffer: vi.fn() }))
 
 let stderr: MockInstance<typeof process.stderr.write>
 let stdout: MockInstance<typeof process.stdout.write>

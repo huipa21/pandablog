@@ -13,7 +13,7 @@ export interface CronTaskLike {
 
 export interface CronLike {
   validate: (expression: string) => boolean
-  schedule: (expression: string, task: () => void | Promise<void>) => CronTaskLike
+  schedule: (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => CronTaskLike
 }
 
 export function normalizeCronModule(moduleValue: unknown): CronLike | null {

@@ -263,24 +263,6 @@ DEFINE FIELD IF NOT EXISTS filters ON media_smart_folder TYPE object FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS created_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON media_smart_folder TYPE datetime DEFAULT time::now();
 
--- #module logs start
--- ============ ACCESS LOGS ============
-DEFINE TABLE OVERWRITE access_logs SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD IF NOT EXISTS timestamp ON access_logs TYPE datetime DEFAULT time::now();
-DEFINE FIELD IF NOT EXISTS method ON access_logs TYPE string;
-DEFINE FIELD IF NOT EXISTS path ON access_logs TYPE string;
-DEFINE FIELD IF NOT EXISTS status_code ON access_logs TYPE int;
-DEFINE FIELD IF NOT EXISTS response_time_ms ON access_logs TYPE int;
-DEFINE FIELD IF NOT EXISTS ip ON access_logs TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS user_agent ON access_logs TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS request_id ON access_logs TYPE option<string>;
-DEFINE FIELD OVERWRITE query_params ON access_logs TYPE option<object> FLEXIBLE;
-DEFINE FIELD IF NOT EXISTS referrer ON access_logs TYPE option<string>;
-DEFINE INDEX IF NOT EXISTS access_logs_timestamp_desc ON access_logs FIELDS timestamp;
-DEFINE INDEX IF NOT EXISTS access_logs_path ON access_logs FIELDS path;
-DEFINE INDEX IF NOT EXISTS access_logs_status_code ON access_logs FIELDS status_code;
--- #module logs end
-
 -- #module analytics start
 -- ============ ANALYTICS ============
 DEFINE TABLE OVERWRITE analytics_session SCHEMAFULL PERMISSIONS NONE;

@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { queryDb, useDb } from './db'
-import { flushAccessBuffer } from './logging-access-buffer'
+import { queryAccessLogs } from './access-log-reader'
+import type { AccessQuery } from './access-log-reader'
 import { firstRow, queryRows } from './surrealResult'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
@@ -12,10 +13,13 @@ export interface ListLogsResult {
   limit: number
   offset: number
   sort: 'newest' | 'oldest'
+  truncated?: boolean
 }
 
 interface ListLogsOptions {
   includeTotal?: boolean
+  defaultLimit?: number
+  maxLimit?: number
 }
 
 interface LogListSpec {
@@ -25,24 +29,7 @@ interface LogListSpec {
   setTypeWhere: (query: Record<string, unknown>, where: string[], params: Record<string, unknown>) => void
 }
 
-const logListSpecs: Record<LogType, LogListSpec> = {
-  access: {
-    table: 'access_logs',
-    label: 'access',
-    searchColumns: ['path', 'user_agent'],
-    setTypeWhere(query, where, params) {
-      setStringWhere(where, params, query.path, 'path = $path', 'path')
-
-      if (typeof query.method === 'string' && query.method.trim()) {
-        where.push('method = $method')
-        params.method = query.method.trim().toUpperCase()
-      }
-
-      setNumericWhere(where, params, query.status, 'status_code = $status', 'status')
-      setNumericWhere(where, params, query.min_status, 'status_code >= $min_status', 'min_status')
-      setNumericWhere(where, params, query.max_status, 'status_code <= $max_status', 'max_status')
-    }
-  },
+const logListSpecs: Record<Exclude<LogType, 'access'>, LogListSpec> = {
   activity: {
     table: 'activity_logs',
     label: 'activity',
@@ -119,17 +106,16 @@ export function sanitizeSearchText(value: unknown) {
 export async function listLogs(event: H3Event, type: LogType, options: ListLogsOptions = {}): Promise<ListLogsResult> {
   assertLogTypeEnabled(type)
 
-  const spec = logListSpecs[type]
-  // Drain buffered access entries into the DB so this read sees the latest.
-  if (type === 'access') {
-    await flushAccessBuffer()
-  }
   const query = getQuery(event)
-  const limit = parseLimit(query.limit)
+  const limit = parseLimit(query.limit, options.defaultLimit ?? 50, options.maxLimit ?? 200)
   const offset = parseOffset(query.offset)
   const sort = parseSort(query.sort)
   const orderBy = sort === 'oldest' ? 'ASC' : 'DESC'
   const includeTotal = options.includeTotal ?? query.total !== 'false'
+  if (type === 'access') {
+    return queryAccessLogs(toAccessQuery(query, { limit, offset, sort, includeTotal }))
+  }
+  const spec = logListSpecs[type]
   const params: Record<string, unknown> = { limit, offset }
   const where: string[] = []
 
@@ -164,6 +150,31 @@ export async function listLogs(event: H3Event, type: LogType, options: ListLogsO
     offset,
     sort
   }
+}
+
+/** Preserve the existing permissive query parsing; absent/invalid dates use reader defaults. */
+export function toAccessQuery(query: Record<string, unknown>, pagination: Pick<AccessQuery, 'limit' | 'offset' | 'sort' | 'includeTotal'>): AccessQuery {
+  const integer = (value: unknown) => value !== undefined && Number.isInteger(Number(value)) ? Number(value) : undefined
+  const date = (value: unknown) => typeof value === 'string' && isValidDate(value) ? new Date(value) : undefined
+  const text = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : undefined
+  return {
+    ...pagination,
+    from: date(query.from),
+    to: date(query.to),
+    path: text(query.path),
+    method: text(query.method)?.toUpperCase(),
+    status: integer(query.status),
+    min_status: integer(query.min_status),
+    max_status: integer(query.max_status),
+    search: sanitizeSearchText(query.search) || undefined
+  }
+}
+
+export function* csvChunks(rows: Array<Record<string, unknown>>) {
+  if (!rows.length) return
+  const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row))))
+  yield columns.join(',')
+  for (const row of rows) yield `\n${columns.map(column => escapeCsvCell(row[column])).join(',')}`
 }
 
 export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
@@ -205,18 +216,6 @@ function setStringWhere(where: string[], params: Record<string, unknown>, value:
   if (typeof value === 'string' && value.trim()) {
     where.push(expression)
     params[paramName] = value.trim()
-  }
-}
-
-function setNumericWhere(where: string[], params: Record<string, unknown>, value: unknown, expression: string, paramName: string) {
-  if (value === undefined) {
-    return
-  }
-
-  const numberValue = Number(value)
-  if (Number.isInteger(numberValue)) {
-    where.push(expression)
-    params[paramName] = numberValue
   }
 }
 

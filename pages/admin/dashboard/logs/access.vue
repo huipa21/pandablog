@@ -10,8 +10,12 @@
 
     <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <UInput v-model="filters.from" type="datetime-local" :placeholder="t('admin.logs.from')" />
-        <UInput v-model="filters.to" type="datetime-local" :placeholder="t('admin.logs.to')" />
+        <UFormField :label="t('admin.logs.from') + ' (UTC)'">
+          <UInput v-model="filters.from" type="datetime-local" step="0.001" :min="dateMin" :max="dateMax" />
+        </UFormField>
+        <UFormField :label="t('admin.logs.to') + ' (UTC)'">
+          <UInput v-model="filters.to" type="datetime-local" step="0.001" :min="dateMin" :max="dateMax" />
+        </UFormField>
         <UInput v-model="filters.path" :placeholder="t('admin.logs.path')" />
         <UInput v-model="filters.search" :placeholder="t('admin.logs.searchPathAgent')" />
         <UInput v-model="filters.method" :placeholder="t('admin.logs.method')" />
@@ -21,12 +25,16 @@
         <USelect v-model="filters.sort" :items="sortItems" />
         <USelect v-model="filters.limit" :items="limitItems" />
       </div>
+      <p class="mt-3 text-xs text-[var(--pb-text-muted)]">{{ t('admin.logs.accessDateRangeHint', { days: retentionDays }) }}</p>
+      <UAlert v-if="settingsError" class="mt-3" color="warning" icon="i-lucide-triangle-alert" :title="t('admin.logs.settings.loadFailed')" />
       <div class="mt-3 flex flex-wrap gap-2">
         <UButton icon="i-lucide-filter" @click="() => applyFilters()">{{ t('admin.logs.apply') }}</UButton>
         <UButton color="neutral" variant="ghost" icon="i-lucide-eraser" @click="clearFilters">{{ t('admin.common.clear') }}</UButton>
         <UButton color="neutral" variant="outline" icon="i-lucide-download" @click="exportCsv">{{ t('admin.logs.exportCsv') }}</UButton>
       </div>
     </div>
+
+    <UAlert v-if="!pending && truncated" color="warning" icon="i-lucide-triangle-alert" :title="t('admin.logs.accessResultsTruncated')" />
 
     <div class="overflow-hidden rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] shadow-[var(--pb-shadow-sm)]">
       <div class="overflow-auto">
@@ -65,7 +73,7 @@
         </tbody>
         </table>
       </div>
-      <AdminLogPagination v-if="!pending && total > 0" :total="total" :limit="limit" :offset="offset" @page="goToOffset" />
+      <AdminLogPagination v-if="!pending && (total > 0 || truncated)" :total="total" :limit="limit" :offset="offset" :truncated="truncated" @page="goToOffset" />
     </div>
 
     <AdminLogDetailDialog :open="Boolean(selectedRow)" :row="selectedRow" @update:open="(value) => { if (!value) selectedRow = null }" />
@@ -73,6 +81,10 @@
 </template>
 
 <script setup lang="ts">
+import type { LocationQueryRaw } from 'vue-router'
+import type { LoggingSettings } from '~/types/logging'
+import { accessLogDateWindow, accessLogPickerIso, accessLogPickerValue } from '~/utils/loggingAccessUi'
+
 definePageMeta({ layout: 'admin' })
 
 const route = useRoute()
@@ -84,9 +96,20 @@ const sortItems = computed(() => [
   { label: t('admin.logs.oldest'), value: 'oldest' }
 ])
 
+const untypedFetch = useSessionFetch() as any
+const windowNow = useState('admin-access-logs-now', () => new Date().toISOString())
+const { data: settingsData, error: settingsError } = await useAsyncData(
+  'admin-access-log-retention-settings',
+  () => untypedFetch('/api/admin/settings/logging') as Promise<{ settings: LoggingSettings }>
+)
+const retentionDays = computed(() => Number(settingsData.value?.settings.retention_access_days ?? 30))
+const dateWindow = computed(() => accessLogDateWindow(route.query, retentionDays.value, new Date(windowNow.value)))
+const dateMin = computed(() => accessLogPickerValue(dateWindow.value.min))
+const dateMax = computed(() => accessLogPickerValue(dateWindow.value.max))
+
 const filters = reactive({
-  from: asDateTimeLocal(route.query.from),
-  to: asDateTimeLocal(route.query.to),
+  from: accessLogPickerValue(dateWindow.value.from),
+  to: accessLogPickerValue(dateWindow.value.to),
   path: asText(route.query.path),
   search: asText(route.query.search),
   method: asText(route.query.method),
@@ -98,8 +121,12 @@ const filters = reactive({
   offset: Number(route.query.offset ?? 0)
 })
 
-const fetchQuery = computed(() => ({ ...route.query }))
-const untypedFetch = useSessionFetch() as any
+// Always send explicit dates (including initial load and export), not the reader's 7-day default.
+const fetchQuery = computed(() => ({ ...route.query, from: dateWindow.value.from, to: dateWindow.value.to, total: 'true' }))
+watch(dateWindow, (value) => {
+  filters.from = accessLogPickerValue(value.from)
+  filters.to = accessLogPickerValue(value.to)
+})
 const { data, pending, refresh } = await useAsyncData(
   'admin-access-logs-list',
   () => untypedFetch('/api/admin/logs/access', { query: fetchQuery.value as Record<string, string> }),
@@ -108,6 +135,7 @@ const { data, pending, refresh } = await useAsyncData(
 
 const rows = computed(() => Array.isArray((data.value as any)?.rows) ? (data.value as any).rows : [])
 const total = computed(() => Number((data.value as any)?.total ?? 0))
+const truncated = computed(() => (data.value as any)?.truncated === true)
 const limit = computed(() => Number((data.value as any)?.limit ?? filters.limit))
 const offset = computed(() => Number((data.value as any)?.offset ?? filters.offset))
 const selectedRow = ref<Record<string, unknown> | null>(null)
@@ -121,30 +149,45 @@ watch(() => filters.search, () => {
   searchDebounce = setTimeout(() => {
     applyFilters()
   }, 300)
+}, { flush: 'sync' })
+onBeforeUnmount(() => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  clearNuxtState('admin-access-logs-now')
 })
 
 async function applyFilters(nextOffset = 0) {
-  await router.replace({
-    query: cleanQuery({
-      from: toIso(filters.from),
-      to: toIso(filters.to),
-      path: filters.path,
-      search: filters.search,
-      method: filters.method,
-      status: filters.status,
-      min_status: filters.min_status,
-      max_status: filters.max_status,
-      sort: filters.sort,
-      limit: String(filters.limit),
-      offset: String(nextOffset)
-    })
-  })
-  await refresh()
+  if (searchDebounce) clearTimeout(searchDebounce)
+  const window = accessLogDateWindow({ from: accessLogPickerIso(filters.from), to: accessLogPickerIso(filters.to) }, retentionDays.value, new Date(windowNow.value))
+  filters.from = accessLogPickerValue(window.from)
+  filters.to = accessLogPickerValue(window.to)
+  await replaceQuery(cleanQuery({
+    from: window.from,
+    to: window.to,
+    path: filters.path,
+    search: filters.search,
+    method: filters.method,
+    status: filters.status,
+    min_status: filters.min_status,
+    max_status: filters.max_status,
+    sort: filters.sort,
+    limit: String(filters.limit),
+    offset: String(nextOffset)
+  }))
+}
+
+async function replaceQuery(query: LocationQueryRaw) {
+  if (Object.keys(query).length === Object.keys(route.query).length && Object.entries(query).every(([key, value]) => route.query[key] === value)) {
+    await refresh()
+  } else {
+    await router.replace({ query })
+  }
 }
 
 function clearFilters() {
-  filters.from = ''
-  filters.to = ''
+  windowNow.value = new Date().toISOString()
+  const window = accessLogDateWindow({}, retentionDays.value, new Date(windowNow.value))
+  filters.from = accessLogPickerValue(window.from)
+  filters.to = accessLogPickerValue(window.to)
   filters.path = ''
   filters.search = ''
   filters.method = ''
@@ -157,12 +200,13 @@ function clearFilters() {
 }
 
 function goToOffset(nextOffset: number) {
-  applyFilters(nextOffset)
+  // Paging uses the applied window/filters, not unsubmitted edits in the form.
+  replaceQuery({ ...fetchQuery.value, offset: String(nextOffset) })
 }
 
 async function exportCsv() {
   const query: Record<string, string> = {
-    ...Object.fromEntries(Object.entries(route.query).map(([key, value]) => [key, String(value ?? '')])),
+    ...Object.fromEntries(Object.entries(fetchQuery.value).map(([key, value]) => [key, String(value ?? '')])),
     format: 'csv',
     limit: '10000',
     offset: '0'
@@ -181,32 +225,6 @@ function text(value: unknown) {
 
 function asText(value: unknown) {
   return typeof value === 'string' ? value : ''
-}
-
-function asDateTimeLocal(value: unknown) {
-  if (typeof value !== 'string' || !value) {
-    return ''
-  }
-
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) {
-    return ''
-  }
-
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-}
-
-function toIso(value: string) {
-  if (!value) {
-    return ''
-  }
-
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) {
-    return ''
-  }
-
-  return date.toISOString()
 }
 
 function downloadBlob(content: string, fileName: string, contentType: string) {

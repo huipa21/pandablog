@@ -64,8 +64,7 @@ export async function exportSurrealDb(
 
   // SurrealDB v2+/v3 require a Content-Type header and a JSON export-config body
   // on POST /export. Omitting them yields: HTTP 400 "Header of type `content-type` was missing".
-  // An explicit empty list means NO tables, not all tables. In particular, a
-  // DB containing only access_logs must not silently bypass its exclusion.
+  // An explicit empty list means NO tables, never an unrestricted snapshot.
   const tablesValue = selection?.tables ?? true
 
   const exportConfig = {

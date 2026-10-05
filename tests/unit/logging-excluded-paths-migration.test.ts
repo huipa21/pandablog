@@ -13,7 +13,7 @@ vi.mock('../../server/utils/settings', () => mocks)
 vi.mock('../../server/utils/blocks', () => ({ flattenBlockSearchText: vi.fn(), flattenNodeText: vi.fn() }))
 vi.mock('../../server/utils/searchTerms', () => ({ rebuildPostSearchTerms: vi.fn() }))
 vi.mock('../../server/utils/taxonomy', () => ({ repairMisaddressedTaxonomyEdges: vi.fn() }))
-vi.mock('../../server/utils/logging-access-buffer', () => ({ bufferAccessLog: vi.fn(), flushAccessBuffer: vi.fn() }))
+vi.mock('../../server/utils/access-log-migration', () => ({ removeMigratedAccessTable: vi.fn(), runAccessLogMigration: vi.fn() }))
 
 const markerKey = '__logging_excluded_paths_v2'
 const rootDb = { name: 'root' }
@@ -26,6 +26,7 @@ beforeEach(() => {
   vi.resetModules()
   vi.resetAllMocks()
   vi.stubGlobal('defineNitroPlugin', (plugin: unknown) => plugin)
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
   vi.stubGlobal('__PB_MODULE_LOGS__', true)
   vi.stubGlobal('__PB_MODULE_ANALYTICS__', false)
   vi.stubGlobal('__PB_MODULE_BACKUPS__', false)

@@ -30,7 +30,8 @@ describe('shared schema application', () => {
     const loaded = await loadSchema()
     expect(loaded.schema).toBe(raw)
     expect(loaded.hash).toBe(createHash('sha256').update(raw).digest('hex'))
-    expect(loaded.schema).toContain('DEFINE TABLE OVERWRITE access_logs SCHEMAFULL')
+    expect(loaded.schema).not.toContain('access_logs')
+    expect(loaded.schema).toContain('DEFINE TABLE OVERWRITE activity_logs SCHEMAFULL')
   })
   it('does not recreate log tables in a logs-disabled build', async () => {
     vi.stubGlobal('__PB_MODULE_LOGS__', false)

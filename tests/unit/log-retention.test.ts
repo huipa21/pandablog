@@ -4,10 +4,10 @@ import { deleteLogsKeepLatest, deleteLogsOlderThan, purgeLogTable } from '../../
 import type { LogDeletionOptions, LogRetentionTable } from '../../server/utils/log-retention'
 import type { LoggingSettings } from '../../types/logging'
 
-const mocks = vi.hoisted(() => ({ db: {}, queryDb: vi.fn(), useDb: vi.fn(), flushAccessBuffer: vi.fn() }))
+const mocks = vi.hoisted(() => ({ db: {}, queryDb: vi.fn(), useDb: vi.fn(), maintainAccessLogFiles: vi.fn() }))
 const logger = vi.hoisted(() => ({ initializeLoggingSettings: vi.fn(), getLoggingSettings: vi.fn(), logActivity: vi.fn(), warn: vi.fn() }))
 vi.mock('../../server/utils/db', () => mocks)
-vi.mock('../../server/utils/logging-access-buffer', () => ({ flushAccessBuffer: mocks.flushAccessBuffer }))
+vi.mock('../../server/utils/access-log-store', () => ({ maintainAccessLogFiles: mocks.maintainAccessLogFiles }))
 vi.mock('../../server/utils/logging', () => logger)
 
 const cutoff = new Date('2026-09-04T00:00:00.000Z')
@@ -26,7 +26,7 @@ afterEach(() => {
 describe('deleteLogsOlderThan', () => {
   it('sums full batches and stops after a short batch', async () => {
     mocks.queryDb.mockResolvedValueOnce(batchResult(2000)).mockResolvedValueOnce(batchResult(2000)).mockResolvedValueOnce(batchResult(3))
-    expect(await deleteLogsOlderThan('access_logs', cutoff, instant)).toBe(4003)
+    expect(await deleteLogsOlderThan('activity_logs', cutoff, instant)).toBe(4003)
     expect(mocks.queryDb).toHaveBeenCalledTimes(3)
     expect(mocks.useDb).toHaveBeenCalledTimes(1)
     for (const [db, sql, params, options] of mocks.queryDb.mock.calls) {
@@ -37,8 +37,8 @@ describe('deleteLogsOlderThan', () => {
       expect(sql).toContain('DELETE $ids RETURN NONE;')
       expect(sql).toContain('RETURN array::len($ids);')
       expect(sql).not.toContain('RETURN BEFORE')
-      expect(params).toEqual({ table: 'access_logs', cutoff: cutoff.toISOString(), batch: 2000 })
-      expect(options).toEqual({ label: 'retention delete access_logs', timeoutMs: 30_000, retryOnReconnect: false })
+      expect(params).toEqual({ table: 'activity_logs', cutoff: cutoff.toISOString(), batch: 2000 })
+      expect(options).toEqual({ label: 'retention delete activity_logs', timeoutMs: 30_000, retryOnReconnect: false })
     }
   })
 
@@ -63,20 +63,20 @@ describe('deleteLogsOlderThan', () => {
 
   it('handles a simulated 600K-row backlog using only bounded scalar results', async () => {
     mocks.queryDb.mockImplementation(async () => batchResult(mocks.queryDb.mock.calls.length <= 300 ? 2000 : 0))
-    expect(await deleteLogsOlderThan('access_logs', cutoff, instant)).toBe(600_000)
+    expect(await deleteLogsOlderThan('activity_logs', cutoff, instant)).toBe(600_000)
     expect(mocks.queryDb).toHaveBeenCalledTimes(301)
   })
 
   it('defaults to a 10,000-batch safety limit', async () => {
     mocks.queryDb.mockResolvedValue(batchResult(2000))
-    expect(await deleteLogsOlderThan('access_logs', cutoff, instant)).toBe(20_000_000)
+    expect(await deleteLogsOlderThan('activity_logs', cutoff, instant)).toBe(20_000_000)
     expect(mocks.queryDb).toHaveBeenCalledTimes(10_000)
   })
 
   it('yields for the default 50ms between full batches, but not after completion', async () => {
     vi.useFakeTimers()
     mocks.queryDb.mockResolvedValueOnce(batchResult(2000)).mockResolvedValueOnce(batchResult(1))
-    const deletion = deleteLogsOlderThan('access_logs', cutoff)
+    const deletion = deleteLogsOlderThan('activity_logs', cutoff)
     await vi.advanceTimersByTimeAsync(0)
     expect(mocks.queryDb).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(49)
@@ -89,7 +89,7 @@ describe('deleteLogsOlderThan', () => {
   it('does not pause after the batch limit is reached', async () => {
     vi.useFakeTimers()
     mocks.queryDb.mockResolvedValue(batchResult(2000))
-    expect(await deleteLogsOlderThan('access_logs', cutoff, { maxBatches: 1 })).toBe(2000)
+    expect(await deleteLogsOlderThan('activity_logs', cutoff, { maxBatches: 1 })).toBe(2000)
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -108,7 +108,7 @@ describe('deleteLogsOlderThan', () => {
   })
 
   it('does not acquire a DB client when maxBatches is zero', async () => {
-    expect(await deleteLogsOlderThan('access_logs', cutoff, { maxBatches: 0 })).toBe(0)
+    expect(await deleteLogsOlderThan('activity_logs', cutoff, { maxBatches: 0 })).toBe(0)
     expect(mocks.useDb).not.toHaveBeenCalled()
   })
 
@@ -118,25 +118,25 @@ describe('deleteLogsOlderThan', () => {
     { maxBatches: -1 }, { maxBatches: 0.5 }, { maxBatches: Number.NaN },
     { timeField: 'timestamp; DELETE users;' }, { timeField: 'unknown' }
   ] satisfies LogDeletionOptions[])('rejects unsafe/invalid options before connecting (%j)', async (options) => {
-    await expect(deleteLogsOlderThan('access_logs', cutoff, options)).rejects.toThrow()
+    await expect(deleteLogsOlderThan('activity_logs', cutoff, options)).rejects.toThrow()
     expect(mocks.useDb).not.toHaveBeenCalled()
     expect(mocks.queryDb).not.toHaveBeenCalled()
   })
 
   it('rejects invalid dates before connecting', async () => {
-    await expect(deleteLogsOlderThan('access_logs', new Date('invalid'))).rejects.toThrow('Invalid log deletion cutoff')
+    await expect(deleteLogsOlderThan('activity_logs', new Date('invalid'))).rejects.toThrow('Invalid log deletion cutoff')
     expect(mocks.useDb).not.toHaveBeenCalled()
   })
 
   it.each([undefined, null, -1, 2001, 1.5, '3', Number.NaN])('rejects invalid batch counts rather than reporting success (%s)', async (count) => {
     mocks.queryDb.mockResolvedValue(batchResult(count as number))
-    await expect(deleteLogsOlderThan('access_logs', cutoff, instant)).rejects.toThrow('Invalid log deletion batch count')
+    await expect(deleteLogsOlderThan('activity_logs', cutoff, instant)).rejects.toThrow('Invalid log deletion batch count')
     expect(mocks.queryDb).toHaveBeenCalledTimes(1)
   })
 
   it('propagates a failing batch without retrying or continuing', async () => {
     mocks.queryDb.mockResolvedValueOnce(batchResult(2000)).mockRejectedValueOnce(new Error('DB unavailable'))
-    await expect(deleteLogsOlderThan('access_logs', cutoff, instant)).rejects.toThrow('DB unavailable')
+    await expect(deleteLogsOlderThan('activity_logs', cutoff, instant)).rejects.toThrow('DB unavailable')
     expect(mocks.queryDb).toHaveBeenCalledTimes(2)
   })
 })
@@ -159,7 +159,7 @@ describe('deleteLogsKeepLatest', () => {
 
   it('does nothing when fewer than keep rows exist', async () => {
     mocks.queryDb.mockResolvedValue([[]])
-    expect(await deleteLogsKeepLatest('access_logs', 100)).toBe(0)
+    expect(await deleteLogsKeepLatest('activity_logs', 100)).toBe(0)
     expect(mocks.queryDb).toHaveBeenCalledTimes(1)
   })
 
@@ -172,12 +172,12 @@ describe('deleteLogsKeepLatest', () => {
 
   it('purges when keep is zero', async () => {
     mocks.queryDb.mockResolvedValueOnce([[{ total: 2 }]]).mockResolvedValueOnce(batchResult(2))
-    expect(await deleteLogsKeepLatest('access_logs', 0)).toBe(2)
+    expect(await deleteLogsKeepLatest('activity_logs', 0)).toBe(2)
     expect(mocks.queryDb.mock.calls[0]?.[1]).toContain('SELECT count()')
   })
 
   it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])('rejects invalid keep counts (%s)', async (keep) => {
-    await expect(deleteLogsKeepLatest('access_logs', keep)).rejects.toThrow('Log keep count')
+    await expect(deleteLogsKeepLatest('activity_logs', keep)).rejects.toThrow('Log keep count')
     expect(mocks.useDb).not.toHaveBeenCalled()
   })
 
@@ -198,11 +198,11 @@ describe('purgeLogTable', () => {
   it('counts first, deletes in batches, and reports the batch sum rather than a stale snapshot', async () => {
     vi.useFakeTimers()
     mocks.queryDb.mockResolvedValueOnce([[{ total: 2500 }]]).mockResolvedValueOnce(batchResult(2000)).mockResolvedValueOnce(batchResult(501))
-    const purge = purgeLogTable('access_logs')
+    const purge = purgeLogTable('activity_logs')
     await vi.runAllTimersAsync()
     expect(await purge).toBe(2501)
     expect(mocks.queryDb.mock.calls[0]?.[1]).toBe('SELECT count() AS total FROM type::table($table) GROUP ALL;')
-    expect(mocks.queryDb.mock.calls[0]?.[2]).toEqual({ table: 'access_logs' })
+    expect(mocks.queryDb.mock.calls[0]?.[2]).toEqual({ table: 'activity_logs' })
     expect(mocks.queryDb.mock.calls[0]?.[3]).toMatchObject({ timeoutMs: 30_000, retryOnReconnect: false })
     expect(mocks.queryDb.mock.calls[1]?.[2].cutoff).toBe('9999-12-31T23:59:59.999Z')
     expect(mocks.queryDb).toHaveBeenCalledTimes(3)
@@ -247,24 +247,24 @@ describe('retention runner', () => {
     vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
     logger.initializeLoggingSettings.mockResolvedValue(runnerSettings())
     logger.getLoggingSettings.mockReturnValue(runnerSettings())
-    mocks.flushAccessBuffer.mockResolvedValue(0)
+    mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 0, deleted: 0 })
     mocks.queryDb.mockResolvedValue(batchResult(0))
   })
 
-  it('computes saved-settings cutoffs, flushes access first, and audits non-empty runs', async () => {
-    mocks.queryDb.mockResolvedValueOnce(batchResult(1)).mockResolvedValueOnce(batchResult(2)).mockResolvedValueOnce(batchResult(3))
+  it('maintains access files with saved settings, never deletes access DB rows, and audits non-empty runs', async () => {
+    mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 1, deleted: 1 })
+    mocks.queryDb.mockResolvedValueOnce(batchResult(2)).mockResolvedValueOnce(batchResult(3))
     const retention = await import('../../server/utils/log-retention')
     expect(retention.getLastRetentionReport()).toBeNull()
     const report = await retention.runLogRetention(now)
     expect(logger.initializeLoggingSettings).toHaveBeenCalledTimes(1)
     expect(mocks.queryDb.mock.calls.map(call => call[2])).toEqual([
-      { table: 'access_logs', cutoff: new Date(now.getTime() - 2 * 86_400_000).toISOString(), batch: 2000 },
       { table: 'activity_logs', cutoff: new Date(now.getTime() - 3 * 86_400_000).toISOString(), batch: 2000 },
       { table: 'error_logs', cutoff: new Date(now.getTime() - 4 * 86_400_000).toISOString(), batch: 2000 }
     ])
-    expect(mocks.flushAccessBuffer.mock.invocationCallOrder[0]).toBeLessThan(mocks.queryDb.mock.invocationCallOrder[0]!)
-    expect(report).toEqual({ started_at: now.toISOString(), finished_at: now.toISOString(), duration_ms: 0, deleted: { access: 1, activity: 2, errors: 3 }, errors: [] })
-    expect(logger.logActivity).toHaveBeenCalledExactlyOnceWith({ action: 'system.log_retention', resource_type: 'logging', metadata: report, description: 'Scheduled log retention removed 6 rows' })
+    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledExactlyOnceWith(now, 2)
+    expect(report).toEqual({ started_at: now.toISOString(), finished_at: now.toISOString(), duration_ms: 0, deleted: { access: 0, access_files: 1, activity: 2, errors: 3 }, errors: [] })
+    expect(logger.logActivity).toHaveBeenCalledExactlyOnceWith({ action: 'system.log_retention', resource_type: 'logging', metadata: report, description: 'Scheduled log retention removed 6 rows/files' })
     expect(logger.warn).not.toHaveBeenCalled()
     expect(retention.getLastRetentionReport()).toEqual(report)
   })
@@ -276,16 +276,24 @@ describe('retention runner', () => {
     })
     const { runLogRetention } = await import('../../server/utils/log-retention')
     const report = await runLogRetention(new Date('2025-01-01T00:00:00Z'))
-    expect(report.duration_ms).toBe(15)
-    expect(report.finished_at).toBe(new Date(now.getTime() + 15).toISOString())
-    expect(mocks.queryDb.mock.calls[0]?.[2].cutoff).toBe('2024-12-30T00:00:00.000Z')
+    expect(report.duration_ms).toBe(10)
+    expect(report.finished_at).toBe(new Date(now.getTime() + 10).toISOString())
+    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledWith(new Date('2025-01-01T00:00:00Z'), 2)
+    expect(mocks.queryDb.mock.calls[0]?.[2].cutoff).toBe('2024-12-29T00:00:00.000Z')
   })
 
   it('does not audit empty successful runs', async () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
-    expect((await runLogRetention()).deleted).toEqual({ access: 0, activity: 0, errors: 0 })
+    expect((await runLogRetention()).deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0 })
     expect(logger.logActivity).not.toHaveBeenCalled()
     expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('does not count compression as deletion or audit a compression-only pass', async () => {
+    mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 5, deleted: 0 })
+    const { runLogRetention } = await import('../../server/utils/log-retention')
+    expect((await runLogRetention()).deleted.access_files).toBe(0)
+    expect(logger.logActivity).not.toHaveBeenCalled()
   })
 
   it('skips every stream when the settings master switch is disabled', async () => {
@@ -293,7 +301,7 @@ describe('retention runner', () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
     await runLogRetention()
     expect(mocks.queryDb).not.toHaveBeenCalled()
-    expect(mocks.flushAccessBuffer).not.toHaveBeenCalled()
+    expect(mocks.maintainAccessLogFiles).not.toHaveBeenCalled()
     expect(logger.logActivity).not.toHaveBeenCalled()
   })
 
@@ -304,8 +312,8 @@ describe('retention runner', () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
     await runLogRetention()
     expect(mocks.queryDb.mock.calls.map(call => call[2].table)).not.toContain(table)
-    expect(mocks.queryDb).toHaveBeenCalledTimes(2)
-    if (setting === 'access_log_enabled') expect(mocks.flushAccessBuffer).not.toHaveBeenCalled()
+    expect(mocks.queryDb).toHaveBeenCalledTimes(setting === 'access_log_enabled' ? 2 : 1)
+    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledTimes(setting === 'access_log_enabled' ? 0 : 1)
   })
 
   it.each([
@@ -315,7 +323,8 @@ describe('retention runner', () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
     await runLogRetention()
     expect(mocks.queryDb.mock.calls.map(call => call[2].table)).not.toContain(table)
-    expect(mocks.queryDb).toHaveBeenCalledTimes(2)
+    expect(mocks.queryDb).toHaveBeenCalledTimes(flag === 'accessLogs' ? 2 : 1)
+    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledTimes(flag === 'accessLogs' ? 0 : 1)
   })
 
   it.each(['build', 'runtime'])('is a no-op before settings/DB access when %s logging is disabled', async (mode) => {
@@ -328,20 +337,20 @@ describe('retention runner', () => {
   })
 
   it('continues the other streams after one fails and reports/audits the error', async () => {
-    mocks.queryDb.mockRejectedValueOnce(new Error('DB unavailable')).mockResolvedValueOnce(batchResult(2)).mockResolvedValueOnce(batchResult(3))
+    mocks.queryDb.mockRejectedValueOnce(new Error('DB unavailable')).mockResolvedValueOnce(batchResult(3))
     const { runLogRetention } = await import('../../server/utils/log-retention')
     const report = await runLogRetention()
-    expect(report.deleted).toEqual({ access: 0, activity: 2, errors: 3 })
-    expect(report.errors).toEqual(['access: DB unavailable'])
+    expect(report.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 3 })
+    expect(report.errors).toEqual(['activity: DB unavailable'])
     expect(logger.logActivity).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledWith('[logging] retention completed with errors', { errors: report.errors, deleted: report.deleted })
   })
 
-  it('skips access deletion after a flush failure but cleans the other streams', async () => {
-    mocks.flushAccessBuffer.mockRejectedValue(new Error('flush failed'))
+  it('reports file maintenance failures but cleans the DB streams', async () => {
+    mocks.maintainAccessLogFiles.mockRejectedValue(new Error('disk failed'))
     const { runLogRetention } = await import('../../server/utils/log-retention')
     const report = await runLogRetention()
-    expect(report.errors).toEqual(['access: flush failed'])
+    expect(report.errors).toEqual(['access_files: disk failed'])
     expect(mocks.queryDb.mock.calls.map(call => call[2].table)).toEqual(['activity_logs', 'error_logs'])
     expect(logger.logActivity).toHaveBeenCalledTimes(1) // Errors alone warrant an audit.
   })
@@ -374,11 +383,13 @@ describe('retention runner', () => {
     await vi.waitFor(() => expect(logger.initializeLoggingSettings).toHaveBeenCalledTimes(1))
     resolveSettings()
     expect(await first).toBe(await second)
-    expect(mocks.queryDb).toHaveBeenCalledTimes(3)
+    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledExactlyOnceWith(now, 2)
+    expect(mocks.queryDb).toHaveBeenCalledTimes(2)
     const third = runLogRetention(now)
     expect(third).not.toBe(first)
     await third
-    expect(mocks.queryDb).toHaveBeenCalledTimes(6)
+    expect(mocks.queryDb).toHaveBeenCalledTimes(4)
+    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledTimes(2)
   })
 
   it('clears single-flight state after rejection and protects the cached report from mutation', async () => {
@@ -389,13 +400,13 @@ describe('retention runner', () => {
     snapshot.deleted.access = 99
     snapshot.errors.push('mutated')
     report.deleted.activity = 88
-    expect(retention.getLastRetentionReport()?.deleted).toEqual({ access: 0, activity: 0, errors: 0 })
+    expect(retention.getLastRetentionReport()?.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0 })
     expect(retention.getLastRetentionReport()?.errors).toEqual([])
   })
 })
 
 describe('table allowlist', () => {
-  it.each(['posts', '', 'access_logs; DELETE users;'])('rejects table %s in every helper before DB access', async (table) => {
+  it.each(['posts', '', 'access_logs', 'access_logs; DELETE users;'])('rejects table %s in every helper before DB access', async (table) => {
     const unsafe = table as LogRetentionTable
     await expect(deleteLogsOlderThan(unsafe, cutoff)).rejects.toThrow('Invalid log retention table')
     await expect(deleteLogsKeepLatest(unsafe, 1)).rejects.toThrow('Invalid log retention table')

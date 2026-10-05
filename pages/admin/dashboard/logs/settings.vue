@@ -150,7 +150,7 @@
 
             <fieldset class="grid gap-3 md:grid-cols-2">
               <label
-                v-for="mode in cleanupModeOptions"
+                v-for="mode in cleanupModeOptions.filter(option => target.type !== 'access' || option.value !== 'keep_latest')"
                 :key="mode.value"
                 class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3"
                 :class="cleanupControls[target.type].mode === mode.value ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-divider)]'"
@@ -158,7 +158,7 @@
                 <input v-model="cleanupControls[target.type].mode" type="radio" :value="mode.value" class="mt-1">
                 <span class="grid gap-1">
                   <span class="font-medium text-[var(--pb-text)]">{{ mode.label }}</span>
-                  <span class="text-sm text-[var(--pb-text-muted)]">{{ mode.description }}</span>
+                  <span class="text-sm text-[var(--pb-text-muted)]">{{ target.type === 'access' ? t('admin.logs.settings.deleteAccessFilesDescription') : mode.description }}</span>
                 </span>
               </label>
             </fieldset>
@@ -256,7 +256,7 @@ const categoryControls = computed<Array<{ key: ToggleKey, label: string, descrip
 ])
 
 const retentionControls = computed<Array<{ key: RetentionKey, label: string, description: string }>>(() => [
-  { key: 'retention_access_days', label: t('admin.logs.accessLogs'), description: t('admin.logs.settings.retentionAccessDescription') },
+  { key: 'retention_access_days', label: t('admin.logs.accessLogs'), description: t('admin.logs.settings.retentionAccessDescription', { days: form.retention_access_days }) },
   { key: 'retention_activity_days', label: t('admin.logs.activityLogs'), description: t('admin.logs.settings.retentionActivityDescription') },
   { key: 'retention_error_days', label: t('admin.logs.errorLogs'), description: t('admin.logs.settings.retentionErrorDescription') }
 ])
@@ -301,6 +301,10 @@ const cleanupDialogDescription = computed(() => {
   const cleanup = activeCleanup.value
   if (!cleanup) {
     return ''
+  }
+
+  if (cleanup.type === 'access') {
+    return t('admin.logs.settings.deleteAccessFilesConfirmation', { days: cleanup.value })
   }
 
   return cleanup.mode === 'older_than_days'
@@ -474,6 +478,11 @@ function showCleanupResult(cleanup: { type: LogCleanupType, mode: LogCleanupMode
   const label = cleanupTargetLabel(cleanup.type)
   if (deleted === 0) {
     adminToast.info(t('admin.logs.settings.cleanupComplete'), t('admin.logs.settings.cleanupNoMatches', { label }))
+    return
+  }
+
+  if (cleanup.type === 'access') {
+    adminToast.success(t('admin.logs.settings.cleanupComplete'), t('admin.logs.settings.cleanupDeletedFiles', { deleted, days: cleanup.value }))
     return
   }
 

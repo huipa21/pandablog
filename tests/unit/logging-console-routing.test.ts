@@ -4,10 +4,11 @@ import type { MockInstance } from 'vitest'
 const mocks = vi.hoisted(() => ({
   queryDb: vi.fn(),
   useDb: vi.fn().mockResolvedValue({}),
-  bufferAccessLog: vi.fn()
+  appendAccessLog: vi.fn()
 }))
 vi.mock('../../server/utils/db', () => ({ ...mocks, queryDbRecord: vi.fn() }))
-vi.mock('../../server/utils/logging-access-buffer', () => ({ bufferAccessLog: mocks.bufferAccessLog, flushAccessBuffer: vi.fn() }))
+vi.mock('../../server/utils/access-log-store', () => ({ appendAccessLog: mocks.appendAccessLog, maintainAccessLogFiles: vi.fn(), purgeAccessLogFiles: vi.fn() }))
+vi.mock('../../server/utils/access-log-reader', () => ({ accessStats: vi.fn(), readAccessLogById: vi.fn() }))
 
 const access = { method: 'GET', path: '/test', status_code: 200, response_time_ms: 12, request_id: 'request-123', user_agent: 'test-browser' }
 const activity = { action: 'test.action', resource_type: 'test', description: 'Test activity' }
@@ -17,6 +18,8 @@ let stderr: MockInstance<typeof process.stderr.write>
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+  vi.stubGlobal('__PB_MODULE_LOGS__', true)
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
   vi.stubEnv('LOG_CONSOLE', 'errors')
   vi.stubEnv('LOG_FORMAT', 'json')
   stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
@@ -24,6 +27,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
@@ -80,7 +84,7 @@ describe('public logging console routing', () => {
     expect(lines(stdout)[2]!.ctx.password).toBe('[REDACTED]')
     expect(lines(stderr).map(line => line.level)).toEqual(['warn', 'error'])
     expect(mocks.queryDb).not.toHaveBeenCalled()
-    expect(mocks.bufferAccessLog).not.toHaveBeenCalled()
+    expect(mocks.appendAccessLog).not.toHaveBeenCalled()
   })
 
   it('always skips health probes in console/storage and the middleware path check', async () => {
@@ -92,7 +96,7 @@ describe('public logging console routing', () => {
       logging.logAccess({ ...access, path, status_code: 503 })
     }
     expect(stdout).not.toHaveBeenCalled()
-    expect(mocks.bufferAccessLog).not.toHaveBeenCalled()
+    expect(mocks.appendAccessLog).not.toHaveBeenCalled()
     expect(logging.shouldExcludePath('/api/healthz')).toBe(false)
   })
 
@@ -107,12 +111,12 @@ describe('public logging console routing', () => {
       logging.logAccess({ ...access, path })
     }
     expect(stdout).not.toHaveBeenCalled()
-    expect(mocks.bufferAccessLog).not.toHaveBeenCalled()
+    expect(mocks.appendAccessLog).not.toHaveBeenCalled()
     expect(mocks.queryDb).not.toHaveBeenCalled()
     // Keep real API requests observable, including ones without IP/user agent.
     logging.logAccess({ ...access, path: '/api/posts', ip: undefined, user_agent: undefined })
     expect(stdout).toHaveBeenCalledTimes(1)
-    expect(mocks.bufferAccessLog).toHaveBeenCalledTimes(1)
+    expect(mocks.appendAccessLog).toHaveBeenCalledTimes(1)
   })
 
   it('honors filters, sampling, log_level and debug flags', async () => {
@@ -128,7 +132,7 @@ describe('public logging console routing', () => {
     await logging.updateLoggingSettings({ sampling_rate: 0 })
     logging.logAccess(access)
     expect(stdout).toHaveBeenCalledTimes(1)
-    expect(mocks.bufferAccessLog).toHaveBeenCalledTimes(1)
+    expect(mocks.appendAccessLog).toHaveBeenCalledTimes(1)
   })
 
   it('upgrades errors to all when the admin toggle changes, without restarting', async () => {
@@ -157,9 +161,43 @@ describe('public logging console routing', () => {
     logging.error('error')
     expect(stdout).not.toHaveBeenCalled()
     expect(stderr).not.toHaveBeenCalled()
-    expect(mocks.bufferAccessLog).toHaveBeenCalledTimes(1)
+    expect(mocks.appendAccessLog).toHaveBeenCalledTimes(1)
     await Promise.resolve()
     expect(mocks.queryDb).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['build', 'runtime-logs', 'runtime-access'])('skips both access sinks when the %s module flag is disabled', async (mode) => {
+    vi.stubEnv('LOG_CONSOLE', 'all')
+    if (mode === 'build') vi.stubGlobal('__PB_MODULE_LOGS__', false)
+    else vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: mode === 'runtime-logs' ? { enabled: false } : { accessLogs: false } } } }))
+    const logging = await load()
+    logging.logAccess(access)
+    expect(mocks.appendAccessLog).not.toHaveBeenCalled()
+    expect(stdout).not.toHaveBeenCalled()
+    expect(mocks.queryDb).not.toHaveBeenCalled()
+  })
+
+  it.each([{ enabled: false }, { access_log_enabled: false }])('does not write access files with storage switch %j', async (settings) => {
+    const logging = await load(settings)
+    logging.logAccess(access)
+    expect(mocks.appendAccessLog).not.toHaveBeenCalled()
+    expect(mocks.queryDb).not.toHaveBeenCalled()
+  })
+
+  it('routes sanitized access entries to files without DB writes or buffering', async () => {
+    const logging = await load({ max_metadata_size_kb: 1, redact_fields: ['token', 'ip', 'referrer'] })
+    const query: Record<string, unknown> = { token: 'secret', count: 5n }
+    query.self = query
+    logging.logAccess({ ...access, timestamp: '2026-10-04T12:00:00Z', ip: 'private', referrer: 'private', query_params: query })
+    expect(mocks.appendAccessLog).toHaveBeenCalledExactlyOnceWith({
+      ...access, timestamp: '2026-10-04T12:00:00.000Z', ip: '[REDACTED]', referrer: '[REDACTED]',
+      query_params: { token: '[REDACTED]', count: '5', self: '[Circular]' }
+    })
+    logging.logAccess({ ...access, query_params: { token: 'secret', text: 'x'.repeat(3000) } })
+    const stored = mocks.appendAccessLog.mock.calls[1]?.[0].query_params
+    expect(stored._truncated).toBe(true)
+    expect(stored._preview).not.toContain('secret')
+    expect(mocks.queryDb).not.toHaveBeenCalled()
   })
 
   it('routes DB failure diagnostics through the sink and continues printing errors', async () => {

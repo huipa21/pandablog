@@ -27,20 +27,23 @@
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.count ?? 0 }}</p>
       </NuxtLink>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.dbEstimate') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ formatBytes(stats?.estimate_bytes ?? 0) }}</p>
+        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.storage') }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ formatBytes((stats?.db_estimate_bytes ?? 0) + (stats?.access_files_bytes ?? 0)) }}</p>
+        <p class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.logs.storageBreakdown', { db: formatBytes(stats?.db_estimate_bytes ?? 0), access: formatBytes(stats?.access_files_bytes ?? 0) }) }}</p>
       </div>
     </div>
 
-    <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+    <div v-if="moduleFlags.accessLogs" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]" :aria-busy="hourlyPending">
       <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.requestsPerHour') }}</h2>
-      <div class="mt-4 flex h-44 items-end gap-1 rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] px-2 py-3">
+      <USkeleton v-if="hourlyPending" class="mt-4 h-44" />
+      <UAlert v-else-if="hourlyError" class="mt-4" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
+      <div v-else class="mt-4 flex h-44 items-end gap-1 rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] px-2 py-3">
         <div
-          v-for="(point, index) in hourlyPoints"
-          :key="index"
+          v-for="point in hourlyPoints"
+          :key="point.hour"
           class="flex-1 rounded-t bg-[var(--pb-selected-border)]/70"
-          :title="`${point.label}: ${point.count}`"
-          :style="{ height: `${Math.max(6, point.height)}%` }"
+          :title="t('admin.logs.hourlyTooltip', { hour: point.label, count: point.count, errors: point.errors })"
+          :style="{ height: `${point.height}%` }"
         />
       </div>
     </div>
@@ -74,6 +77,9 @@
 </template>
 
 <script setup lang="ts">
+import type { AccessHourlyBucket } from '~/types/logging'
+import { accessHourlyChartPoints } from '~/utils/loggingChart'
+
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
@@ -86,9 +92,9 @@ const { data: statsData, pending: statsPending, error, refresh: refreshStats } =
   'admin-log-stats',
   () => sessionFetch('/api/admin/logs/stats')
 )
-const { data: accessData, pending: accessPending, refresh: refreshAccess } = await useAsyncData(
-  'admin-log-access-24h',
-  () => sessionFetch('/api/admin/logs/access', { query: { from, limit: 200, sort: 'newest', total: 'false' } })
+const { data: hourlyData, pending: hourlyPending, error: hourlyError, refresh: refreshHourly } = await useAsyncData(
+  'admin-log-access-hourly',
+  () => moduleFlags.accessLogs ? sessionFetch<AccessHourlyBucket[]>('/api/admin/logs/access/hourly') : Promise.resolve([])
 )
 const { data: errorData, pending: errorPending, refresh: refreshErrors } = await useAsyncData(
   'admin-log-errors-recent',
@@ -97,42 +103,13 @@ const { data: errorData, pending: errorPending, refresh: refreshErrors } = await
 
 const stats = computed(() => statsData.value as any)
 const recentErrors = computed(() => Array.isArray((errorData.value as any)?.rows) ? (errorData.value as any).rows : [])
-const pending = computed(() => statsPending.value || accessPending.value || errorPending.value)
+const pending = computed(() => statsPending.value || errorPending.value)
 
-const hourlyPoints = computed(() => {
-  const rows = Array.isArray((accessData.value as any)?.rows) ? (accessData.value as any).rows : []
-  const buckets = Array.from({ length: 24 }, (_, index) => {
-    const hour = new Date(Date.now() - (23 - index) * 3600_000)
-    return {
-      key: `${hour.getUTCFullYear()}-${hour.getUTCMonth() + 1}-${hour.getUTCDate()}-${hour.getUTCHours()}`,
-      label: `${hour.getUTCHours().toString().padStart(2, '0')}:00`,
-      count: 0,
-      height: 0
-    }
-  })
-  const bucketMap = new Map(buckets.map(item => [item.key, item]))
-
-  for (const row of rows) {
-    const timestamp = Date.parse(String((row as any).timestamp ?? ''))
-    if (!Number.isFinite(timestamp)) {
-      continue
-    }
-
-    const date = new Date(timestamp)
-    const key = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}-${date.getUTCHours()}`
-    const bucket = bucketMap.get(key)
-    if (bucket) {
-      bucket.count += 1
-    }
-  }
-
-  const max = Math.max(1, ...buckets.map(item => item.count))
-  return buckets.map(item => ({ ...item, height: (item.count / max) * 100 }))
-})
+const hourlyPoints = computed(() => accessHourlyChartPoints(hourlyData.value ?? []))
 
 function refreshAll() {
   refreshStats()
-  refreshAccess()
+  refreshHourly()
   refreshErrors()
 }
 
