@@ -84,6 +84,9 @@ export async function importExternalBackup(files: ExternalBackupFiles): Promise<
       included_hashes: Array.isArray(manifestData?.included_hashes)
         ? manifestData!.included_hashes
         : [],
+      ...(Array.isArray(manifestData?.excluded_tables) ? {
+        excluded_tables: manifestData.excluded_tables.filter((table): table is string => typeof table === 'string'),
+      } : {}),
     }
     await writeFile(path.join(backupDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
 

@@ -26,7 +26,7 @@ const ALLOWED_PREFIXES = [
   '/api/_nuxt',
 ]
 
-const ALLOWED_EXACT = new Set(['/favicon.ico'])
+const ALLOWED_EXACT = new Set(['/favicon.ico', '/api/health', '/api/health/'])
 
 export default defineEventHandler((event) => {
   const job = getActiveJob()

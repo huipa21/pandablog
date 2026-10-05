@@ -1,9 +1,8 @@
-import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, useDb } from '../utils/db'
-import { initializeLoggingSettings } from '../utils/logging'
+import { defaultLoggingSettings, reloadLoggingSettings } from '../utils/logging'
+import { mergeExcludedPaths } from '../utils/logging-logic'
 import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { rebuildPostSearchTerms } from '../utils/searchTerms'
@@ -21,7 +20,6 @@ import {
 } from '~/utils/systemSettings'
 import { ADMIN_COLOR_MODE_KEY, DEFAULT_ADMIN_COLOR_MODE } from '~/utils/themeMode'
 
-const SCHEMA_HASH_KEY = '__schema_hash'
 const USER_TABLE_MIGRATION_KEY = '__user_table_migration_v1'
 const POST_VERSION_GRAPH_MIGRATION_KEY = '__post_version_graph_migration_v1'
 const POST_VERSION_DEDUP_MIGRATION_KEY = '__post_version_dedup_migration_v1'
@@ -30,6 +28,7 @@ const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const SEARCH_TERMS_BUILD_KEY = '__search_terms_build_v1'
 const TAXONOMY_EDGE_REPAIR_KEY = '__taxonomy_edge_repair_v1'
 const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
+const LOGGING_EXCLUDED_PATHS_MIGRATION_KEY = '__logging_excluded_paths_v2'
 const APP_SETTINGS_TABLE = 'app_settings'
 const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
 const MEDIA_STORAGE_VERSION = '2026-05-image-variants-v2'
@@ -61,17 +60,10 @@ export default defineNitroPlugin(async () => {
     const db = rootDb
 
     await migrateLegacyAppSettingsTable(db)
-    const rawSchema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
-    const schema = stripModuleSchemaSections(rawSchema, {
-      logs: __PB_MODULE_LOGS__,
-      analytics: __PB_MODULE_ANALYTICS__,
-      backups: __PB_MODULE_BACKUPS__
-    })
-    const schemaHash = createHash('sha256').update(schema).digest('hex')
+    const { schema, hash: schemaHash } = await loadSchema()
 
     if (!await hasCurrentSchemaHash(db, schemaHash)) {
-      await resetPostStatsFieldDefinitionsBeforeSchema(db)
-      await queryDb(db, schema, undefined, { label: 'schema initialization', timeoutMs: 30_000 })
+      await applySchema(db, schema)
       await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
     }
 
@@ -90,7 +82,9 @@ export default defineNitroPlugin(async () => {
     await initializeSecuritySettings(true)
     await ensureDefaultFolder(db)
     if (__PB_MODULE_LOGS__) {
-      await initializeLoggingSettings()
+      await ensureLoggingExcludedPathsMigration(db)
+      // Other plugins may have loaded settings already; refresh after the merge.
+      await reloadLoggingSettings()
     }
 
     // One-time, marker-guarded backfills do a full-table scan + FTS reindex.
@@ -111,19 +105,6 @@ export default defineNitroPlugin(async () => {
     await closeRootClient(rootDb)
   }
 })
-
-function stripModuleSchemaSections(schema: string, enabledModules: Record<string, boolean>) {
-  let result = schema
-  for (const [moduleName, enabled] of Object.entries(enabledModules)) {
-    if (enabled) {
-      continue
-    }
-
-    result = result.replace(new RegExp(`-- #module ${moduleName} start\\r?\\n[\\s\\S]*?-- #module ${moduleName} end\\r?\\n?`, 'g'), '')
-  }
-
-  return result
-}
 
 async function runDeferredBackfillsViaPool() {
   try {
@@ -162,6 +143,40 @@ async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>)
   }
 
   await setAppSetting(db, 'media', DEFAULT_MEDIA_SETTINGS, 'media settings init')
+}
+
+async function ensureLoggingExcludedPathsMigration(db: Awaited<ReturnType<typeof useDb>>) {
+  const marker = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: LOGGING_EXCLUDED_PATHS_MIGRATION_KEY },
+    { label: 'logging excluded paths migration marker check', timeoutMs: 5_000 }
+  )
+  if (firstRow(marker)) {
+    return
+  }
+
+  const response = await queryDb(
+    db,
+    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
+    { key: 'logging' },
+    { label: 'logging excluded paths migration settings lookup', timeoutMs: 5_000 }
+  )
+  const value = firstRow<{ value?: unknown }>(response)?.value
+  const defaults = defaultLoggingSettings()
+  const settings = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : defaults
+  const storedPaths = Array.isArray(settings.excluded_paths)
+    ? settings.excluded_paths.filter((path): path is string => typeof path === 'string')
+    : []
+
+  await setAppSetting(db, 'logging', {
+    ...settings,
+    excluded_paths: mergeExcludedPaths(storedPaths, defaults.excluded_paths)
+  }, 'logging excluded paths migration settings')
+  // Only mark success after settings persist. A failed marker write can safely retry.
+  await setAppSetting(db, LOGGING_EXCLUDED_PATHS_MIGRATION_KEY, new Date().toISOString(), 'logging excluded paths migration marker')
 }
 
 async function ensureUserTableMigration(db: Awaited<ReturnType<typeof useDb>>) {
@@ -709,23 +724,6 @@ async function backfillSearchTerms(db: Awaited<ReturnType<typeof useDb>>) {
   }
 
   await setAppSetting(db, SEARCH_TERMS_BUILD_KEY, new Date().toISOString(), 'search terms build marker')
-}
-
-async function resetPostStatsFieldDefinitionsBeforeSchema(db: Awaited<ReturnType<typeof useDb>>) {
-  try {
-    await queryDb(
-      db,
-      `REMOVE FIELD IF EXISTS word_count ON post;
-       REMOVE FIELD IF EXISTS cjk_char_count ON post;`,
-      undefined,
-      { label: 'post stats field reset', timeoutMs: 10_000 }
-    )
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (!message.includes('does not exist')) {
-      console.warn('[db-init] post stats field reset skipped', error)
-    }
-  }
 }
 
 async function setAppSetting(

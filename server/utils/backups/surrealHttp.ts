@@ -51,7 +51,7 @@ export function summarizeStatementResults(body: unknown): ImportStatementSummary
  * Streams a SurrealDB export from the HTTP /export endpoint.
  * Returns a raw Node.js Readable of the SurQL text.
  *
- * @param selection  optional table subset for partial backups (default: all)
+ * @param selection  optional table selection (default: all)
  * @param database   optional database name override (default: configured DB)
  */
 export async function exportSurrealDb(
@@ -64,10 +64,9 @@ export async function exportSurrealDb(
 
   // SurrealDB v2+/v3 require a Content-Type header and a JSON export-config body
   // on POST /export. Omitting them yields: HTTP 400 "Header of type `content-type` was missing".
-  // For partial backups we pass an explicit list of tables; otherwise true = all.
-  const tablesValue = selection?.tables && selection.tables.length > 0
-    ? selection.tables
-    : true
+  // An explicit empty list means NO tables, not all tables. In particular, a
+  // DB containing only access_logs must not silently bypass its exclusion.
+  const tablesValue = selection?.tables ?? true
 
   const exportConfig = {
     users: true,

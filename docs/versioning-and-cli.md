@@ -102,14 +102,34 @@ podman exec pandablog-app panda health
 |---|---|
 | `panda version` (or `-v`, `--version`) | Output the version string (e.g., `260923-1+gedb176f`) |
 | `panda info` | Output version, commit hash, commit date, Node.js version, platform, listen host/port, and storage mount writability |
-| `panda health` | Send an HTTP probe to `http://127.0.0.1:$PORT/`. Exits `0` for healthy (`< 500`), `1` on error/timeout |
+| `panda health` | Send an HTTP probe to `http://127.0.0.1:$PORT/api/health`. Exits `0` for healthy (`< 500`), `1` on error/timeout |
 | `panda help` | Show CLI help |
 
 ### Global Flags
 
 - `--json`: Format output as JSON.
-- `--url <url>`: Target URL for `panda health` (default: `http://127.0.0.1:$PORT/`).
+- `--url <url>`: Target URL for `panda health` (default: `http://127.0.0.1:$PORT/api/health`).
 - `--timeout <seconds>`: Timeout for `panda health` (default: `5`).
+
+The port resolves from `NITRO_PORT`, then `PORT`, then `3000`. The default
+`/api/health` probe returns `{ "ok": true, "uptime_s": 123 }` with
+`Cache-Control: no-store`. It checks process liveness without rendering a page,
+reading settings, authenticating, or querying the DB. It remains available in
+private/restore-maintenance mode and is always excluded from access logs.
+
+For an optional DB connectivity check, use:
+
+```bash
+panda health --url http://127.0.0.1:3000/api/health?db=1
+```
+
+The DB probe uses `RETURN 1` with a two-second overall deadline, including
+connection acquisition. Failure returns HTTP 503 and `{ "ok": false, "db": "down" }`.
+It is a connectivity probe, not a schema, restore-completion, or application
+readiness check. No version/build information is exposed; use `panda info` for
+that. The CLI's existing non-5xx-is-healthy rule is unchanged, including for
+custom `--url` targets. Existing compose healthchecks that invoke `panda health`
+need no change; a rebuilt image uses the new lightweight URL.
 
 ---
 

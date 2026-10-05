@@ -26,7 +26,7 @@ export interface BackupRecord {
   parent: string | null
   chain_root: string | null
   included_hashes: string[]
-  /** For partial backups: the subset of tables captured. null = all tables (full). */
+  /** For partial backups: the subset captured. null = full snapshot (with configured exclusions). */
   included_tables: string[] | null
   db_size_bytes: number
   media_size_bytes: number

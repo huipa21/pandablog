@@ -47,6 +47,14 @@
       </section>
 
       <section class="grid gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
+        <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.logs.settings.errorsTitle') }}</h2>
+        <UFormField :label="t('admin.logs.settings.errorLogMinStatus')" name="error_log_min_status" class="max-w-xl">
+          <UInput v-model.number="form.error_log_min_status" type="number" min="400" max="599" step="1" icon="i-lucide-list-filter" placeholder="500" />
+          <template #hint>{{ t('admin.logs.settings.errorLogMinStatusHint') }}</template>
+        </UFormField>
+      </section>
+
+      <section class="grid gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
         <div>
           <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.logs.settings.levelsTitle') }}</h2>
           <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.logs.settings.levelsDescription') }}</p>
@@ -101,6 +109,25 @@
             <template #hint>{{ item.description }}</template>
           </UFormField>
         </div>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--pb-divider)] pt-4">
+          <div class="grid gap-1">
+            <p class="text-sm text-[var(--pb-text)]">
+              {{ retentionReport ? t('admin.logs.settings.retentionLastRun', { time: formatAdminDateTime(retentionReport.finished_at), count: formatAdminNumber(retentionDeleted) }) : t('admin.logs.settings.retentionNeverRun') }}
+            </p>
+            <p class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.logs.settings.retentionUsesSavedSettings') }}</p>
+          </div>
+          <UButton icon="i-lucide-play" :loading="retentionRunning" :disabled="saving || resetting" @click="runRetention">
+            {{ t('admin.logs.settings.retentionRunNow') }}
+          </UButton>
+        </div>
+        <UAlert v-if="retentionLoadError" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.settings.retentionLoadFailed')" />
+        <UAlert v-if="retentionReport?.errors.length" color="warning" icon="i-lucide-triangle-alert" :title="t('admin.logs.settings.retentionPartial')">
+          <template #description>
+            <ul class="list-inside list-disc">
+              <li v-for="(message, index) in retentionReport.errors" :key="index">{{ message }}</li>
+            </ul>
+          </template>
+        </UAlert>
       </section>
 
       <section id="cleanup" class="grid scroll-mt-6 gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
@@ -177,7 +204,8 @@
 </template>
 
 <script setup lang="ts">
-import type { LogCleanupMode, LogCleanupType, LoggingSettings } from '~/types/logging'
+import type { LogCleanupMode, LogCleanupType, LoggingSettings, RetentionReport } from '~/types/logging'
+import { DEFAULT_LOGGING_EXCLUDED_PATHS, parseExcludedStatusCodes } from '~/utils/loggingSettings'
 
 definePageMeta({ layout: 'admin' })
 
@@ -187,7 +215,13 @@ type LoggingSettingsPayload = Omit<LoggingSettings, 'updated_at'>
 type ToggleKey = 'enabled' | 'console_output' | 'access_log_enabled' | 'activity_log_enabled' | 'error_log_enabled' | 'debug_enabled' | 'debug_override_prod'
 type RetentionKey = 'retention_access_days' | 'retention_activity_days' | 'retention_error_days'
 
-const { data, error } = await useAsyncData('admin-logging-settings', () => $fetch('/api/admin/settings/logging'))
+const sessionFetch = useSessionFetch()
+const { data, error } = await useAsyncData('admin-logging-settings', () => sessionFetch<{ settings: LoggingSettings }>('/api/admin/settings/logging'))
+const { data: retentionStatus, error: retentionLoadError } = await useAsyncData('admin-log-retention', () => sessionFetch<{ last: RetentionReport | null, schedule: string }>('/api/admin/logs/retention'))
+const { formatAdminDateTime, formatAdminNumber } = useAdminRegionalSettings()
+const retentionRunning = ref(false)
+const retentionReport = computed<RetentionReport | null>(() => retentionStatus.value?.last ?? null)
+const retentionDeleted = computed(() => Object.values(retentionReport.value?.deleted ?? {}).reduce((sum, count) => sum + (count ?? 0), 0))
 
 const form = reactive<LoggingSettings>(blankForm())
 const excludedPathsText = ref('')
@@ -293,6 +327,25 @@ async function save() {
   }
 }
 
+async function runRetention() {
+  if (retentionRunning.value) return
+  retentionRunning.value = true
+  try {
+    const report = await $fetch('/api/admin/logs/retention/run', { method: 'POST' })
+    retentionStatus.value = { last: report, schedule: retentionStatus.value?.schedule ?? '17 3 * * *' }
+    retentionLoadError.value = undefined
+    if (report.errors.length) {
+      adminToast.info(t('admin.logs.settings.retentionPartial'))
+    } else {
+      adminToast.success(t('admin.logs.settings.retentionComplete', { count: formatAdminNumber(retentionDeleted.value) }))
+    }
+  } catch (err: unknown) {
+    adminToast.error(err, t('admin.logs.settings.retentionRunFailed'))
+  } finally {
+    retentionRunning.value = false
+  }
+}
+
 async function resetDefaults() {
   resetting.value = true
 
@@ -382,9 +435,10 @@ function toPayload(): LoggingSettingsPayload {
     access_log_enabled: form.access_log_enabled,
     activity_log_enabled: form.activity_log_enabled,
     error_log_enabled: form.error_log_enabled,
+    error_log_min_status: Number(form.error_log_min_status),
     log_level: form.log_level,
     excluded_paths: excludedPathsText.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
-    excluded_status_codes: excludedStatusCodesText.value.split(/[\s,]+/).map(item => Number(item)).filter(item => Number.isInteger(item)),
+    excluded_status_codes: parseExcludedStatusCodes(excludedStatusCodesText.value),
     redact_fields: redactFieldsText.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
     retention_access_days: Number(form.retention_access_days),
     retention_activity_days: Number(form.retention_activity_days),
@@ -443,8 +497,9 @@ function blankForm(): LoggingSettings {
     access_log_enabled: true,
     activity_log_enabled: true,
     error_log_enabled: true,
+    error_log_min_status: 500,
     log_level: 'info',
-    excluded_paths: [],
+    excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
     excluded_status_codes: [],
     redact_fields: [],
     retention_access_days: 30,

@@ -5,7 +5,10 @@ import { purgeLogType } from '../../../utils/logging'
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)
 
-  const { type } = getRouterParams(event)
+  // H3 can select this DELETE handler through a static GET route (access,
+  // activity, errors) without retaining the dynamic route's params.
+  const type = getRouterParams(event).type
+    ?? /^\/api\/admin\/logs\/(access|activity|errors)\/?$/.exec(getRequestURL(event).pathname)?.[1]
   if (!type) {
     throw createError({ statusCode: 400, message: 'Missing log type' })
   }

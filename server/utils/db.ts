@@ -8,6 +8,8 @@ interface QueryOptions {
 }
 
 let client: Surreal | null = null
+// Dedicated privileged clients must never be redirected to the runtime pool.
+const rootClients = new WeakSet<Surreal>()
 let connectionPromise: Promise<Surreal> | null = null
 let connectionGeneration = 0
 let keepAliveTimer: ReturnType<typeof globalThis.setInterval> | null = null
@@ -149,7 +151,7 @@ export async function queryDb<T extends unknown[] = unknown[]>(db: Surreal, sql:
   } catch (error: any) {
     let failure = error
 
-    if (options.retryOnReconnect !== false && isConnectionError(error)) {
+    if (options.retryOnReconnect !== false && !rootClients.has(queryClient) && isConnectionError(error)) {
       await discardDbConnection(queryClient)
 
       // Auth-rejection means SurrealDB refused the request before executing
@@ -201,7 +203,7 @@ async function runQuery<T extends unknown[] = unknown[]>(db: Surreal, sql: strin
 }
 
 function resolveQueryClient(db: Surreal) {
-  return client && client !== db ? client : db
+  return client && client !== db && !rootClients.has(db) ? client : db
 }
 
 async function discardDbConnection(staleClient?: Surreal | null) {
@@ -256,6 +258,7 @@ export async function connectRootClient(): Promise<Surreal> {
     database: config.surrealDatabase
   }), 10_000, 'Could not select SurrealDB namespace/database')
 
+  rootClients.add(db)
   return db
 }
 

@@ -9,6 +9,7 @@ export interface LoggingSettings {
   access_log_enabled: boolean
   activity_log_enabled: boolean
   error_log_enabled: boolean
+  error_log_min_status: number
   log_level: LogLevel
   excluded_paths: string[]
   excluded_status_codes: number[]
@@ -46,15 +47,36 @@ export interface ActivityLogEntry {
   description?: string | null
 }
 
+export interface ErrorCause {
+  name: string
+  message: string
+  cause?: ErrorCause
+}
+
 export interface ErrorLogEntry {
   timestamp?: string
   level: LogLevel
   message: string
   stack?: string | null
+  status_code?: number | null
   context?: Record<string, unknown>
   request_id?: string | null
   path?: string | null
   method?: string | null
+}
+
+export interface RetentionReport {
+  started_at: string
+  finished_at: string
+  duration_ms: number
+  deleted: {
+    access: number
+    activity: number
+    errors: number
+    error_groups?: number
+    access_files?: number
+  }
+  errors: string[]
 }
 
 export interface CleanupResult {

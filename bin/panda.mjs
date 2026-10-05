@@ -183,7 +183,7 @@ function cmdInfo(args) {
 
 function cmdHealth(args) {
   const url = flagValue(args, '--url')
-    || `http://127.0.0.1:${process.env.NITRO_PORT || process.env.PORT || '3000'}/`
+    || `http://127.0.0.1:${process.env.NITRO_PORT || process.env.PORT || '3000'}/api/health`
   const timeoutSeconds = Number(flagValue(args, '--timeout') ?? 5)
   const timeout = Number.isFinite(timeoutSeconds) && timeoutSeconds > 0 ? timeoutSeconds * 1000 : 5000
   const started = Date.now()
@@ -229,7 +229,7 @@ function cmdHelp() {
 
   Options
     --json             Machine-readable output
-    --url <url>        health: target URL (default http://127.0.0.1:$PORT/)
+    --url <url>        health: target URL (default http://127.0.0.1:$PORT/api/health)
     --timeout <sec>    health: request timeout in seconds (default 5)
 
   Examples

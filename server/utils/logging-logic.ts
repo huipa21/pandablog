@@ -1,4 +1,66 @@
-import type { LoggingSettings } from '~/types/logging'
+import type { ErrorCause, LoggingSettings } from '~/types/logging'
+
+/** Keep stored/custom prefixes first, then append missing defaults without mutation. */
+export function mergeExcludedPaths(stored: string[], defaults: string[]): string[] {
+  return [...new Set([...stored, ...defaults])]
+}
+
+export function shouldCaptureHookError(status: number, minStatus: number): boolean {
+  return status >= minStatus
+}
+
+/** Follow the hook's status precedence, falling back safely for malformed values. */
+export function resolveErrorStatus(error: unknown, responseStatus?: unknown): number {
+  try {
+    const record = error && typeof error === 'object' ? error as Record<string, unknown> : undefined
+    const status = record?.statusCode ?? record?.status ?? responseStatus ?? 500
+    return typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599 ? status : 500
+  } catch {
+    return 500
+  }
+}
+
+/** A bounded, stack-free chain shared by persisted context and the console sink. */
+export function getErrorCauseChain(error: unknown): ErrorCause | undefined {
+  function summarize(value: unknown, remaining: number): ErrorCause | undefined {
+    if (value == null || remaining === 0) {
+      return undefined
+    }
+    const record = typeof value === 'object' ? value as Record<string, unknown> : undefined
+    const result: ErrorCause = {
+      name: typeof record?.name === 'string' ? record.name : 'Error',
+      message: typeof record?.message === 'string' ? record.message : String(value)
+    }
+    const cause = summarize(record?.cause, remaining - 1)
+    if (cause) {
+      result.cause = cause
+    }
+    return result
+  }
+
+  try {
+    return error && typeof error === 'object' ? summarize((error as Record<string, unknown>).cause, 3) : undefined
+  } catch {
+    // Inspecting exotic thrown values must not make logging throw.
+    return undefined
+  }
+}
+
+export function extractErrorContext(error: unknown) {
+  const context: { cause?: ErrorCause, unhandled?: boolean, fatal?: boolean } = {}
+  const cause = getErrorCauseChain(error)
+  if (cause) {
+    context.cause = cause
+  }
+  try {
+    const record = error && typeof error === 'object' ? error as Record<string, unknown> : undefined
+    if (record?.unhandled === true) context.unhandled = true
+    if (record?.fatal === true) context.fatal = true
+  } catch {
+    // Keep the safe cause summary even if a flag getter fails.
+  }
+  return context
+}
 
 export function shouldAllowDebug(settings: LoggingSettings) {
   if (!settings.enabled) {
@@ -12,8 +74,13 @@ export function shouldAllowDebug(settings: LoggingSettings) {
   return settings.debug_enabled
 }
 
+export function isHealthCheckPath(pathname: string) {
+  const path = pathname.split('?', 1)[0]
+  return path === '/api/health' || path === '/api/health/'
+}
+
 export function shouldRecordAccessLog(pathname: string, statusCode: number, settings: LoggingSettings, randomValue = Math.random()) {
-  if (!settings.enabled || !settings.access_log_enabled) {
+  if (isHealthCheckPath(pathname) || !settings.enabled || !settings.access_log_enabled) {
     return false
   }
 

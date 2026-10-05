@@ -362,6 +362,7 @@ DEFINE FIELD IF NOT EXISTS timestamp ON error_logs TYPE datetime DEFAULT time::n
 DEFINE FIELD IF NOT EXISTS level ON error_logs TYPE string ASSERT $value IN ['debug', 'info', 'warn', 'error'];
 DEFINE FIELD IF NOT EXISTS message ON error_logs TYPE string;
 DEFINE FIELD IF NOT EXISTS stack ON error_logs TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS status_code ON error_logs TYPE option<int>;
 DEFINE FIELD OVERWRITE context ON error_logs TYPE option<object> FLEXIBLE;
 DEFINE FIELD IF NOT EXISTS request_id ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS path ON error_logs TYPE option<string>;

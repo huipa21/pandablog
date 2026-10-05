@@ -809,6 +809,8 @@ export interface BackupSettings {
   validate_before_restore: boolean
   /** Take an automatic safety snapshot before a restore so it can be rolled back. */
   auto_safety_snapshot: boolean
+  /** Include access logs in full/incremental DB snapshots (off by default). */
+  include_access_logs: boolean
   /** Tables excluded from a partial backup by default in the create dialog. */
   default_excluded_tables: string[]
 }
@@ -817,6 +819,7 @@ const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
   max_backups: 10,
   validate_before_restore: true,
   auto_safety_snapshot: true,
+  include_access_logs: false,
   default_excluded_tables: []
 }
 
@@ -843,6 +846,9 @@ export async function getBackupSettings(): Promise<BackupSettings> {
     auto_safety_snapshot: typeof settings.auto_safety_snapshot === 'boolean'
       ? settings.auto_safety_snapshot
       : DEFAULT_BACKUP_SETTINGS.auto_safety_snapshot,
+    include_access_logs: typeof settings.include_access_logs === 'boolean'
+      ? settings.include_access_logs
+      : DEFAULT_BACKUP_SETTINGS.include_access_logs,
     default_excluded_tables: Array.isArray(settings.default_excluded_tables)
       ? (settings.default_excluded_tables as unknown[]).filter((t): t is string => typeof t === 'string')
       : DEFAULT_BACKUP_SETTINGS.default_excluded_tables

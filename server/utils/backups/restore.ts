@@ -12,7 +12,8 @@ import { consolidateDumps, validateDumpByStaging } from './validate'
 import { clearDirectory, extractMediaTar } from './tarStream'
 import { getBackupSettings, getMediaSettings, initializeRuntimeSettings } from '../settings'
 import { initializeLoggingSettings } from '../logging'
-import { queryDb, useDb } from '../db'
+import { closeRootClient, connectRootClient, queryDb, useDb } from '../db'
+import { applySchema, SCHEMA_HASH_KEY } from '../schema'
 import { queryRows } from '../surrealResult'
 import { mediaNormalizeFileRecord } from '../mediaLibrary'
 import { mediaProcessImageBuffer } from '../imageProcessor'
@@ -117,6 +118,19 @@ async function runRestoreWork(id: string, record: BackupRecord): Promise<void> {
     // --- 6. Verify the import actually populated the database ---
     updateJobProgress({ phase: 'db-verify', percent: 52 })
     await verifyRestore()
+
+    // Table-selected exports omit the excluded table's definition too. Restore
+    // the current schema before releasing maintenance mode, even if the dump
+    // carries the current schema hash. Use ROOT, not the runtime EDITOR pool.
+    const schemaDb = await connectRootClient()
+    try {
+      await queryDb(schemaDb, 'DELETE app_settings WHERE key = $key;', { key: SCHEMA_HASH_KEY }, {
+        label: 'restore schema hash invalidation', timeoutMs: 10_000, retryOnReconnect: false
+      })
+      await applySchema(schemaDb)
+    } finally {
+      await closeRootClient(schemaDb)
+    }
 
     // --- 7. Restore the current backup history (overwrites snapshot-era rows) ---
     // A failure here does NOT corrupt the restored data, but it leaves the

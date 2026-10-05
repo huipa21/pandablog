@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
 import { bufferAccessLog, flushAccessBuffer } from './logging-access-buffer'
-import { applySettingsPatch, redactDeep, shouldAllowDebug, shouldRecordAccessLog, trimByMaxSize } from './logging-logic'
+import { deleteLogsKeepLatest, deleteLogsOlderThan, purgeLogTable } from './log-retention'
+import { applySettingsPatch, extractErrorContext, isHealthCheckPath, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog } from './logging-logic'
+import { sanitizeLogContext, writeConsoleEntry } from './log-console'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
+import { DEFAULT_LOGGING_EXCLUDED_PATHS } from '~/utils/loggingSettings'
 
 const APP_SETTINGS_TABLE = 'app_settings'
 const LOGGING_SETTINGS_KEY = 'logging'
@@ -27,6 +30,7 @@ const updateSchema = z.object({
   access_log_enabled: z.boolean().optional(),
   activity_log_enabled: z.boolean().optional(),
   error_log_enabled: z.boolean().optional(),
+  error_log_min_status: z.number().int().min(400).max(599).optional(),
   log_level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   excluded_paths: z.array(z.string().min(1)).max(200).optional(),
   excluded_status_codes: z.array(z.number().int().min(100).max(599)).max(200).optional(),
@@ -47,8 +51,9 @@ export function defaultLoggingSettings(): LoggingSettings {
     access_log_enabled: true,
     activity_log_enabled: true,
     error_log_enabled: true,
+    error_log_min_status: 500,
     log_level: 'info',
-    excluded_paths: ['/_nuxt', '/favicon', '/api/admin/logs'],
+    excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
     excluded_status_codes: [],
     redact_fields: ['password', 'token', 'authorization', 'cookie'],
     retention_access_days: 30,
@@ -75,19 +80,15 @@ export function getLoggingSettings() {
 }
 
 export function isDebugEnabled() {
-  return shouldAllowDebug(settingsCache)
+  return shouldAllowDebug({ ...settingsCache, enabled: true })
 }
 
 export function shouldLogLevel(level: LogLevel) {
-  if (!settingsCache.enabled) {
-    return false
-  }
-
   return levelPriority[level] >= levelPriority[settingsCache.log_level]
 }
 
 export function shouldExcludePath(pathname: string) {
-  return settingsCache.excluded_paths.some(prefix => pathname.startsWith(prefix))
+  return isHealthCheckPath(pathname) || settingsCache.excluded_paths.some(prefix => pathname.startsWith(prefix))
 }
 
 export function shouldExcludeStatusCode(statusCode: number) {
@@ -128,7 +129,7 @@ export async function initializeLoggingSettings() {
     settingsCache = defaultLoggingSettings()
     if (!cacheInitialized) {
       const message = error instanceof Error ? error.message : 'unknown error'
-      console.warn(`[logging] failed to load settings from DB, falling back to defaults (${message})`)
+      warn(`[logging] failed to load settings from DB, falling back to defaults (${message})`)
     }
   }
 
@@ -164,7 +165,7 @@ export function debug(message: string, data?: Record<string, unknown>) {
     return
   }
 
-  mirrorConsole('debug', message, data)
+  writeConsoleEntry({ level: 'debug', kind: 'app', msg: message, ctx: data }, settingsCache)
 }
 
 export function info(message: string, data?: Record<string, unknown>) {
@@ -172,28 +173,21 @@ export function info(message: string, data?: Record<string, unknown>) {
     return
   }
 
-  mirrorConsole('info', message, data)
+  writeConsoleEntry({ level: 'info', kind: 'app', msg: message, ctx: data }, settingsCache)
 }
 
 export function warn(message: string, data?: Record<string, unknown>) {
-  if (!shouldLogLevel('warn')) {
-    return
-  }
-
-  mirrorConsole('warn', message, data)
+  writeConsoleEntry({ level: 'warn', kind: 'app', msg: message, ctx: data }, settingsCache)
 }
 
 export function error(message: string, data?: Record<string, unknown>) {
-  if (!shouldLogLevel('error')) {
-    return
-  }
-
-  mirrorConsole('error', message, data)
+  writeConsoleEntry({ level: 'error', kind: 'app', msg: message, ctx: data }, settingsCache)
 }
 
 export function logAccess(entry: AccessLogEntry) {
   const settings = settingsCache
-  if (!shouldRecordAccessLog(entry.path, entry.status_code, settings)) {
+  // Filters and sampling apply to both sinks; enable switches control storage only.
+  if (!shouldRecordAccessLog(entry.path, entry.status_code, { ...settings, enabled: true, access_log_enabled: true })) {
     return
   }
 
@@ -202,9 +196,24 @@ export function logAccess(entry: AccessLogEntry) {
     timestamp: loggingTimestamp(entry.timestamp),
     query_params: sanitizeAndTrim(entry.query_params ?? {})
   }
+  writeConsoleEntry({
+    ts: payload.timestamp,
+    level: 'info',
+    kind: 'access_log',
+    msg: `${entry.method} ${entry.path} ${entry.status_code}`,
+    request_id: entry.request_id,
+    method: entry.method,
+    path: entry.path,
+    status: entry.status_code,
+    duration_ms: entry.response_time_ms,
+    ip: entry.ip,
+    ua: entry.user_agent,
+    ctx: { query_params: entry.query_params, referrer: entry.referrer }
+  }, settings)
+  if (!settings.enabled || !settings.access_log_enabled) {
+    return
+  }
   const dbPayload = compactLogPayload(payload)
-
-  mirrorConsole('info', 'access_log', payload)
   // Access logs are the highest-volume stream; buffer to a local file and
   // bulk-insert into the DB on view / size cap / timer instead of one write
   // per request.
@@ -213,18 +222,24 @@ export function logAccess(entry: AccessLogEntry) {
 
 export function logActivity(entry: ActivityLogEntry) {
   const settings = settingsCache
-  if (!settings.enabled || !settings.activity_log_enabled) {
-    return
-  }
-
   const payload = {
     ...entry,
     timestamp: loggingTimestamp(entry.timestamp),
     metadata: sanitizeAndTrim(entry.metadata ?? {})
   }
+  writeConsoleEntry({
+    ts: payload.timestamp,
+    level: 'info',
+    kind: 'activity_log',
+    msg: entry.description ?? entry.action,
+    request_id: entry.request_id,
+    ip: entry.ip,
+    ctx: { action: entry.action, resource_type: entry.resource_type, resource_id: entry.resource_id, metadata: entry.metadata }
+  }, settings)
+  if (!settings.enabled || !settings.activity_log_enabled) {
+    return
+  }
   const dbPayload = compactLogPayload(payload)
-
-  mirrorConsole('info', 'activity_log', payload)
   fireAndForgetDbWrite(async () => {
     const db = await useDb()
     await queryDb(
@@ -238,24 +253,42 @@ export function logActivity(entry: ActivityLogEntry) {
 
 export function logError(err: unknown, context?: Record<string, unknown>) {
   const settings = settingsCache
-  if (!settings.enabled || !settings.error_log_enabled) {
+  const statusCode = resolveErrorStatus(err, context?.status_code)
+  // Only automatic Nitro capture is filtered. Explicit application logs remain visible.
+  if (context?.source === 'nitro.error_hook' && !shouldCaptureHookError(statusCode, settings.error_log_min_status)) {
     return
   }
 
   const errorValue = normalizeError(err)
+  const errorContext: Record<string, unknown> = { ...context, ...extractErrorContext(err) }
   const payload = {
     timestamp: new Date(),
     level: errorValue.level,
     message: errorValue.message,
     stack: errorValue.stack,
+    status_code: statusCode,
     request_id: context?.request_id ? String(context.request_id) : null,
     path: context?.path ? String(context.path) : null,
     method: context?.method ? String(context.method) : null,
-    context: sanitizeAndTrim(context ?? {}) as Record<string, unknown>
+    context: sanitizeAndTrim(errorContext) as Record<string, unknown>
+  }
+  const { request_id, path, method, status_code: _statusCode, ...consoleContext } = errorContext
+  writeConsoleEntry({
+    ts: payload.timestamp,
+    level: 'error',
+    kind: 'error_log',
+    msg: errorValue.message,
+    request_id: request_id != null ? String(request_id) : undefined,
+    method: method != null ? String(method) : undefined,
+    path: path != null ? String(path) : undefined,
+    status: statusCode,
+    err,
+    ctx: consoleContext
+  }, settings)
+  if (!settings.enabled || !settings.error_log_enabled) {
+    return
   }
   const dbPayload = compactLogPayload(payload)
-
-  mirrorConsole('error', 'error_log', payload)
   fireAndForgetDbWrite(async () => {
     const db = await useDb()
     await queryDb(
@@ -273,10 +306,9 @@ export async function runManualLogCleanup(options: { type: LogCleanupType, mode:
   if (options.type === 'access') {
     await flushAccessBuffer()
   }
-  const db = await useDb()
   const deleted = options.mode === 'older_than_days'
-    ? await deleteOlderThan(db, table, new Date(Date.now() - options.value * 86_400_000))
-    : await deleteBeyondLatest(db, table, options.value)
+    ? await deleteLogsOlderThan(table, new Date(Date.now() - options.value * 86_400_000))
+    : await deleteLogsKeepLatest(table, options.value)
 
   const result: CleanupResult = {
     type: options.type,
@@ -344,13 +376,7 @@ export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
   if (type === 'access') {
     await flushAccessBuffer()
   }
-  const db = await useDb()
-  const response = await queryDb(db, `DELETE ${table} RETURN BEFORE;`, undefined, {
-    label: `purge ${type} logs`,
-    timeoutMs: 20_000
-  })
-
-  return queryRows<Record<string, unknown>>(response).length
+  return purgeLogTable(table)
 }
 
 export async function readLogById(type: 'access' | 'activity' | 'errors', id: string) {
@@ -473,6 +499,7 @@ function normalizeSettingsRecord(record: Record<string, unknown>): LoggingSettin
     access_log_enabled: asBoolean(record.access_log_enabled, defaults.access_log_enabled),
     activity_log_enabled: asBoolean(record.activity_log_enabled, defaults.activity_log_enabled),
     error_log_enabled: asBoolean(record.error_log_enabled, defaults.error_log_enabled),
+    error_log_min_status: asErrorLogMinStatus(record.error_log_min_status, defaults.error_log_min_status),
     log_level: asLogLevel(record.log_level, defaults.log_level),
     excluded_paths: asStringArray(record.excluded_paths, defaults.excluded_paths),
     excluded_status_codes: asNumberArray(record.excluded_status_codes, defaults.excluded_status_codes),
@@ -509,13 +536,12 @@ function fireAndForgetDbWrite(task: () => Promise<void>) {
   task().catch((error) => {
     dbWritesBlockedUntil = Date.now() + CIRCUIT_BREAKER_MS
     const message = error instanceof Error ? error.message : 'unknown error'
-    console.warn(`[logging] DB write failed; disabling DB writes for 60s (${message})`)
+    warn(`[logging] DB write failed; disabling DB writes for 60s (${message})`)
   })
 }
 
 function sanitizeAndTrim(input: unknown) {
-  const redacted = redactDeep(input, settingsCache.redact_fields)
-  return trimByMaxSize(redacted, settingsCache.max_metadata_size_kb)
+  return sanitizeLogContext(input, settingsCache)
 }
 
 function loggingTimestamp(value?: string) {
@@ -549,23 +575,6 @@ function normalizeError(err: unknown) {
   }
 }
 
-function mirrorConsole(level: LogLevel, message: string, data?: Record<string, unknown>) {
-  if (!settingsCache.console_output) {
-    return
-  }
-
-  const fn = level === 'debug' ? console.debug
-    : level === 'info' ? console.info
-    : level === 'warn' ? console.warn
-    : console.error
-
-  if (data && Object.keys(data).length > 0) {
-    fn(`[logging] ${message}`, data)
-  } else {
-    fn(`[logging] ${message}`)
-  }
-}
-
 function asBoolean(value: unknown, fallback: boolean) {
   return typeof value === 'boolean' ? value : fallback
 }
@@ -586,6 +595,10 @@ function asNumberArray(value: unknown, fallback: number[]) {
     : fallback
 }
 
+function asErrorLogMinStatus(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 400 && value <= 599 ? value : fallback
+}
+
 function asPositiveInt(value: unknown, fallback: number) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
     return fallback
@@ -600,33 +613,6 @@ function asSamplingRate(value: unknown, fallback: number) {
   }
 
   return value
-}
-
-async function deleteOlderThan(db: Awaited<ReturnType<typeof useDb>>, table: string, cutoff: Date | string) {
-  const response = await queryDb(
-    db,
-    `DELETE ${table} WHERE timestamp < <datetime>$cutoff RETURN BEFORE;`,
-    { cutoff: cutoff instanceof Date ? cutoff.toISOString() : cutoff },
-    { label: `cleanup ${table}`, timeoutMs: 30_000 }
-  )
-
-  return queryRows<Record<string, unknown>>(response).length
-}
-
-async function deleteBeyondLatest(db: Awaited<ReturnType<typeof useDb>>, table: string, keepLatest: number) {
-  const cutoffResponse = await queryDb(
-    db,
-    `SELECT timestamp FROM ${table} ORDER BY timestamp DESC LIMIT 1 START $keepLatest;`,
-    { keepLatest },
-    { label: `find ${table} cleanup cutoff`, timeoutMs: 15_000 }
-  )
-  const cutoff = firstRow<{ timestamp?: string | Date }>(cutoffResponse)?.timestamp
-
-  if (!cutoff) {
-    return 0
-  }
-
-  return await deleteOlderThan(db, table, cutoff)
 }
 
 function typeToTable(type: LogCleanupType) {

@@ -1,23 +1,14 @@
 import { readdir, stat, unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { getMediaSettings } from '../utils/settings'
-
-const nodeRequire = createRequire(pathToFileURL(resolve(process.cwd(), '.output/server/index.mjs')).href)
-
-interface DownloadCronLike {
-  validate: (expression: string) => boolean
-  schedule: (expression: string, task: () => void | Promise<void>) => {
-    stop: () => void
-    destroy?: () => void
-  }
-}
+import { resolveCron } from '../utils/cron'
 
 const downloadsRoot = resolve(process.cwd(), 'storage/downloads')
 
 export default defineNitroPlugin(async () => {
-  const cron = await resolveDownloadCron()
+  const cron = await resolveCron((error) => {
+    console.warn('[media] download cleanup require failed:', error instanceof Error ? error.message : error)
+  })
 
   if (!cron) {
     console.warn('[media] download cleanup scheduler disabled because node-cron could not be loaded safely')
@@ -61,30 +52,3 @@ export default defineNitroPlugin(async () => {
     }
   })
 })
-
-async function resolveDownloadCron(): Promise<DownloadCronLike | null> {
-  try {
-    return normalizeDownloadCron(nodeRequire('node-cron'))
-  } catch (error) {
-    console.warn('[media] download cleanup require failed:', error instanceof Error ? error.message : error)
-    return null
-  }
-}
-
-function normalizeDownloadCron(moduleValue: unknown): DownloadCronLike | null {
-  const maybeModule = moduleValue as {
-    default?: unknown
-    schedule?: unknown
-    validate?: unknown
-  }
-
-  const candidates = [maybeModule.default, maybeModule]
-  for (const candidate of candidates) {
-    const value = candidate as { schedule?: unknown, validate?: unknown } | undefined
-    if (value && typeof value.schedule === 'function' && typeof value.validate === 'function') {
-      return value as DownloadCronLike
-    }
-  }
-
-  return null
-}

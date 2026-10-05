@@ -490,8 +490,9 @@ A production-ready `Dockerfile` and Compose setup are included.
    backups, and public post rendering — native modules such as `sharp` and `argon2` are compiled
    for the selected base image.
 
-3. **Configure runtime env.** The production Compose file expects `NUXT_`-prefixed variables. Copy
-   the template and fill in real values:
+3. **Configure runtime env.** Nuxt runtime configuration uses `NUXT_`-prefixed variables;
+   `NODE_OPTIONS`, `LOG_CONSOLE`, and `LOG_FORMAT` use their plain names. Copy the template
+   and fill in real values:
 
    ```bash
    cp deploy/production/.env.example deploy/production/.env
@@ -510,6 +511,7 @@ A production-ready `Dockerfile` and Compose setup are included.
      --name pandablog \
      -p 127.0.0.1:3000:3000 \
      --env-file deploy/production/.env \
+     --log-driver json-file --log-opt max-size=10m --log-opt max-file=5 \
      -v pandablog-storage:/app/storage \
      pandablog:latest
    ```
@@ -527,6 +529,42 @@ Notes:
 - Bind-mount or use a volume for `/app/storage` so uploads, variants, backups, and the GeoIP
   database persist across restarts.
 - First deployment still requires opening `/admin` once to complete setup.
+
+### Container logging
+
+The production env template sets `LOG_CONSOLE=errors` and `LOG_FORMAT=json`. These are
+read at process startup, without a `NUXT_` prefix:
+
+| Variable | Values and behavior | Default |
+|---|---|---|
+| `LOG_CONSOLE` | `off`: silence the logging subsystem; `errors`: errors/warnings to stderr; `all`: also access/activity to stdout (info/debug still respect log-level/debug settings) | `errors` |
+| `LOG_FORMAT` | `json`: one JSON object per line, with escaped stack newlines; `pretty`: human-readable output | `json` when `NODE_ENV=production`, otherwise `pretty` |
+
+The admin `console_output` toggle upgrades `errors` to `all` live, but cannot override `off`.
+Console output is independent of DB storage switches; access exclusions/sampling and the
+Nitro error-status threshold still apply. These controls do not silence unrelated `console.*`
+calls outside the logging subsystem. Invalid env values fall back to the defaults with a warning.
+
+Compose uses Docker's `json-file` driver, rotating at **10 MB per file** and retaining **5 files**
+(about 50 MB per app container). This covers stdout/stderr only, not DB or `/app/storage` logs;
+oldest Docker logs are discarded on rotation. Recreate the app after changing the env file or
+logging options; `docker compose restart` alone does not apply them:
+
+```bash
+docker compose -f deploy/production/docker-compose.yml up -d --force-recreate app
+docker inspect --format '{{json .HostConfig.LogConfig}}' pandablog-app
+```
+
+Inspect should report `json-file` with `max-size: "10m"` and `max-file: "5"`. To read errors
+(requires host `jq`) or correlate a request, merge stderr and stdout and filter the JSON lines:
+
+```bash
+docker logs pandablog-app 2>&1 | grep '"kind":"error_log"' | jq .
+docker logs pandablog-app 2>&1 | grep -F '<request-id>'
+```
+
+Replace `<request-id>` with the actual ID. For the direct `docker run` example, use the container
+name `pandablog` instead. The JSON error filter requires `LOG_FORMAT=json`.
 
 ---
 

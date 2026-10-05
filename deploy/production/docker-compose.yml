@@ -8,6 +8,11 @@ services:
     pull_policy: never
     container_name: pandablog-app
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     env_file:
       - .env
     expose:

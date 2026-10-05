@@ -80,6 +80,33 @@ describe('queryDb reconnect retry policy', () => {
     expect(retryDb.query).toHaveBeenCalledWith(sql, params)
   })
 
+  it('uses dedicated ROOT for schema work even when a runtime pool is already connected', async () => {
+    vi.useFakeTimers()
+    const { queryDb, useDb, connectRootClient, closeRootClient, instances } = await loadDbModule()
+    const pool = await useDb()
+    const root = await connectRootClient()
+    await queryDb(root, 'DEFINE TABLE OVERWRITE access_logs SCHEMAFULL;', undefined, { label: 'schema repair' })
+    expect(instances).toHaveLength(2)
+    expect(instances[1]!.query).toHaveBeenCalledExactlyOnceWith('DEFINE TABLE OVERWRITE access_logs SCHEMAFULL;', undefined)
+    expect(instances[0]!.query).not.toHaveBeenCalled()
+    await closeRootClient(root)
+    expect(instances[1]!.close).toHaveBeenCalledOnce()
+    expect(await useDb()).toBe(pool)
+  })
+
+  it('does not retry a privileged failure via the lower-privilege pool', async () => {
+    vi.useFakeTimers()
+    const { queryDb, useDb, connectRootClient, instances } = await loadDbModule()
+    const pool = await useDb()
+    const root = await connectRootClient()
+    instances[1]!.query.mockRejectedValue(new Error('Not enough permissions to perform this action'))
+    await expect(queryDb(root, 'INFO FOR DB;')).rejects.toMatchObject({ statusCode: 503 })
+    expect(instances[1]!.query).toHaveBeenCalledOnce()
+    expect(instances[0]!.query).not.toHaveBeenCalled()
+    expect(instances[0]!.close).not.toHaveBeenCalled()
+    expect(await useDb()).toBe(pool)
+  })
+
   it('does not retry write queries after a socket-level failure', async () => {
     vi.useFakeTimers()
 

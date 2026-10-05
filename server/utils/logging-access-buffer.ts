@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readFile, rename, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { queryDb, useDb } from './db'
+import { writeConsoleEntry } from './log-console'
 
 /**
  * Access logs are by far the highest-volume log stream — one row per HTTP
@@ -42,7 +43,7 @@ export function bufferAccessLog(entry: Record<string, unknown>) {
       bufferedSinceFlush += 1
     })
     .catch((error) => {
-      console.warn(`[logging] access buffer append failed (${describe(error)})`)
+      writeConsoleEntry({ level: 'warn', kind: 'app', msg: `[logging] access buffer append failed (${describe(error)})` })
     })
 
   if (bufferedSinceFlush >= FLUSH_LINE_THRESHOLD) {
@@ -134,7 +135,7 @@ async function doFlush(): Promise<number> {
       requeue(remaining)
     }
     await rm(tempPath, { force: true }).catch(() => {})
-    console.warn(`[logging] access buffer flush failed after ${inserted} rows (${describe(error)})`)
+    writeConsoleEntry({ level: 'warn', kind: 'app', msg: `[logging] access buffer flush failed after ${inserted} rows (${describe(error)})` })
   }
 
   return inserted
