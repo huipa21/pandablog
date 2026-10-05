@@ -109,7 +109,7 @@ export function mediaNormalizeFileRecord(record: Record<string, unknown>): Media
     comment: stringOrNull(record.comment),
     reference_count: Number(record.reference_count ?? 0),
     referenced_by: normalizeRecordIdArray(record.referenced_by),
-    visibility: record.visibility === 'private' ? 'private' : 'public',
+    visibility: record.visibility === 'private' ? 'private' : record.visibility === 'public' ? 'public' : undefined,
     created_by: record.created_by ? stringifyRecordId(record.created_by) : null,
     uploaded_by: stringOrNull(record.uploaded_by),
     perceptual_hash: stringOrNull(record.perceptual_hash),

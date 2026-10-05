@@ -999,7 +999,9 @@ async function handleBulkDownload() {
     document.body.removeChild(link)
     adminToast.success(t('admin.media.downloadStarted'))
   } catch (err: any) {
-    adminToast.error(err, t('admin.media.downloadFailed'))
+    const status = Number(err?.statusCode ?? err?.status ?? err?.response?.status)
+    const key = status === 404 ? 'admin.media.selectionUnavailable' : status === 503 ? 'admin.media.archiveUnavailable' : 'admin.media.downloadFailed'
+    adminToast.error(null, t(key))
   }
 }
 

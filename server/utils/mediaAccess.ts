@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { appendMediaVary } from './media-cache'
 import type { SessionUser } from './users'
 import { getMediaSettings } from './settings'
 
@@ -25,7 +26,7 @@ export async function assertSameSiteMediaRequest(event: H3Event, user?: SessionU
     return
   }
 
-  setResponseHeader(event, 'Vary', 'Origin, Referer, Cookie')
+  appendMediaVary(event, ['Origin', 'Referer', 'Cookie'])
 
   if (user) {
     return

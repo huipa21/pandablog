@@ -31,6 +31,7 @@ DEFINE ANALYZER OVERWRITE blog_analyzer TOKENIZERS blank, class FILTERS lowercas
 DEFINE TABLE OVERWRITE users SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS username ON users TYPE string;
 DEFINE FIELD IF NOT EXISTS password_hash ON users TYPE string;
+DEFINE FIELD IF NOT EXISTS auth_epoch ON users TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS role ON users TYPE string DEFAULT 'viewer' ASSERT $value IN ['superadmin', 'admin', 'author', 'viewer'];
 DEFINE FIELD IF NOT EXISTS display_name ON users TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS email ON users TYPE option<string> DEFAULT NONE;
@@ -41,6 +42,7 @@ DEFINE FIELD IF NOT EXISTS totp_enabled ON users TYPE bool DEFAULT false;
 DEFINE FIELD IF NOT EXISTS totp_secret ON users TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS totp_backup_codes ON users TYPE option<array<string>> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS totp_enabled_at ON users TYPE option<datetime> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS totp_last_step ON users TYPE option<int> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS created_at ON users TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON users TYPE datetime DEFAULT time::now();
 DEFINE INDEX IF NOT EXISTS users_username_unique ON TABLE users COLUMNS username UNIQUE;
@@ -49,6 +51,7 @@ DEFINE INDEX IF NOT EXISTS users_role ON TABLE users FIELDS role;
 -- ============ TRUSTED DEVICES (MFA) ============
 DEFINE TABLE OVERWRITE trusted_devices SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS user ON trusted_devices TYPE record<users>;
+DEFINE FIELD IF NOT EXISTS auth_epoch ON trusted_devices TYPE option<string> DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS token_hash ON trusted_devices TYPE string;
 DEFINE FIELD IF NOT EXISTS label ON trusted_devices TYPE string;
 DEFINE FIELD IF NOT EXISTS user_agent ON trusted_devices TYPE option<string> DEFAULT NONE;

@@ -1,3 +1,4 @@
+import { privateMediaHeaders } from '../utils/media-cache'
 import { getSiteVisibility } from '../utils/visibility'
 import { isAuthenticated } from '../utils/auth'
 
@@ -25,6 +26,7 @@ export default defineEventHandler(async (event) => {
   const requestUrl = getRequestURL(event)
   const url = requestUrl.pathname
   const originalUrl = event.node.req.url ?? requestUrl.pathname
+  if (url.startsWith('/media/') || url.startsWith('/api/media/')) privateMediaHeaders(event)
 
   if (ALWAYS_ALLOWED_EXACT.has(url)) return
 

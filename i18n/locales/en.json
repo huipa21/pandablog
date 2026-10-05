@@ -561,6 +561,8 @@
       "bulkFolderUpdateFailed": "Bulk folder update failed",
       "downloadStarted": "Download started",
       "downloadFailed": "Download failed",
+      "selectionUnavailable": "Some selected files are unavailable or you no longer have permission to download them.",
+      "archiveUnavailable": "The archive cannot be created right now. Try again later or select fewer files.",
       "createdFolder": "Created folder \"{name}\"",
       "createFolderFailed": "Failed to create folder",
       "folderRenamed": "Folder renamed",
@@ -1233,7 +1235,7 @@
         "copyPassword": "Copy password",
         "reset": "Reset",
         "saveChanges": "Save changes",
-        "passwordChanged": "Password changed.",
+        "passwordChanged": "Password changed. The user's existing sessions and trusted devices were revoked.",
         "userUpdated": "User updated.",
         "updateFailed": "Could not update user",
         "passwordCopied": "Password copied to clipboard."
@@ -1610,9 +1612,11 @@
         "mfaOffTitle": "Two-factor authentication is off",
         "mfaOffDesc": "Add an authenticator app for stronger account protection.",
         "mfaEnable": "Enable",
+        "enrollPassword": "Current password (optional if you signed in within five minutes)",
+        "recentAuthRequired": "Sign in again or enter your current password before enabling two-factor authentication.",
         "mfaDisable": "Disable",
         "mfaDisableHelp": "Confirm your password and a current code to turn off two-factor authentication.",
-        "mfaDisabled": "Two-factor authentication disabled",
+        "mfaDisabled": "Two-factor authentication disabled. Sign in again.",
         "mfaError": "Could not update two-factor authentication",
         "trustedDevicesTitle": "Trusted devices",
         "trustedDevicesHelp": "These devices can skip the authenticator code for 30 days unless their location or browser changes.",
@@ -2046,7 +2050,7 @@
       "profileSaved": "Profile saved",
       "profileSaveFailed": "Could not save profile",
       "passwordMismatch": "Passwords do not match",
-      "passwordChanged": "Password changed",
+      "passwordChanged": "Password changed. Your sessions have been revoked; please sign in again.",
       "passwordChangeFailed": "Could not change password"
     }
   }

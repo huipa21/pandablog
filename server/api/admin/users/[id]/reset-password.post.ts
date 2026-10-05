@@ -1,3 +1,4 @@
+import { readBoundedJson } from '../../../../utils/bounded-json'
 import { requireAdminTier } from '../../../../utils/auth'
 import { assertCanManageTargetUser, assertNotSelf } from '../../../../utils/user-management'
 import { findUserById, setUserPassword } from '../../../../utils/users'
@@ -15,8 +16,9 @@ export default defineEventHandler(async (event) => {
   }
   assertNotSelf(actor, target, 'Use change password to update your own password')
 
-  const body = await readBody<{ password?: string }>(event)
-  await setUserPassword(target.id, body.password ?? '')
+  const body = await readBoundedJson(event, 8 * 1024)
+  if (typeof body.password !== 'string' || body.password.length > 200) throw createError({statusCode: 400, message: 'Invalid password input'})
+  await setUserPassword(target.id, body.password)
 
   return { ok: true }
 })

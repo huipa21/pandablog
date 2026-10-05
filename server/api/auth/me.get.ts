@@ -9,6 +9,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'Authentication required' })
   }
 
-  const { password_hash: _passwordHash, ...safeUser } = user
+  const { password_hash: _passwordHash, auth_epoch: _authEpoch, ...safeUser } = user
   return { user: safeUser }
 })

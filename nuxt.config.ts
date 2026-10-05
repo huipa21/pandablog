@@ -91,6 +91,9 @@ export default defineNuxtConfig({
     // Private on purpose: the exact build is only exposed to authenticated
     // admins via /api/admin/system/version, never in the public bundle.
     appVersion: '',
+    // Required in production for exact browser mutation origin checks. Never
+    // derive this trust boundary from forwarded request headers.
+    appOrigin: env('APP_ORIGIN', ''),
     surrealUrl: env('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
     surrealNamespace: env('SURREAL_NAMESPACE', 'main'),
     surrealDatabase: env('SURREAL_DATABASE', 'main'),
@@ -126,17 +129,11 @@ export default defineNuxtConfig({
     compressPublicAssets: {
       brotli: true,
       gzip: true
-    },
-    storage: {
-      'rate-limit': {
-        driver: 'fs',
-        base: './storage/rate-limit'
-      }
     }
   },
   routeRules: {
     '/': { cache: { maxAge: 60, swr: true, staleMaxAge: 120, varies: ['cookie'] } },
-    '/_ipx/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/_ipx/**': { headers: { 'cache-control': 'private, no-store', vary: 'Cookie' } },
     '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
   },

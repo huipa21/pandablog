@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
 
     // Don't record admin/staff page views as public analytics; their internal
     // navigation would otherwise skew traffic, geo and session metrics.
-    const sessionUser = await getSessionUser(event).catch(() => null)
+    const sessionUser = await getSessionUser(event)
     if (isAdminTier(sessionUser)) {
       return emptyTrackingResponse(event)
     }
@@ -123,7 +123,7 @@ function emptyTrackingResponse(event: Parameters<typeof setResponseStatus>[0]) {
 
 async function incrementTrackedPostView(db: Awaited<ReturnType<typeof useDb>>, event: Parameters<typeof getSessionUser>[0], slug: string) {
   try {
-    const user = await getSessionUser(event).catch(() => null)
+    const user = await getSessionUser(event)
     if (isAdminTier(user)) {
       return
     }

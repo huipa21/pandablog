@@ -1,3 +1,4 @@
+import { readBoundedJson } from '../../../../utils/bounded-json'
 import { requireAuthenticatedUser } from '../../../../utils/auth'
 import { revokeAllTrustedDevices } from '../../../../utils/mfa/trusted-devices'
 
@@ -7,6 +8,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const user = await requireAuthenticatedUser(event)
+  await readBoundedJson(event, 8 * 1024)
   await revokeAllTrustedDevices(event, user.id)
   return { ok: true }
 })

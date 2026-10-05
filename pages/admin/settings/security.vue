@@ -190,6 +190,9 @@
             :description="t('admin.settings.security.mfaOffDesc')"
           />
           <div class="flex justify-end">
+            <UFormField :label="t('admin.settings.security.enrollPassword')" name="enroll_password">
+              <UInput v-model="enrollPassword" type="password" autocomplete="current-password" />
+            </UFormField>
             <UButton color="primary" icon="i-lucide-shield-plus" :loading="mfaBusy" @click="beginEnroll">
               {{ t('admin.settings.security.mfaEnable') }}
             </UButton>
@@ -343,6 +346,7 @@ const devicesPending = ref(false)
 const devicesBusy = ref(false)
 const mfaCode = ref('')
 const disablePassword = ref('')
+const enrollPassword = ref('')
 const enrollQr = ref('')
 const enrollSecret = ref('')
 const backupCodes = ref<string[]>([])
@@ -425,7 +429,7 @@ async function revokeDevice(id: string) {
 async function revokeAllDevices() {
   devicesBusy.value = true
   try {
-    await $fetch('/api/admin/auth/devices/revoke-all', { method: 'POST' })
+    await $fetch('/api/admin/auth/devices/revoke-all', { method: 'POST', body: {} })
     trustedDevices.value = []
     adminToast.success(t('admin.settings.security.trustedDevicesRevokedAll'))
   } catch (err: any) {
@@ -453,13 +457,15 @@ async function beginEnroll() {
   resetMfaInputs()
   try {
     const response = await $fetch<{ secret: string, otpauth: string, qr: string }>('/api/admin/auth/mfa/setup', {
-      method: 'POST'
+      method: 'POST', body: {password: enrollPassword.value}
     })
+    enrollPassword.value = ''
     enrollSecret.value = response.secret
     enrollQr.value = response.qr
     mfaMode.value = 'enroll'
   } catch (err: any) {
-    adminToast.error(err, t('admin.settings.security.mfaError'))
+    if (err?.data?.data?.code === 'RECENT_AUTH_REQUIRED') adminToast.error(null, t('admin.settings.security.recentAuthRequired'))
+    else adminToast.error(err, t('admin.settings.security.mfaError'))
   } finally {
     mfaBusy.value = false
   }
@@ -485,7 +491,8 @@ async function finishMfaFlow() {
   mfaMode.value = 'idle'
   backupCodes.value = []
   resetMfaInputs()
-  await loadMfaStatus()
+  await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
+  await navigateTo('/login')
 }
 
 async function confirmDisable() {
@@ -499,7 +506,8 @@ async function confirmDisable() {
     mfaMode.value = 'idle'
     trustedDevices.value = []
     resetMfaInputs()
-    await loadMfaStatus()
+    await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
+    await navigateTo('/login')
   } catch (err: any) {
     adminToast.error(err, t('admin.settings.security.mfaError'))
   } finally {

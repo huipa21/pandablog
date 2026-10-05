@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { isIP } from 'node:net'
 import type { H3Event } from 'h3'
+import { requestAbortSignal } from '../request-abort'
 import { hashAdminPassword, verifyAdminPassword } from '../admin-password'
 import { queryDb, useDb } from '../db'
 import { queryRows, recordIdPart, stringifyRecordId } from '../surrealResult'
@@ -24,6 +25,7 @@ export interface TrustedDeviceRecord {
   id: string
   userId: string
   tokenHash: string
+  authEpoch: string
   label: string
   userAgent: string | null
   uaHash: string
@@ -52,6 +54,7 @@ interface TrustedDeviceRow {
   id?: unknown
   user?: unknown
   token_hash?: unknown
+  auth_epoch?: unknown
   label?: unknown
   user_agent?: unknown
   ua_hash?: unknown
@@ -105,7 +108,7 @@ function mapTrustedDeviceRow(row: TrustedDeviceRow): TrustedDeviceRecord | null 
   const uaHash = optionalString(row.ua_hash)
   const label = optionalString(row.label)
   const expiresAt = serializeDate(row.expires_at)
-  if (!id || !user || !tokenHash || !uaHash || !label || !expiresAt) {
+  if (!id || !user || !tokenHash || !uaHash || !label || !expiresAt || typeof row.auth_epoch !== 'string' || !/^[a-f0-9]{48}$/.test(row.auth_epoch)) {
     return null
   }
 
@@ -113,6 +116,7 @@ function mapTrustedDeviceRow(row: TrustedDeviceRow): TrustedDeviceRecord | null 
     id,
     userId: recordIdPart(user, USERS_TABLE),
     tokenHash,
+    authEpoch: row.auth_epoch,
     label,
     userAgent: optionalString(row.user_agent),
     uaHash,
@@ -247,13 +251,14 @@ export async function findMatchingTrustedDevice(event: H3Event, idOrUserRecord: 
       WHERE id = type::record($table, $id)
         AND user = type::record($userTable, $userId)
         AND expires_at > time::now()
+        AND auth_epoch IS NOT NONE AND auth_epoch = user.auth_epoch AND user.active = true
       LIMIT 1;`,
     { table: TRUSTED_DEVICES_TABLE, id: deviceId, userTable: USERS_TABLE, userId }
   )
 
   const row = queryRows<TrustedDeviceRow>(response)[0]
   const device = row ? mapTrustedDeviceRow(row) : null
-  if (!device || !await verifyAdminPassword(device.tokenHash, cookie.secret)) {
+  if (!device || !await verifyAdminPassword(device.tokenHash, cookie.secret, requestAbortSignal(event))) {
     clearTrustedDeviceCookie(event)
     return null
   }
@@ -264,11 +269,13 @@ export async function findMatchingTrustedDevice(event: H3Event, idOrUserRecord: 
 export async function issueTrustedDevice(
   event: H3Event,
   idOrUserRecord: string,
-  context?: TrustedDeviceContext
+  context: TrustedDeviceContext | undefined,
+  authEpoch: string
 ): Promise<TrustedDeviceRecord> {
+  if (!/^[a-f0-9]{48}$/.test(authEpoch)) throw createError({statusCode: 401, message: 'Authentication required'})
   const userId = normalizeUserId(idOrUserRecord)
   const secret = randomSecret()
-  const tokenHash = await hashAdminPassword(secret)
+  const tokenHash = await hashAdminPassword(secret, requestAbortSignal(event))
   const deviceContext = context ?? await resolveTrustedDeviceContext(event)
   const db = await useDb()
   const response = await queryDb(
@@ -276,6 +283,7 @@ export async function issueTrustedDevice(
     `CREATE trusted_devices CONTENT {
       user: type::record($userTable, $userId),
       token_hash: $tokenHash,
+      auth_epoch: $authEpoch,
       label: $label,
       user_agent: (IF $userAgent != NONE AND $userAgent != '' THEN $userAgent ELSE NONE END),
       ua_hash: $uaHash,
@@ -290,12 +298,13 @@ export async function issueTrustedDevice(
       userTable: USERS_TABLE,
       userId,
       tokenHash,
+      authEpoch,
       label: deriveDeviceLabel(deviceContext.userAgent),
-      userAgent: deviceContext.userAgent,
+      userAgent: deviceContext.userAgent ?? '',
       uaHash: deviceContext.uaHash,
-      ip: deviceContext.ip,
-      ipPrefix: deviceContext.ipPrefix,
-      country: deviceContext.country,
+      ip: deviceContext.ip ?? '',
+      ipPrefix: deviceContext.ipPrefix ?? '',
+      country: deviceContext.country ?? '',
       expiresAt: trustedDeviceExpiry()
     }
   )
@@ -318,9 +327,9 @@ export async function refreshTrustedDevice(
 ): Promise<void> {
   const deviceId = recordIdPart(device.id, TRUSTED_DEVICES_TABLE)
   const secret = randomSecret()
-  const tokenHash = await hashAdminPassword(secret)
+  const tokenHash = await hashAdminPassword(secret, requestAbortSignal(event))
   const db = await useDb()
-  await queryDb(
+  const refreshed = await queryDb(
     db,
     `UPDATE type::record($table, $id) MERGE {
       token_hash: $tokenHash,
@@ -331,20 +340,22 @@ export async function refreshTrustedDevice(
       ip: (IF $rebind AND $ip != NONE AND $ip != '' THEN $ip ELSE ip END),
       ip_prefix: (IF $rebind AND $ipPrefix != NONE AND $ipPrefix != '' THEN $ipPrefix ELSE ip_prefix END),
       country: (IF $rebind AND $country != NONE AND $country != '' THEN $country ELSE country END)
-    };`,
+    } WHERE auth_epoch = $authEpoch AND auth_epoch = user.auth_epoch AND user.active = true RETURN AFTER;`,
     {
       table: TRUSTED_DEVICES_TABLE,
       id: deviceId,
       tokenHash,
       expiresAt: trustedDeviceExpiry(),
       rebind: options.rebind === true,
-      userAgent: context.userAgent,
+      authEpoch: device.authEpoch,
+      userAgent: context.userAgent ?? '',
       uaHash: context.uaHash,
-      ip: context.ip,
-      ipPrefix: context.ipPrefix,
-      country: context.country
+      ip: context.ip ?? '',
+      ipPrefix: context.ipPrefix ?? '',
+      country: context.country ?? ''
     }
   )
+  if (!queryRows(refreshed).length) { clearTrustedDeviceCookie(event); throw createError({statusCode: 401, message: 'Trusted device revoked'}) }
   setTrustedDeviceCookie(event, device.id, secret)
 }
 
@@ -364,6 +375,7 @@ export async function listTrustedDevices(event: H3Event, idOrUserRecord: string)
     db,
     `SELECT * FROM trusted_devices
       WHERE user = type::record($userTable, $userId) AND expires_at > time::now()
+        AND auth_epoch IS NOT NONE AND auth_epoch = user.auth_epoch AND user.active = true
       ORDER BY last_used_at DESC;`,
     { userTable: USERS_TABLE, userId }
   )

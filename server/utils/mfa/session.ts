@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import type { SessionUser } from '../users'
+import { accountAllowedInModuleMode, getRequestAuthAccount, getSessionUser } from '../auth'
 
 // The pending MFA states live in the same sealed, httpOnly session cookie used
 // for authenticated sessions. They are short lived (5 minutes) and never grant
@@ -13,12 +14,14 @@ export interface MfaPendingState {
   userId: string
   mode: MfaPendingMode
   createdAt: string
+  authEpoch?: string // returned to server callers only; stored in session.secure
 }
 
 export interface MfaEnrollState {
   /** Plaintext base32 TOTP secret, only held during the enrollment window. */
   secret: string
   createdAt: string
+  authEpoch: string
 }
 
 interface PbSession {
@@ -26,6 +29,7 @@ interface PbSession {
   loggedInAt?: string
   mfaPending?: MfaPendingState
   mfaEnroll?: MfaEnrollState
+  secure?: {authEpoch?: string, authenticatedAt?: string}
 }
 
 function isFresh(createdAt: unknown): boolean {
@@ -33,7 +37,7 @@ function isFresh(createdAt: unknown): boolean {
   if (Number.isNaN(ts)) {
     return false
   }
-  return Date.now() - ts <= PENDING_TTL_MS
+  return ts <= Date.now() && Date.now() - ts <= PENDING_TTL_MS
 }
 
 function readPending(session: PbSession): MfaPendingState | null {
@@ -57,26 +61,35 @@ function readEnroll(session: PbSession): MfaEnrollState | null {
 
 export async function getMfaPending(event: H3Event): Promise<MfaPendingState | null> {
   const session = (await getUserSession(event)) as PbSession
-  return readPending(session)
+  const pending = readPending(session)
+  const epoch = session.secure?.authEpoch
+  if (!pending || !epoch) return null
+  const account = await getRequestAuthAccount(event, pending.userId)
+  if (!account?.active || account.auth_epoch !== epoch || !accountAllowedInModuleMode(account)) return null
+  return {...pending, authEpoch: epoch}
 }
 
-export async function setMfaPending(event: H3Event, userId: string, mode: MfaPendingMode): Promise<void> {
+export async function setMfaPending(event: H3Event, userId: string, mode: MfaPendingMode, authEpoch: string): Promise<void> {
   // Replace any prior session so a pending step never coexists with a live
   // authenticated `user` and previous enrollment material is dropped.
   await replaceUserSession(event, {
+    secure: {authEpoch},
     mfaPending: { userId, mode, createdAt: new Date().toISOString() }
   })
 }
 
-export async function setMfaEnrollSecret(event: H3Event, secret: string): Promise<void> {
+export async function setMfaEnrollSecret(event: H3Event, secret: string, authEpoch: string): Promise<void> {
   await setUserSession(event, {
-    mfaEnroll: { secret, createdAt: new Date().toISOString() }
+    mfaEnroll: { secret, authEpoch, createdAt: new Date().toISOString() }
   })
 }
 
 export async function getMfaEnrollSecret(event: H3Event): Promise<string | null> {
   const session = (await getUserSession(event)) as PbSession
-  return readEnroll(session)?.secret ?? null
+  // Enrollment can only be read by the current full/pending actor.
+  const actor = await resolveMfaActor(event)
+  const enroll = readEnroll(session)
+  return enroll?.authEpoch === actor.authEpoch ? enroll.secret : null
 }
 
 /** Drop any in-progress enrollment material while preserving an existing session. */
@@ -85,10 +98,11 @@ export async function clearMfaEnroll(event: H3Event): Promise<void> {
   if (session.user) {
     await replaceUserSession(event, {
       user: session.user,
+      secure: session.secure,
       loggedInAt: session.loggedInAt ?? new Date().toISOString()
     })
   } else if (session.mfaPending) {
-    await replaceUserSession(event, { mfaPending: session.mfaPending })
+    await replaceUserSession(event, { mfaPending: session.mfaPending, secure: session.secure })
   } else {
     await clearUserSession(event)
   }
@@ -102,15 +116,16 @@ export async function clearMfaEnroll(event: H3Event): Promise<void> {
  * `finalize` is true when the caller must issue a full login session on
  * successful activation (forced enrollment has no prior session).
  */
-export async function resolveMfaActor(event: H3Event): Promise<{ userId: string, finalize: boolean }> {
-  const session = (await getUserSession(event)) as PbSession
-  if (session.user?.id) {
-    return { userId: session.user.id, finalize: false }
+export async function resolveMfaActor(event: H3Event): Promise<{ userId: string, finalize: boolean, authEpoch: string }> {
+  const current = await getSessionUser(event)
+  if (current) {
+    const session = await getUserSession(event)
+    return {userId: current.id, finalize: false, authEpoch: (session.secure as {authEpoch: string}).authEpoch}
   }
 
-  const pending = readPending(session)
+  const pending = await getMfaPending(event)
   if (pending && pending.mode === 'enroll') {
-    return { userId: pending.userId, finalize: true }
+    return { userId: pending.userId, finalize: true, authEpoch: pending.authEpoch! }
   }
 
   throw createError({ statusCode: 401, message: 'Authentication required' })

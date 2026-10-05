@@ -1,40 +1,26 @@
-import { createReadStream } from 'node:fs'
-import { access, stat } from 'node:fs/promises'
-import { resolve, basename } from 'node:path'
-import { requireContentManager } from '../../../utils/auth'
+import { requireContentManager, getRequestAuthAccount } from '../../../utils/auth'
+import { useDb } from '../../../utils/db'
+import { authorizedArchiveFiles } from '../../../utils/media-archive-policy'
+import { mediaArchiveStore } from '../../../utils/media-archives'
+import { privateMediaHeaders } from '../../../utils/media-cache'
 
-const downloadsRoot = resolve(process.cwd(), 'storage/downloads')
-
-export default defineEventHandler(async (event) => {
-  await requireContentManager(event)
+export default defineEventHandler(async event => {
+  privateMediaHeaders(event)
+  const user = await requireContentManager(event)
+  const account = await getRequestAuthAccount(event, user.id)
   const filename = getRouterParam(event, 'filename') ?? ''
-
-  // Validate filename to prevent path traversal
-  if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-    throw createError({ statusCode: 400, message: 'Invalid filename' })
-  }
-
-  const filePath = resolve(downloadsRoot, filename)
-
-  // Ensure resolved path is inside downloads root
-  if (!filePath.startsWith(downloadsRoot)) {
-    throw createError({ statusCode: 400, message: 'Invalid filename' })
-  }
-
-  try {
-    await access(filePath)
-  } catch {
-    throw createError({ statusCode: 404, message: 'Download file not found' })
-  }
-
-  const fileStat = await stat(filePath)
-
+  let meta
+  try {meta = await mediaArchiveStore().authorize(filename, user.id, account?.auth_epoch ?? '')}
+  catch {throw createError({statusCode: 404, message: 'Download file not found'})}
+  await authorizedArchiveFiles(await useDb(), meta.hashes, user, false)
   setResponseHeaders(event, {
-    'Content-Type': 'application/zip',
-    'Content-Disposition': `attachment; filename="${basename(filename)}"`,
-    'Content-Length': String(fileStat.size),
-    'Cache-Control': 'no-cache'
+    'Content-Type': 'application/zip', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `attachment; filename="${filename}"`,
+    'Content-Length': String(meta.bytes)
   })
-
-  return sendStream(event, createReadStream(filePath))
+  let stream
+  try {stream = mediaArchiveStore().stream(filename)} catch {
+    setResponseHeader(event, 'Retry-After', 1)
+    throw createError({statusCode: 503, message: 'Download capacity exceeded'})
+  }
+  return sendStream(event, stream)
 })

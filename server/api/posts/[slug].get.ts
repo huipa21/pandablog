@@ -107,16 +107,8 @@ function toPostVisibility(value: unknown): PostVisibility {
 }
 
 async function getContentManagerSession(event: Parameters<typeof getSessionUser>[0]) {
-  try {
-    const user = await getSessionUser(event)
-    if (!user || !isContentManagerRole(user.role)) {
-      return null
-    }
-
-    return user
-  } catch {
-    return null
-  }
+  const user = await getSessionUser(event)
+  return user && isContentManagerRole(user.role) ? user : null
 }
 
 function isContentManagerRole(value: unknown) {

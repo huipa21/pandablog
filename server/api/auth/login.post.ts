@@ -1,5 +1,8 @@
+import { readBoundedJson } from '../../utils/bounded-json'
+import { accountAllowedInModuleMode } from '../../utils/auth'
 import { recordActivity } from '../../utils/activity'
-import { checkLoginRateLimit, recordLoginAttempt } from '../../utils/rate-limit'
+import { requestAbortSignal } from '../../utils/request-abort'
+import { reserveAuthAttempt } from '../../utils/rate-limit'
 import { alertDetailsFromEvent, dispatchSecurityAlert } from '../../utils/notify/security-alert'
 import { setMfaPending } from '../../utils/mfa/session'
 import { getUserMfaState } from '../../utils/mfa/store'
@@ -13,9 +16,12 @@ const MFA_ENFORCED_ROLES: readonly UserRole[] = ['superadmin', 'admin']
 
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ username?: string, password?: string }>(event)
-  const username = body.username?.trim() ?? ''
-  const password = body.password ?? ''
+  const body = await readBoundedJson(event, 8 * 1024)
+  if (typeof body?.username !== 'string' || body.username.length > 64 || typeof body.password !== 'string' || body.password.length > 200) {
+    throw createError({statusCode: 400, message: 'Invalid credentials'})
+  }
+  const username = body.username.trim()
+  const password = body.password
   const runtimeFlags = getRuntimeFlags()
 
   // ---- IP resolution -------------------------------------------------------
@@ -28,19 +34,16 @@ export default defineEventHandler(async (event) => {
         message: 'Could not resolve client IP. Check reverse proxy configuration.'
       })
     }
-    console.warn('⚠️  [auth] Could not resolve client IP; rate limiting will be skipped for this request.')
+    // Missing development IP shares a finite fallback budget; never skip admission.
   }
 
-  // ---- Rate limit (skipped only when ip is null in dev) --------------------
-  if (ip) {
-    const rate = await checkLoginRateLimit(ip)
-    if (!rate.allowed) {
-      setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
-      throw createError({
-        statusCode: 429,
-        message: `Too many attempts. Try again in ${rate.retryAfterSec}s.`
-      })
-    }
+  // Reserve BOTH dimensions before DB/password/MFA work. Final successes do
+  // not clear fixed windows; a correct first factor is not completed MFA.
+  const rate = await reserveAuthAttempt('login', ip ?? 'noip', username || '(invalid-account)')
+  if (!rate.allowed) {
+    setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
+    dispatchSecurityAlert('login.locked', alertDetailsFromEvent(event, {username, reason: 'Login attempt budget exhausted'}))
+    throw createError({statusCode: 429, message: 'Too many login attempts'})
   }
 
   // ---- Config sanity check -------------------------------------------------
@@ -52,14 +55,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // ---- Verify credentials --------------------------------------------------
-  const account = await findUserByUsername(username).catch(() => null)
-  const passwordOk = await verifyUserPassword(account, password)
-  const isValid = Boolean(account?.active && passwordOk)
-
-  // ---- Record attempt (only when we have an IP) ----------------------------
-  if (ip) {
-    await recordLoginAttempt(ip, isValid)
-  }
+  const account = await findUserByUsername(username)
+  const passwordOk = await verifyUserPassword(account, password, requestAbortSignal(event))
+  const isValid = Boolean(account?.active && /^[a-f0-9]{48}$/.test(account.auth_epoch) && accountAllowedInModuleMode(account) && passwordOk)
 
   if (!isValid) {
     recordActivity(event, {
@@ -73,25 +71,6 @@ export default defineEventHandler(async (event) => {
       username: username || null,
       reason: 'Invalid username or password'
     }))
-
-    // If this failure just pushed the IP over the lockout threshold, surface a
-    // distinct lockout alert/audit entry (only fires once, on the locking hit).
-    if (ip) {
-      const afterAttempt = await checkLoginRateLimit(ip)
-      if (!afterAttempt.allowed) {
-        recordActivity(event, {
-          action: 'auth.login.locked',
-          resource_type: 'session',
-          resource_id: null,
-          metadata: { username: username || null, retry_after_sec: afterAttempt.retryAfterSec },
-          description: 'Login locked after repeated failures'
-        })
-        dispatchSecurityAlert('login.locked', alertDetailsFromEvent(event, {
-          username: username || null,
-          reason: `Locked for ${afterAttempt.retryAfterSec}s after repeated failures`
-        }))
-      }
-    }
 
     throw createError({ statusCode: 401, message: 'Invalid username or password' })
   }
@@ -111,7 +90,8 @@ export default defineEventHandler(async (event) => {
       if (trustedDevice) {
         const trustedContext = await resolveTrustedDeviceContext(event)
         if (trustedDeviceContextMatches(trustedDevice, trustedContext)) {
-          await setUserSession(event, {
+          await replaceUserSession(event, {
+            secure: {authEpoch: account!.auth_epoch, authenticatedAt: new Date().toISOString()},
             user,
             loggedInAt: new Date().toISOString()
           })
@@ -138,18 +118,19 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      await setMfaPending(event, user.id, 'verify')
+      await setMfaPending(event, user.id, 'verify', account!.auth_epoch)
       return { mfa_required: true }
     }
 
     const security = getSecuritySettings()
     if (security.security_mfa_required_for_admins && MFA_ENFORCED_ROLES.includes(user.role)) {
-      await setMfaPending(event, user.id, 'enroll')
+      await setMfaPending(event, user.id, 'enroll', account!.auth_epoch)
       return { mfa_enrollment_required: true }
     }
   }
 
-  await setUserSession(event, {
+  await replaceUserSession(event, {
+    secure: {authEpoch: account!.auth_epoch, authenticatedAt: new Date().toISOString()},
     user,
     loggedInAt: new Date().toISOString()
   })

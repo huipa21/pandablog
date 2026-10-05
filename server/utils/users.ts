@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { adminPasswordProblem, hashAdminPassword, verifyAdminPassword } from './admin-password'
 import { queryDb, queryDbRecord, useDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
@@ -24,6 +25,19 @@ export interface UserRecord {
 
 export interface UserWithPassword extends UserRecord {
   password_hash: string
+  auth_epoch: string
+}
+export function newAuthEpoch() { return randomBytes(24).toString('hex') }
+export type AuthAccount = SessionUser & { active: boolean, auth_epoch: string }
+
+export async function findAuthAccountById(value: string): Promise<AuthAccount | null> {
+  if (!/^users:[a-z0-9._-]{3,64}$/.test(value)) return null
+  const db = await useDb()
+  const row = firstRow<Record<string, unknown>>(await queryDb(db,
+    'SELECT id, username, role, active, auth_epoch, display_name, avatar FROM type::record($table, $id);',
+    {table: USERS_TABLE, id: recordIdPart(value, USERS_TABLE)}, {retryOnReconnect: false, label: 'current identity lookup'}))
+  if (!row || !isUserRole(row.role) || typeof row.auth_epoch !== 'string' || !/^[a-f0-9]{48}$/.test(row.auth_epoch)) return null
+  return {...toSessionUser(normalizeUser(row)), active: row.active === true, auth_epoch: row.auth_epoch}
 }
 
 export interface SessionUser {
@@ -134,12 +148,12 @@ export async function hashUserPassword(password: string) {
   return hashAdminPassword(password)
 }
 
-export async function verifyUserPassword(user: UserWithPassword | null, password: string) {
+export async function verifyUserPassword(user: UserWithPassword | null, password: string, signal?: AbortSignal) {
   if (!user?.password_hash) {
     return false
   }
 
-  return verifyAdminPassword(user.password_hash, password)
+  return verifyAdminPassword(user.password_hash, password, signal)
 }
 
 export function normalizeUser(record: Record<string, unknown>): UserRecord {
@@ -162,7 +176,8 @@ export function normalizeUser(record: Record<string, unknown>): UserRecord {
 export function normalizeUserWithPassword(record: Record<string, unknown>): UserWithPassword {
   return {
     ...normalizeUser(record),
-    password_hash: String(record.password_hash ?? '')
+    password_hash: String(record.password_hash ?? ''),
+    auth_epoch: typeof record.auth_epoch === 'string' ? record.auth_epoch : ''
   }
 }
 
@@ -258,8 +273,11 @@ export async function listUsers(): Promise<UserRecord[]> {
 }
 
 export async function createUser(input: CreateUserInput): Promise<UserRecord> {
+  const username = normalizeUsername(input.username)
+  if (!isUserRole(input.role)) throw createError({statusCode: 400, message: 'Invalid role'})
   return createUserWithPasswordHash({
     ...input,
+    username,
     password_hash: await hashUserPassword(input.password)
   })
 }
@@ -285,7 +303,8 @@ export async function createUserWithPasswordHash(input: CreateUserWithHashInput)
   const db = await useDb()
   const response = await queryDb(
     db,
-    `UPSERT type::record($table, $id) CONTENT {
+    `CREATE type::record($table, $id) CONTENT {
+      auth_epoch: $authEpoch,
       username: $username,
       password_hash: $passwordHash,
       role: $role,
@@ -302,6 +321,7 @@ export async function createUserWithPasswordHash(input: CreateUserWithHashInput)
       id: userRecordId(username),
       username,
       passwordHash: input.password_hash,
+      authEpoch: newAuthEpoch(),
       role,
       displayName,
       email,
@@ -353,8 +373,12 @@ export async function updateUser(idOrUsername: string, input: UpdateUserInput): 
     params.active = input.active === true
   }
 
+  if (input.role !== undefined || input.active !== undefined) {
+    updates.push('auth_epoch: $authEpoch')
+    params.authEpoch = newAuthEpoch()
+  }
   const db = await useDb()
-  const response = await queryDb(db, `UPDATE type::record($table, $id) MERGE { ${updates.join(', ')} };`, params)
+  const response = await queryDb(db, `UPDATE type::record($table, $id) MERGE { ${updates.join(', ')} };`, params, {retryOnReconnect: false})
 
   const row = firstRow<Record<string, unknown>>(response)
   if (!row) {
@@ -364,22 +388,24 @@ export async function updateUser(idOrUsername: string, input: UpdateUserInput): 
   return normalizeUser(row)
 }
 
-export async function setUserPassword(idOrUsername: string, password: string): Promise<void> {
-  await setUserPasswordHash(idOrUsername, await hashUserPassword(password))
+export async function setUserPassword(idOrUsername: string, password: string, expectedEpoch?: string): Promise<void> {
+  await setUserPasswordHash(idOrUsername, await hashUserPassword(password), expectedEpoch)
 }
 
-export async function setUserPasswordHash(idOrUsername: string, passwordHash: string): Promise<void> {
+export async function setUserPasswordHash(idOrUsername: string, passwordHash: string, expectedEpoch?: string): Promise<void> {
   if (!passwordHash) {
     throw createError({ statusCode: 400, message: 'Password hash is required' })
   }
 
   const id = recordIdPart(idOrUsername, USERS_TABLE) || userRecordId(idOrUsername)
   const db = await useDb()
-  const response = await queryDb(db, 'UPDATE type::record($table, $id) MERGE { password_hash: $passwordHash, updated_at: time::now() };', {
+  const response = await queryDb(db, `UPDATE type::record($table, $id) MERGE { password_hash: $passwordHash, auth_epoch: $authEpoch, updated_at: time::now() } ${expectedEpoch ? 'WHERE active = true AND auth_epoch = $expectedEpoch' : ''};`, {
     table: USERS_TABLE,
     id,
-    passwordHash
-  })
+    passwordHash,
+    authEpoch: newAuthEpoch(),
+    expectedEpoch
+  }, {retryOnReconnect: false})
 
   if (!firstRow<Record<string, unknown>>(response)) {
     throw createError({ statusCode: 404, message: 'User not found' })

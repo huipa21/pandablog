@@ -11,6 +11,6 @@ export default defineEventHandler(async (event) => {
   }
 
   assertCanManageTargetUser(actor, user)
-  const { password_hash: _passwordHash, ...safeUser } = user
+  const { password_hash: _passwordHash, auth_epoch: _authEpoch, ...safeUser } = user
   return { user: safeUser }
 })

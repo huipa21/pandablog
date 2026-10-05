@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import { getRequestHeader, getRequestIP } from 'h3'
-import { assertHostIsPublic } from '../net/private-ip'
+import { safeOutboundRequest } from '../net/outbound'
 import { getRuntimeFlags, getSecuritySettings } from '../settings'
 
 export type SecurityAlertEvent = 'login.failed' | 'login.locked' | 'login.success' | 'test'
@@ -24,6 +24,9 @@ interface SecurityAlertPayload {
 }
 
 const WEBHOOK_TIMEOUT_MS = 4_000
+let activeWebhooks = 0
+let droppedAlerts = 0
+export function securityAlertDiagnostics() { return { active: activeWebhooks, dropped: droppedAlerts, maxActive: 2, maxWaiting: 0 } }
 
 const EVENT_MESSAGE: Record<SecurityAlertEvent, string> = {
   'login.failed': 'Failed admin login attempt',
@@ -52,10 +55,10 @@ function buildPayload(event: SecurityAlertEvent, details: SecurityAlertDetails):
     event,
     message: EVENT_MESSAGE[event],
     timestamp: new Date().toISOString(),
-    username: details.username ?? null,
-    ip: details.ip ?? null,
-    user_agent: details.userAgent ?? null,
-    reason: details.reason ?? null
+    username: details.username?.slice(0, 64) ?? null,
+    ip: details.ip?.slice(0, 64) ?? null,
+    user_agent: details.userAgent?.slice(0, 512) ?? null,
+    reason: details.reason?.slice(0, 512) ?? null
   }
 }
 
@@ -65,35 +68,18 @@ function buildPayload(event: SecurityAlertEvent, details: SecurityAlertDetails):
  * "send test alert" endpoint so the operator sees the error.
  */
 export async function deliverSecurityWebhook(url: string, payload: SecurityAlertPayload): Promise<void> {
-  let parsed: URL
+  if (activeWebhooks >= 2) { droppedAlerts++; throw new Error('Webhook capacity exceeded') }
+  activeWebhooks++
   try {
-    parsed = new URL(url)
-  } catch {
-    throw new Error('Invalid webhook URL')
-  }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error('Webhook URL must be http(s)')
-  }
-
-  // Block private/loopback/link-local targets to avoid SSRF into internal hosts.
-  await assertHostIsPublic(parsed.hostname)
-
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS)
-  try {
-    const response = await fetch(parsed.toString(), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-      redirect: 'error',
-      signal: controller.signal
+    await safeOutboundRequest(url, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload), maxRedirects: 0,
+      timeoutMs: WEBHOOK_TIMEOUT_MS, statusOnly: true
     })
-    if (!response.ok) {
-      throw new Error(`Webhook responded with HTTP ${response.status}`)
-    }
-  } finally {
-    clearTimeout(timer)
-  }
+  } catch {
+    // Socket/TLS errors may include the sensitive webhook hostname/path.
+    throw new Error('Webhook delivery failed')
+  } finally { activeWebhooks-- }
 }
 
 /**
@@ -117,8 +103,11 @@ export function dispatchSecurityAlert(
   }
 
   const payload = buildPayload(event, details)
-  void deliverSecurityWebhook(settings.security_alert_webhook_url, payload).catch((error: unknown) => {
-    console.warn('[security-alert] webhook delivery failed:', error instanceof Error ? error.message : error)
+  // Drop without launching another promise/log on storms. Diagnostics are
+  // finite scalars; there is no hostname/key map or retained payload queue.
+  if (activeWebhooks >= 2) { droppedAlerts++; return }
+  void deliverSecurityWebhook(settings.security_alert_webhook_url, payload).catch(() => {
+    console.warn('[security-alert] webhook delivery failed')
   })
 }
 

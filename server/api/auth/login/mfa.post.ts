@@ -1,10 +1,11 @@
+import { readBoundedJson } from '../../../utils/bounded-json'
 import { recordActivity } from '../../../utils/activity'
-import { consumeRateLimit } from '../../../utils/rate-limit'
+import { requestAbortSignal } from '../../../utils/request-abort'
+import { reserveAuthAttempt } from '../../../utils/rate-limit'
 import { alertDetailsFromEvent, dispatchSecurityAlert } from '../../../utils/notify/security-alert'
 import { getMfaPending } from '../../../utils/mfa/session'
-import { getUserMfaState, setUserBackupCodes } from '../../../utils/mfa/store'
-import { decryptMfaSecret } from '../../../utils/mfa/secret-crypto'
-import { matchBackupCode, verifyTotpToken } from '../../../utils/mfa/totp'
+import { getUserMfaState } from '../../../utils/mfa/store'
+import { consumeMfaFactor } from '../../../utils/mfa/factor'
 import { issueTrustedDevice, rebindCurrentTrustedDevice, resolveTrustedDeviceContext } from '../../../utils/mfa/trusted-devices'
 import { getRuntimeFlags } from '../../../utils/settings'
 import { findUserById, toSessionUser, touchUserLogin } from '../../../utils/users'
@@ -14,8 +15,9 @@ import { findUserById, toSessionUser, touchUserLogin } from '../../../utils/user
 // then issue the full authenticated session. Rate limited per IP+user so a
 // pending token cannot be brute forced.
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ code?: string, trustDevice?: boolean }>(event)
-  const code = String(body?.code ?? '').trim()
+  const body = await readBoundedJson(event, 8 * 1024)
+  if (typeof body?.code !== 'string' || body.code.length > 64 || (body.trustDevice !== undefined && typeof body.trustDevice !== 'boolean')) throw createError({statusCode: 400, message: 'Invalid MFA code'})
+  const code = body.code.trim()
 
   const pending = await getMfaPending(event)
   if (!pending || pending.mode !== 'verify') {
@@ -23,10 +25,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const ip = getRequestIP(event, { xForwardedFor: getRuntimeFlags().trust_proxy_headers }) ?? 'noip'
-  const rate = await consumeRateLimit('login-mfa', `${ip}:${pending.userId}`, {
-    limit: 10,
-    windowMs: 15 * 60 * 1000
-  })
+  const rate = await reserveAuthAttempt('mfa', ip, pending.userId)
   if (!rate.allowed) {
     setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
     throw createError({ statusCode: 429, message: `Too many attempts. Try again in ${rate.retryAfterSec}s.` })
@@ -34,23 +33,12 @@ export default defineEventHandler(async (event) => {
 
   const account = await findUserById(pending.userId)
   const state = await getUserMfaState(pending.userId)
-  if (!account || !account.active || !state?.enabled || !state.secret) {
+  if (!account || !account.active || account.auth_epoch !== pending.authEpoch || !state?.enabled || !state.secret) {
     await clearUserSession(event)
     throw createError({ statusCode: 401, message: 'No pending login. Sign in again.' })
   }
 
-  // TOTP first, then fall back to a one-time backup code.
-  let ok = await verifyTotpToken(decryptMfaSecret(state.secret), code)
-  let usedBackupCode = false
-  if (!ok) {
-    const backupIndex = await matchBackupCode(state.backupCodes, code)
-    if (backupIndex >= 0) {
-      ok = true
-      usedBackupCode = true
-      const remaining = state.backupCodes.filter((_, index) => index !== backupIndex)
-      await setUserBackupCodes(pending.userId, remaining)
-    }
-  }
+  const {ok, usedBackupCode} = await consumeMfaFactor(pending.userId, pending.authEpoch!, state, code, requestAbortSignal(event))
 
   if (!ok) {
     recordActivity(event, {
@@ -70,6 +58,7 @@ export default defineEventHandler(async (event) => {
   const user = toSessionUser(account)
   const trustedContext = await resolveTrustedDeviceContext(event)
   await replaceUserSession(event, {
+    secure: {authEpoch: account.auth_epoch, authenticatedAt: new Date().toISOString()},
     user,
     loggedInAt: new Date().toISOString()
   })
@@ -77,7 +66,7 @@ export default defineEventHandler(async (event) => {
   try {
     reboundTrustedDevice = await rebindCurrentTrustedDevice(event, user.id, trustedContext)
     if (!reboundTrustedDevice && body?.trustDevice === true) {
-      await issueTrustedDevice(event, user.id, trustedContext)
+      await issueTrustedDevice(event, user.id, trustedContext, account.auth_epoch)
     }
   } catch (error) {
     console.warn('[auth.mfa] trusted device update failed; login continues', error)

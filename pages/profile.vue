@@ -191,6 +191,7 @@ async function changePassword() {
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
     passwordNotice.value = t('public.profile.passwordChanged')
+    await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
   } catch (error: any) {
     passwordError.value = error?.data?.message ?? error?.message ?? t('public.profile.passwordChangeFailed')
   } finally {

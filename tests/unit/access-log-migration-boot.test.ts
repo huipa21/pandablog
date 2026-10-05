@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   initializeRuntimeSettings: vi.fn(), initializeAnalyticsSettings: vi.fn(), initializeSecuritySettings: vi.fn(),
   reloadLoggingSettings: vi.fn(), getLoggingSettings: vi.fn(), defaultLoggingSettings: vi.fn(), writeConsoleEntry: vi.fn()
 }))
+vi.mock('../../server/utils/setup-authority', () => ({setupAuthority: () => ({status: async () => ({completed: true})})}))
 vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/settings', () => mocks)
 vi.mock('../../server/utils/logging', () => mocks)
@@ -51,6 +52,7 @@ beforeEach(async () => {
   mocks.getLoggingSettings.mockReturnValue({ retention_access_days: 30, redact_fields: ['password', 'token'], max_metadata_size_kb: 50 })
   mocks.queryDb.mockImplementation(async (db, sql: string, params?: Record<string, unknown>, options?: { label: string }) => {
     if (options?.label === failLabel) throw new Error('injected query failure')
+    if (options?.label === 'auth epoch migration page') return [[]] // unrelated users already migrated
     if (sql === 'INFO FOR DB;') return [{ tables: table ? { access_logs: 'schemafull' } : {} }]
     if (sql === 'REMOVE TABLE access_logs;') {
       expect(db).toBe(rootDb)

@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { privateMediaHeaders } from './media-cache'
 import { getSessionUser } from './auth'
 import { queryDbRecord, useDb } from './db'
 import { mediaCreateOriginalStream, mediaCreateVariantStream, mediaStatOriginal, mediaStatVariant } from './fileStorage'
@@ -36,6 +37,7 @@ function applyContentTypeGuards(event: H3Event, mimeType: string, originalName: 
 
 
 export async function serveOriginalMedia(event: H3Event, id: string, options: { localOnly?: boolean } = {}) {
+  privateMediaHeaders(event)
   if (options.localOnly) {
     await assertLocalMediaRequest(event)
   }
@@ -59,7 +61,6 @@ export async function serveOriginalMedia(event: H3Event, id: string, options: { 
     const stats = await mediaStatOriginal(file.original_path || '')
     const isDownload = getQuery(event).download === 'true'
     setResponseHeader(event, 'Content-Length', stats.size)
-    setResponseHeader(event, 'Cache-Control', isDownload ? 'no-cache' : 'public, max-age=31536000, immutable')
     applyContentTypeGuards(event, file.mime_type || 'application/octet-stream', file.original_name, isDownload)
     return sendStream(event, mediaCreateOriginalStream(file.original_path || ''))
   } catch {
@@ -68,6 +69,7 @@ export async function serveOriginalMedia(event: H3Event, id: string, options: { 
 }
 
 export async function serveMediaVariant(event: H3Event, id: string, size: string, options: { localOnly?: boolean } = {}) {
+  privateMediaHeaders(event)
   if (options.localOnly) {
     await assertLocalMediaRequest(event)
   }
@@ -101,8 +103,8 @@ export async function serveMediaVariant(event: H3Event, id: string, size: string
   try {
     const stats = await mediaStatVariant(variant.path)
     setResponseHeader(event, 'Content-Type', variant.mime_type || 'image/webp')
+    setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
     setResponseHeader(event, 'Content-Length', stats.size)
-    setResponseHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
     return sendStream(event, mediaCreateVariantStream(variant.path))
   } catch {
     throw createError({ statusCode: 404, message: 'Variant not found on disk' })

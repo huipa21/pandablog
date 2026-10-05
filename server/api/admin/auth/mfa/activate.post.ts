@@ -1,3 +1,6 @@
+import { reserveAuthAttempt } from '../../../../utils/rate-limit'
+import { requestAbortSignal } from '../../../../utils/request-abort'
+import { readBoundedJson } from '../../../../utils/bounded-json'
 import { recordActivity } from '../../../../utils/activity'
 import { alertDetailsFromEvent, dispatchSecurityAlert } from '../../../../utils/notify/security-alert'
 import { clearMfaEnroll, getMfaEnrollSecret, resolveMfaActor } from '../../../../utils/mfa/session'
@@ -12,10 +15,13 @@ import { findUserById, toSessionUser, touchUserLogin } from '../../../../utils/u
 // returned exactly once. When enrollment was forced at login (no prior
 // session), a full authenticated session is issued on success.
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ code?: string, trustDevice?: boolean }>(event)
-  const code = String(body?.code ?? '').trim()
+  const body = await readBoundedJson(event, 8 * 1024)
+  if (typeof body.code !== 'string' || body.code.length > 64 || (body.trustDevice !== undefined && typeof body.trustDevice !== 'boolean')) throw createError({statusCode: 400, message: 'Invalid MFA input'})
+  const code = body.code.trim()
 
-  const { userId, finalize } = await resolveMfaActor(event)
+  const { userId, finalize, authEpoch } = await resolveMfaActor(event)
+  const rate = await reserveAuthAttempt('mfa', getRequestIP(event, {xForwardedFor: true}) ?? 'noip', userId)
+  if (!rate.allowed) {setResponseHeader(event, 'Retry-After', rate.retryAfterSec); throw createError({statusCode: 429, message: 'Too many MFA attempts'})}
 
   const existing = await getUserMfaState(userId)
   if (existing?.enabled) {
@@ -27,18 +33,21 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Enrollment has expired. Start again.' })
   }
 
-  if (!await verifyTotpToken(secret, code)) {
+  const step = await verifyTotpToken(secret, code)
+  if (step === null) {
     throw createError({ statusCode: 400, message: 'Invalid verification code' })
   }
 
-  const user = await findUserById(userId)
-  if (!user) {
+  let user = await findUserById(userId)
+  if (!user?.active) {
     throw createError({ statusCode: 404, message: 'User not found' })
   }
 
-  const backupCodes = await generateBackupCodes()
-  await enableUserMfa(userId, {
-    encryptedSecret: encryptMfaSecret(secret),
+  const backupCodes = await generateBackupCodes(requestAbortSignal(event))
+  const enabledEpoch = await enableUserMfa(userId, {
+    authEpoch,
+    initialStep: step,
+    encryptedSecret: await encryptMfaSecret(secret),
     backupCodeHashes: backupCodes.hashes
   })
 
@@ -50,16 +59,19 @@ export default defineEventHandler(async (event) => {
     description: 'Multi-factor authentication enabled'
   })
 
+  user = await findUserById(userId)
+  if (!user?.active || user.auth_epoch !== enabledEpoch) throw createError({statusCode: 401, message: 'Authentication required'})
   if (finalize) {
     // Forced enrollment: finalize the login that was held pending.
     const sessionUser = toSessionUser(user)
     await replaceUserSession(event, {
+      secure: {authEpoch: user.auth_epoch, authenticatedAt: new Date().toISOString()},
       user: sessionUser,
       loggedInAt: new Date().toISOString()
     })
     if (body?.trustDevice === true) {
       try {
-        await issueTrustedDevice(event, sessionUser.id, await resolveTrustedDeviceContext(event))
+        await issueTrustedDevice(event, sessionUser.id, await resolveTrustedDeviceContext(event), user.auth_epoch)
       } catch (error) {
         console.warn('[auth.mfa.activate] trusted device issue failed; login continues', error)
       }
@@ -83,6 +95,7 @@ export default defineEventHandler(async (event) => {
 
   // Self-service enrollment: keep the current session, drop the pending secret.
   await clearMfaEnroll(event)
+  await clearUserSession(event) // MFA security change revokes this session too
 
   return { enabled: true, backup_codes: backupCodes.plain }
 })

@@ -561,6 +561,8 @@
       "bulkFolderUpdateFailed": "批量更新文件夹失败",
       "downloadStarted": "下载已开始",
       "downloadFailed": "下载失败",
+      "selectionUnavailable": "部分所选文件不可用，或您已无权下载这些文件。",
+      "archiveUnavailable": "暂时无法创建压缩包，请稍后重试或减少所选文件数量。",
       "createdFolder": "已创建文件夹“{name}”",
       "createFolderFailed": "创建文件夹失败",
       "folderRenamed": "文件夹已重命名",
@@ -1220,7 +1222,7 @@
         "copyPassword": "复制密码",
         "reset": "重置",
         "saveChanges": "保存更改",
-        "passwordChanged": "密码已修改。",
+        "passwordChanged": "密码已修改。该用户的现有会话与受信任设备已撤销。",
         "userUpdated": "用户已更新。",
         "updateFailed": "无法更新用户",
         "passwordCopied": "密码已复制到剪贴板。"
@@ -1597,9 +1599,11 @@
         "mfaOffTitle": "两步验证已关闭",
         "mfaOffDesc": "添加身份验证器应用以增强账户安全。",
         "mfaEnable": "启用",
+        "enrollPassword": "当前密码（五分钟内已登录时可不填）",
+        "recentAuthRequired": "启用两步验证前，请重新登录或输入当前密码。",
         "mfaDisable": "关闭",
         "mfaDisableHelp": "确认你的密码和当前验证码以关闭两步验证。",
-        "mfaDisabled": "两步验证已关闭",
+        "mfaDisabled": "两步验证已关闭，请重新登录。",
         "mfaError": "无法更新两步验证",
         "trustedDevicesTitle": "受信任设备",
         "trustedDevicesHelp": "这些设备可在 30 天内跳过验证码；位置或浏览器变化时仍会要求验证。",
@@ -2033,7 +2037,7 @@
       "profileSaved": "资料已保存",
       "profileSaveFailed": "无法保存资料",
       "passwordMismatch": "两次输入的密码不一致",
-      "passwordChanged": "密码已修改",
+      "passwordChanged": "密码已修改。您的会话已撤销，请重新登录。",
       "passwordChangeFailed": "无法修改密码"
     }
   }

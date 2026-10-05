@@ -1,4 +1,4 @@
-import argon2 from 'argon2'
+import { hashAdminPassword, verifyAdminPassword } from './admin-password'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { H3Event } from 'h3'
 import type { Surreal } from 'surrealdb'
@@ -96,20 +96,11 @@ export async function hashPostPassword(plain: string): Promise<string> {
     throw createError({ statusCode: 400, message: 'Password too long' })
   }
 
-  return argon2.hash(plain, {
-    type: argon2.argon2id,
-    memoryCost: 2 ** 16,
-    timeCost: 3,
-    parallelism: 4
-  })
+  return hashAdminPassword(plain)
 }
 
-export async function verifyPostPassword(hash: string, plain: string): Promise<boolean> {
-  try {
-    return await argon2.verify(hash, plain)
-  } catch {
-    return false
-  }
+export async function verifyPostPassword(hash: string, plain: string, signal?: AbortSignal): Promise<boolean> {
+  return verifyAdminPassword(hash, plain, signal)
 }
 
 export function fakePostPasswordHash(): string {

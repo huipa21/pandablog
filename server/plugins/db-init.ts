@@ -1,4 +1,7 @@
+import { setupAuthority } from '../utils/setup-authority'
+import { ensureAuthEpochs } from '../utils/auth-epoch-migration'
 import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
+import { assertMediaStorageCompatible, ensureMediaStorageVersion } from '../utils/media-storage-migration'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, useDb } from '../utils/db'
 import { defaultLoggingSettings, getLoggingSettings, reloadLoggingSettings } from '../utils/logging'
@@ -30,11 +33,9 @@ const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v2'
 const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const SEARCH_TERMS_BUILD_KEY = '__search_terms_build_v1'
 const TAXONOMY_EDGE_REPAIR_KEY = '__taxonomy_edge_repair_v1'
-const MEDIA_STORAGE_VERSION_KEY = '__media_storage_version'
 const LOGGING_EXCLUDED_PATHS_MIGRATION_KEY = '__logging_excluded_paths_v2'
 const APP_SETTINGS_TABLE = 'app_settings'
 const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
-const MEDIA_STORAGE_VERSION = '2026-05-image-variants-v2'
 const DEFAULT_MEDIA_SETTINGS = {
   allowed_extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z'],
   max_file_size_mb: 10,
@@ -63,6 +64,7 @@ export default defineNitroPlugin(async () => {
     const db = rootDb
 
     await migrateLegacyAppSettingsTable(db)
+    await assertMediaStorageCompatible(db)
     const { schema, hash: schemaHash } = await loadSchema()
 
     if (!await hasCurrentSchemaHash(db, schemaHash)) {
@@ -71,7 +73,9 @@ export default defineNitroPlugin(async () => {
     }
 
     await ensureUserTableMigration(db)
-  await ensurePostVersionGraphMigration(db)
+    await ensureAuthEpochs(db)
+    await setupAuthority().status(db)
+    await ensurePostVersionGraphMigration(db)
     await ensureVersionEdgeDedupMigration(db)
     await ensureMediaStorageVersion(db)
     await ensureDefaultMediaSettings(db)
@@ -488,71 +492,6 @@ async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {
     };`,
     undefined,
     { label: 'default folder init', timeoutMs: 10_000 }
-  )
-}
-
-async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) {
-  const response = await queryDb(
-    db,
-    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
-    { key: MEDIA_STORAGE_VERSION_KEY },
-    { label: 'media storage version lookup', timeoutMs: 5_000 }
-  )
-  const current = firstRow<{ value?: string }>(response)?.value
-
-  if (current === MEDIA_STORAGE_VERSION) {
-    return
-  }
-
-  await queryDb(db, 'DELETE FROM files;', undefined, { label: 'media storage schema reset', timeoutMs: 30_000 })
-  await queryDb(
-    db,
-    `UPDATE app_settings SET
-      value = $value,
-      updated_at = time::now()
-    WHERE key = $key;`,
-    {
-      key: 'media',
-      value: DEFAULT_MEDIA_SETTINGS
-    },
-    { label: 'media settings reset', timeoutMs: 10_000 }
-  )
-  const versionRow = await queryDb(
-    db,
-    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
-    { key: MEDIA_STORAGE_VERSION_KEY },
-    { label: 'media storage version row check', timeoutMs: 5_000 }
-  )
-  const hasVersionRow = firstRow(versionRow)
-
-  if (hasVersionRow) {
-    await queryDb(
-      db,
-      `UPDATE app_settings SET
-        value = $value,
-        updated_at = time::now()
-      WHERE key = $key;`,
-      {
-        key: MEDIA_STORAGE_VERSION_KEY,
-        value: MEDIA_STORAGE_VERSION
-      },
-      { label: 'media storage version update', timeoutMs: 10_000 }
-    )
-    return
-  }
-
-  await queryDb(
-    db,
-    `CREATE app_settings CONTENT {
-      key: $key,
-      value: $value,
-      updated_at: time::now()
-    };`,
-    {
-      key: MEDIA_STORAGE_VERSION_KEY,
-      value: MEDIA_STORAGE_VERSION
-    },
-    { label: 'media storage version create', timeoutMs: 10_000 }
   )
 }
 

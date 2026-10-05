@@ -1,9 +1,11 @@
+import { reserveAuthAttempt } from '../../../../utils/rate-limit'
+import { readBoundedJson } from '../../../../utils/bounded-json'
 import { recordActivity } from '../../../../utils/activity'
 import { requireUser } from '../../../../utils/auth'
-import { disableUserMfa, getUserMfaState, setUserBackupCodes } from '../../../../utils/mfa/store'
-import { decryptMfaSecret } from '../../../../utils/mfa/secret-crypto'
+import { disableUserMfa, getUserMfaState } from '../../../../utils/mfa/store'
+import { consumeMfaFactor } from '../../../../utils/mfa/factor'
+import { requestAbortSignal } from '../../../../utils/request-abort'
 import { revokeAllTrustedDevices } from '../../../../utils/mfa/trusted-devices'
-import { matchBackupCode, verifyTotpToken } from '../../../../utils/mfa/totp'
 import { findUserById, verifyUserPassword } from '../../../../utils/users'
 
 // Disable MFA for the current user. Requires re-entering the account password
@@ -11,9 +13,12 @@ import { findUserById, verifyUserPassword } from '../../../../utils/users'
 // session alone cannot turn off the second factor.
 export default defineEventHandler(async (event) => {
   const sessionUser = await requireUser(event)
-  const body = await readBody<{ password?: string, code?: string }>(event)
-  const password = String(body?.password ?? '')
-  const code = String(body?.code ?? '').trim()
+  const body = await readBoundedJson(event, 8 * 1024)
+  if (typeof body.password !== 'string' || body.password.length > 200 || typeof body.code !== 'string' || body.code.length > 64) throw createError({statusCode: 400, message: 'Invalid MFA input'})
+  const password = body.password
+  const code = typeof body.code === 'string' && body.code.length <= 64 ? body.code.trim() : ''
+  const rate = await reserveAuthAttempt('mfa', getRequestIP(event, {xForwardedFor: true}) ?? 'noip', sessionUser.id)
+  if (!rate.allowed) {setResponseHeader(event, 'Retry-After', rate.retryAfterSec); throw createError({statusCode: 429, message: 'Too many MFA attempts'})}
 
   const state = await getUserMfaState(sessionUser.id)
   if (!state?.enabled) {
@@ -21,25 +26,16 @@ export default defineEventHandler(async (event) => {
   }
 
   const account = await findUserById(sessionUser.id)
-  if (!account || !await verifyUserPassword(account, password)) {
+  if (!account || !await verifyUserPassword(account, password, requestAbortSignal(event))) {
     throw createError({ statusCode: 401, message: 'Incorrect password' })
   }
 
-  const secret = state.secret ? decryptMfaSecret(state.secret) : ''
-  const totpOk = secret ? await verifyTotpToken(secret, code) : false
+  const factor = await consumeMfaFactor(sessionUser.id, account.auth_epoch, state, code, requestAbortSignal(event))
+  if (!factor.ok) throw createError({statusCode: 400, message: 'Invalid verification code'})
 
-  if (!totpOk) {
-    const backupIndex = await matchBackupCode(state.backupCodes, code)
-    if (backupIndex < 0) {
-      throw createError({ statusCode: 400, message: 'Invalid verification code' })
-    }
-    // Consume the backup code that was just used to authorize the change.
-    const remaining = state.backupCodes.filter((_, index) => index !== backupIndex)
-    await setUserBackupCodes(sessionUser.id, remaining)
-  }
-
-  await disableUserMfa(sessionUser.id)
+  await disableUserMfa(sessionUser.id, account.auth_epoch)
   await revokeAllTrustedDevices(event, sessionUser.id)
+  await clearUserSession(event)
 
   recordActivity(event, {
     action: 'auth.mfa.disabled',

@@ -45,7 +45,7 @@ export default defineEventHandler(async (event): Promise<SearchResponse> => {
     }
   }
 
-  const user = await getSessionUser(event).catch(() => null)
+  const user = await getSessionUser(event)
   const db = await useDb()
   return await runPostSearch(db, {
     criteria,

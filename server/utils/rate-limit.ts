@@ -1,130 +1,64 @@
-/**
- * Simple IP-based login rate limiter using Nitro's unstorage.
- *
- * Strategy:
- * - Track failed attempts per IP within a sliding 15-minute window.
- * - After 5 failed attempts, lock the IP for 15 minutes.
- * - Successful login clears the record for that IP.
- *
- * Storage: filesystem (configured in nuxt.config.ts as 'rate-limit' storage).
+import { createHash } from 'node:crypto'
+
+export interface RateLimitResult { allowed: boolean, retryAfterSec: number }
+interface WindowRecord { count: number, expires: number }
+interface WindowOptions { limit: number, windowMs: number }
+
+/** Atomic synchronous reservations, finite cardinality and real untouched expiry.
+ * One writer only: restart resets budgets; never evict LIVE keys to admit churn.
  */
-
-const WINDOW_MS = 15 * 60 * 1000      // 15 minutes
-const MAX_ATTEMPTS = 5
-const LOCKOUT_MS = 15 * 60 * 1000     // 15 minutes
-const STORAGE_BASE = 'rate-limit'
-
-interface AttemptRecord {
-  count: number
-  firstAttempt: number
-  lockedUntil?: number
-}
-
-function storage() {
-  // useStorage is auto-imported by Nitro
-  return useStorage(STORAGE_BASE)
-}
-
-function key(ip: string) {
-  // Sanitize IP for use as a storage key (replace colons in IPv6, etc.)
-  return `login:${ip.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-}
-
-export interface RateLimitResult {
-  allowed: boolean
-  retryAfterSec: number
-}
-
-/**
- * Check whether the given IP is currently allowed to attempt login.
- * Call BEFORE verifying credentials.
- */
-export async function checkLoginRateLimit(ip: string): Promise<RateLimitResult> {
-  const record = await storage().getItem<AttemptRecord>(key(ip))
-  const now = Date.now()
-
-  if (record?.lockedUntil && record.lockedUntil > now) {
-    return {
-      allowed: false,
-      retryAfterSec: Math.ceil((record.lockedUntil - now) / 1000)
+export class ExpiringRateLimiter {
+  private readonly records = new Map<string, WindowRecord>()
+  private readonly timer: ReturnType<typeof setInterval>
+  private closed = false
+  private rejected = 0
+  constructor(private readonly options: { maxKeys: number, sweepMs: number, now?: () => number }) {
+    if (!Number.isInteger(options.maxKeys) || options.maxKeys < 1 || options.maxKeys > 100_000
+      || !Number.isInteger(options.sweepMs) || options.sweepMs < 1 || options.sweepMs > 60_000) throw new Error('Invalid limiter limits')
+    this.timer = setInterval(() => this.sweep(), options.sweepMs)
+    this.timer.unref()
+  }
+  private now() { return this.options.now?.() ?? Date.now() }
+  sweep() {
+    const now = this.now()
+    for (const [key, record] of this.records) if (record.expires <= now) this.records.delete(key)
+  }
+  diagnostics() { return { keys: this.records.size, maxKeys: this.options.maxKeys, rejected: this.rejected, closed: this.closed } }
+  reserve(bucket: string, target: string, options: WindowOptions): RateLimitResult {
+    if (typeof bucket !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(bucket)
+      || typeof target !== 'string' || !target || Buffer.byteLength(target) > 1024
+      || !Number.isInteger(options.limit) || options.limit < 1 || options.limit > 1_000_000
+      || !Number.isInteger(options.windowMs) || options.windowMs < 1 || options.windowMs > 86_400_000) throw new Error('Invalid rate-limit input')
+    const deny = (retryAfterSec: number) => { this.rejected++; return {allowed: false, retryAfterSec} }
+    if (this.closed) return deny(1)
+    const now = this.now()
+    const key = `${bucket}:${createHash('sha256').update(target).digest('hex')}`
+    let record = this.records.get(key)
+    if (record && record.expires <= now) { this.records.delete(key); record = undefined }
+    if (!record) {
+      if (this.records.size >= this.options.maxKeys) this.sweep()
+      if (this.records.size >= this.options.maxKeys) return deny(1)
+      record = {count: 0, expires: now + options.windowMs}
+      this.records.set(key, record)
     }
+    if (record.count >= options.limit) return deny(Math.max(1, Math.ceil((record.expires - now) / 1000)))
+    record.count++ // reserved before the returned promise permits any work
+    return {allowed: true, retryAfterSec: 0}
   }
-
-  return { allowed: true, retryAfterSec: 0 }
+  shutdown() { this.closed = true; clearInterval(this.timer); this.records.clear() }
 }
 
-/**
- * Record the outcome of a login attempt.
- * Call AFTER credential verification.
+export const rateLimiter = new ExpiringRateLimiter({ maxKeys: 10_000, sweepMs: 30_000 })
+export async function consumeRateLimit(bucket: string, target: string, options: WindowOptions): Promise<RateLimitResult> {
+  return rateLimiter.reserve(bucket, target, options)
+}
+
+/** Separate coarse IP and normalized account/target budgets; successes do not
+ * reset a first-factor budget (in particular, MFA-pending is not full login).
  */
-export async function recordLoginAttempt(ip: string, success: boolean): Promise<void> {
-  const k = key(ip)
-  const store = storage()
-  const now = Date.now()
-
-  if (success) {
-    await store.removeItem(k)
-    return
-  }
-
-  const existing = await store.getItem<AttemptRecord>(k)
-  const record: AttemptRecord = existing ?? { count: 0, firstAttempt: now }
-
-  // Reset window if it has expired
-  if (now - record.firstAttempt > WINDOW_MS) {
-    record.count = 0
-    record.firstAttempt = now
-    delete record.lockedUntil
-  }
-
-  record.count += 1
-
-  if (record.count >= MAX_ATTEMPTS) {
-    record.lockedUntil = now + LOCKOUT_MS
-  }
-
-  // TTL slightly longer than lockout to ensure cleanup
-  await store.setItem(k, record, { ttl: Math.ceil((LOCKOUT_MS + WINDOW_MS) / 1000) })
+export async function reserveAuthAttempt(kind: 'login' | 'unlock' | 'mfa', ip: string, target: string): Promise<RateLimitResult> {
+  const options = {limit: 5, windowMs: 15 * 60 * 1000}
+  const ipRate = rateLimiter.reserve(`${kind}-ip`, ip, options)
+  if (!ipRate.allowed) return ipRate
+  return rateLimiter.reserve(`${kind}-target`, target.trim().toLowerCase(), options)
 }
-
-interface WindowRecord {
-  count: number
-  windowStart: number
-}
-
-/**
- * Generic fixed-window IP rate limiter for public endpoints (search, analytics,
- * etc.). Atomically counts and checks in a single call. Keys are namespaced by
- * `bucket` so each endpoint has its own independent budget.
- *
- * Returns `allowed: false` once the request count within the window exceeds
- * `limit`, along with the seconds until the window resets.
- */
-export async function consumeRateLimit(
-  bucket: string,
-  ip: string,
-  options: { limit: number, windowMs: number }
-): Promise<RateLimitResult> {
-  const safeIp = ip.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const k = `${bucket}:${safeIp}`
-  const store = storage()
-  const now = Date.now()
-
-  const existing = await store.getItem<WindowRecord>(k)
-  const record: WindowRecord = existing && now - existing.windowStart < options.windowMs
-    ? existing
-    : { count: 0, windowStart: now }
-
-  record.count += 1
-
-  // TTL one second past the window so stale buckets self-evict.
-  await store.setItem(k, record, { ttl: Math.ceil(options.windowMs / 1000) + 1 })
-
-  if (record.count > options.limit) {
-    const retryAfterSec = Math.max(1, Math.ceil((record.windowStart + options.windowMs - now) / 1000))
-    return { allowed: false, retryAfterSec }
-  }
-
-  return { allowed: true, retryAfterSec: 0 }
-}
-

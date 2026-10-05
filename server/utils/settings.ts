@@ -81,6 +81,7 @@ export const ADMIN_SETTING_KEYS = [
 
 const SECRET_SETTING_KEYS = [
   'admin_password_hash',
+  '__setup_claim',
   ANALYTICS_HASH_SALT_KEY
 ] as const
 
@@ -465,7 +466,7 @@ export async function getAnalyticsHashSalt(): Promise<string> {
 }
 
 export async function readAdminCredentials(): Promise<AdminCredentials> {
-  const adminUser = await findUserByUsername(ADMIN_USERNAME).catch(() => null)
+  const adminUser = await findUserByUsername(ADMIN_USERNAME)
   if (adminUser?.password_hash && adminUser.active) {
     return {
       username: ADMIN_USERNAME,
@@ -486,7 +487,7 @@ export async function readAdminCredentials(): Promise<AdminCredentials> {
 
 export async function writeAdminCredentials(passwordHash: string): Promise<AdminCredentials> {
   const db = await useDb()
-  const existing = await findUserByUsername(ADMIN_USERNAME).catch(() => null)
+  const existing = await findUserByUsername(ADMIN_USERNAME)
   if (existing) {
     await setUserPasswordHash(existing.id, passwordHash)
     await updateUser(existing.id, {
@@ -511,7 +512,9 @@ export async function writeAdminCredentials(passwordHash: string): Promise<Admin
 }
 
 export async function isSetupCompleted(): Promise<boolean> {
-  return (await readAdminCredentials()).setupCompleted
+  const db = await useDb()
+  const marker = await queryDb(db, 'SELECT `value` FROM app_settings WHERE key = $key LIMIT 1;', {key: SETUP_COMPLETED_KEY}, {retryOnReconnect: false, label: 'setup state'})
+  return queryRows<{value?: unknown}>(marker)[0]?.value === true
 }
 
 function normalizeRuntimeFlags(_values: Record<string, unknown>): RuntimeFlags {

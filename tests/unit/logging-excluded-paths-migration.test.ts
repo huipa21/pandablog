@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   provisionAppDatabaseUser: vi.fn(), readFile: vi.fn(),
   initializeRuntimeSettings: vi.fn(), initializeAnalyticsSettings: vi.fn(), initializeSecuritySettings: vi.fn()
 }))
+vi.mock('../../server/utils/setup-authority', () => ({setupAuthority: () => ({status: async () => ({completed: true})})}))
 vi.mock('../../server/utils/db', () => ({ ...mocks, queryDbRecord: vi.fn() }))
 vi.mock('node:fs/promises', () => ({ readFile: mocks.readFile }))
 vi.mock('../../server/utils/settings', () => mocks)
@@ -39,6 +40,7 @@ beforeEach(() => {
   failLabel = undefined
   mocks.queryDb.mockImplementation(async (_db, sql: string, params?: { key?: string, value?: unknown }, options?: { label: string }) => {
     if (options?.label === failLabel) throw new Error('migration query failed')
+    if (options?.label === 'auth epoch migration page') return [[]] // unrelated users already migrated
     if (sql.startsWith('SELECT')) {
       if (params?.key === 'logging' || params?.key === markerKey) {
         const row = rows.get(params.key)

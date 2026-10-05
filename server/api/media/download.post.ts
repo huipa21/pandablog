@@ -1,85 +1,28 @@
-import { randomBytes } from 'node:crypto'
-import { mkdir } from 'node:fs/promises'
-import { createWriteStream } from 'node:fs'
-import { createRequire } from 'node:module'
-import { resolve } from 'node:path'
-import { requireContentManager } from '../../utils/auth'
-import { queryDb, useDb } from '../../utils/db'
-import { mediaResolveOriginalPath } from '../../utils/fileStorage'
-import { mediaNormalizeHash, mediaNormalizeFileRecord } from '../../utils/mediaLibrary'
-import { mediaRecordVisibleToUser } from '../../utils/mediaPermissions'
-import { queryRows } from '../../utils/surrealResult'
+import { requireContentManager, getRequestAuthAccount } from '../../utils/auth'
+import { useDb } from '../../utils/db'
+import { authorizedArchiveFiles } from '../../utils/media-archive-policy'
+import { mediaArchiveStore } from '../../utils/media-archives'
+import { privateMediaHeaders } from '../../utils/media-cache'
+import { readBoundedJson } from '../../utils/bounded-json'
+import { requestAbortSignal } from '../../utils/request-abort'
+import { getMediaSettings } from '../../utils/settings'
 
-const require = createRequire(import.meta.url)
-const archiver: typeof import('archiver') = require('archiver')
-
-const downloadsRoot = resolve(process.cwd(), 'storage/downloads')
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
+  privateMediaHeaders(event)
   const user = await requireContentManager(event)
-  const body = await readBody<{ hashes: string[] }>(event)
-
-  if (!Array.isArray(body.hashes) || !body.hashes.length) {
-    throw createError({ statusCode: 400, message: 'hashes[] is required' })
-  }
-
-  if (body.hashes.length > 200) {
-    throw createError({ statusCode: 400, message: 'Maximum 200 files per download' })
-  }
-
-  const db = await useDb()
-  const hashes = body.hashes.map((h) => mediaNormalizeHash(h)).filter(Boolean)
-
-  // Single file: redirect to the file stream endpoint
-  if (hashes.length === 1) {
-    const hash = hashes[0]
-    return { type: 'single', url: `/media/${hash}?download=true` }
-  }
-
-  // Multiple files: create a zip
-  await mkdir(downloadsRoot, { recursive: true })
-
-  const zipName = `media-${Date.now()}-${randomBytes(12).toString('hex')}.zip`
-  const zipPath = resolve(downloadsRoot, zipName)
-
-  const archive = archiver('zip', { zlib: { level: 5 } })
-  const output = createWriteStream(zipPath)
-  const fileResponse = await queryDb(
-    db,
-    `SELECT id, hash, original_name, original_path
-     FROM files
-     WHERE hash IN $hashes;`,
-    { hashes }
-  )
-  const filesByHash = new Map(queryRows<Record<string, unknown>>(fileResponse).map((record) => {
-    const file = mediaNormalizeFileRecord(record)
-    if (!mediaRecordVisibleToUser(file, user)) {
-      return null
-    }
-    return [file.hash, file]
-  }).filter((entry): entry is [string, ReturnType<typeof mediaNormalizeFileRecord>] => entry !== null))
-
-  await new Promise<void>((resolvePromise, reject) => {
-    output.on('close', resolvePromise)
-    archive.on('error', reject)
-    archive.pipe(output)
-
-    const appendFiles = async () => {
-      for (const hash of hashes) {
-        try {
-          const file = filesByHash.get(hash)
-          if (!file?.original_path) continue
-          const absolutePath = mediaResolveOriginalPath(file.original_path)
-          archive.file(absolutePath, { name: file.original_name })
-        } catch {
-          // Skip files that can't be read
-        }
-      }
-      await archive.finalize()
-    }
-
-    appendFiles().catch(reject)
-  })
-
-  return { type: 'zip', url: `/api/media/download/${zipName}` }
+  const body = await readBoundedJson(event)
+  if (!Array.isArray(body.hashes) || !body.hashes.length || body.hashes.length > 200 || !body.hashes.every(hash => typeof hash === 'string' && /^[a-f0-9]{64}$/i.test(hash))) throw createError({statusCode: 400, message: 'Invalid file selection'})
+  const hashes = [...new Set((body.hashes as string[]).map(hash => hash.toLowerCase()))]
+  // All-or-nothing generic 404: no private filename/existence/path disclosure.
+  const files = await authorizedArchiveFiles(await useDb(), hashes, user, true)
+  if (hashes.length === 1) return {type: 'single', url: `/media/${hashes[0]}?download=true`}
+  const account = await getRequestAuthAccount(event, user.id)
+  if (!account?.active) throw createError({statusCode: 401, message: 'Authentication required'})
+  const settings = await getMediaSettings()
+  const hours = Number.isFinite(settings.download_cleanup_hours) ? Math.min(24, Math.max(1, settings.download_cleanup_hours)) : 1
+  let name
+  try {
+    name = await mediaArchiveStore().create(files.map(file => ({hash: file.hash, original_name: file.original_name, original_path: file.original_path ?? ''})), user.id, account.auth_epoch, {ttlMs: Math.floor(hours * 60 * 60_000), signal: requestAbortSignal(event)})
+  } catch {throw createError({statusCode: 503, message: 'Download archive unavailable'})}
+  return {type: 'zip', url: `/api/media/download/${name}`}
 })

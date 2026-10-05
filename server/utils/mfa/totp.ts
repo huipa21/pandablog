@@ -20,17 +20,18 @@ export function buildTotpUri(secret: string, account: string): string {
   return generateURI({ issuer: TOTP_ISSUER, label: account, secret })
 }
 
-export async function verifyTotpToken(secret: string, token: string): Promise<boolean> {
-  const normalized = String(token ?? '').replace(/\s+/g, '')
+export async function verifyTotpToken(secret: string, token: string, epoch = Math.floor(Date.now() / 1000)): Promise<number | null> {
+  if (typeof token !== 'string' || token.length > 64 || typeof secret !== 'string' || secret.length > 128) return null
+  const normalized = token.replace(/\s+/g, '')
   if (!/^\d{6}$/.test(normalized)) {
-    return false
+    return null
   }
 
   try {
-    const result = await verify({ secret, token: normalized, epochTolerance: EPOCH_TOLERANCE_SECONDS })
-    return result.valid === true
+    const result = await verify({ strategy: 'totp', secret, token: normalized, epoch, epochTolerance: EPOCH_TOLERANCE_SECONDS })
+    return result.valid && 'timeStep' in result && Number.isSafeInteger(result.timeStep) ? result.timeStep : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -49,7 +50,7 @@ function pickGroup(): string {
 }
 
 export function normalizeBackupCode(value: unknown): string {
-  return String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return typeof value === 'string' && value.length <= 64 ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : ''
 }
 
 export interface GeneratedBackupCodes {
@@ -59,7 +60,7 @@ export interface GeneratedBackupCodes {
   hashes: string[]
 }
 
-export async function generateBackupCodes(): Promise<GeneratedBackupCodes> {
+export async function generateBackupCodes(signal?: AbortSignal): Promise<GeneratedBackupCodes> {
   const plain: string[] = []
   const seen = new Set<string>()
   while (plain.length < BACKUP_CODE_COUNT) {
@@ -70,7 +71,8 @@ export async function generateBackupCodes(): Promise<GeneratedBackupCodes> {
   }
 
   // Hash the normalized form so verification is dash/case insensitive.
-  const hashes = await Promise.all(plain.map(code => hashAdminPassword(normalizeBackupCode(code))))
+  const hashes: string[] = []
+  for (const code of plain) hashes.push(await hashAdminPassword(normalizeBackupCode(code), signal))
   return { plain, hashes }
 }
 
@@ -79,15 +81,15 @@ export async function generateBackupCodes(): Promise<GeneratedBackupCodes> {
  * the matching hash so the caller can consume (remove) it, or -1 when no code
  * matches.
  */
-export async function matchBackupCode(storedHashes: string[], code: string): Promise<number> {
+export async function matchBackupCode(storedHashes: string[], code: string, signal?: AbortSignal): Promise<number> {
   const normalized = normalizeBackupCode(code)
-  if (!normalized) {
+  if (normalized.length !== 10 || storedHashes.length > BACKUP_CODE_COUNT) {
     return -1
   }
 
   for (let i = 0; i < storedHashes.length; i += 1) {
     const hash = storedHashes[i]
-    if (hash && await verifyAdminPassword(hash, normalized)) {
+    if (hash && await verifyAdminPassword(hash, normalized, signal)) {
       return i
     }
   }

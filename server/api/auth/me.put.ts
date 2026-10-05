@@ -1,3 +1,4 @@
+import { readBoundedJson } from '../../utils/bounded-json'
 import { requireAuthenticatedUser } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaReadFileByHash } from '../../utils/mediaLibrary'
@@ -7,7 +8,11 @@ import { findUserById, toSessionUser, updateUser } from '../../utils/users'
 
 export default defineEventHandler(async (event) => {
   const sessionUser = await requireAuthenticatedUser(event)
-  const body = await readBody<Record<string, unknown>>(event)
+  const body = await readBoundedJson(event, 8 * 1024)
+  for (const [field, limit] of [['display_name', 120], ['email', 254], ['avatar', 100]] as const) {
+    const value = body[field]
+    if (value !== undefined && value !== null && (typeof value !== 'string' || value.length > limit)) throw createError({statusCode: 400, message: 'Invalid profile input'})
+  }
   const existing = await findUserById(sessionUser.id)
 
   if (!existing || !existing.active) {

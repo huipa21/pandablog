@@ -223,7 +223,7 @@ async function startEnrollment() {
   step.value = 'enroll'
   try {
     const response = await $fetch<{ secret: string, otpauth: string, qr: string }>('/api/admin/auth/mfa/setup', {
-      method: 'POST'
+      method: 'POST', body: {}
     })
     enrollSecret.value = response.secret
     enrollQr.value = response.qr

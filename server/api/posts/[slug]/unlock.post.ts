@@ -1,33 +1,29 @@
+import { readBoundedJson } from '../../../utils/bounded-json'
 import { queryDb, useDb } from '../../../utils/db'
+import { requestAbortSignal } from '../../../utils/request-abort'
 import { addUnlockedId, fakePostPasswordHash, resolveEffectivePostPasswordHash, verifyPostPassword } from '../../../utils/post-password'
-import { checkLoginRateLimit, recordLoginAttempt } from '../../../utils/rate-limit'
+import { reserveAuthAttempt } from '../../../utils/rate-limit'
 import { getRuntimeFlags } from '../../../utils/settings'
 import { stringifyRecordId } from '../../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
-  if (!slug) {
+  if (!slug || slug.length > 256) {
     throw createError({ statusCode: 400, message: 'Missing slug' })
   }
 
-  const body = await readBody<{ password?: string }>(event)
-  const password = body.password ?? ''
+  const body = await readBoundedJson(event, 8 * 1024)
+  if (typeof body?.password !== 'string' || body.password.length > 200) throw createError({statusCode: 400, message: 'Invalid password input'})
+  const password = body.password
 
   const runtimeFlags = getRuntimeFlags()
   const ip = getRequestIP(event, { xForwardedFor: runtimeFlags.trust_proxy_headers }) ?? null
 
-  const rateKey = ip ? `unlock:${slug}:${ip}` : null
-  if (rateKey) {
-    const rate = await checkLoginRateLimit(rateKey)
-    if (!rate.allowed) {
-      setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
-      throw createError({
-        statusCode: 429,
-        message: `Too many attempts. Try again in ${rate.retryAfterSec}s.`
-      })
-    }
-  } else if (runtimeFlags.trust_proxy_headers) {
-    throw createError({ statusCode: 400, message: 'Could not resolve client IP' })
+  if (!ip && runtimeFlags.trust_proxy_headers) throw createError({ statusCode: 400, message: 'Could not resolve client IP' })
+  const rate = await reserveAuthAttempt('unlock', ip ?? 'noip', slug)
+  if (!rate.allowed) {
+    setResponseHeader(event, 'Retry-After', rate.retryAfterSec)
+    throw createError({ statusCode: 429, message: 'Too many unlock attempts' })
   }
 
   const db = await useDb()
@@ -40,12 +36,8 @@ export default defineEventHandler(async (event) => {
 
   const effectiveHash = post ? await resolveEffectivePostPasswordHash(post, db) : null
   const hashToCheck = effectiveHash ?? fakePostPasswordHash()
-  const passwordOk = await verifyPostPassword(hashToCheck, password)
+  const passwordOk = await verifyPostPassword(hashToCheck, password, requestAbortSignal(event))
   const isValid = !!post && post.visibility === 'password' && !!effectiveHash && passwordOk
-
-  if (rateKey) {
-    await recordLoginAttempt(rateKey, isValid)
-  }
 
   if (!isValid) {
     throw createError({ statusCode: 401, message: 'Incorrect password' })
