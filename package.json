@@ -24,6 +24,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
+    "test:backend:integration": "tsx scripts/backend-hardening/run.ts",
     "typecheck": "nuxt typecheck",
     "modules:print": "tsx scripts/print-modules.ts",
     "hash-password": "tsx scripts/hash-password.ts"

@@ -3,9 +3,11 @@ import { performance } from 'node:perf_hooks'
 import { Surreal } from 'surrealdb'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-// Opt-in ONLY: a new, random disposable database on an explicit loopback URL.
-// Never uses .env or the configured application database.
-const enabled = process.env.PB_ERROR_GROUPS_LIVE === '1'
+import { startFixture, type Fixture } from '../../scripts/backend-hardening/fixture'
+
+// Opt-in ONLY through the owned harness; no fixed endpoint or credentials.
+const enabled = process.env.PB_BACKEND_FIXTURE === '1'
+let fixture: Fixture | undefined
 const db = new Surreal()
 vi.mock('../../server/utils/db', () => ({ useDb: async () => db, queryDb: async (_db: unknown, sql: string, params?: Record<string, unknown>) => db.query(sql, params) }))
 const { writeErrorGroup, waitForErrorGroupWrites } = await import('../../server/utils/error-group-write')
@@ -18,14 +20,15 @@ const entry = { fingerprint: fp, name: 'Error', message: 'live failure', route: 
 
 describe.skipIf(!enabled)('isolated SurrealDB 3.2 error groups', () => {
   beforeAll(async () => {
-    await db.connect('ws://127.0.0.1:18083/rpc')
-    await db.signin({ username: 'root', password: 'p3-local-only' })
-    await db.use({ namespace: 'p3_verification', database: `errors_${Date.now()}` })
+    fixture = await startFixture({ enabled: process.env.PB_BACKEND_FIXTURE, binary: process.env.PB_BACKEND_SURREAL_BIN ?? '' })
+    await db.connect(`${fixture.endpoint.replace('http:', 'ws:')}/rpc`)
+    await db.signin({ username: fixture.username, password: fixture.password })
+    await db.use({ namespace: fixture.namespace, database: fixture.database })
     const schema = readFileSync(new URL('../../server/utils/schema.surql', import.meta.url), 'utf8')
     await db.query(schema.slice(schema.indexOf('DEFINE TABLE OVERWRITE error_logs'), schema.indexOf('-- #module logs end', schema.indexOf('DEFINE TABLE OVERWRITE error_logs'))))
     await db.query('DEFINE TABLE app_settings SCHEMALESS;')
   })
-  afterAll(async () => { await db.query('REMOVE DATABASE;').catch(() => {}); await db.close() })
+  afterAll(async () => { try { await db.close() } finally { await fixture?.stop() } })
 
   it('counts 100 errors atomically, trims exact caps including timestamp ties, and regresses resolved groups', async () => {
     for (let index = 0; index < 100; index++) await writeErrorGroup(entry, 1, true)
