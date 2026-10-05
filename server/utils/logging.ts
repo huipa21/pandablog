@@ -9,7 +9,7 @@ import { writeErrorGroup } from './error-group-write'
 import { applySettingsPatch, createErrorRateGuard, extractErrorContext, isHealthCheckPath, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog } from './logging-logic'
 import { sanitizeLogContext, writeConsoleEntry } from './log-console'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
-import type { AccessLogEntry, ActivityLogEntry, CleanupResult, ErrorLogEntry, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
+import type { AccessLogEntry, ActivityLogEntry, CleanupResult, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
 import { DEFAULT_LOGGING_EXCLUDED_PATHS } from '~/utils/loggingSettings'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
@@ -107,25 +107,16 @@ export function getLoggingSettings() {
   return settingsCache
 }
 
-export function isDebugEnabled() {
+function isDebugEnabled() {
   return shouldAllowDebug({ ...settingsCache, enabled: true })
 }
 
-export function shouldLogLevel(level: LogLevel) {
+function shouldLogLevel(level: LogLevel) {
   return levelPriority[level] >= levelPriority[settingsCache.log_level]
 }
 
 export function shouldExcludePath(pathname: string) {
   return isHealthCheckPath(pathname) || settingsCache.excluded_paths.some(prefix => pathname.startsWith(prefix))
-}
-
-export function shouldExcludeStatusCode(statusCode: number) {
-  return settingsCache.excluded_status_codes.includes(statusCode)
-}
-
-export function shouldRedact(fieldName: string) {
-  const lowered = fieldName.toLowerCase()
-  return settingsCache.redact_fields.some((field) => field.toLowerCase() === lowered)
 }
 
 export async function initializeLoggingSettings() {

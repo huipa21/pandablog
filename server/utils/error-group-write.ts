@@ -2,7 +2,7 @@ import { queryDb, useDb } from './db'
 
 // Regressed reads the OLD resolved_at before it is cleared. Every recurrence
 // reopens the inbox, even if the group was merely marked read (not resolved).
-export const ERROR_GROUP_UPSERT = `UPSERT type::record('error_groups', $fp) SET
+const ERROR_GROUP_UPSERT = `UPSERT type::record('error_groups', $fp) SET
   fingerprint = $fp, fingerprint_version = 1,
   name = IF last_seen = NONE OR last_seen <= $timestamp THEN ($name ?? NONE) ELSE name END,
   message = IF last_seen = NONE OR last_seen <= $timestamp THEN $message ELSE message END,

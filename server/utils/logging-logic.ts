@@ -140,15 +140,6 @@ export function applySettingsPatch(current: LoggingSettings, patch: Partial<Logg
   }
 }
 
-export function olderThanRetention(timestamp: string | Date, retentionDays: number, now = Date.now()) {
-  const timeValue = typeof timestamp === 'string' ? Date.parse(timestamp) : timestamp.getTime()
-  if (!Number.isFinite(timeValue)) {
-    return false
-  }
-
-  return timeValue < now - retentionDays * 86_400_000
-}
-
 /** Fixed-window occurrence guard; suppressed counts are drained independently of arrivals. */
 export function createErrorRateGuard({ windowMs, max }: { windowMs: number; max: number }) {
   if (!Number.isFinite(windowMs) || windowMs < 1 || !Number.isSafeInteger(max) || max < 1) throw new Error('Invalid error rate guard')

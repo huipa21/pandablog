@@ -20,6 +20,7 @@ export interface LoggingSettings {
   retention_error_days: number
   max_metadata_size_kb: number
   sampling_rate: number
+  /** Live upgrade from LOG_CONSOLE=errors to all; cannot override off. */
   console_output: boolean
   updated_at?: string
 }
@@ -62,20 +63,6 @@ export interface ErrorCause {
   cause?: ErrorCause
 }
 
-export interface ErrorLogEntry {
-  fingerprint?: string
-  name?: string | null
-  timestamp?: string
-  level: LogLevel
-  message: string
-  stack?: string | null
-  status_code?: number | null
-  context?: Record<string, unknown>
-  request_id?: string | null
-  path?: string | null
-  method?: string | null
-}
-
 export interface ErrorGroup {
   id?: string
   fingerprint: string
@@ -85,6 +72,7 @@ export interface ErrorGroup {
   route?: string | null
   status_code?: number | null
   level: LogLevel
+  /** Lifetime occurrences, including rate-guard aggregates; not retained sample count. */
   count: number
   first_seen: string
   last_seen: string
@@ -99,10 +87,13 @@ export interface RetentionReport {
   finished_at: string
   duration_ms: number
   deleted: {
+    /** Compatibility field: always zero now that access logs live in files. */
     access: number
     activity: number
+    /** Deleted occurrence rows, including age retention and sample caps. */
     errors: number
     error_groups?: number
+    /** Deleted physical UTC day files, not access entries. */
     access_files?: number
   }
   errors: string[]

@@ -1,13 +1,13 @@
 import { createError } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
-import { applySettingsPatch, extractErrorContext, getErrorCauseChain, isHealthCheckPath, mergeExcludedPaths, olderThanRetention, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog, trimByMaxSize } from '../../server/utils/logging-logic'
+import { applySettingsPatch, extractErrorContext, getErrorCauseChain, isHealthCheckPath, mergeExcludedPaths, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog, trimByMaxSize } from '../../server/utils/logging-logic'
 import type { LoggingSettings } from '../../types/logging'
 import { DEFAULT_LOGGING_EXCLUDED_PATHS, parseExcludedStatusCodes } from '../../utils/loggingSettings'
 
 function baseSettings(): LoggingSettings {
   return {
     enabled: true,
-    debug_enabled: true,
+    debug_enabled: false,
     debug_override_prod: false,
     access_log_enabled: true,
     activity_log_enabled: true,
@@ -16,15 +16,15 @@ function baseSettings(): LoggingSettings {
     error_occurrences_per_group: 50,
     log_level: 'info',
     excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
-    excluded_status_codes: [204],
+    excluded_status_codes: [],
     redact_fields: ['password', 'token', 'authorization', 'cookie'],
     retention_access_days: 30,
     retention_activity_days: 365,
     retention_error_days: 90,
-    max_metadata_size_kb: 1,
+    max_metadata_size_kb: 50,
     sampling_rate: 1,
     console_output: false,
-    updated_at: new Date().toISOString()
+    updated_at: '2026-05-19T00:00:00.000Z'
   }
 }
 
@@ -143,6 +143,16 @@ describe('logging logic', () => {
     expect(shouldRecordAccessLog('/blog/hello', 200, settings, 0.01)).toBe(false)
   })
 
+  it('access storage switch disables recording', () => {
+    expect(shouldRecordAccessLog('/posts/hello', 200, { ...baseSettings(), access_log_enabled: false }, 0)).toBe(false)
+  })
+
+  it('excludes configured statuses without suppressing other responses', () => {
+    const settings = { ...baseSettings(), excluded_status_codes: [204] }
+    expect(shouldRecordAccessLog('/posts/hello', 204, settings, 0)).toBe(false)
+    expect(shouldRecordAccessLog('/posts/hello', 200, settings, 0)).toBe(true)
+  })
+
   it('excluded paths are not recorded', () => {
     const settings = baseSettings()
 
@@ -204,13 +214,6 @@ describe('logging logic', () => {
     const result = trimByMaxSize(payload, 1) as Record<string, unknown>
 
     expect(result._truncated).toBe(true)
-  })
-
-  it('retention helper identifies old records only', () => {
-    const now = Date.parse('2026-05-19T00:00:00.000Z')
-
-    expect(olderThanRetention('2026-05-10T00:00:00.000Z', 7, now)).toBe(true)
-    expect(olderThanRetention('2026-05-15T00:00:00.000Z', 7, now)).toBe(false)
   })
 
   it('settings patch updates values and timestamp', () => {

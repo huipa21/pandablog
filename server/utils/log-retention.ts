@@ -5,7 +5,6 @@ import { maintainAccessLogFiles } from './access-log-store'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import type { RetentionReport } from '~/types/logging'
 
-export type { RetentionReport } from '~/types/logging'
 export const LOG_RETENTION_SCHEDULE = '17 3 * * *'
 export const ACCESS_LOG_MAINTENANCE_SCHEDULE = '5 0 * * *'
 

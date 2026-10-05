@@ -17,7 +17,7 @@ function timeKey(value: string) {
   return `${iso.slice(0, 19)}.${fraction.padEnd(9, '0')}Z`
 }
 
-export function occurrenceFingerprint(row: Record<string, unknown>) {
+function occurrenceFingerprint(row: Record<string, unknown>) {
   return errorFingerprint({ name: typeof row.name === 'string' ? row.name : 'Error', message: String(row.message ?? ''), stack: typeof row.stack === 'string' ? row.stack : null, path: typeof row.path === 'string' ? row.path : null, status: typeof row.status_code === 'number' ? row.status_code : 500 })
 }
 

@@ -532,6 +532,9 @@ Notes:
 
 ### Container logging
 
+See the [logging operations runbook](docs/logging/operations.md) for access-file inspection,
+error triage, retention, backups, migration/rollback safeguards, and troubleshooting.
+
 The production env template sets `LOG_CONSOLE=errors` and `LOG_FORMAT=json`. These are
 read at process startup, without a `NUXT_` prefix:
 

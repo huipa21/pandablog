@@ -1,25 +1,46 @@
 # Spec 00: Logging architecture (target design)
 
-Status: **Approved design**. All other specs in this folder build on it.
+Status: **Implemented and verified locally (Phases 1–4)**. Production-copy, measured production outcomes and deployed acceptance remain operator gates in [progress.md](../progress.md). All other specs in this folder build on it; the final-image runbook is [operations.md](../operations.md).
 
 ## 1. Problem statement
 
-The current design treats three different log streams the same way and puts all of them in SurrealDB:
+### Historical production baseline (operator, 2026-10-04)
 
-| Table | Observed size (2026-10) | Write rate | Read pattern |
-|---|---|---|---|
-| `access_logs` | ~629K rows (most of 422 MB) | 1 row per HTTP request | Seldom: dashboard chart, occasional search |
-| `error_logs` | ~1.4K rows | Low | Triage (read/unread) |
-| `activity_logs` | small | Low | Audit trail |
+The old design put all three streams in SurrealDB:
 
-Root causes found in the code (see `server/utils/logging*.ts`):
+| Metric | Measured baseline |
+|---|---|
+| `access_logs` | **635,189 rows** (dashboard estimate ~629K); 91,871 healthcheck rows (**14.5%**) |
+| `error_logs` | **1,409 rows**, all from `nitro.error_hook`, mostly 4xx scanner noise |
+| `activity_logs` | **8 rows** |
+| Actual SurrealDB data volume | **210 MB**; dashboard DB estimate was ~422 MB, not disk usage |
+| Latest full backup | **32.866 MB DB gzip + 1.875 MB media gzip** (~34.7 MB) |
+| Container console | **22 lines in 10 hours** (~53/day); not an observed full-day count |
 
-1. **Retention is never enforced.** `retention_*_days` settings exist and appear in the UI, but no job deletes old rows. Only the manual cleanup button does.
-2. **The Docker healthcheck is logged.** `panda health` sends `GET /` every 30 s, which is about 2,880 SSR renders and access rows per day.
-3. **High-volume, low-value data goes to the primary DB.** Every request goes through an NDJSON buffer, then a bulk `INSERT`, then updates to 3 indexes. The data is also included in every full backup.
-4. **Large deletes are inefficient.** `DELETE … RETURN BEFORE` returns every deleted row just to count it. With 600K rows this can hit the 30 s timeout.
-5. **Nothing reaches stdout by default.** `console_output=false`, so `docker logs` shows almost nothing.
-6. **Errors are not grouped.** The same bug creates N rows. 4xx errors (401/404) caught by the Nitro `error` hook add noise.
+Root causes found in the old code:
+
+1. Retention settings existed but no scheduled job enforced them.
+2. The healthcheck sent `GET /` every 30 s: about 2,880 SSR renders/access rows per day.
+3. Access traffic went through an NDJSON buffer, DB bulk inserts and three indexes, and into full backups.
+4. Bulk `DELETE … RETURN BEFORE` loaded all deleted rows just to count them, risking timeouts at 600K scale.
+5. `console_output=false` hid production errors from `docker logs` by default.
+6. Errors were ungrouped, and hook-captured 401/404 noise obscured real bugs.
+
+### Final implementation and measurement status (2026-10-05)
+
+Access now uses persistent UTC files with gzip/day retention and no new access DB writes; the two-start migration removes the old table after receipt verification. Errors use fingerprinted groups with capped occurrence samples and independent stderr output. Activity remains in the DB. Retention runs at boot, daily, on the UTC compression schedule and on admin demand; `/api/health` is hard-excluded.
+
+Local final verification evidence (disposable/synthetic fixtures, **not production measurements**):
+
+| Check | Recorded local result |
+|---|---|
+| Two-start access migration | **12,502 unique entries** exported; next start removed the table; 40 controlled concurrent requests caused **zero access-related DB queries** |
+| Access files immediately after migration | **2,135,868 bytes / 3 files** (sparse synthetic history; not a 30-day volume claim) |
+| Error backfill | **1,409 synthetic occurrences → 1 group**; actual production group N remains unknown |
+| Same-error storm | **100 counted errors / 20 retained samples** after trailing aggregation; retention cap and regression checks pass |
+| Persistent production DB/file/backup deltas | **Not measured**; After P1/P2/P3 cells remain pending in progress.md |
+
+No final production numbers were supplied during wrap-up. Do not infer disk savings, production backfill N, 30-day file volume or browser latency from these local fixtures. Approved production-copy rehearsal and deployed measurements remain release gates; update this section and progress.md when the operator provides them.
 
 ## 2. Principles
 
@@ -90,7 +111,7 @@ Backup settings (`server/utils/settings.ts`, backup section):
 
 | Field | Change | Task |
 |---|---|---|
-| `include_access_logs` | **New**, boolean, default `false`. | LOG-1.7 |
+| `include_access_logs` | Interim LOG-1.7 field, **removed in LOG-2.7**. Legacy saved values are ignored/omitted; access files are not in DB/media backups. | LOG-1.7 → LOG-2.7 |
 
 Env vars (operator-level; not stored in the DB):
 
@@ -98,6 +119,7 @@ Env vars (operator-level; not stored in the DB):
 |---|---|---|---|
 | `LOG_CONSOLE` | `off` \| `errors` \| `all` | `errors` | LOG-1.1 |
 | `LOG_FORMAT` | `json` \| `pretty` | `json` in production, `pretty` in dev | LOG-1.1 |
+| `ACCESS_LOG_DIR` | Writable persistent directory | `storage/logs/access`, resolved from process cwd | LOG-2.1 |
 
 Whenever a settings field is added, update **all** of the following: `types/logging.ts`, `defaultLoggingSettings()`, `updateSchema` (zod), `normalizeSettingsRecord()`, `tests/unit/logging-logic.test.ts → baseSettings()`, `pages/admin/dashboard/logs/settings.vue` (form, payload, reset defaults), and i18n keys in **both** `i18n/locales/en.json` and `i18n/locales/zh-CN.json`.
 
