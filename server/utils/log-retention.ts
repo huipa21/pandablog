@@ -1,5 +1,6 @@
 import { queryDb, useDb } from './db'
 import { firstRow } from './surrealResult'
+import { retainErrorGroups } from './error-groups'
 import { maintainAccessLogFiles } from './access-log-store'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import type { RetentionReport } from '~/types/logging'
@@ -81,6 +82,15 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
           report.deleted[stream.key] = await deleteLogsOlderThan(stream.table, new Date(cutoffTime - stream.days * 86_400_000))
         } catch (error) {
           report.errors.push(`${stream.key}: ${describeFailure(error)}`)
+        }
+      }
+      if (flags.errorLogs && settings.error_log_enabled) {
+        try {
+          const trimmed = await retainErrorGroups(new Date(cutoffTime - settings.retention_error_days * 86_400_000), settings.error_occurrences_per_group)
+          report.deleted.error_groups = trimmed.groups
+          report.deleted.errors += trimmed.occurrences
+        } catch (error) {
+          report.errors.push(`error_groups: ${describeFailure(error)}`)
         }
       }
     }

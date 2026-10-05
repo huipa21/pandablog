@@ -15,6 +15,8 @@ beforeEach(() => {
   vi.stubEnv('LOG_CONSOLE', 'errors')
   vi.stubEnv('LOG_FORMAT', 'json')
   vi.stubGlobal('createError', createError)
+  vi.stubGlobal('__PB_MODULE_LOGS__', true)
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
   originalListeners = process.stderr.listeners('error')
   stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
@@ -41,7 +43,7 @@ function consoleEntries(): Array<Record<string, any>> {
 }
 
 function storedEntries(): Array<Record<string, any>> {
-  return mocks.queryDb.mock.calls.filter(call => call[1] === 'CREATE error_logs CONTENT $entry;').map(call => call[2].entry)
+  return mocks.queryDb.mock.calls.filter(call => String(call[1]).includes('CREATE error_logs CONTENT $entry RETURN NONE;')).map(call => call[2].entry)
 }
 
 describe('error capture routing', () => {
@@ -147,6 +149,53 @@ describe('error capture routing', () => {
     await Promise.resolve()
     expect(stderr).not.toHaveBeenCalled()
     expect(storedEntries()[0]).toMatchObject({ status_code: 503, context: { fatal: true, cause: { name: 'Error', message: 'inner' } } })
+  })
+})
+
+describe('error group write routing', () => {
+  it('emits all 100 fingerprints to console, stores only 20 samples, and flushes all trailing counts after one second', async () => {
+    vi.useFakeTimers()
+    const logging = await load()
+    const error = new Error('same storm')
+    for (let index = 0; index < 100; index++) logging.logError(error, { path: '/api/test', request_id: `request-${index}` })
+    const { waitForErrorGroupWrites } = await import('../../server/utils/error-group-write')
+    await waitForErrorGroupWrites()
+    expect(consoleEntries()).toHaveLength(100)
+    const fingerprints = new Set(consoleEntries().map(entry => entry.fingerprint))
+    expect(fingerprints.size).toBe(1)
+    expect(storedEntries()).toHaveLength(20)
+    expect(storedEntries()[0]?.timestamp).toBeInstanceOf(Date)
+    await vi.advanceTimersByTimeAsync(1000)
+    await waitForErrorGroupWrites()
+    const writes = mocks.queryDb.mock.calls.filter(call => String(call[1]).includes('UPSERT type::record(\'error_groups\''))
+    expect(writes).toHaveLength(21)
+    expect(writes.reduce((sum, call) => sum + call[2].count, 0)).toBe(100)
+    expect(writes.at(-1)?.[2].count).toBe(80)
+    expect(writes.at(-1)?.[1]).not.toContain('CREATE error_logs')
+    vi.useRealTimers()
+  })
+
+  it('does not capture any sink with error modules disabled', async () => {
+    const logging = await load()
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { errorLogs: false } } } }))
+    logging.logError(new Error('disabled'))
+    expect(stderr).not.toHaveBeenCalled()
+    expect(mocks.queryDb).not.toHaveBeenCalled()
+  })
+
+  it.each([1, 50, 500])('accepts occurrence cap %s and defaults legacy settings to 50', async cap => {
+    const logging = await load()
+    expect(logging.getLoggingSettings().error_occurrences_per_group).toBe(50)
+    await logging.updateLoggingSettings({ error_occurrences_per_group: cap })
+    expect(logging.getLoggingSettings().error_occurrences_per_group).toBe(cap)
+    await logging.resetLoggingSettings()
+    expect(logging.getLoggingSettings().error_occurrences_per_group).toBe(50)
+  })
+
+  it.each([0, 501, 1.5, '50', null])('rejects invalid occurrence caps (%s), normalizing saved values to 50', async cap => {
+    const logging = await load({ error_occurrences_per_group: cap })
+    expect(logging.getLoggingSettings().error_occurrences_per_group).toBe(50)
+    expect(() => logging.validateLoggingSettingsUpdate({ error_occurrences_per_group: cap })).toThrow()
   })
 })
 

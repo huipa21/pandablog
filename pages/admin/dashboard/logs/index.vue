@@ -23,8 +23,8 @@
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? 0 }}</p>
       </NuxtLink>
       <NuxtLink v-if="moduleFlags.errorLogs" to="/admin/dashboard/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.errorLogs') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.count ?? 0 }}</p>
+        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.groups.unreadCount') }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.unread_groups ?? 0 }}</p>
       </NuxtLink>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.storage') }}</p>
@@ -66,10 +66,10 @@
       <div v-else class="mt-3 grid gap-2">
         <article v-for="row in recentErrors" :key="String(row.id)" class="recent-error-card rounded-[var(--pb-radius-card-inner)] border p-3">
           <div class="flex flex-wrap items-start justify-between gap-2">
-            <p class="min-w-0 text-sm text-[var(--pb-text)]" :class="isRead(row) ? 'font-medium' : 'font-semibold'">{{ asText(row.message) }}</p>
+            <p class="min-w-0 text-sm text-[var(--pb-text)]" :class="isRead(row) ? 'font-medium' : 'font-semibold'"><NuxtLink :to="{ path: '/admin/dashboard/logs/errors', query: { group: asText(row.fingerprint) } }">{{ asText(row.normalized_message) || asText(row.message) }}</NuxtLink></p>
             <UBadge :color="isRead(row) ? 'neutral' : 'primary'" variant="subtle">{{ isRead(row) ? t('admin.logs.read') : t('admin.logs.unread') }}</UBadge>
           </div>
-          <p class="mt-1 break-all text-xs text-[var(--pb-text-muted)]">{{ asText(row.timestamp) }} · {{ asText(row.path) }}</p>
+          <p class="mt-1 break-all text-xs text-[var(--pb-text-muted)]">{{ asText(row.last_seen) }} · {{ asText(row.route) }} · {{ row.count }}</p>
         </article>
       </div>
     </div>
@@ -86,8 +86,6 @@ const { t } = useI18n()
 const sessionFetch = useSessionFetch()
 const moduleFlags = useModuleFlags()
 
-const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
 const { data: statsData, pending: statsPending, error, refresh: refreshStats } = await useAsyncData(
   'admin-log-stats',
   () => sessionFetch('/api/admin/logs/stats')
@@ -98,7 +96,7 @@ const { data: hourlyData, pending: hourlyPending, error: hourlyError, refresh: r
 )
 const { data: errorData, pending: errorPending, refresh: refreshErrors } = await useAsyncData(
   'admin-log-errors-recent',
-  () => sessionFetch('/api/admin/logs/errors', { query: { from, limit: 5, sort: 'newest', total: 'false' } })
+  () => moduleFlags.errorLogs ? sessionFetch('/api/admin/logs/error-groups', { query: { status: 'unread', limit: 5, sort: 'last_seen' } }) : Promise.resolve({ rows: [] })
 )
 
 const stats = computed(() => statsData.value as any)

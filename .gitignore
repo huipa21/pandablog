@@ -74,6 +74,14 @@ tests/unit/*
 !tests/unit/logging-logic.test.ts
 !tests/unit/logging-error-capture.test.ts
 !tests/unit/logging-error-hook.test.ts
+!tests/unit/error-fingerprint.test.ts
+!tests/unit/error-rate-guard.test.ts
+!tests/unit/error-group-backfill.test.ts
+!tests/unit/error-groups.test.ts
+!tests/unit/error-groups-api.test.ts
+!tests/unit/error-groups-ui.test.ts
+!tests/unit/error-groups-live.test.ts
+!tests/unit/error-groups-plugin.test.ts
 !tests/unit/log-retention.test.ts
 !tests/unit/logging-cleanup.test.ts
 !tests/unit/log-purge-http.test.ts

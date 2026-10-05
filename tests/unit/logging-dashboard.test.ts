@@ -28,9 +28,11 @@ let accessEnabled: boolean
 let hourlyPending: boolean
 let fetcher: ReturnType<typeof vi.fn>
 let onRefresh: () => void
+let linkTargets: unknown[]
 const refreshers = new Map<string, ReturnType<typeof vi.fn>>()
 
 beforeEach(() => {
+  linkTargets = []
   hourly = buckets()
   accessEnabled = true
   hourlyPending = false
@@ -65,6 +67,7 @@ async function render(locale = 'en') {
     app.component(name, vue.defineComponent({
       inheritAttrs: false,
       setup(_, { attrs, slots }) {
+        if (name === 'NuxtLink') linkTargets.push(attrs.to)
         if (typeof attrs.onClick === 'function') onRefresh = attrs.onClick as () => void
         return () => vue.h('div', { ...attrs, 'data-component': name }, [attrs.title as string, slots.default?.()])
       }
@@ -96,6 +99,20 @@ describe('hourly dashboard SFC integration', () => {
     expect(html).toContain(locale === 'en' ? 'DB ~2.0 MB · Access files 1.0 MB' : '数据库约 2.0 MB · 访问日志文件 1.0 MB')
     expect(html).toContain('3.0 MB')
     expect(html).not.toContain(locale === 'en' ? 'DB estimate' : '数据库估算')
+  })
+
+  it('uses unread groups for the count and recent list, linking fingerprints to the inbox', async () => {
+    fetcher.mockImplementation(async (url: string) => url.endsWith('/hourly') ? hourly : url.endsWith('/stats') ? {
+      errors: { count: 999, groups: 10, unread_groups: 7 }, access: {}, activity: {}
+    } : { rows: [{ fingerprint: '0123456789abcdef', id: 'error_groups:0123456789abcdef', normalized_message: 'broken <n>', route: '/api/test', count: 100, last_seen: '2026-01-01T00:00:00Z' }] })
+    const html = await render()
+    expect(fetcher).toHaveBeenCalledWith('/api/admin/logs/error-groups', { query: { status: 'unread', limit: 5, sort: 'last_seen' } })
+    expect(html).toContain('Unread error groups')
+    expect(html).toContain('>7<')
+    expect(html).not.toContain('999')
+    expect(linkTargets).toContainEqual({ path: '/admin/dashboard/logs/errors', query: { group: '0123456789abcdef' } })
+    expect(html).toContain('broken &lt;n&gt;')
+    expect(html).toContain('/api/test')
   })
 
   it('includes hourly data in Refresh alongside stats and recent errors', async () => {

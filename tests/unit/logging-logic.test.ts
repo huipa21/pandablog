@@ -13,6 +13,7 @@ function baseSettings(): LoggingSettings {
     activity_log_enabled: true,
     error_log_enabled: true,
     error_log_min_status: 500,
+    error_occurrences_per_group: 50,
     log_level: 'info',
     excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
     excluded_status_codes: [204],

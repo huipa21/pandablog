@@ -91,7 +91,7 @@ describe('purge and detail routing', () => {
   it.each([['activity', 'activity_logs'], ['errors', 'error_logs']] as const)('keeps %s purge/detail DB-backed', async (type, table) => {
     const { purgeLogType, readLogById } = await import('../../server/utils/logging')
     expect(await purgeLogType(type)).toBe(19)
-    expect(mocks.purgeLogTable).toHaveBeenCalledExactlyOnceWith(table)
+    expect(mocks.purgeLogTable.mock.calls).toEqual(type === 'errors' ? [[table], ['error_groups']] : [[table]])
     await readLogById(type, 'one')
     expect(mocks.queryDbRecord).toHaveBeenCalledWith(expect.anything(), table, 'one', expect.anything())
     expect(mocks.purgeAccessLogFiles).not.toHaveBeenCalled()
@@ -125,7 +125,7 @@ describe('stats', () => {
     expect(await gatherLogStats()).toEqual({
       access: { count: 500, oldest: '2026-10-01T00:00:00Z', newest: '2026-10-04T00:00:00Z', files: 4, bytes: 1234 },
       activity: { count: 2, oldest: 'activity-old', newest: 'activity-new' },
-      errors: { count: 3, oldest: null, newest: null },
+      errors: { count: 3, groups: 0, unread_groups: 0, oldest: null, newest: null },
       db_estimate_bytes: 5400, access_files_bytes: 1234
     })
     expect(mocks.queryDb.mock.calls[0]![1]).not.toContain('access_logs')

@@ -10,6 +10,7 @@ export interface LoggingSettings {
   activity_log_enabled: boolean
   error_log_enabled: boolean
   error_log_min_status: number
+  error_occurrences_per_group: number
   log_level: LogLevel
   excluded_paths: string[]
   excluded_status_codes: number[]
@@ -62,6 +63,8 @@ export interface ErrorCause {
 }
 
 export interface ErrorLogEntry {
+  fingerprint?: string
+  name?: string | null
   timestamp?: string
   level: LogLevel
   message: string
@@ -71,6 +74,24 @@ export interface ErrorLogEntry {
   request_id?: string | null
   path?: string | null
   method?: string | null
+}
+
+export interface ErrorGroup {
+  id?: string
+  fingerprint: string
+  fingerprint_version: number
+  name?: string | null
+  message: string
+  route?: string | null
+  status_code?: number | null
+  level: LogLevel
+  count: number
+  first_seen: string
+  last_seen: string
+  last_stack?: string | null
+  read_at?: string | null
+  resolved_at?: string | null
+  regressed: boolean
 }
 
 export interface RetentionReport {

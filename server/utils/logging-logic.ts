@@ -149,6 +149,39 @@ export function olderThanRetention(timestamp: string | Date, retentionDays: numb
   return timeValue < now - retentionDays * 86_400_000
 }
 
+/** Fixed-window occurrence guard; suppressed counts are drained independently of arrivals. */
+export function createErrorRateGuard({ windowMs, max }: { windowMs: number; max: number }) {
+  if (!Number.isFinite(windowMs) || windowMs < 1 || !Number.isSafeInteger(max) || max < 1) throw new Error('Invalid error rate guard')
+  const entries = new Map<string, { start: number; writes: number; pending: number; flushed: number }>()
+  return {
+    hit(fingerprint: string, now = Date.now()): boolean {
+      let entry = entries.get(fingerprint)
+      if (!entry) {
+        // Prune inactive keys rather than allowing an unbounded lifetime cache.
+        for (const [key, value] of entries) if (!value.pending && now - value.start >= windowMs) entries.delete(key)
+        entry = { start: now, writes: 0, pending: 0, flushed: now }
+        entries.set(fingerprint, entry)
+      }
+      if (now - entry.start >= windowMs) { entry.start = now; entry.writes = 0 }
+      if (entry.writes++ < max) return true
+      entry.pending++
+      return false
+    },
+    drain(now = Date.now(), force = false): Array<{ fingerprint: string; count: number }> {
+      const result: Array<{ fingerprint: string; count: number }> = []
+      for (const [fingerprint, entry] of entries) {
+        if (entry.pending && (force || now - entry.flushed >= 1000)) {
+          result.push({ fingerprint, count: entry.pending })
+          entry.pending = 0
+          entry.flushed = now
+        }
+        if (!entry.pending && now - entry.start >= windowMs) entries.delete(fingerprint)
+      }
+      return result
+    }
+  }
+}
+
 function safeStringify(value: unknown) {
   try {
     return JSON.stringify(value)

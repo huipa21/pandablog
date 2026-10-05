@@ -52,6 +52,10 @@
           <UInput v-model.number="form.error_log_min_status" type="number" min="400" max="599" step="1" icon="i-lucide-list-filter" placeholder="500" />
           <template #hint>{{ t('admin.logs.settings.errorLogMinStatusHint') }}</template>
         </UFormField>
+        <UFormField :label="t('admin.logs.settings.errorOccurrencesPerGroup')" name="error_occurrences_per_group" class="max-w-xl">
+          <UInput v-model.number="form.error_occurrences_per_group" type="number" min="1" max="500" step="1" />
+          <template #hint>{{ t('admin.logs.settings.errorOccurrencesPerGroupHint') }}</template>
+        </UFormField>
       </section>
 
       <section class="grid gap-4 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
@@ -440,6 +444,7 @@ function toPayload(): LoggingSettingsPayload {
     activity_log_enabled: form.activity_log_enabled,
     error_log_enabled: form.error_log_enabled,
     error_log_min_status: Number(form.error_log_min_status),
+    error_occurrences_per_group: Number(form.error_occurrences_per_group),
     log_level: form.log_level,
     excluded_paths: excludedPathsText.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
     excluded_status_codes: parseExcludedStatusCodes(excludedStatusCodesText.value),
@@ -507,6 +512,7 @@ function blankForm(): LoggingSettings {
     activity_log_enabled: true,
     error_log_enabled: true,
     error_log_min_status: 500,
+    error_occurrences_per_group: 50,
     log_level: 'info',
     excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
     excluded_status_codes: [],

@@ -9,6 +9,8 @@ const logger = vi.hoisted(() => ({ initializeLoggingSettings: vi.fn(), getLoggin
 vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/access-log-store', () => ({ maintainAccessLogFiles: mocks.maintainAccessLogFiles }))
 vi.mock('../../server/utils/logging', () => logger)
+const groupRetention = vi.hoisted(() => ({ retainErrorGroups: vi.fn() }))
+vi.mock('../../server/utils/error-groups', () => groupRetention)
 
 const cutoff = new Date('2026-09-04T00:00:00.000Z')
 const batchResult = (count: number) => [undefined, [], count]
@@ -230,7 +232,7 @@ describe('purgeLogTable', () => {
 function runnerSettings(): LoggingSettings {
   return {
     enabled: true, debug_enabled: false, debug_override_prod: false,
-    access_log_enabled: true, activity_log_enabled: true, error_log_enabled: true, error_log_min_status: 500,
+    access_log_enabled: true, activity_log_enabled: true, error_log_enabled: true, error_log_min_status: 500, error_occurrences_per_group: 50,
     log_level: 'info', excluded_paths: [], excluded_status_codes: [], redact_fields: [],
     retention_access_days: 2, retention_activity_days: 3, retention_error_days: 4,
     max_metadata_size_kb: 50, sampling_rate: 1, console_output: false
@@ -247,6 +249,7 @@ describe('retention runner', () => {
     vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
     logger.initializeLoggingSettings.mockResolvedValue(runnerSettings())
     logger.getLoggingSettings.mockReturnValue(runnerSettings())
+    groupRetention.retainErrorGroups.mockResolvedValue({ groups: 0, occurrences: 0 })
     mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 0, deleted: 0 })
     mocks.queryDb.mockResolvedValue(batchResult(0))
   })
@@ -263,10 +266,25 @@ describe('retention runner', () => {
       { table: 'error_logs', cutoff: new Date(now.getTime() - 4 * 86_400_000).toISOString(), batch: 2000 }
     ])
     expect(mocks.maintainAccessLogFiles).toHaveBeenCalledExactlyOnceWith(now, 2)
-    expect(report).toEqual({ started_at: now.toISOString(), finished_at: now.toISOString(), duration_ms: 0, deleted: { access: 0, access_files: 1, activity: 2, errors: 3 }, errors: [] })
+    expect(report).toEqual({ started_at: now.toISOString(), finished_at: now.toISOString(), duration_ms: 0, deleted: { access: 0, access_files: 1, activity: 2, errors: 3, error_groups: 0 }, errors: [] })
     expect(logger.logActivity).toHaveBeenCalledExactlyOnceWith({ action: 'system.log_retention', resource_type: 'logging', metadata: report, description: 'Scheduled log retention removed 6 rows/files' })
     expect(logger.warn).not.toHaveBeenCalled()
     expect(retention.getLastRetentionReport()).toEqual(report)
+  })
+
+  it('adds group/occurrence trimming to the report without losing the age count', async () => {
+    groupRetention.retainErrorGroups.mockResolvedValue({ groups: 2, occurrences: 80 })
+    mocks.queryDb.mockResolvedValueOnce(batchResult(0)).mockResolvedValueOnce(batchResult(5))
+    const { runLogRetention } = await import('../../server/utils/log-retention')
+    const report = await runLogRetention(now)
+    expect(groupRetention.retainErrorGroups).toHaveBeenCalledWith(new Date(now.getTime() - 4 * 86_400_000), 50)
+    expect(report.deleted).toMatchObject({ errors: 85, error_groups: 2 })
+  })
+
+  it('isolates group retention failures from other streams', async () => {
+    groupRetention.retainErrorGroups.mockRejectedValue(new Error('cap failed'))
+    const { runLogRetention } = await import('../../server/utils/log-retention')
+    expect((await runLogRetention(now)).errors).toEqual(['error_groups: cap failed'])
   })
 
   it('records elapsed wall-clock time independently of the cutoff anchor', async () => {
@@ -284,7 +302,7 @@ describe('retention runner', () => {
 
   it('does not audit empty successful runs', async () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
-    expect((await runLogRetention()).deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0 })
+    expect((await runLogRetention()).deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0, error_groups: 0 })
     expect(logger.logActivity).not.toHaveBeenCalled()
     expect(logger.warn).not.toHaveBeenCalled()
   })
@@ -340,7 +358,7 @@ describe('retention runner', () => {
     mocks.queryDb.mockRejectedValueOnce(new Error('DB unavailable')).mockResolvedValueOnce(batchResult(3))
     const { runLogRetention } = await import('../../server/utils/log-retention')
     const report = await runLogRetention()
-    expect(report.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 3 })
+    expect(report.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 3, error_groups: 0 })
     expect(report.errors).toEqual(['activity: DB unavailable'])
     expect(logger.logActivity).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledWith('[logging] retention completed with errors', { errors: report.errors, deleted: report.deleted })
@@ -400,7 +418,7 @@ describe('retention runner', () => {
     snapshot.deleted.access = 99
     snapshot.errors.push('mutated')
     report.deleted.activity = 88
-    expect(retention.getLastRetentionReport()?.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0 })
+    expect(retention.getLastRetentionReport()?.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0, error_groups: 0 })
     expect(retention.getLastRetentionReport()?.errors).toEqual([])
   })
 })

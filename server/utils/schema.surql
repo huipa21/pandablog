@@ -352,6 +352,27 @@ DEFINE FIELD IF NOT EXISTS method ON error_logs TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS read_at ON error_logs TYPE option<datetime>;
 DEFINE INDEX IF NOT EXISTS error_logs_timestamp_desc ON error_logs FIELDS timestamp;
 DEFINE INDEX IF NOT EXISTS error_logs_level ON error_logs FIELDS level;
+DEFINE FIELD IF NOT EXISTS fingerprint ON error_logs TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS name ON error_logs TYPE option<string>;
+DEFINE INDEX IF NOT EXISTS error_logs_fingerprint ON error_logs FIELDS fingerprint;
+
+DEFINE TABLE OVERWRITE error_groups SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS fingerprint ON error_groups TYPE string;
+DEFINE FIELD IF NOT EXISTS fingerprint_version ON error_groups TYPE int DEFAULT 1;
+DEFINE FIELD IF NOT EXISTS name ON error_groups TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS message ON error_groups TYPE string;
+DEFINE FIELD IF NOT EXISTS route ON error_groups TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS status_code ON error_groups TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS level ON error_groups TYPE string;
+DEFINE FIELD IF NOT EXISTS count ON error_groups TYPE int DEFAULT 0;
+DEFINE FIELD IF NOT EXISTS first_seen ON error_groups TYPE datetime;
+DEFINE FIELD IF NOT EXISTS last_seen ON error_groups TYPE datetime;
+DEFINE FIELD IF NOT EXISTS last_stack ON error_groups TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS read_at ON error_groups TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS resolved_at ON error_groups TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS regressed ON error_groups TYPE bool DEFAULT false;
+DEFINE INDEX IF NOT EXISTS error_groups_last_seen ON error_groups FIELDS last_seen;
+DEFINE INDEX IF NOT EXISTS error_groups_read ON error_groups FIELDS read_at;
 -- #module logs end
 
 -- #module backups start

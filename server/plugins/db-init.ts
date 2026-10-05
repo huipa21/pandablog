@@ -2,6 +2,7 @@ import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, useDb } from '../utils/db'
 import { defaultLoggingSettings, getLoggingSettings, reloadLoggingSettings } from '../utils/logging'
+import { runErrorGroupBackfill } from '../utils/error-group-backfill'
 import { removeMigratedAccessTable, runAccessLogMigration } from '../utils/access-log-migration'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import { mergeExcludedPaths } from '../utils/logging-logic'
@@ -556,6 +557,13 @@ async function ensureMediaStorageVersion(db: Awaited<ReturnType<typeof useDb>>) 
 }
 
 async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
+  if (__PB_MODULE_LOGS__ && resolveModuleFlags(getRuntimeModuleConfig()).errorLogs) {
+    try {
+      await runErrorGroupBackfill(db)
+    } catch (error) {
+      console.warn('[db-init] error groups backfill failed; will retry next boot', error)
+    }
+  }
   if (__PB_MODULE_LOGS__ && resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
     await runAccessLogMigration(db, getLoggingSettings())
   }

@@ -13,6 +13,7 @@ export interface ConsoleEntry {
   level: LogLevel
   kind: 'error_log' | 'access_log' | 'activity_log' | 'app'
   msg: string
+  fingerprint?: string
   request_id?: string | null
   method?: string | null
   path?: string | null
@@ -121,6 +122,7 @@ function envelope(entry: ConsoleEntry, settings: ConsoleSettings) {
     level: entry.level,
     kind: entry.kind,
     msg: entry.msg,
+    fingerprint: entry.fingerprint,
     request_id: entry.request_id,
     method: entry.method,
     path: entry.path,
@@ -209,7 +211,7 @@ export function formatPrettyLine(entry: ConsoleEntry, settings: ConsoleSettings 
     const request = data.request_id ? ` (${data.request_id})` : ''
     const http = [data.method, data.path, data.status].filter(value => value != null).join(' ')
     const stack = data.err?.stack ? `\n  ${String(data.err.stack).replace(/\n/g, '\n  ')}` : ''
-    const line = `${String(data.ts).slice(11, 23)} ${String(data.level).toUpperCase()} ${data.kind} ${data.msg}${request}${http ? ` [${http}]` : ''}${stack}`
+    const line = `${String(data.ts).slice(11, 23)} ${String(data.level).toUpperCase()} ${data.kind} ${data.msg}${request}${data.fingerprint ? ` [fp=${data.fingerprint}]` : ''}${http ? ` [${http}]` : ''}${stack}`
     return truncateUtf8(line, MAX_CONTENT_BYTES)
   } catch {
     return fallbackLine()
