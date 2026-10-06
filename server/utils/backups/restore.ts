@@ -14,6 +14,7 @@ import { getBackupSettings, getMediaSettings, initializeRuntimeSettings, initial
 import { reloadLoggingSettings } from '../logging'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, recycleRuntimeConnection } from '../db'
 import { applySchema } from '../schema'
+import { invalidateAnalyticsPublication } from '../analytics/publication'
 import { queryRows } from '../surrealResult'
 import { mediaProcessImageFile } from '../imageProcessor'
 import { newAuthEpoch } from '../users'
@@ -62,6 +63,7 @@ async function repairRuntimeAndSessions() {
   try {
     await applySchema(db, undefined, {preserveData: true})
     await provisionAppDatabaseUser(db)
+    await invalidateAnalyticsPublication(db)
     let after: unknown = null
     while (true) {
       const rows = queryRows<{id: unknown}>(await queryDb(db, 'SELECT id FROM users WHERE $after = NONE OR id > $after ORDER BY id LIMIT 100;', {after}, {retry: 'never'}))

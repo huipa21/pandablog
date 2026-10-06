@@ -127,6 +127,19 @@ describe('file-backed admin APIs over real H3 HTTP', () => {
     expect(mocks.useDb).not.toHaveBeenCalled()
   })
 
+  it('returns 503 rather than false detail 404 or exact hourly/stats zero when native file scans exhaust their budget', async () => {
+    const reader = await import('../../server/utils/access-log-reader')
+    const bounded = reader.createAccessLogReader({dir: () => directory, maxScanBytes: 10})
+    vi.spyOn(reader, 'readAccessLogById').mockImplementation(bounded.readAccessLogById)
+    vi.spyOn(reader, 'accessHourly').mockImplementation(bounded.accessHourly)
+    vi.spyOn(reader, 'accessStats').mockImplementation(bounded.accessStats)
+    for (const path of [`access/${encodeURIComponent(`${day}:missing`)}`, 'access/hourly', 'stats']) {
+      const response = await fetch(`${base}/api/admin/logs/${path}`)
+      expect(response.status).toBe(503); await response.text()
+    }
+    expect(mocks.queryDb).not.toHaveBeenCalled()
+  })
+
   it('preserves truncated scan lower bounds in lists and streamed exports', async () => {
     const reader = await import('../../server/utils/access-log-reader')
     vi.spyOn(reader, 'queryAccessLogs').mockImplementation(async query => ({ rows: [{ id: `${day}:partial` }], total: 123, limit: query.limit, offset: query.offset, sort: query.sort, truncated: true }))

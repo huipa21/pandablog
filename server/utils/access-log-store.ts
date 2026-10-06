@@ -7,9 +7,11 @@ import { Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createGunzip, createGzip } from 'node:zlib'
 import { writeConsoleEntry } from './log-console'
+import { boundedLogValue } from './bounded-log-value'
 import type { AccessLogEntry } from '~/types/logging'
 
 const MAX_PENDING_BYTES = 8 * 1024 * 1024
+export const MAX_ACCESS_LINE_BYTES = 64 * 1024
 const WARN_INTERVAL_MS = 60_000
 const FAILURE_BACKOFF_MS = 60_000
 
@@ -23,23 +25,28 @@ export function fileNameForDate(d: Date): string {
 
 /** Entries reaching this store have already been redacted and trimmed by logAccess. */
 export function serializeAccessLog(entry: AccessLogEntry, now = new Date()): string {
-  return JSON.stringify(accessLogLine(entry, now))
+  const row = accessLogLine(entry, now)
+  let line = JSON.stringify(row)
+  if (Buffer.byteLength(line) + 1 > MAX_ACCESS_LINE_BYTES) {row.q = undefined; line = JSON.stringify(row)}
+  if (Buffer.byteLength(line) + 1 > MAX_ACCESS_LINE_BYTES) throw new Error('Access log record exceeds encoded byte budget')
+  return line
 }
 
 function accessLogLine(entry: AccessLogEntry, now: Date) {
   const date = entry.timestamp ? new Date(entry.timestamp) : now
   const timestamp = Number.isNaN(date.getTime()) ? now : date
+  const query = entry.query_params ? boundedLogValue(entry.query_params) : undefined
   return {
     ts: timestamp.toISOString(),
-    id: entry.request_id || randomUUID(),
-    m: entry.method,
-    p: entry.path,
+    id: (entry.request_id || randomUUID()).slice(0, 256),
+    m: entry.method.slice(0, 32),
+    p: entry.path.slice(0, 2048),
     s: entry.status_code,
     d: entry.response_time_ms,
-    ip: entry.ip ?? undefined,
-    ua: entry.user_agent ?? undefined,
-    ref: entry.referrer ?? undefined,
-    q: entry.query_params && Object.keys(entry.query_params).length ? entry.query_params : undefined
+    ip: entry.ip?.slice(0, 256),
+    ua: entry.user_agent?.slice(0, 4096),
+    ref: entry.referrer?.slice(0, 2048),
+    q: query && typeof query === 'object' && Object.keys(query).length ? query : undefined
   }
 }
 
@@ -152,7 +159,7 @@ export function createAccessLogStore(options: StoreOptions = {}) {
       time = date.getTime()
       if (time < blockedUntil) return
       const row = accessLogLine(entry, date)
-      const line = `${JSON.stringify(row)}\n`
+      const line = `${serializeAccessLog(entry, date)}\n`
       // The serialized timestamp is also the day key (UTC), including explicit timestamps.
       const name = fileNameForDate(new Date(row.ts))
       if (paused) {

@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { queryDb, useDb } from './db'
 import { queryAccessLogs } from './access-log-reader'
+import { requestAbortSignal } from './request-abort'
 import type { AccessQuery } from './access-log-reader'
 import { firstRow, queryRows } from './surrealResult'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
@@ -113,7 +114,7 @@ export async function listLogs(event: H3Event, type: LogType, options: ListLogsO
   const orderBy = sort === 'oldest' ? 'ASC' : 'DESC'
   const includeTotal = options.includeTotal ?? query.total !== 'false'
   if (type === 'access') {
-    return queryAccessLogs(toAccessQuery(query, { limit, offset, sort, includeTotal }))
+    return queryAccessLogs({...toAccessQuery(query, {limit, offset, sort, includeTotal}), signal: requestAbortSignal(event)})
   }
   const spec = logListSpecs[type]
   const params: Record<string, unknown> = { limit, offset }

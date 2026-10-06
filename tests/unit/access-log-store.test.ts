@@ -215,16 +215,18 @@ describe('access file writer', () => {
     expect(warn).toHaveBeenCalledTimes(1)
   })
 
-  it('drops malformed/unserializable entries without destroying previously queued valid data', async () => {
+  it('safely clips circular metadata without destroying previously queued valid data', async () => {
     const warn = vi.fn()
     const writer = store({ now: () => new Date('2026-05-20T10:00:00Z'), warn })
     writer.append(entry)
     const circular: Record<string, unknown> = {}
     circular.self = circular
     expect(() => writer.append({ ...entry, query_params: circular })).not.toThrow()
-    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).not.toHaveBeenCalled()
     await writer.close()
-    expect((await rows('access-2026-05-20.ndjson')).map(row => row.id)).toEqual(['request-123'])
+    const stored = await rows('access-2026-05-20.ndjson')
+    expect(stored.map(row => row.id)).toEqual(['request-123', 'request-123'])
+    expect(stored[1]!.q).toEqual({self: '[Circular]'})
   })
 
   it('retries the first failure on the next append, backs off repeated failures for 60s and recovers', async () => {
@@ -296,30 +298,32 @@ describe('access file writer', () => {
     let time = Date.parse('2026-05-20T10:00:00Z')
     const warn = vi.fn()
     const writer = store({ now: () => new Date(time), open: held, warn })
-    const largeEntry = { ...entry, user_agent: 'x'.repeat(1024 * 1024) }
-    for (let index = 0; index < 7; index++) writer.append(largeEntry)
+    const largeEntry = { ...entry, user_agent: 'x'.repeat(4096) }
+    const lineBytes = Buffer.byteLength(serializeAccessLog(largeEntry, new Date(time))) + 1
+    const admitted = Math.floor(8 * 1024 * 1024 / lineBytes)
+    for (let index = 0; index < admitted; index++) writer.append(largeEntry)
     expect(streams[0]!.writableLength).toBeGreaterThan(7 * 1024 * 1024)
-    writer.append(largeEntry)
     writer.append(largeEntry)
     writer.append(largeEntry)
     expect(streams[0]!.writableLength).toBeLessThanOrEqual(8 * 1024 * 1024)
     expect(warn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('dropping entries'), { dropped: 1 })
     time += 60_000
     writer.append(largeEntry)
-    expect(warn).toHaveBeenLastCalledWith(expect.stringContaining('dropping entries'), { dropped: 3 })
+    expect(warn).toHaveBeenLastCalledWith(expect.stringContaining('dropping entries'), { dropped: 2 })
     streams[0]!.release()
     writer.append({ ...entry, request_id: 'after-drain' })
     streams[0]!.release()
     await writer.close()
-    expect(streams[0]!.chunks).toHaveLength(8)
-    expect(JSON.parse(streams[0]!.chunks[7]!).id).toBe('after-drain')
+    expect(streams[0]!.chunks).toHaveLength(admitted + 1)
+    expect(JSON.parse(streams[0]!.chunks.at(-1)!).id).toBe('after-drain')
   })
 
-  it('drops a single entry larger than the entire queue budget', async () => {
+  it('clips oversized optional fields before retaining a valid line within 64KiB', async () => {
     const warn = vi.fn()
     const writer = store({ open: held, warn })
     writer.append({ ...entry, user_agent: 'x'.repeat(8 * 1024 * 1024) })
-    expect(streams[0]!.writableLength).toBe(0)
-    expect(warn).toHaveBeenCalledTimes(1)
+    expect(streams[0]!.writableLength).toBeLessThanOrEqual(64 * 1024)
+    expect(streams[0]!.writableLength).toBeGreaterThan(0)
+    expect(warn).not.toHaveBeenCalled()
   })
 })

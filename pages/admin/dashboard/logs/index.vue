@@ -16,20 +16,20 @@
     <div class="grid gap-4 md:grid-cols-4">
       <NuxtLink v-if="moduleFlags.accessLogs" to="/admin/dashboard/logs/access" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.accessLogs') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.access.count ?? 0 }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.access.count ?? '—' }}</p>
       </NuxtLink>
       <NuxtLink v-if="moduleFlags.activityLogs" to="/admin/dashboard/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.activityLogs') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? 0 }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? '—' }}</p>
       </NuxtLink>
       <NuxtLink v-if="moduleFlags.errorLogs" to="/admin/dashboard/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.groups.unreadCount') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.unread_groups ?? 0 }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.unread_groups ?? '—' }}</p>
       </NuxtLink>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.storage') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ formatBytes((stats?.db_estimate_bytes ?? 0) + (stats?.access_files_bytes ?? 0)) }}</p>
-        <p class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.logs.storageBreakdown', { db: formatBytes(stats?.db_estimate_bytes ?? 0), access: formatBytes(stats?.access_files_bytes ?? 0) }) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats ? formatBytes((stats.db_estimate_bytes ?? 0) + (stats.access_files_bytes ?? 0)) : '—' }}</p>
+        <p v-if="stats" class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.logs.storageBreakdown', { db: formatBytes(stats?.db_estimate_bytes ?? 0), access: formatBytes(stats?.access_files_bytes ?? 0) }) }}</p>
       </div>
     </div>
 

@@ -52,6 +52,10 @@ tests/unit/*
 !tests/unit/annotate.test.ts
 !tests/unit/authRedirect.test.ts
 !tests/unit/analytics.test.ts
+!tests/unit/analytics-bounds.test.ts
+!tests/unit/analytics-track-http.test.ts
+!tests/unit/access-log-bounds.test.ts
+!tests/integration/analytics-phase4.test.ts
 !tests/unit/db-reconnect.test.ts
 !tests/unit/db-lifecycle.test.ts
 !tests/unit/backup-ownership.test.ts

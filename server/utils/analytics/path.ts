@@ -25,7 +25,7 @@ export function normalizeAnalyticsPath(value: unknown) {
       ? new URL(trimmed)
       : new URL(trimmed, 'http://local.invalid')
     const path = `${url.pathname}${url.search}`
-    if (!path.startsWith('/') || EXCLUDED_PATH_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) {
+    if (Buffer.byteLength(path) > 2048 || !path.startsWith('/') || EXCLUDED_PATH_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) {
       return null
     }
 
@@ -45,5 +45,5 @@ export function normalizeAnalyticsReferrer(value: unknown) {
     return undefined
   }
 
-  return trimmed.slice(0, 2048)
+  return Buffer.byteLength(trimmed) <= 2048 ? trimmed : undefined
 }

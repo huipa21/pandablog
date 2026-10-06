@@ -4,11 +4,18 @@ import type { Stats } from 'node:fs'
 import * as nodeFs from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { createInterface } from 'node:readline'
+import { createHash } from 'node:crypto'
+import { createError } from 'h3'
+import { BoundedAdmission } from './admission'
+
 import { createGunzip } from 'node:zlib'
 import { accessLogDir } from './access-log-store'
 import type { ListLogsResult } from './logging-admin'
 import type { AccessHourlyBucket } from '~/types/logging'
+
+const scans = new BoundedAdmission({active: 2, waiting: 8, waitMs: 1_000}, 'Access log scans')
+class ScanUnavailable extends Error {statusCode = 503}
+export function shutdownAccessLogReader() {return scans.shutdown(5_000)}
 
 const DAY_MS = 86_400_000
 const HOUR_MS = 3_600_000
@@ -27,6 +34,7 @@ export interface AccessQuery {
   offset: number
   sort: 'newest' | 'oldest'
   includeTotal: boolean
+  signal?: AbortSignal
 }
 
 export interface AccessLogRow extends Record<string, unknown> {
@@ -51,7 +59,7 @@ export interface AccessFileStats {
   files: number
 }
 
-type ReaderFs = Pick<typeof nodeFs, 'lstat' | 'readdir' | 'open' | 'rename' | 'unlink'>
+type ReaderFs = Pick<typeof nodeFs, 'lstat' | 'readdir' | 'open' | 'rename' | 'unlink'> & Partial<Pick<typeof nodeFs, 'opendir'>>
 interface ReaderOptions {
   dir?: () => string
   now?: () => Date
@@ -61,9 +69,13 @@ interface ReaderOptions {
   maxLines?: number
   maxDurationMs?: number
   maxMatchesPerFile?: number
+  maxScanBytes?: number
+  maxLineBytes?: number
+  maxRetainedBytes?: number
+  maxFiles?: number
 }
 interface DayFile { name: string; day: string; gzip: boolean; stat: Stats }
-interface CountCacheEntry { size: number; mtimeMs: number; lines: number }
+interface CountCacheEntry { version: 2; size: number; mtimeMs: number; lines: number; dev: number; ino: number; birthtimeMs: number; offset: number; newlines: number; pending: boolean; tail: string }
 type CountCache = Record<string, CountCacheEntry>
 
 function validDay(day: string): boolean {
@@ -107,11 +119,27 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
   const clock = options.clock ?? (() => performance.now())
   const maxLines = options.maxLines ?? 2_000_000
   const maxDurationMs = options.maxDurationMs ?? 3000
-  const maxMatches = options.maxMatchesPerFile ?? 200_000
-  for (const value of [maxLines, maxMatches]) {
+  const maxMatches = options.maxMatchesPerFile ?? 10_000
+  const maxScanBytes = options.maxScanBytes ?? 128 * 1024 * 1024
+  const maxLineBytes = options.maxLineBytes ?? 64 * 1024
+  const maxRetainedBytes = options.maxRetainedBytes ?? 8 * 1024 * 1024
+  const maxFiles = options.maxFiles ?? 8192
+  for (const value of [maxLines, maxMatches, maxScanBytes, maxLineBytes, maxRetainedBytes, maxFiles]) {
     if (!Number.isSafeInteger(value) || value < 1) throw new Error('Invalid access log reader budget')
   }
-  if (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0) throw new Error('Invalid access log reader duration')
+  if (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0 || maxDurationMs > 30_000) throw new Error('Invalid access log reader duration')
+  if (maxLineBytes > 64 * 1024 || maxRetainedBytes > 8 * 1024 * 1024 || maxFiles > 8192 || maxMatches > 20_000 || maxScanBytes > 1024 * 1024 * 1024) throw new Error('Invalid access log reader budget')
+
+  function budget(signal?: AbortSignal) {
+    const started = clock(), controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), maxDurationMs)
+    const abort = () => controller.abort()
+    signal?.addEventListener('abort', abort, {once: true}); if (signal?.aborted) abort()
+    return {controller, bytes: 0, scanned: 0, oversized: false,
+      check() {if (controller.signal.aborted || clock() - started >= maxDurationMs) throw new ScanUnavailable('Access log scan deadline/abort exceeded')},
+      dispose() {clearTimeout(timer); signal?.removeEventListener('abort', abort)}}
+  }
+  type Budget = ReturnType<typeof budget>
 
   async function stat(path: string) {
     try { return await fs.lstat(path) } catch (error) {
@@ -120,10 +148,14 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
     }
   }
 
-  async function listFiles(directory: string): Promise<DayFile[]> {
+  async function listFiles(directory: string, b?: Budget): Promise<DayFile[]> {
     if (!(await stat(directory))?.isDirectory()) return [] // Includes directory symlinks.
     const files: DayFile[] = []
-    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+    const entries = fs.opendir ? await fs.opendir(directory) : await fs.readdir(directory, {withFileTypes: true})
+    let seen = 0
+    for await (const entry of entries) {
+      b?.check()
+      if (++seen > maxFiles) throw new ScanUnavailable('Access log directory entry budget exceeded')
       const match = FILE_PATTERN.exec(entry.name)
       if (!entry.isFile() || !match || !validDay(match[1]!)) continue
       const info = await stat(resolve(directory, entry.name))
@@ -155,48 +187,72 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
     }
   }
 
-  async function* lines(directory: string, file: DayFile, signal?: AbortSignal): AsyncGenerator<string> {
+  async function* lines(directory: string, file: DayFile, b: Budget): AsyncGenerator<string> {
     let handle: Awaited<ReturnType<typeof openRegular>>
     try { handle = await openRegular(resolve(directory, file.name)) } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
     if (!handle) {
       // A retention/compression pass may have replaced the plain name after listing.
-      if (!file.gzip) yield* lines(directory, { ...file, name: `${file.name}.gz`, gzip: true }, signal)
-      return
+      if (!file.gzip) {
+        const name = `${file.name}.gz`, info = await stat(resolve(directory, name))
+        if (info?.isFile()) {yield* lines(directory, {...file, name, gzip: true, stat: info}, b); return}
+      }
+      throw new ScanUnavailable('Access source changed during scan')
     }
     try {
-      const source = handle.createReadStream({ autoClose: false, signal })
+      if (!file.stat.size) return
+      const source = handle.createReadStream({ autoClose: false, end: file.stat.size - 1, signal: b.controller.signal })
       const decoder = file.gzip ? createGunzip() : undefined
       const input = decoder ?? source
       const forwardError = (error: Error) => { input.destroy(error) }
       if (decoder) source.on('error', forwardError)
-      const reader = createInterface({ input, crlfDelay: Infinity })
       try {
-        // Attach the iterator's error handler before starting decompression.
-        const iterator = reader[Symbol.asyncIterator]()
+        const iterator = input[Symbol.asyncIterator]()
         if (decoder) source.pipe(decoder)
-        for await (const line of { [Symbol.asyncIterator]: () => iterator }) yield line
-      } finally {
-        reader.close()
-        source.destroy()
-        decoder?.destroy()
-      }
+        const retained = Buffer.allocUnsafe(maxLineBytes)
+        let length = 0, oversized = false, pending = false
+        for await (const data of {[Symbol.asyncIterator]: () => iterator}) {
+          const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data)
+          b.check(); b.bytes += chunk.length
+          if (b.bytes > maxScanBytes) throw new ScanUnavailable('Access log scan byte budget exceeded')
+          let offset = 0
+          while (offset < chunk.length) {
+            b.check()
+            const newline = chunk.indexOf(10, offset), end = newline < 0 ? chunk.length : newline
+            const size = end - offset
+            pending ||= size > 0
+            if (length + size + 1 > maxLineBytes) {oversized = true; b.oversized = true}
+            if (!oversized) {chunk.copy(retained, length, offset, end); length += size}
+            if (newline < 0) break
+            if (++b.scanned > maxLines) throw new ScanUnavailable('Access log scan line budget exceeded')
+            yield oversized ? '' : retained.subarray(0, length).toString('utf8').replace(/\r$/, '')
+            length = 0; oversized = false; pending = false; offset = newline + 1
+          }
+        }
+        if (pending) {
+          if (++b.scanned > maxLines) throw new ScanUnavailable('Access log scan line budget exceeded')
+          yield oversized ? '' : retained.subarray(0, length).toString('utf8').replace(/\r$/, '')
+        }
+      } finally {source.destroy(); decoder?.destroy()}
     } finally { await handle.close() }
   }
 
+  let lastScan = {scannedBytes: 0, scannedLines: 0, retainedBytes: 0, retainedRows: 0}
   async function queryAccessLogs(q: AccessQuery): Promise<ListLogsResult & { truncated: boolean }> {
     const current = now().getTime()
     const from = (q.from ?? new Date(current - 7 * DAY_MS)).getTime()
     const to = (q.to ?? new Date(current)).getTime()
     if (!Number.isFinite(from) || !Number.isFinite(to)) throw new Error('Invalid access log date range')
     if (!Number.isSafeInteger(q.limit) || q.limit < 1 || !Number.isSafeInteger(q.offset) || q.offset < 0
-      || (q.sort !== 'newest' && q.sort !== 'oldest')) throw new Error('Invalid access log pagination')
+      || q.limit > 10_000 || q.offset > 10_000 || (q.sort !== 'newest' && q.sort !== 'oldest')) throw createError({statusCode: 400, message: 'Invalid access log pagination'})
     const rows: AccessLogRow[] = []
     let total = 0
     let skipped = 0
     let scanned = 0
     let truncated = false
+    let retainedBytes = 0, highBytes = 0, highRows = 0
+    const b = budget(q.signal)
     const started = clock()
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), maxDurationMs)
@@ -216,22 +272,29 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
     }
     const collect = (row: AccessLogRow) => {
       if (skipped < q.offset) skipped++
-      else if (rows.length < q.limit) rows.push(row)
+      else if (rows.length < q.limit) {
+        const bytes = Buffer.byteLength(JSON.stringify(row))
+        if (retainedBytes + bytes > maxRetainedBytes) {truncated = true; return true}
+        rows.push(row); retainedBytes += bytes
+        highBytes = Math.max(highBytes, retainedBytes); highRows = Math.max(highRows, rows.length)
+      }
       return !q.includeTotal && rows.length === q.limit
     }
     try {
       if (from <= to) {
         const fromDay = new Date(from).toISOString().slice(0, 10)
         const toDay = new Date(to).toISOString().slice(0, 10)
-        const files = selectFiles(await listFiles(directory)).filter(file => file.day >= fromDay && file.day <= toDay)
+        const files = selectFiles(await listFiles(directory, b)).filter(file => file.day >= fromDay && file.day <= toDay)
         if (q.sort === 'newest') files.reverse()
         outer: for (const file of files) {
           if (expired()) { truncated = true; break }
-          const dayRows: AccessLogRow[] = []
-          let dayMatches = 0
+          const dayRows: Array<{row: AccessLogRow, bytes: number} | undefined> = []
+          const window = Math.min(q.offset + q.limit, maxMatches)
+          let head = 0, size = 0, dayBytes = 0, dayComplete = true
+          if (window < q.offset + q.limit) truncated = true
           try {
-            for await (const line of lines(directory, file, abort.signal)) {
-              if (scanned >= maxLines || expired()) { truncated = true; break }
+            for await (const line of lines(directory, file, b)) {
+              if (expired()) { truncated = true; dayComplete = false; break }
               scanned++
               const row = parseAccessLogLine(line, file.day)
               if (!row || !matches(row)) continue
@@ -239,49 +302,60 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
               if (q.sort === 'oldest') {
                 if (collect(row)) break outer
               } else {
-                // Ring buffer retains the newest matches rather than the first
-                // 200K (oldest) matches when a busy day exceeds the memory cap.
-                dayRows[dayMatches % maxMatches] = row
-                dayMatches++
-                if (dayMatches > maxMatches) truncated = true
+                const bytes = Buffer.byteLength(JSON.stringify(row))
+                while (size && (size >= window || retainedBytes + dayBytes + bytes > maxRetainedBytes)) {
+                  if (size < window) truncated = true
+                  dayBytes -= dayRows[head]!.bytes; dayRows[head] = undefined
+                  head = (head + 1) % window; size--
+                }
+                if (retainedBytes + dayBytes + bytes > maxRetainedBytes) {truncated = true; continue}
+                dayRows[(head + size) % window] = {row, bytes}; size++; dayBytes += bytes
+                highBytes = Math.max(highBytes, retainedBytes + dayBytes); highRows = Math.max(highRows, rows.length + size)
               }
             }
           } catch (error) {
-            if (!abort.signal.aborted || (error as Error).name !== 'AbortError') throw error
-            // Keep the already scanned part of this day on a real I/O deadline.
-            truncated = true
+            if (!(error instanceof ScanUnavailable) && !b.controller.signal.aborted && !abort.signal.aborted) throw error
+            // An ascending prefix is NOT a newest page for this day.
+            truncated = true; dayComplete = false
           }
-          if (q.sort === 'newest') {
-            for (let index = dayMatches - 1; index >= Math.max(0, dayMatches - maxMatches); index--) {
-              if (collect(dayRows[index % maxMatches]!)) break outer
+          if (q.sort === 'newest' && dayComplete) {
+            for (let index = size - 1; index >= 0; index--) {
+              if (collect(dayRows[(head + index) % window]!.row)) break outer
             }
           }
+          if (!dayComplete) break
           if (scanned >= maxLines || expired()) { truncated = true; break }
         }
       }
     } catch (error) {
-      if (!abort.signal.aborted || (error as Error).name !== 'AbortError') throw error
+      if (!(error instanceof ScanUnavailable) && !b.controller.signal.aborted && !abort.signal.aborted) throw error
       truncated = true
-    } finally { clearTimeout(timer) }
+    } finally { clearTimeout(timer); b.dispose(); lastScan = {scannedBytes: b.bytes, scannedLines: b.scanned, retainedBytes: highBytes, retainedRows: highRows} }
+    truncated ||= b.oversized
     return { rows, total: q.includeTotal ? total : rows.length, limit: q.limit, offset: q.offset, sort: q.sort, truncated }
   }
 
-  async function readAccessLogById(id: string): Promise<AccessLogRow | null> {
+  async function readAccessLogById(id: string, signal?: AbortSignal): Promise<AccessLogRow | null> {
     const match = /^(\d{4}-\d{2}-\d{2}):(.+)$/.exec(id)
-    if (!match || !validDay(match[1]!)) return null // Legacy DB IDs cannot address files.
+    if (id.length > 512 || !match || !validDay(match[1]!)) return null // Legacy DB IDs cannot address files.
     const directory = dir()
-    const file = selectFiles(await listFiles(directory)).find(file => file.day === match[1])
-    if (file) {
-      for await (const line of lines(directory, file)) {
+    const b = budget(signal)
+    try {
+      const file = selectFiles(await listFiles(directory, b)).find(file => file.day === match[1])
+      if (file) for await (const line of lines(directory, file, b)) {
         const row = parseAccessLogLine(line, file.day)
         if (row?.id === id) return row
       }
-    }
-    return null
+      if (b.oversized) throw new ScanUnavailable('Access detail unavailable: oversized legacy records')
+      return null
+    } catch (error) {
+      if (b.controller.signal.aborted) throw new ScanUnavailable('Access detail scan aborted')
+      throw error
+    } finally {b.dispose()}
   }
 
-  async function accessHourly(hours = 24, current = now()): Promise<AccessHourlyBucket[]> {
-    if (!Number.isSafeInteger(hours) || hours < 1 || !Number.isFinite(current.getTime())) {
+  async function accessHourly(hours = 24, current = now(), signal?: AbortSignal): Promise<AccessHourlyBucket[]> {
+    if (!Number.isSafeInteger(hours) || hours < 1 || hours > 168 || !Number.isFinite(current.getTime())) {
       throw new Error('Access log hourly range must be positive integer hours with a valid date')
     }
     // Include the current (partial) UTC hour, zero-fill every preceding bucket.
@@ -291,9 +365,11 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
     const directory = dir()
     const firstDay = new Date(start).toISOString().slice(0, 10)
     const lastDay = current.toISOString().slice(0, 10)
-    for (const file of selectFiles(await listFiles(directory))) {
+    const b = budget(signal)
+    try {
+    for (const file of selectFiles(await listFiles(directory, b))) {
       if (file.day < firstDay || file.day > lastDay) continue
-      for await (const line of lines(directory, file)) {
+      for await (const line of lines(directory, file, b)) {
         const row = parseAccessLogLine(line, file.day)
         if (!row) continue
         const time = Date.parse(row.timestamp)
@@ -303,7 +379,12 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
         if (row.status_code >= 500) bucket.errors++
       }
     }
+    if (b.oversized) throw new ScanUnavailable('Access hourly unavailable: oversized legacy records')
     return buckets
+    } catch (error) {
+      if (b.controller.signal.aborted) throw new ScanUnavailable('Access hourly scan aborted')
+      throw error
+    } finally {b.dispose()}
   }
 
   async function readCache(directory: string): Promise<CountCache> {
@@ -311,7 +392,7 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
       const handle = await openRegular(resolve(directory, '.index.json'))
       if (!handle) return {}
       try {
-        if ((await handle.stat()).size > 1024 * 1024) return {}
+        if ((await handle.stat()).size > 4 * 1024 * 1024) return {}
         const value: unknown = JSON.parse(await handle.readFile('utf8'))
         return value && typeof value === 'object' && !Array.isArray(value) ? value as CountCache : {}
       } finally { await handle.close() }
@@ -323,11 +404,13 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
     const temporary = resolve(directory, `.index.${randomUUID()}.tmp`)
     let created = false
     try {
+      const encoded = JSON.stringify(cache)
+      if (Buffer.byteLength(encoded) > 4 * 1024 * 1024) return
       const existing = await stat(destination)
       if (existing && !existing.isFile()) return
       const handle = await fs.open(temporary, 'wx', 0o600)
       created = true
-      try { await handle.writeFile(JSON.stringify(cache)); await handle.sync() } finally { await handle.close() }
+      try { await handle.writeFile(encoded); await handle.sync() } finally { await handle.close() }
       const latest = await stat(destination)
       if (latest && !latest.isFile()) return
       await fs.rename(temporary, destination)
@@ -335,44 +418,98 @@ export function createAccessLogReader(options: ReaderOptions = {}) {
     finally { if (created) { try { await fs.unlink(temporary) } catch { /* Renamed or removed already. */ } } }
   }
 
-  async function accessStats(): Promise<AccessFileStats> {
-    const directory = dir()
-    // Do not read/write the cache through a directory symlink either.
-    if (!(await stat(directory))?.isDirectory()) return { count: 0, oldest: null, newest: null, bytes: 0, files: 0 }
-    const physicalFiles = await listFiles(directory)
-    const files = selectFiles(physicalFiles)
-    const cache = await readCache(directory)
+  async function tailHash(handle: Awaited<ReturnType<typeof fs.open>>, offset: number) {
+    const buffer = Buffer.alloc(Math.min(64, offset))
+    if (buffer.length) await handle.read(buffer, 0, buffer.length, offset - buffer.length)
+    return createHash('sha256').update(buffer).digest('hex')
+  }
+  function validSaved(saved: CountCacheEntry | undefined, file: DayFile): saved is CountCacheEntry {
+    return !!saved && saved.version === 2 && saved.dev === file.stat.dev && saved.ino === file.stat.ino
+      && saved.birthtimeMs === file.stat.birthtimeMs && Number.isSafeInteger(saved.lines) && saved.lines >= 0
+      && Number.isSafeInteger(saved.offset) && saved.offset >= 0 && saved.offset <= file.stat.size
+      && Number.isSafeInteger(saved.newlines) && saved.newlines >= 0 && typeof saved.pending === 'boolean'
+      && typeof saved.tail === 'string' && saved.tail.length === 64
+  }
+  async function accessStats(signal?: AbortSignal): Promise<AccessFileStats> {
+    const directory = dir(), b = budget(signal)
     const updated: CountCache = {}
-    let count = 0
-    const today = now().toISOString().slice(0, 10)
-    for (const file of files) {
-      const saved = cache[file.name]
-      const cacheable = file.gzip && file.day < today
-      let lineCount = 0
-      if (cacheable && saved && saved.size === file.stat.size && saved.mtimeMs === file.stat.mtimeMs
-        && Number.isSafeInteger(saved.lines) && saved.lines >= 0) lineCount = saved.lines
-      else for await (const _line of lines(directory, file)) lineCount++
-      count += lineCount
-      // Don't cache counts for a file replaced/changed during the scan.
-      if (cacheable) {
-        const after = await stat(resolve(directory, file.name))
-        if (after?.isFile() && after.size === file.stat.size && after.mtimeMs === file.stat.mtimeMs
-          && after.ino === file.stat.ino && after.dev === file.stat.dev) {
-          updated[file.name] = { size: after.size, mtimeMs: after.mtimeMs, lines: lineCount }
+    try {
+      // Do not read/write cache through a directory symlink either.
+      if (!(await stat(directory))?.isDirectory()) return {count: 0, oldest: null, newest: null, bytes: 0, files: 0}
+      const physicalFiles = await listFiles(directory, b), files = selectFiles(physicalFiles), cache = await readCache(directory)
+      let count = 0
+      for (const file of files) {
+        b.check()
+        const saved = cache[file.name], path = resolve(directory, file.name)
+        let entry: CountCacheEntry | undefined
+        if (file.gzip) {
+          if (validSaved(saved, file) && saved.size === file.stat.size && saved.mtimeMs === file.stat.mtimeMs) entry = saved
+          else {
+            let lineCount = 0
+            for await (const _line of lines(directory, file, b)) lineCount++
+            const after = await stat(path)
+            if (after?.isFile() && after.size === file.stat.size && after.mtimeMs === file.stat.mtimeMs && after.ino === file.stat.ino && after.dev === file.stat.dev) {
+              entry = {version: 2, size: after.size, mtimeMs: after.mtimeMs, lines: lineCount, dev: after.dev, ino: after.ino, birthtimeMs: after.birthtimeMs, offset: after.size, newlines: lineCount, pending: false, tail: '0'.repeat(64)}
+            }
+          }
+        } else {
+          const handle = await openRegular(path)
+          if (!handle) throw new ScanUnavailable('Access stats source changed')
+          try {
+            const resumable = validSaved(saved, file) && (saved.size < file.stat.size || saved.mtimeMs === file.stat.mtimeMs)
+              && saved.tail === await tailHash(handle, saved.offset)
+            let offset = resumable ? saved.offset : 0, newlines = resumable ? saved.newlines : 0, pending = resumable ? saved.pending : false
+            const stream = offset < file.stat.size ? handle.createReadStream({autoClose: false, start: offset, end: file.stat.size - 1, signal: b.controller.signal, highWaterMark: Math.min(64 * 1024, maxScanBytes)}) : undefined
+            try {
+              if (stream) for await (const data of stream) {
+                b.check()
+                const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data)
+                if (b.bytes + chunk.length > maxScanBytes) throw new ScanUnavailable('Access stats byte budget exceeded')
+                b.bytes += chunk.length; offset += chunk.length
+                for (const byte of chunk) if (byte === 10) {newlines++; b.scanned++}
+                pending = chunk[chunk.length - 1] !== 10
+                if (b.scanned > maxLines) throw new ScanUnavailable('Access stats line budget exceeded')
+              }
+            } finally {
+              const after = await stat(path)
+              if (handle.fd !== -1 && after?.isFile() && after.dev === file.stat.dev && after.ino === file.stat.ino && after.size >= offset
+                && (after.size > file.stat.size || after.mtimeMs === file.stat.mtimeMs)) {
+                // Persist a bounded suffix checkpoint even on budget exhaustion.
+                entry = {version: 2, size: file.stat.size, mtimeMs: file.stat.mtimeMs, lines: newlines + Number(pending), dev: file.stat.dev, ino: file.stat.ino, birthtimeMs: file.stat.birthtimeMs, offset, newlines, pending, tail: await tailHash(handle, offset)}
+                updated[file.name] = entry
+              }
+              stream?.destroy()
+            }
+          } finally {await handle.close()}
         }
+        if (!entry || entry.offset !== file.stat.size) throw new ScanUnavailable('Access stats source changed/incomplete')
+        updated[file.name] = entry; count += entry.lines
       }
-    }
-    if (files.length || Object.keys(cache).length) await writeCache(directory, updated)
-    return {
-      count,
-      oldest: files.length ? `${files[0]!.day}T00:00:00.000Z` : null,
-      newest: files.length ? `${files[files.length - 1]!.day}T00:00:00.000Z` : null,
-      bytes: physicalFiles.reduce((sum, file) => sum + file.stat.size, 0),
-      files: physicalFiles.length
-    }
+      await writeCache(directory, updated)
+      return {count, oldest: files.length ? `${files[0]!.day}T00:00:00.000Z` : null,
+        newest: files.length ? `${files[files.length - 1]!.day}T00:00:00.000Z` : null,
+        bytes: physicalFiles.reduce((sum, file) => sum + file.stat.size, 0), files: physicalFiles.length}
+    } catch (error) {
+      await writeCache(directory, updated)
+      if (b.controller.signal.aborted) throw new ScanUnavailable('Access stats scan aborted')
+      throw error
+    } finally {b.dispose()}
   }
 
-  return { queryAccessLogs, readAccessLogById, accessHourly, accessStats }
+  let statsFlight: {directory: string, promise: Promise<AccessFileStats>} | undefined
+  return {
+    diagnostics: () => ({...scans.diagnostics(), lastScan: {...lastScan}}),
+    queryAccessLogs: (q: AccessQuery) => scans.run(() => queryAccessLogs(q), q.signal),
+    readAccessLogById: (id: string, signal?: AbortSignal) => scans.run(() => readAccessLogById(id, signal), signal),
+    accessHourly: (hours = 24, current = now(), signal?: AbortSignal) => scans.run(() => accessHourly(hours, current, signal), signal),
+    accessStats: (signal?: AbortSignal) => {
+      const directory = dir()
+      if (!signal && statsFlight?.directory === directory) return statsFlight.promise
+      const promise = scans.run(() => accessStats(signal), signal).finally(() => {if (statsFlight?.promise === promise) statsFlight = undefined})
+      if (!signal) statsFlight = {directory, promise}
+      return promise
+    }
+  }
 }
 
 const reader = createAccessLogReader()

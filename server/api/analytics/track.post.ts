@@ -1,10 +1,10 @@
-import { getRequestHeader, getRequestIP, readBody, setResponseStatus } from 'h3'
-import { RecordId } from 'surrealdb'
+import { getRequestHeader, getRequestIP, setResponseStatus } from 'h3'
+import { readBoundedJson } from '../../utils/bounded-json'
 import { isAnalyticsBot } from '../../utils/analytics/bots'
 import { lookupAnalyticsGeo } from '../../utils/analytics/geo'
 import { hashAnalyticsVisitor } from '../../utils/analytics/hash'
 import { normalizeAnalyticsPath, normalizeAnalyticsReferrer } from '../../utils/analytics/path'
-import { resolveAnalyticsSession } from '../../utils/analytics/session'
+import { recordAnalyticsPageview } from '../../utils/analytics/session'
 import { getSessionUser, isAdminTier } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { consumeRateLimit } from '../../utils/rate-limit'
@@ -14,7 +14,7 @@ import { firstRow, recordIdPart, stringifyRecordId } from '../../utils/surrealRe
 
 export default defineEventHandler(async (event) => {
   try {
-    const body = await readBody<Record<string, unknown>>(event).catch((): Record<string, unknown> => ({}))
+    const body = await readBoundedJson(event, 8 * 1024)
     const path = normalizeAnalyticsPath(body.path)
     if (!path) {
       return emptyTrackingResponse(event)
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
       return emptyTrackingResponse(event)
     }
 
-    const userAgent = getRequestHeader(event, 'user-agent') ?? ''
+    const userAgent = (getRequestHeader(event, 'user-agent') ?? '').slice(0, 1024)
     if (isAnalyticsBot(userAgent)) {
       return emptyTrackingResponse(event)
     }
@@ -71,41 +71,8 @@ export default defineEventHandler(async (event) => {
     const now = new Date()
     const visitorHash = await hashAnalyticsVisitor(ip, userAgent)
     const geo = await lookupAnalyticsGeo(ip)
-    const session = await resolveAnalyticsSession(
-      db,
-      visitorHash,
-      geo,
-      now,
-      settings.analytics_session_window_minutes
-    )
     const referrer = normalizeAnalyticsReferrer(body.referrer ?? getRequestHeader(event, 'referer'))
-
-    const pageview: Record<string, unknown> = {
-      path,
-      visitor_hash: visitorHash,
-      created_at: now
-    }
-
-    if (referrer) {
-      pageview.referrer = referrer
-    }
-
-    if (session) {
-      pageview.session = new RecordId('analytics_session', recordIdPart(session, 'analytics_session'))
-    }
-
-    for (const key of ['country', 'region', 'city'] as const) {
-      if (geo[key]) {
-        pageview[key] = geo[key]
-      }
-    }
-
-    await queryDb(
-      db,
-      'CREATE pageview CONTENT $pageview;',
-      { pageview },
-      { label: 'analytics pageview create', timeoutMs: 5_000, retryOnReconnect: false }
-    )
+    await recordAnalyticsPageview(db, visitorHash, geo, now, settings.analytics_session_window_minutes, {path, referrer})
 
   } catch (error) {
     if (import.meta.dev) {
@@ -174,5 +141,5 @@ function extractBlogSlug(path: string) {
 }
 
 function toPostVisibility(value: unknown): PostVisibility {
-  return value === 'private' || value === 'password' ? value : 'public'
+  return value === 'public' || value === 'password' ? value : 'private'
 }

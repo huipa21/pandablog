@@ -1,39 +1,33 @@
 import { writeBarrier } from '../utils/maintenance'
-import { cleanupAnalyticsRetention, rollupCompletedAnalyticsDays } from '../utils/analytics/rollup'
+import { cleanupAnalyticsRetention, rollupCompletedAnalyticsDays, shutdownAnalyticsMaintenance } from '../utils/analytics/rollup'
+import { shutdownAnalyticsTracking } from '../utils/analytics/session'
+import { analyticsReady } from '../utils/analytics/lifecycle'
 import { ensureAnalyticsGeoDir } from '../utils/analytics/geo'
-
-const CHECK_INTERVAL_MS = 60 * 60 * 1000
-let running = false
-let lastAttemptDate = ''
+import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 export default defineNitroPlugin((nitro) => {
-  void ensureAnalyticsGeoDir()
-  void runIfDue()
-
-  const timer = setInterval(() => {
-    void runIfDue()
-  }, CHECK_INTERVAL_MS)
-  timer.unref?.()
-  nitro.hooks.hook('close', () => {clearInterval(timer)})
+  if (!__PB_MODULE_ANALYTICS__ || !resolveModuleFlags(getRuntimeModuleConfig()).analytics) return
+  let running: Promise<void> | undefined, lastCompletedDate = '', stopped = false
+  const abort = new AbortController()
+  const run = () => {
+    const now = new Date(), date = now.toISOString().slice(0, 10)
+    if (stopped || running || !analyticsReady() || writeBarrier.status().closed || lastCompletedDate === date) return
+    running = (async () => {
+      try {
+        await ensureAnalyticsGeoDir()
+        const result = await rollupCompletedAnalyticsDays(now, abort.signal)
+        const reports = await cleanupAnalyticsRetention(now, abort.signal)
+        if (result.completed && Object.values(reports).every(report => report.completed)) lastCompletedDate = date
+        else console.warn('[analytics] maintenance incomplete; retry in one hour', {nextDay: result.nextDay, reports})
+      } catch (error) {
+        console.warn('[analytics] maintenance failed; retry in one hour:', error instanceof Error ? error.message : 'unavailable')
+      }
+    })().finally(() => {running = undefined})
+  }
+  const boot = setTimeout(run, 60_000), timer = setInterval(run, 60 * 60_000)
+  boot.unref?.(); timer.unref?.()
+  nitro.hooks.hook('close', async () => {
+    stopped = true; abort.abort(); clearTimeout(boot); clearInterval(timer)
+    await Promise.all([shutdownAnalyticsMaintenance(), shutdownAnalyticsTracking()])
+  })
 })
-
-async function runIfDue(now = new Date()) {
-  const attemptDate = now.toISOString().slice(0, 10)
-  if (running || lastAttemptDate === attemptDate) {
-    return
-  }
-
-  running = true
-
-  try {
-    await writeBarrier.run(async () => {
-      await rollupCompletedAnalyticsDays(now)
-      await cleanupAnalyticsRetention(now)
-    }, true)
-    lastAttemptDate = attemptDate
-  } catch (error) {
-    console.warn('[analytics] rollup job failed:', error instanceof Error ? error.message : error)
-  } finally {
-    running = false
-  }
-}

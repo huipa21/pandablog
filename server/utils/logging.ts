@@ -356,10 +356,10 @@ export async function runManualLogCleanup(options: { type: LogCleanupType, mode:
   return result
 }
 
-export async function gatherLogStats() {
+export async function gatherLogStats(signal?: AbortSignal) {
   const flags = resolveModuleFlags(getRuntimeModuleConfig())
   const access = flags.logs && flags.accessLogs
-    ? await accessStats()
+    ? await accessStats(signal)
     : { count: 0, oldest: null, newest: null, bytes: 0, files: 0 }
   const db = await useDb()
   const response = await queryDb(
@@ -405,8 +405,8 @@ export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
   return deleted
 }
 
-export async function readLogById(type: 'access' | 'activity' | 'errors', id: string) {
-  if (type === 'access') return readAccessLogById(id)
+export async function readLogById(type: 'access' | 'activity' | 'errors', id: string, signal?: AbortSignal) {
+  if (type === 'access') return signal ? readAccessLogById(id, signal) : readAccessLogById(id)
   const table = typeToTable(type)
   const db = await useDb()
   return await queryDbRecord(db, table, id.includes(':') ? stringifyRecordId(id) : id, {

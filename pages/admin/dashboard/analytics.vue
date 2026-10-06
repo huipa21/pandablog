@@ -24,7 +24,8 @@
       </div>
     </header>
 
-    <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.analytics.loadFailed')" />
+    <UAlert v-if="error || topPagesError || geoError" color="error" icon="i-lucide-circle-alert" :title="t('admin.analytics.loadFailed')" />
+    <UAlert v-if="overview?.partial || topPagesData?.partial || topPagesData?.truncated || geoData?.partial || geoData?.truncated" color="warning" icon="i-lucide-triangle-alert" :title="t('admin.analytics.partialResults')" />
 
     <div
       v-if="analyticsDisabled"
@@ -163,6 +164,7 @@ interface AnalyticsQuery {
 }
 
 interface AnalyticsOverview {
+  partial: boolean
   scorecards: {
     pageViews: number
     uniqueVisitors: number
@@ -175,10 +177,14 @@ interface AnalyticsOverview {
 }
 
 interface TopPagesResponse {
+  partial: boolean
+  truncated: boolean
   pages: Array<{ path: string, views: number }>
 }
 
 interface GeoResponse {
+  partial: boolean
+  truncated: boolean
   locations: Array<{ country: string, region: string, city: string, views: number }>
   databaseAvailable: boolean
   analyticsEnabled: boolean
@@ -218,12 +224,12 @@ const { data: overview, pending: overviewPending, error, refresh: refreshOvervie
   () => sessionFetch<AnalyticsOverview>('/api/admin/analytics/overview', { query: analyticsQuery.value }),
   { watch: [range] }
 )
-const { data: topPagesData, pending: topPagesPending, refresh: refreshTopPages } = await useAsyncData(
+const { data: topPagesData, pending: topPagesPending, error: topPagesError, refresh: refreshTopPages } = await useAsyncData(
   'admin-analytics-top-pages',
   () => sessionFetch<TopPagesResponse>('/api/admin/analytics/top-pages', { query: { ...analyticsQuery.value, limit: 8 } }),
   { watch: [range] }
 )
-const { data: geoData, pending: geoPending, refresh: refreshGeo } = await useAsyncData(
+const { data: geoData, pending: geoPending, error: geoError, refresh: refreshGeo } = await useAsyncData(
   'admin-analytics-geo',
   () => sessionFetch<GeoResponse>('/api/admin/analytics/geo', { query: { ...analyticsQuery.value, limit: 50 } }),
   { watch: [range] }

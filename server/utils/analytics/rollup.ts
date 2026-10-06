@@ -1,257 +1,157 @@
-import { createHash } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { Surreal } from 'surrealdb'
 import { queryDb, useDb } from '../db'
 import { firstRow, queryRows } from '../surrealResult'
 import { getAnalyticsSettings } from '../settings'
+import { writeBarrier } from '../maintenance'
+import { BoundedAdmission } from '../admission'
 import { addUtcDays, startOfUtcDay, utcDateString } from './date'
-import { isMissingAnalyticsTableError } from './tables'
+import { ANALYTICS_REPAIR_DAYS, analyticsDate, analyticsResult, dailyAggregateSql } from './aggregate'
 
-interface PageviewRollupRow {
-  path?: unknown
-  visitor_hash?: unknown
-  country?: unknown
-  region?: unknown
-  city?: unknown
-}
+const jobs = new BoundedAdmission({active: 1, waiting: 0, waitMs: 1_000}, 'Analytics maintenance')
+export const ANALYTICS_RUN_DAYS = 31
+export const ANALYTICS_RETENTION_BATCH = 500
+export const ANALYTICS_RETENTION_BATCHES = 20
 
-interface SessionRollupRow {
-  pageview_count?: unknown
-  started_at?: unknown
-  last_seen_at?: unknown
-}
-
-interface OldestRow {
-  oldest?: unknown
-}
-
-export async function rollupCompletedAnalyticsDays(now = new Date()) {
-  const db = await useDb()
-  const todayStart = startOfUtcDay(now)
-  const oldest = await findOldestPageviewDate(db, todayStart)
-  if (!oldest) {
-    return { rolledUpDays: 0 }
-  }
-
-  let rolledUpDays = 0
-  for (let dayStart = startOfUtcDay(oldest); dayStart < todayStart; dayStart = addUtcDays(dayStart, 1)) {
-    await rollupAnalyticsDay(db, dayStart)
-    rolledUpDays += 1
-  }
-
-  return { rolledUpDays }
-}
-
-export async function cleanupAnalyticsRetention(now = new Date()) {
-  const settings = getAnalyticsSettings()
-  const db = await useDb()
-  const todayStart = startOfUtcDay(now)
-  const cutoff = startOfUtcDay(addUtcDays(todayStart, -settings.analytics_retention_days))
-
-  try {
-    await queryDb(
-      db,
-      `DELETE pageview WHERE created_at < $cutoff AND created_at < $todayStart;
-       DELETE analytics_session WHERE last_seen_at < $cutoff AND last_seen_at < $todayStart;`,
-      { cutoff, todayStart },
-      { label: 'analytics retention cleanup', timeoutMs: 30_000, retryOnReconnect: false }
-    )
-  } catch (error) {
-    if (isMissingAnalyticsTableError(error, ['pageview', 'analytics_session'])) {
-      return
+export function rollupCompletedAnalyticsDays(now = new Date(), signal?: AbortSignal) {
+  return jobs.run(() => writeBarrier.run(async () => {
+    const db = await useDb(), today = startOfUtcDay(now), repairStart = addUtcDays(today, -ANALYTICS_REPAIR_DAYS)
+    const state = firstRow<{next_day?: unknown}>(await queryDb(db, 'SELECT next_day FROM analytics_checkpoint:rollup;', {}, {retry: 'readOnly', label: 'analytics checkpoint'}))
+    let next: Date | null
+    if (state?.next_day !== undefined) next = analyticsDate(state.next_day)
+    else {
+      // time ordering, not math::min(datetime), and no false-empty infinity.
+      const row = firstRow<{created_at?: unknown}>(await queryDb(db,
+        'SELECT created_at FROM pageview WITH NOINDEX WHERE created_at < $today ORDER BY created_at ASC LIMIT 1 TIMEOUT 10s;',
+        {today}, {retry: 'readOnly', label: 'analytics oldest pageview'}))
+      next = row ? startOfUtcDay(analyticsDate(row.created_at)) : null
     }
-    throw error
-  }
-}
-
-export async function rollupAnalyticsDay(db: Surreal, dayStart: Date) {
-  const date = utcDateString(dayStart)
-  const dayEnd = addUtcDays(dayStart, 1)
-  const pageviews = queryRows<PageviewRollupRow>(await queryDb(
-    db,
-    `SELECT path, visitor_hash, country, region, city
-     FROM pageview
-     WHERE created_at >= $dayStart AND created_at < $dayEnd;`,
-    { dayStart, dayEnd },
-    { label: 'analytics rollup pageviews', timeoutMs: 30_000 }
-  ))
-  const sessions = queryRows<SessionRollupRow>(await queryDb(
-    db,
-    `SELECT pageview_count, started_at, last_seen_at
-     FROM analytics_session
-     WHERE started_at >= $dayStart AND started_at < $dayEnd;`,
-    { dayStart, dayEnd },
-    { label: 'analytics rollup sessions', timeoutMs: 30_000 }
-  ))
-
-  const visitorHashes = new Set<string>()
-  const pageCounts = new Map<string, number>()
-  const geoCounts = new Map<string, { country?: string, region?: string, city?: string, views: number }>()
-
-  for (const row of pageviews) {
-    const visitorHash = stringValue(row.visitor_hash)
-    if (visitorHash) {
-      visitorHashes.add(visitorHash)
+    let rolledUpDays = 0
+    const started = Date.now()
+    while (next && next < repairStart && rolledUpDays < ANALYTICS_RUN_DAYS && Date.now() - started < 60_000 && !signal?.aborted) {
+      await rollupAnalyticsDay(db, next, true, now)
+      next = addUtcDays(next, 1); rolledUpDays++
     }
-
-    const path = stringValue(row.path) || '/'
-    pageCounts.set(path, (pageCounts.get(path) ?? 0) + 1)
-
-    const geo = {
-      country: stringValue(row.country) || undefined,
-      region: stringValue(row.region) || undefined,
-      city: stringValue(row.city) || undefined
-    }
-    const geoKey = [geo.country ?? '', geo.region ?? '', geo.city ?? ''].join('\0')
-    const current = geoCounts.get(geoKey) ?? { ...geo, views: 0 }
-    current.views += 1
-    geoCounts.set(geoKey, current)
-  }
-
-  let bounceSessions = 0
-  let totalVisitSeconds = 0
-  for (const session of sessions) {
-    const pageviewCount = numberValue(session.pageview_count)
-    if (pageviewCount === 1) {
-      bounceSessions += 1
-    }
-
-    const startedAt = dateValue(session.started_at)
-    const lastSeenAt = dateValue(session.last_seen_at)
-    if (startedAt && lastSeenAt) {
-      totalVisitSeconds += Math.max(0, Math.round((lastSeenAt.getTime() - startedAt.getTime()) / 1000))
-    }
-  }
-
-  await queryDb(
-    db,
-    `UPSERT type::record($table, $id) CONTENT {
-      date: $date,
-      page_views: $pageViews,
-      unique_visitors: $uniqueVisitors,
-      sessions: $sessions,
-      bounce_sessions: $bounceSessions,
-      total_visit_seconds: $totalVisitSeconds,
-      rolled_up_at: time::now()
-    };`,
-    {
-      table: 'analytics_daily',
-      id: date,
-      date,
-      pageViews: pageviews.length,
-      uniqueVisitors: visitorHashes.size,
-      sessions: sessions.length,
-      bounceSessions,
-      totalVisitSeconds
-    },
-    { label: 'analytics daily rollup upsert', timeoutMs: 10_000, retryOnReconnect: false }
-  )
-
-  await rewritePageRollups(db, date, pageCounts)
-  await rewriteGeoRollups(db, date, geoCounts)
-}
-
-async function findOldestPageviewDate(db: Surreal, before: Date) {
-  let row: OldestRow | null = null
-  try {
-    row = firstRow<OldestRow>(await queryDb(
-      db,
-      'SELECT math::min(created_at) AS oldest FROM pageview WHERE created_at < $before GROUP ALL;',
-      { before },
-      { label: 'analytics oldest pageview lookup', timeoutMs: 10_000 }
-    ))
-  } catch (error) {
-    if (isMissingAnalyticsTableError(error, ['pageview'])) {
-      return null
-    }
-    throw error
-  }
-
-  return dateValue(row?.oldest)
-}
-
-async function rewritePageRollups(db: Surreal, date: string, pageCounts: Map<string, number>) {
-  await queryDb(db, 'DELETE analytics_daily_page WHERE date = $date;', { date }, { label: 'analytics page rollup reset', timeoutMs: 10_000, retryOnReconnect: false })
-
-  for (const [path, views] of pageCounts) {
-    await queryDb(
-      db,
-      `CREATE type::record($table, $id) CONTENT {
-        date: $date,
-        path: $path,
-        views: $views,
-        rolled_up_at: time::now()
-      };`,
-      { table: 'analytics_daily_page', id: deterministicId(`${date}:${path}`), date, path, views },
-      { label: 'analytics page rollup create', timeoutMs: 10_000, retryOnReconnect: false }
-    )
-  }
-}
-
-async function rewriteGeoRollups(
-  db: Surreal,
-  date: string,
-  geoCounts: Map<string, { country?: string, region?: string, city?: string, views: number }>
-) {
-  await queryDb(db, 'DELETE analytics_daily_geo WHERE date = $date;', { date }, { label: 'analytics geo rollup reset', timeoutMs: 10_000, retryOnReconnect: false })
-
-  for (const geo of geoCounts.values()) {
-    const assignments = [
-      'date = $date',
-      'views = $views',
-      'rolled_up_at = time::now()'
-    ]
-    const params: Record<string, unknown> = {
-      date,
-      views: geo.views
-    }
-
-    for (const key of ['country', 'region', 'city'] as const) {
-      if (geo[key]) {
-        assignments.push(`${key} = $${key}`)
-        params[key] = geo[key]
+    // Recent days repair cross-midnight sessions/response-delayed server hits.
+    // Historical progress is persisted by the SAME summary transaction.
+    if (!next || next >= repairStart) {
+      for (let day = repairStart; day < today && !signal?.aborted; day = addUtcDays(day, 1)) {
+        await rollupAnalyticsDay(db, day, true, now); rolledUpDays++
       }
+      next = today
     }
-
-    await queryDb(
-      db,
-      `CREATE type::record($table, $id) SET ${assignments.join(', ')};`,
-      {
-        ...params,
-        table: 'analytics_daily_geo',
-        id: deterministicId(`${date}:${geo.country ?? ''}:${geo.region ?? ''}:${geo.city ?? ''}`)
-      },
-      { label: 'analytics geo rollup create', timeoutMs: 10_000, retryOnReconnect: false }
-    )
-  }
+    // Inactivity sessions can remain active for many days. Their start-day
+    // totals stay repairable even beyond the ordinary two-day repair window.
+    const pending = queryRows<{date: string}>(await queryDb(db,
+      'SELECT date FROM analytics_daily WITH NOINDEX WHERE published = true AND finalized != true AND publication_epoch IN (SELECT VALUE epoch FROM analytics_publication:current) AND date < $repairDate ORDER BY date LIMIT 31 TIMEOUT 5s;',
+      {repairDate: utcDateString(repairStart)}, {label: 'analytics pending session days', retry: 'readOnly'}))
+    for (const row of pending) {
+      if (signal?.aborted || Date.now() - started >= 60_000) break
+      await rollupAnalyticsDay(db, analyticsDate(row.date), false, now); rolledUpDays++
+    }
+    return {rolledUpDays, completed: !signal?.aborted && (!next || next >= today) && pending.length < 31, nextDay: next?.toISOString() ?? null}
+  }, true), signal)
 }
 
-function deterministicId(value: string) {
-  return createHash('sha1').update(value).digest('hex')
+/** A bounded per-day transaction is the publication boundary. A failed rewrite
+ * leaves all previous totals/page/geo rows visible, with no staging generation.
+ * Legacy days exceeding the replacement budget refuse, preserving their data.
+ */
+export async function rollupAnalyticsDay(db: Surreal, dayStart: Date, checkpoint = false, asOf = new Date()) {
+  if (dayStart.getTime() !== startOfUtcDay(dayStart).getTime()) throw new Error('Analytics rollup requires a UTC day')
+  await queryDb(db, `BEGIN TRANSACTION;
+    UPSERT analytics_publication:current SET epoch = epoch ?? $epoch RETURN NONE;
+    LET $publication = (SELECT epoch FROM analytics_publication:current)[0];
+    ${dailyAggregateSql('$dayStart', '$dayEnd')}
+    LET $open = (SELECT count() AS n FROM analytics_session WITH NOINDEX
+      WHERE started_at >= $dayStart AND started_at < $dayEnd AND last_seen_at >= $idleBefore GROUP ALL TIMEOUT 5s);
+    LET $pages = (SELECT path, count() AS views FROM pageview WITH NOINDEX
+      WHERE created_at >= $dayStart AND created_at < $dayEnd AND string::len(path) <= 2048
+      GROUP BY path ORDER BY views DESC, path LIMIT 1001 TIMEOUT 10s);
+    LET $geo = (SELECT country, region, city, count() AS views FROM pageview WITH NOINDEX
+      WHERE created_at >= $dayStart AND created_at < $dayEnd AND country != NONE
+      AND string::len(country) <= 256 AND (region = NONE OR string::len(region) <= 256) AND (city = NONE OR string::len(city) <= 256)
+      GROUP BY country, region, city ORDER BY views DESC, country, region, city LIMIT 1001 TIMEOUT 10s);
+    LET $oldPages = (SELECT count() AS n FROM analytics_daily_page WHERE date = $date GROUP ALL TIMEOUT 10s);
+    LET $oldGeo = (SELECT count() AS n FROM analytics_daily_geo WHERE date = $date GROUP ALL TIMEOUT 10s);
+    IF ($oldPages[0].n ?? 0) > 1000 OR ($oldGeo[0].n ?? 0) > 1000 { THROW 'Legacy analytics day exceeds atomic replacement budget; approved offline repair required'; };
+    LET $keptPages = array::slice($pages, 0, 1000);
+    LET $keptGeo = array::slice($geo, 0, 1000);
+    LET $pageIds = $keptPages.map(|$row| type::record('analytics_daily_page', crypto::sha256(type::string([$date, $row.path]))));
+    LET $geoIds = $keptGeo.map(|$row| type::record('analytics_daily_geo', crypto::sha256(type::string([$date, $row.country, $row.region, $row.city]))));
+    DELETE analytics_daily_page WHERE date = $date AND id NOT IN $pageIds RETURN NONE;
+    DELETE analytics_daily_geo WHERE date = $date AND id NOT IN $geoIds RETURN NONE;
+    FOR $row IN $keptPages {
+      UPSERT type::record('analytics_daily_page', crypto::sha256(type::string([$date, $row.path]))) CONTENT {date: $date, path: $row.path, views: $row.views, rolled_up_at: time::now()} RETURN NONE;
+    };
+    FOR $row IN $keptGeo {
+      UPSERT type::record('analytics_daily_geo', crypto::sha256(type::string([$date, $row.country, $row.region, $row.city]))) CONTENT {date: $date, country: $row.country, region: $row.region, city: $row.city, views: $row.views, rolled_up_at: time::now()} RETURN NONE;
+    };
+    LET $checkPages = (SELECT count() AS n, math::sum(views) AS views FROM analytics_daily_page WHERE date = $date GROUP ALL);
+    LET $checkGeo = (SELECT count() AS n FROM analytics_daily_geo WHERE date = $date GROUP ALL);
+    IF ($checkPages[0].n ?? 0) != array::len($keptPages) OR ($checkGeo[0].n ?? 0) != array::len($keptGeo) { THROW 'Analytics summary verification failed'; };
+    UPSERT type::record('analytics_daily', $date) CONTENT {
+      date: $date, page_views: $totals.page_views, unique_visitors: $totals.unique_visitors,
+      sessions: $totals.sessions, bounce_sessions: $totals.bounce_sessions, total_visit_seconds: $totals.total_visit_seconds,
+      pages_truncated: array::len($pages) > 1000 OR ($checkPages[0].views ?? 0) < $totals.page_views,
+      geo_truncated: array::len($geo) > 1000, published: true, finalized: ($open[0].n ?? 0) = 0,
+      publication_epoch: $publication.epoch, rolled_up_at: time::now()
+    } RETURN NONE;
+    IF $checkpoint {
+      UPSERT analytics_checkpoint:rollup SET next_day = IF next_day = NONE OR next_day < $dayEnd THEN $dayEnd ELSE next_day END RETURN NONE;
+    };
+    COMMIT TRANSACTION;`,
+  {dayStart, dayEnd: addUtcDays(dayStart, 1), date: utcDateString(dayStart), checkpoint, epoch: randomUUID(),
+    idleBefore: new Date(asOf.getTime() - getAnalyticsSettings().analytics_session_window_minutes * 60_000)},
+  {label: 'analytics atomic bounded publication', timeoutMs: 120_000, retry: 'never', lane: 'background'})
 }
 
-function stringValue(value: unknown) {
-  return typeof value === 'string' ? value : ''
+export interface AnalyticsDeletionReport {deleted: number, completed: boolean, stopReason?: 'batch-limit' | 'deadline' | 'aborted' | 'error', cutoff: string, error?: string, countKnown?: boolean}
+export function cleanupAnalyticsRetention(now = new Date(), signal?: AbortSignal) {
+  return jobs.run(() => writeBarrier.run(async () => {
+    const settings = getAnalyticsSettings(), db = await useDb(), today = startOfUtcDay(now)
+    const cutoff = addUtcDays(today, -Math.max(ANALYTICS_REPAIR_DAYS + 1, settings.analytics_retention_days))
+    const idleBefore = new Date(now.getTime() - settings.analytics_session_window_minutes * 60_000)
+    const reports: Record<string, AnalyticsDeletionReport> = {}
+    // No summary expiry: historical metrics intentionally remain readable.
+    // These two small new tables are retained only while their source survives.
+    for (const table of ['pageview', 'analytics_session', 'analytics_visitor'] as const) {
+      const started = Date.now()
+      let deleted = 0, completed = false, stopReason: AnalyticsDeletionReport['stopReason'], errorSample: string | undefined, uncertain = false
+      try {
+      for (let batch = 0; batch < ANALYTICS_RETENTION_BATCHES; batch++) {
+        if (signal?.aborted) {stopReason = 'aborted'; break}
+        if (Date.now() - started >= 30_000) {stopReason = 'deadline'; break}
+        const where = table === 'pageview'
+          ? "created_at < $cutoff AND type::record('analytics_daily', time::format(created_at, '%Y-%m-%d')).published = true AND type::record('analytics_daily', time::format(created_at, '%Y-%m-%d')).finalized = true AND $publication.epoch != NONE AND type::record('analytics_daily', time::format(created_at, '%Y-%m-%d')).publication_epoch = $publication.epoch"
+          : table === 'analytics_session'
+            ? "started_at < $cutoff AND last_seen_at < $cutoff AND last_seen_at < $idleBefore AND type::record('analytics_daily', time::format(started_at, '%Y-%m-%d')).published = true AND type::record('analytics_daily', time::format(started_at, '%Y-%m-%d')).finalized = true AND $publication.epoch != NONE AND type::record('analytics_daily', time::format(started_at, '%Y-%m-%d')).publication_epoch = $publication.epoch"
+            : 'last_seen_at < $cutoff AND last_seen_at < $idleBefore'
+        // Selection and recheck/delete share a transaction. New/refreshed rows
+        // cannot be deleted on a stale app-side snapshot. Only scalar count out.
+        const row = analyticsResult<{deleted: number}>(await queryDb(db, `BEGIN TRANSACTION;
+          LET $publication = (SELECT epoch FROM analytics_publication:current)[0];
+          LET $ids = (SELECT VALUE id FROM ${table} WITH NOINDEX WHERE ${where} ORDER BY id LIMIT 500 TIMEOUT 5s);
+          DELETE ${table} WHERE id IN $ids AND ${where} RETURN NONE;
+          RETURN [{deleted: array::len($ids)}];
+          COMMIT TRANSACTION;`, {cutoff, idleBefore}, {label: `analytics bounded retention ${table}`, timeoutMs: 15_000, retry: 'never', lane: 'background'}), 'deleted')
+        if (!row || !Number.isSafeInteger(row.deleted) || row.deleted < 0 || row.deleted > ANALYTICS_RETENTION_BATCH) throw new Error('Invalid analytics retention count')
+        deleted += row.deleted
+        if (row.deleted < ANALYTICS_RETENTION_BATCH) {completed = true; break}
+        await new Promise(resolve => setTimeout(resolve, 5))
+      }
+      } catch (error) {
+        stopReason = 'error'
+        errorSample = (error instanceof Error ? error.message : 'Analytics retention unavailable').slice(0, 200)
+        uncertain = (error as {data?: {uncertain?: boolean}})?.data?.uncertain === true
+      }
+      reports[table] = {deleted, completed, cutoff: cutoff.toISOString(), ...(!completed ? {stopReason: stopReason ?? 'batch-limit' as const} : {}),
+        ...(errorSample ? {error: errorSample, countKnown: !uncertain} : {})}
+      if (uncertain) break // do not perform more deletion after ambiguous execution
+    }
+    // Unpublished raw days remain intact, even if retention cannot progress.
+    return reports
+  }, true), signal)
 }
 
-function numberValue(value: unknown) {
-  const number = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(number) ? number : 0
-}
-
-function dateValue(value: unknown): Date | null {
-  if (value instanceof Date) {
-    return value
-  }
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  if (value && typeof value === 'object' && typeof (value as { toString?: unknown }).toString === 'function') {
-    const date = new Date(String(value))
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  return null
-}
+export function shutdownAnalyticsMaintenance() {return jobs.shutdown(5_000)}

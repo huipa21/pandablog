@@ -283,6 +283,17 @@ DEFINE FIELD IF NOT EXISTS last_seen_at ON analytics_session TYPE datetime DEFAU
 DEFINE INDEX IF NOT EXISTS analytics_session_visitor_hash ON analytics_session FIELDS visitor_hash;
 DEFINE INDEX IF NOT EXISTS analytics_session_started_at ON analytics_session FIELDS started_at;
 DEFINE INDEX IF NOT EXISTS analytics_session_last_seen_at ON analytics_session FIELDS last_seen_at;
+DEFINE INDEX IF NOT EXISTS analytics_session_visitor_seen ON analytics_session FIELDS visitor_hash, last_seen_at;
+
+-- Conflict point for simultaneous first hits. Old sessions remain usable;
+-- heads are created lazily in the event transaction and expire when idle.
+DEFINE TABLE IF NOT EXISTS analytics_visitor SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS last_seen_at ON analytics_visitor TYPE datetime;
+DEFINE INDEX IF NOT EXISTS analytics_visitor_seen ON analytics_visitor FIELDS last_seen_at;
+DEFINE TABLE IF NOT EXISTS analytics_checkpoint SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS next_day ON analytics_checkpoint TYPE datetime;
+DEFINE TABLE IF NOT EXISTS analytics_publication SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD IF NOT EXISTS epoch ON analytics_publication TYPE string;
 
 DEFINE TABLE OVERWRITE pageview SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD IF NOT EXISTS path ON pageview TYPE string;
@@ -307,6 +318,13 @@ DEFINE FIELD IF NOT EXISTS sessions ON analytics_daily TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS bounce_sessions ON analytics_daily TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS total_visit_seconds ON analytics_daily TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS rolled_up_at ON analytics_daily TYPE datetime DEFAULT time::now();
+-- Legacy summaries stay readable but never authorize raw retention until the
+-- atomic v2 publisher verifies/replaces them. No destructive startup reset.
+DEFINE FIELD IF NOT EXISTS published ON analytics_daily TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS finalized ON analytics_daily TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS publication_epoch ON analytics_daily TYPE option<string> DEFAULT NONE;
+DEFINE FIELD IF NOT EXISTS pages_truncated ON analytics_daily TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS geo_truncated ON analytics_daily TYPE bool DEFAULT false;
 DEFINE INDEX IF NOT EXISTS analytics_daily_date_unique ON TABLE analytics_daily COLUMNS date UNIQUE;
 
 DEFINE TABLE OVERWRITE analytics_daily_page SCHEMAFULL PERMISSIONS NONE;

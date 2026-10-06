@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAccessLogStore } from '../../server/utils/access-log-store'
+import { createAccessLogStore, serializeAccessLog } from '../../server/utils/access-log-store'
 
 const failures = vi.hoisted(() => ({ unlink: false }))
 vi.mock('node:fs/promises', async (original) => {
@@ -65,11 +65,13 @@ describe('access file purge', () => {
     writer = createAccessLogStore({ dir: () => directory, now: () => now, warn })
     writer.append(row)
     const purge = writer.purge()
-    writer.append({ ...row, query_params: { big: 'x'.repeat(8 * 1024 * 1024) } })
-    writer.append({ ...row, request_id: 'small' })
+    const entry = {...row, query_params: {big: 'x'.repeat(2048)}}
+    const bytes = Buffer.byteLength(serializeAccessLog(entry, now)) + 1
+    const admitted = Math.floor(8 * 1024 * 1024 / bytes)
+    for (let index = 0; index < admitted + 1; index++) writer.append(entry)
     expect(await purge).toBe(1)
     await writer.close()
-    expect(JSON.parse(await contents()).id).toBe('small')
+    expect((await contents()).trimEnd().split('\n')).toHaveLength(admitted)
     expect(warn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('queue full'), { dropped: 1 })
   })
 
@@ -139,7 +141,7 @@ describe('access file purge', () => {
     await put(old, 'corrupt gzip')
     await put(today, 'today\n')
     await expect(writer.purge()).rejects.toThrow()
-    expect((await readdir(directory)).sort()).toEqual([old, today].sort())
+    expect((await readdir(directory)).filter(name => name !== '.index.json').sort()).toEqual([old, today].sort())
     expect(await contents()).toBe('today\n')
   })
 

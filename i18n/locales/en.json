@@ -203,6 +203,7 @@
       "description": "Local traffic metrics from privacy-preserving pageview events and daily rollups.",
       "refresh": "Refresh",
       "loadFailed": "Could not load analytics",
+      "partialResults": "Some analytics results are incomplete. Grouped counts may be lower bounds; narrow the date range or wait for summary processing.",
       "disabledTitle": "Analytics collection is off",
       "disabledBody": "No page views are being recorded, so every metric and the map below stay empty. Turn on collection to start gathering traffic and geo data.",
       "disabledAction": "Open analytics settings",

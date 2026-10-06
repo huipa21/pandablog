@@ -459,17 +459,20 @@ export async function initializeSecuritySettings(seedDefaults = false): Promise<
   return securitySettingsCache
 }
 
-export async function getAnalyticsHashSalt(): Promise<string> {
-  const settings = await readRawAppSettings([ANALYTICS_HASH_SALT_KEY])
-  const existing = stringValue(settings[ANALYTICS_HASH_SALT_KEY])
-  if (existing.length >= 32) {
-    return existing
-  }
-
-  const salt = randomBytes(32).toString('hex')
-  const db = await useDb()
-  await upsertAppSetting(db, ANALYTICS_HASH_SALT_KEY, salt)
-  return salt
+let analyticsSaltFlight: Promise<string> | undefined
+export function getAnalyticsHashSalt(): Promise<string> {
+  // Share initialization, not a forever authorization/configuration cache.
+  analyticsSaltFlight ??= (async () => {
+    const db = await useDb()
+    const existing = queryRows<{value: unknown}>(await queryDb(db, 'SELECT `value` FROM app_settings WHERE key = $key LIMIT 1;', {key: ANALYTICS_HASH_SALT_KEY}, {retry: 'readOnly'}))[0]?.value
+    if (typeof existing === 'string' && existing.length >= 32 && existing.length <= 256) return existing
+    const row = queryRows<{value: unknown}>(await queryDb(db, `UPSERT type::record('app_settings', $key) SET key = $key,
+      value = IF type::is_string(value) AND string::len(value) >= 32 THEN value ELSE $salt END,
+      updated_at = time::now() RETURN AFTER;`, {key: ANALYTICS_HASH_SALT_KEY, salt: randomBytes(32).toString('hex')}, {retry: 'never', label: 'atomic analytics salt'}))[0]
+    if (typeof row?.value !== 'string' || row.value.length < 32 || row.value.length > 256) throw new Error('Invalid analytics hash salt')
+    return row.value
+  })().finally(() => {analyticsSaltFlight = undefined})
+  return analyticsSaltFlight
 }
 
 export async function readAdminCredentials(): Promise<AdminCredentials> {

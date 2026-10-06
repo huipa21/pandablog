@@ -1,5 +1,6 @@
 import { requireSuperadmin } from '../../../../utils/auth'
 import { parseLogType } from '../../../../utils/logging-admin'
+import { requestAbortSignal } from '../../../../utils/request-abort'
 import { readLogById } from '../../../../utils/logging'
 
 export default defineEventHandler(async (event) => {
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Missing record id' })
   }
 
-  const row = await readLogById(type, id)
+  const row = type === 'access' ? await readLogById(type, id, requestAbortSignal(event)) : await readLogById(type, id)
   if (!row) {
     throw createError({ statusCode: 404, message: 'Log record not found' })
   }

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ closeAccessLogStore: vi.fn() }))
+const mocks = vi.hoisted(() => ({ closeAccessLogStore: vi.fn(), shutdownAccessLogReader: vi.fn() }))
 vi.mock('../../server/utils/access-log-store', () => mocks)
+vi.mock('../../server/utils/access-log-reader', () => mocks)
 
 beforeEach(() => {
   vi.resetModules()
@@ -29,7 +30,7 @@ describe('access file store shutdown plugin', () => {
     expect(hook).toHaveBeenCalledExactlyOnceWith('close', expect.any(Function))
     expect(mocks.closeAccessLogStore).not.toHaveBeenCalled()
     const closing = hook.mock.calls[0]![1]()
-    expect(closing).toBe(done)
+    expect(mocks.shutdownAccessLogReader).toHaveBeenCalledTimes(1)
     expect(mocks.closeAccessLogStore).toHaveBeenCalledTimes(1)
     finish()
     await closing

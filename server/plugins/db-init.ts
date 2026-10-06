@@ -1,4 +1,5 @@
 import { writeBarrier } from '../utils/maintenance'
+import { markAnalyticsReady } from '../utils/analytics/lifecycle'
 import { mediaInitializeLegacyState, mediaRecoverInterruptedObjects } from '../utils/mediaLibrary'
 import { mediaRecoverStageDirectories } from '../utils/media-upload'
 import { setupAuthority } from '../utils/setup-authority'
@@ -108,6 +109,7 @@ export default defineNitroPlugin(async () => {
     // Run them in the background via the runtime pool (scoped user) so a fresh
     // deploy starts serving requests immediately instead of blocking boot (and
     // the first request) on them.
+    if (__PB_MODULE_ANALYTICS__) markAnalyticsReady()
     void runDeferredBackfillsViaPool()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

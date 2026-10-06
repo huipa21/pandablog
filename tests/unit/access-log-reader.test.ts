@@ -150,7 +150,7 @@ describe('access queries', () => {
     expect(ids(await reader.queryAccessLogs({ ...query, sort: 'oldest' }))).toEqual(['0', '1', '2', '3', '4'])
   })
 
-  it.each(['plain', 'gzip'] as const)('aborts stalled %s I/O at the deadline, preserves partial newest results, and closes streams/descriptors', async (kind) => {
+  it.each(['plain', 'gzip'] as const)('aborts stalled %s I/O at the deadline without mislabelling a prefix as newest, and closes streams/descriptors', async (kind) => {
     const name = `access-2026-05-21.ndjson${kind === 'gzip' ? '.gz' : ''}`
     const content = row('2026-05-21T00:00:00Z', 'partial') + '\n'
     await put(name, kind === 'gzip' ? gzipSync(content) : content)
@@ -171,7 +171,7 @@ describe('access queries', () => {
     reader = createAccessLogReader({ dir: () => directory, now: () => now, fs: io, maxDurationMs: 100 })
     const result = await reader.queryAccessLogs(query)
     expect(result).toMatchObject({ total: 1, truncated: true })
-    expect(ids(result)).toEqual(['partial'])
+    expect(ids(result)).toEqual([])
     expect(sources.every(source => source.destroyed)).toBe(true)
     expect(handles.every(handle => handle.fd === -1)).toBe(true)
   })
@@ -180,7 +180,7 @@ describe('access queries', () => {
     await fixture()
     let ticks = 0
     reader = createAccessLogReader({ dir: () => directory, now: () => now, clock: () => ticks++ * 1000 })
-    expect(await reader.queryAccessLogs(query)).toMatchObject({ total: 1, truncated: true })
+    expect(await reader.queryAccessLogs(query)).toMatchObject({ total: 0, truncated: true })
   })
 
   it('prefers the plain source over a crash-leftover gzip for the same day', async () => {
@@ -213,7 +213,7 @@ describe('access queries', () => {
     await put('access-2026-05-20.ndjson.gz', 'not gzip')
     await expect(reader.queryAccessLogs(query)).rejects.toThrow()
     await expect(reader.accessStats()).rejects.toThrow()
-    const io = { ...fs, readdir: vi.fn().mockRejectedValue(Object.assign(new Error('denied'), { code: 'EACCES' })) }
+    const io = { ...fs, opendir: vi.fn().mockRejectedValue(Object.assign(new Error('denied'), { code: 'EACCES' })) }
     await expect(createAccessLogReader({ dir: () => directory, fs: io }).accessStats()).rejects.toThrow('denied')
   })
 
@@ -270,7 +270,7 @@ describe('stats and disposable count cache', () => {
     expect(stats).toEqual({ count: 5, oldest: '2026-05-20T00:00:00.000Z', newest: '2026-05-21T00:00:00.000Z', bytes, files: 2 })
     const cache = JSON.parse(await readFile(join(directory, '.index.json'), 'utf8'))
     expect(cache['access-2026-05-20.ndjson.gz']).toMatchObject({ lines: 2, size: (await lstat(join(directory, 'access-2026-05-20.ndjson.gz'))).size })
-    expect(Object.keys(cache)).toEqual(['access-2026-05-20.ndjson.gz'])
+    expect(Object.keys(cache)).toEqual(['access-2026-05-20.ndjson.gz', 'access-2026-05-21.ndjson'])
     opened.length = 0
     await appendFile(join(directory, 'access-2026-05-21.ndjson'), row('2026-05-21T12:15:00Z', 'live') + '\n')
     expect((await reader.accessStats()).count).toBe(6)
@@ -293,7 +293,7 @@ describe('stats and disposable count cache', () => {
     expect(opened.some(path => path.endsWith('.gz'))).toBe(true)
     await unlink(join(directory, 'access-2026-05-20.ndjson.gz'))
     expect((await reader.accessStats()).count).toBe(3)
-    expect(JSON.parse(await readFile(join(directory, '.index.json'), 'utf8'))).toEqual({})
+    expect(Object.keys(JSON.parse(await readFile(join(directory, '.index.json'), 'utf8')))).toEqual(['access-2026-05-21.ndjson'])
   })
 
   it.each(['{broken', '[]', 'null', '{"access-2026-05-20.ndjson.gz":{"size":1,"mtimeMs":1,"lines":-1}}'])('rebuilds invalid cache %s', async (cache) => {
@@ -309,11 +309,11 @@ describe('stats and disposable count cache', () => {
     expect((await readdir(directory)).some(name => name.endsWith('.tmp'))).toBe(false)
   })
 
-  it('counts physical lines, including malformed lines, but does not cache past plain or today gzip', async () => {
+  it('counts physical lines, including malformed lines, and safely checkpoints plain and gzip files', async () => {
     await put('access-2026-05-20.ndjson', 'bad\n\npartial')
     await put('access-2026-05-21.ndjson.gz', gzipSync('bad\n'))
     expect((await reader.accessStats()).count).toBe(4)
-    expect(JSON.parse(await readFile(join(directory, '.index.json'), 'utf8'))).toEqual({})
+    expect(Object.keys(JSON.parse(await readFile(join(directory, '.index.json'), 'utf8')))).toHaveLength(2)
   })
 
   it('does not publish a cache entry when an archive changes during its count', async () => {
@@ -325,7 +325,7 @@ describe('stats and disposable count cache', () => {
       }
       return lstat(...args)
     }) as typeof lstat }
-    await createAccessLogReader({ dir: () => directory, now: () => now, fs: io }).accessStats()
+    await expect(createAccessLogReader({ dir: () => directory, now: () => now, fs: io }).accessStats()).rejects.toMatchObject({statusCode: 503})
     expect(JSON.parse(await readFile(join(directory, '.index.json'), 'utf8'))).toEqual({})
   })
 })
