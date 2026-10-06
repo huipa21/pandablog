@@ -1,6 +1,9 @@
 import type { Surreal } from 'surrealdb'
-import { queryDb, queryDbRecord } from './db'
-import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
+import { queryDb } from './db'
+import { createError } from 'h3'
+import type { SessionUser } from './users'
+import { mediaScope } from './media-query'
+import { queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import { mediaNormalizeFileRecord } from './mediaLibrary'
 import type { PostVisibility } from '~/types/content'
 
@@ -9,7 +12,8 @@ const MEDIA_REFERENCE_FILE_COLUMNS = [
   'hash',
   'referenced_by',
   'reference_count',
-  'visibility'
+  'visibility',
+  'storage_state'
 ].join(', ')
 
 interface MediaVisibilityCascadeResult {
@@ -27,7 +31,7 @@ function mediaExtractReferencedHashes(...values: unknown[]) {
   const hashes = new Set<string>()
 
   for (const value of values) {
-    collectHashes(value, hashes)
+    collectHashes(value, hashes, typeof value === 'string')
   }
 
   return hashes
@@ -39,12 +43,12 @@ export async function mediaSyncRecordReferences(db: Surreal, sourceRecordId: str
   const added = [...next].filter((hash) => !previous.has(hash))
   const removed = [...previous].filter((hash) => !next.has(hash))
 
-  for (const hash of added) {
-    await mediaAddFileReference(db, hash, sourceRecordId)
-  }
-
-  for (const hash of removed) {
-    await mediaRemoveFileReference(db, hash, sourceRecordId)
+  // Writers reserve next values before saving the source. Historical post
+  // versions and failed/ambiguous saves conservatively retain reservations.
+  // Never decrement a post reservation merely because the current doc changed.
+  // Explicit source deletion releases all reservations.
+  if (!sourceRecordId.startsWith('post:')) {
+    for (const hash of removed) await mediaRemoveFileReference(db, hash, sourceRecordId)
   }
 
   return {
@@ -114,89 +118,34 @@ export async function mediaCascadeVisibilityForPost(
 
 export async function mediaRemoveAllReferencesForSource(db: Surreal, sourceRecordId: string) {
   const source = normalizeSourceRecordId(sourceRecordId)
-  const response = await queryDb(
-    db,
-    `SELECT ${MEDIA_REFERENCE_FILE_COLUMNS} FROM files WHERE referenced_by CONTAINS type::record($source_table, $source_id);`,
-    {
-      source_table: source.table,
-      source_id: source.id
-    }
-  )
-
-  for (const record of queryRows<Record<string, unknown>>(response)) {
-    const file = mediaNormalizeFileRecord(record)
-    const references = new Set(file.referenced_by ?? [])
-
-    if (!references.delete(source.full)) {
-      continue
-    }
-
-    await writeFileReferences(db, file.hash, [...references], Math.max(0, (file.reference_count ?? 0) - 1))
+  for (let batch = 0; batch < 100; batch++) {
+    const rows = queryRows<{id: unknown}>(await queryDb(db, `SELECT id FROM files WHERE referenced_by CONTAINS type::record($source_table, $source_id) LIMIT 100 TIMEOUT 5s;`, {source_table: source.table, source_id: source.id}, {retry: 'never'}))
+    if (!rows.length) return
+    await queryDb(db, `UPDATE files SET referenced_by = array::complement(referenced_by, [type::record($source_table, $source_id)]), reference_count = array::len(array::complement(referenced_by, [type::record($source_table, $source_id)])), updated_at = time::now() WHERE id IN $ids AND (storage_state = NONE OR storage_state = 'ready') RETURN NONE;`, {ids: rows.map(row => row.id), source_table: source.table, source_id: source.id}, {retry: 'never'})
   }
+  throw new Error('Media source release checkpoint budget reached; reservations retained')
 }
 
-async function mediaAddFileReference(db: Surreal, hash: string, sourceRecordId: string) {
-  const file = await readFileForReference(db, hash)
-
-  if (!file) {
-    return
+export async function mediaReserveReferences(db: Surreal, sourceRecordId: string, values: unknown[], user?: SessionUser) {
+  const hashes = [...mediaExtractReferencedHashes(...values)]
+  if (!hashes.length) return
+  if (hashes.length > 200) throw createError({statusCode: 400, message: 'Too many media references'})
+  const source = normalizeSourceRecordId(sourceRecordId), scope = mediaScope(user)
+  try {
+    await queryDb(db, `BEGIN TRANSACTION;
+      LET $reserved = UPDATE files SET referenced_by = array::union(referenced_by, [type::record($source_table, $source_id)]), reference_count = array::len(array::union(referenced_by, [type::record($source_table, $source_id)])), updated_at = time::now()
+        WHERE hash IN $hashes AND ${scope.where} AND array::len(referenced_by) <= 2000 AND (array::len(referenced_by) < 2000 OR referenced_by CONTAINS type::record($source_table, $source_id)) RETURN id;
+      IF array::len($reserved) != array::len($hashes) { THROW 'Media reference unavailable'; };
+      RETURN array::len($reserved);
+      COMMIT TRANSACTION;`, {...scope.params, hashes, source_table: source.table, source_id: source.id}, {retry: 'never'})
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Media reference unavailable') throw createError({statusCode: 409, message: 'Media reference unavailable'})
+    throw error // Never replay ambiguous execution or assume rollback.
   }
-
-  const normalizedSource = normalizeSourceRecordId(sourceRecordId)
-  const references = new Set(file.referenced_by ?? [])
-
-  if (references.has(normalizedSource.full)) {
-    return
-  }
-
-  references.add(normalizedSource.full)
-  await writeFileReferences(db, file.hash, [...references], Math.max(0, file.reference_count ?? 0) + 1)
 }
-
 async function mediaRemoveFileReference(db: Surreal, hash: string, sourceRecordId: string) {
-  const file = await readFileForReference(db, hash)
-
-  if (!file) {
-    return
-  }
-
-  const normalizedSource = normalizeSourceRecordId(sourceRecordId)
-  const references = new Set(file.referenced_by ?? [])
-
-  if (!references.delete(normalizedSource.full)) {
-    return
-  }
-
-  await writeFileReferences(db, file.hash, [...references], Math.max(0, (file.reference_count ?? 0) - 1))
-}
-
-async function readFileForReference(db: Surreal, hash: string) {
-  if (!/^[a-f0-9]{64}$/i.test(hash)) {
-    return null
-  }
-
-  const record = await queryDbRecord(db, 'files', hash.toLowerCase())
-  return record ? mediaNormalizeFileRecord(record) : null
-}
-
-async function writeFileReferences(db: Surreal, hash: string, references: string[], referenceCount: number) {
-  const params: Record<string, unknown> = {
-    table: 'files',
-    id: hash,
-    reference_count: referenceCount
-  }
-  const referenceExpressions = references.map((reference, index) => {
-    const source = normalizeSourceRecordId(reference)
-    params[`reference_table_${index}`] = source.table
-    params[`reference_id_${index}`] = source.id
-    return `type::record($reference_table_${index}, $reference_id_${index})`
-  })
-
-  await queryDb(
-    db,
-    `UPDATE type::record($table, $id) SET referenced_by = [${referenceExpressions.join(', ')}], reference_count = $reference_count, updated_at = time::now() RETURN AFTER;`,
-    params
-  )
+  const source = normalizeSourceRecordId(sourceRecordId)
+  await queryDb(db, `UPDATE type::record('files', $hash) SET referenced_by = array::complement(referenced_by, [type::record($source_table, $source_id)]), reference_count = array::len(array::complement(referenced_by, [type::record($source_table, $source_id)])), updated_at = time::now() WHERE storage_state = NONE OR storage_state = 'ready' RETURN NONE;`, {hash, source_table: source.table, source_id: source.id}, {retry: 'never'})
 }
 
 async function readPostVisibilities(db: Surreal, postRecordIds: string[]) {
@@ -232,7 +181,7 @@ async function updateFileVisibility(db: Surreal, hashes: string[], visibility: '
 
   await queryDb(
     db,
-    'UPDATE files SET visibility = $visibility, updated_at = time::now() WHERE hash IN $hashes;',
+    "UPDATE files SET visibility = $visibility, updated_at = time::now() WHERE hash IN $hashes AND (storage_state = NONE OR storage_state = 'ready');",
     { visibility, hashes: uniqueHashes }
   )
 }
@@ -252,42 +201,45 @@ function normalizePostVisibility(value: unknown): PostVisibility {
   return 'public'
 }
 
-function collectHashes(value: unknown, hashes: Set<string>) {
+function collectHashes(value: unknown, hashes: Set<string>, bareHash = false) {
   if (typeof value === 'string') {
-    for (const hash of parseHashesFromString(value)) {
+    for (const hash of parseHashesFromString(value, bareHash)) {
       hashes.add(hash)
     }
     return
   }
 
   if (Array.isArray(value)) {
-    value.forEach((item) => collectHashes(item, hashes))
+    value.forEach((item) => collectHashes(item, hashes, false))
     return
   }
 
   if (value && typeof value === 'object') {
-    Object.values(value as Record<string, unknown>).forEach((entry) => collectHashes(entry, hashes))
+    Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => collectHashes(entry, hashes, key === 'mediaHash' || key === 'fileHash'))
   }
 }
 
-function parseHashesFromString(value: string) {
-  let decoded: string
-  try {
-    decoded = decodeURIComponent(value)
-  } catch {
-    // If decodeURIComponent fails (malformed URI), use the value as-is
-    decoded = value
+function parseHashesFromString(value: string, bareHash: boolean) {
+  let decoded = value
+  // Match recordIdPart/media serving's bounded double-decode contract.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {const next = decodeURIComponent(decoded); if (next === decoded) break; decoded = next}
+    catch {break}
   }
   const hashes = new Set<string>()
-  const mediaUrlPattern = /\/api\/media\/(?:file|thumbnail|variant\/(?:thumbnail|medium|large))\/(?:files:)?([a-f0-9]{64})/gi
+  const mediaUrlPattern = /(?:\/media\/|\/api\/media\/(?:file|thumbnail|variant\/(?:thumbnail|medium|large))\/)(?:files:)?([a-f0-9]{64})/gi
   const recordPattern = /\bfiles:([a-f0-9]{64})\b/gi
-  const storagePattern = /(?:^|[\/\\])([a-f0-9]{64})(?:\.[a-z0-9]+)?(?:$|[?#])/gi
+  const storagePattern = /^\/?(?:(?:storage\/(?:uploads|variants)\/)?(?:thumbnail\/|medium\/|large\/)?\d{4}\/\d{2}\/)([a-f0-9]{64})(?:\.[a-z0-9]+)?(?:$|[?#])/gi
+  // Bare hashes are allowed only for explicit cover/avatar root values or
+  // named mediaHash/fileHash fields, never document text/block content IDs.
+  if (bareHash && /^[a-f0-9]{64}(?:\.[a-z0-9]+)?$/i.test(decoded)) hashes.add(decoded.slice(0, 64).toLowerCase())
 
   for (const pattern of [mediaUrlPattern, recordPattern, storagePattern]) {
     let match = pattern.exec(decoded)
 
     while (match) {
       hashes.add(String(match[1]).toLowerCase())
+      if (hashes.size > 200) throw createError({statusCode: 400, message: 'Too many media references'})
       match = pattern.exec(decoded)
     }
   }

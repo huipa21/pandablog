@@ -6,9 +6,10 @@ import { queryRows } from '../../../utils/surrealResult'
 export default defineEventHandler(async (event) => {
   await requireContentManager(event)
   const db = await useDb()
-  const response = await queryDb(db, 'SELECT * FROM folder ORDER BY name ASC;')
+  const response = await queryDb(db, 'SELECT id, name, slug, parent, created_at, updated_at FROM folder ORDER BY name ASC, id ASC LIMIT 201 TIMEOUT 5s;' )
 
   return {
-    folders: queryRows<Record<string, unknown>>(response).map(mediaNormalizeFolderRecord)
+    folders: queryRows<Record<string, unknown>>(response).slice(0, 200).map(mediaNormalizeFolderRecord),
+    truncated: queryRows(response).length > 200
   }
 })

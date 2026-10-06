@@ -194,6 +194,8 @@ export interface MediaTagSummary {
 }
 
 export interface MediaRecord {
+  metadata_truncated?: boolean
+  storage_state?: string
   id: string
   original_name: string
   stored_name?: string

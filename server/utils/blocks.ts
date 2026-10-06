@@ -4,6 +4,8 @@ import type { BlockRecord, JsonContent, RelatedPostSummary } from '~/types/conte
 import { computeContentStats } from '../../utils/contentStats'
 import { isEmptyBlock } from '../../utils/emptyBlocks'
 import { queryDb } from './db'
+import { mediaReserveReferences } from './referenceTracker'
+import type { SessionUser } from './users'
 import { getPostVersioningSettings } from './settings'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 
@@ -715,11 +717,12 @@ export async function loadBlocksForVersion(db: Surreal, postRecordId: string, ve
     })
 }
 
-export async function restorePostVersion(db: Surreal, postRecordId: string, version: string, existingBlocks?: BlockRecord[]): Promise<BlockRecord[]> {
+export async function restorePostVersion(db: Surreal, postRecordId: string, version: string, existingBlocks?: BlockRecord[], user?: SessionUser): Promise<BlockRecord[]> {
   if (version === 'current') {
     return existingBlocks ?? await loadBlocksForPost(db, postRecordId)
   }
   const targetBlocks = await loadBlocksForVersion(db, postRecordId, version)
+  await mediaReserveReferences(db, postRecordId, [buildDocFromBlocks(targetBlocks)], user)
   const incoming = targetBlocks.map((block) => ({
     blockId: blockIdFromNode(block.node) || recordIdPart(block.id, 'block'),
     node: block.node,

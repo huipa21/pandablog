@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { queryDb, useDb } from '../../../utils/db'
 import { buildPostPayload, normalizePost, stringOrNull } from '../../../utils/content'
 import { firstRow, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
@@ -5,7 +6,7 @@ import { requireContentManager } from '../../../utils/auth'
 import { assertPostSlugAvailable, uniquePostSlug } from '../../../utils/posts'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
 import { hashPostPassword } from '../../../utils/post-password'
-import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
+import { mediaCascadeVisibilityForPost, mediaReserveReferences, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import { buildDocFromBlocks, computeStatsFromBlocks, extractBlocksFromDoc, syncPostBlocks, syncPostRelatedLinks } from '../../../utils/blocks'
 import { syncPostSearchTerms } from '../../../utils/searchTerms'
 import type { JsonContent, PostVisibility } from '~/types/content'
@@ -39,10 +40,13 @@ export default defineEventHandler(async (event) => {
     ? await assertPostSlugAvailable(db, String(payload.slug))
     : await uniquePostSlug(db, String(payload.slug))
 
+  const reservedPostId = randomUUID()
+  await mediaReserveReferences(db, `post:${reservedPostId}`, [payload.cover_image, parseDoc(body.content_json)], user)
   const response = await queryDb(
     db,
-    'CREATE post CONTENT $post;',
+    "CREATE type::record('post', $reservedPostId) CONTENT $post;",
     {
+      reservedPostId,
       post: {
         ...payload,
         ...visibilityUpdates,

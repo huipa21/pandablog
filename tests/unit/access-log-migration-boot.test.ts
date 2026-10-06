@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   reloadLoggingSettings: vi.fn(), getLoggingSettings: vi.fn(), defaultLoggingSettings: vi.fn(), writeConsoleEntry: vi.fn()
 }))
 vi.mock('../../server/utils/setup-authority', () => ({setupAuthority: () => ({status: async () => ({completed: true})})}))
+// This logging fixture deliberately isolates unrelated media boot recovery.
+vi.mock('../../server/utils/mediaLibrary', () => ({mediaRecoverInterruptedObjects: vi.fn(), mediaInitializeLegacyState: vi.fn()}))
+vi.mock('../../server/utils/media-upload', () => ({mediaRecoverStageDirectories: vi.fn()}))
 vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/settings', () => mocks)
 vi.mock('../../server/utils/logging', () => mocks)

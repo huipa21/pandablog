@@ -1,19 +1,10 @@
 import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
+import { mediaScope } from '../../utils/media-query'
 import { queryRows } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
-  await requireContentManager(event)
-  const db = await useDb()
-  const response = await queryDb(db, 'SELECT uploaded_by FROM files;')
-  const owners = new Set<string>()
-
-  for (const file of queryRows<Record<string, unknown>>(response)) {
-    const name = typeof file.uploaded_by === 'string' ? file.uploaded_by.trim() : ''
-    if (name) owners.add(name)
-  }
-
-  return {
-    owners: Array.from(owners).sort((a, b) => a.localeCompare(b))
-  }
+  const user = await requireContentManager(event), scope = mediaScope(user)
+  const rows = queryRows<{uploaded_by: string}>(await queryDb(await useDb(), `SELECT uploaded_by FROM files WITH NOINDEX WHERE ${scope.where} AND uploaded_by != NONE GROUP BY uploaded_by ORDER BY uploaded_by LIMIT 201 TIMEOUT 5s;`, scope.params, {retry: 'readOnly', timeoutMs: 6000}))
+  return {owners: rows.slice(0, 200).map(row => row.uploaded_by), truncated: rows.length > 200}
 })

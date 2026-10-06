@@ -19,7 +19,7 @@ vi.mock('../../server/utils/settings', () => mocks)
 vi.mock('../../server/utils/logging', () => mocks)
 vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/schema', () => mocks)
-vi.mock('../../server/utils/imageProcessor', () => ({mediaProcessImageBuffer: vi.fn()}))
+vi.mock('../../server/utils/imageProcessor', () => ({mediaProcessImageFile: vi.fn()}))
 vi.mock('../../server/utils/users', () => ({newAuthEpoch: () => 'a'.repeat(48)}))
 vi.mock('node:fs/promises', () => mocks) // absolutely no configured FS operations
 

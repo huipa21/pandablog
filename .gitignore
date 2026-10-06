@@ -132,6 +132,12 @@ tests/unit/*
 !tests/unit/setup-authority.test.ts
 !tests/unit/media-privacy.test.ts
 !tests/unit/mediaLibrary.test.ts
+!tests/unit/media-resources.test.ts
+!tests/unit/media-upload-http.test.ts
+!tests/unit/media-reference-writers.test.ts
+!tests/unit/media-dashboard.test.ts
+!tests/unit/media-publication.test.ts
+!tests/integration/media-phase3.test.ts
 !tests/unit/media-privacy-http.test.ts
 !tests/unit/media-archives.test.ts
 !tests/integration/media-privacy.test.ts

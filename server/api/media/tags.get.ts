@@ -2,51 +2,15 @@ import { requireContentManager } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { serializeDate } from '../../utils/content'
 import { containsEmoji, slugify } from '../../../utils/slug'
+import { mediaScope } from '../../utils/media-query'
 import { queryRows } from '../../utils/surrealResult'
 import type { MediaTagSummary } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
-  await requireContentManager(event)
-  const query = getQuery(event)
-  const search = typeof query.q === 'string' ? query.q.trim().toLowerCase() : ''
-  const db = await useDb()
-  const response = await queryDb(db, 'SELECT tags, uploaded_at, created_at FROM files;')
-  const counts = new Map<string, MediaTagSummary>()
-
-  for (const file of queryRows<Record<string, unknown>>(response)) {
-    const uploadedAt = serializeDate(file.uploaded_at ?? file.created_at)
-    const tags = Array.isArray(file.tags) ? file.tags : []
-
-    for (const rawTag of tags) {
-      const name = String(rawTag).trim()
-      if (!name || (search && !name.toLowerCase().includes(search))) continue
-
-      // Emoji are not allowed in tags; skip names that carry them or that have
-      // no usable slug characters so the listing only surfaces valid tags.
-      const slug = slugify(name)
-      if (!slug || containsEmoji(name)) continue
-
-      const key = name.toLowerCase()
-      const existing = counts.get(key)
-
-      if (existing) {
-        existing.count += 1
-        if (uploadedAt && (!existing.latest_uploaded_at || new Date(uploadedAt).getTime() > new Date(existing.latest_uploaded_at).getTime())) {
-          existing.latest_uploaded_at = uploadedAt
-        }
-      } else {
-        counts.set(key, {
-          id: key,
-          name,
-          slug,
-          count: 1,
-          latest_uploaded_at: uploadedAt
-        })
-      }
-    }
-  }
-
-  const tags = Array.from(counts.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-
-  return { tags }
+  const user = await requireContentManager(event), scope = mediaScope(user)
+  const query = getQuery(event), search = typeof query.q === 'string' ? query.q.trim().toLowerCase() : ''
+  if (search.length > 80) throw createError({statusCode: 400, message: 'Invalid media tag query'})
+  const rows = queryRows<{key: string, name: string, count: number, latest: unknown}>(await queryDb(await useDb(), `SELECT key, array::first(array::group(name)) AS name, count() AS count, time::max(uploaded_at) AS latest FROM (SELECT tags AS name, string::lowercase(tags) AS key, uploaded_at FROM (SELECT tags, uploaded_at FROM files WITH NOINDEX WHERE ${scope.where} SPLIT tags TIMEOUT 5s)) WHERE string::contains(key, $search) GROUP BY key ORDER BY count DESC, key ASC LIMIT 201 TIMEOUT 5s;`, {...scope.params, search}, {retry: 'readOnly', timeoutMs: 6000}))
+  const tags: MediaTagSummary[] = rows.slice(0, 200).filter(row => row.name && !containsEmoji(row.name)).map(row => ({id: row.key, name: row.name, slug: slugify(row.name), count: row.count, latest_uploaded_at: serializeDate(row.latest)}))
+  return {tags, truncated: rows.length > 200}
 })

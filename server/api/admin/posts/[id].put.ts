@@ -6,7 +6,7 @@ import { assertCanManagePostRecord } from '../../../utils/permissions'
 import { assertPostSlugAvailable, uniquePostSlug } from '../../../utils/posts'
 import { hashPostPassword } from '../../../utils/post-password'
 import { readPostTaxonomy, syncPostTaxonomy } from '../../../utils/taxonomy'
-import { mediaCascadeVisibilityForPost, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
+import { mediaCascadeVisibilityForPost, mediaReserveReferences, mediaSyncRecordReferences } from '../../../utils/referenceTracker'
 import {
   buildDocFromBlocks,
   collapsePostVersionHistory,
@@ -79,6 +79,7 @@ export default defineEventHandler(async (event) => {
     params.ownerId = ownerAction.userId
   }
 
+  await mediaReserveReferences(db, previousPost.id, [payload.cover_image, Object.prototype.hasOwnProperty.call(body, 'content_json') ? parseDoc(body.content_json) : previousDoc], user)
   const response = await queryDb(db, updateSql, params)
   const post = statements.length > 1
     ? firstRow<Record<string, unknown>>(response, statements.length - 1) || firstRow<Record<string, unknown>>(response)

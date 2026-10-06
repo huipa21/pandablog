@@ -236,6 +236,10 @@ DEFINE FIELD IF NOT EXISTS is_image ON files TYPE bool DEFAULT false;
 DEFINE FIELD IF NOT EXISTS image_meta ON files TYPE option<object> FLEXIBLE DEFAULT NONE;
 DEFINE FIELD IF NOT EXISTS folders ON files TYPE array<record<folder>> DEFAULT [];
 DEFINE FIELD IF NOT EXISTS tags ON files TYPE array<string> DEFAULT [];
+DEFINE FIELD IF NOT EXISTS storage_state ON files TYPE option<string> ASSERT $value = NONE OR $value IN ['publishing', 'ready', 'deleting'];
+DEFINE FIELD IF NOT EXISTS storage_claim ON files TYPE option<string>;
+-- Legacy/version/avatar reference completeness is not inferred from zero counts.
+DEFINE FIELD IF NOT EXISTS reference_safe ON files TYPE bool DEFAULT false;
 DEFINE FIELD IF NOT EXISTS reference_count ON files TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS referenced_by ON files TYPE array<record> DEFAULT [];
 DEFINE FIELD IF NOT EXISTS visibility ON files TYPE string DEFAULT 'public' ASSERT $value IN ['public', 'private'];

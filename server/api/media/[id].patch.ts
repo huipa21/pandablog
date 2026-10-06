@@ -1,13 +1,16 @@
 import { requireContentManager } from '../../utils/auth'
 import { queryDb, queryDbRecord, useDb } from '../../utils/db'
-import { mediaNormalizeFileRecord, mediaNormalizeFolderId, mediaNormalizeHash } from '../../utils/mediaLibrary'
+import { mediaNormalizeFileRecord, mediaNormalizeHash } from '../../utils/mediaLibrary'
 import { mediaRecordManageableByUser } from '../../utils/mediaPermissions'
-import { containsEmoji } from '../../../utils/slug'
+import { readBoundedJson } from '../../utils/bounded-json'
+import { mediaScope } from '../../utils/media-query'
+import { mediaMetadataTags, mediaMetadataFolders } from '../../utils/media-metadata'
+import { firstRow } from '../../utils/surrealResult'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
   const id = mediaNormalizeHash(getRouterParam(event, 'id') ?? '')
-  const body = await readBody<Record<string, unknown>>(event)
+  const body = await readBoundedJson(event, 16 * 1024)
   const db = await useDb()
   const existing = await queryDbRecord(db, 'files', id)
   if (!existing) {
@@ -18,7 +21,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const assignments: string[] = ['updated_at = time::now()']
+  const scope = mediaScope(user, true)
   const params: Record<string, unknown> = {
+    ...scope.params,
     table: 'files',
     id
   }
@@ -40,13 +45,13 @@ export default defineEventHandler(async (event) => {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, 'tags')) {
-    const tags = normalizeTags(body.tags)
+    const tags = mediaMetadataTags(body.tags)
     params.tags = tags
     assignments.push('tags = $tags')
   }
 
   if (Object.prototype.hasOwnProperty.call(body, 'folders')) {
-    const folderIds = normalizeFolderIds(body.folders)
+    const folderIds = mediaMetadataFolders(body.folders)
     const folderExpressions = folderIds.map((folderId, index) => {
       params[`folder_id_${index}`] = folderId
       return `type::record($folder_table, $folder_id_${index})`
@@ -56,13 +61,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, 'visibility')) {
-    params.visibility = body.visibility === 'private' ? 'private' : 'public'
+    if (body.visibility !== 'public' && body.visibility !== 'private') throw createError({statusCode: 400, message: 'Invalid media visibility'})
+    params.visibility = body.visibility
     assignments.push('visibility = $visibility')
   }
 
   const response = await queryDb(
     db,
-    `UPDATE type::record($table, $id) SET ${assignments.join(', ')} RETURN AFTER;`,
+    `UPDATE type::record($table, $id) SET ${assignments.join(', ')} WHERE ${scope.where} RETURN AFTER;`,
     params
   )
   const record = firstRow<Record<string, unknown>>(response)
@@ -73,30 +79,3 @@ export default defineEventHandler(async (event) => {
 
   return mediaNormalizeFileRecord(record)
 })
-
-function normalizeTags(value: unknown) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return Array.from(new Set(
-    value
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .filter((item) => !containsEmoji(item))
-      .map((item) => item.slice(0, 80))
-  ))
-}
-
-function normalizeFolderIds(value: unknown) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return Array.from(new Set(
-    value
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => mediaNormalizeFolderId(item))
-  ))
-}

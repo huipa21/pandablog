@@ -1,5 +1,5 @@
-import { createReadStream } from 'node:fs'
-import { access, mkdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { constants, createReadStream } from 'node:fs'
+import { copyFile, link, lstat, mkdir, open, stat, unlink } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import type { MediaVariantSize } from '~/types/content'
 
@@ -46,24 +46,46 @@ export function mediaVariantRelativePath(hash: string, size: MediaVariantSize, e
   return `${size}/${mediaYearMonthPath(hash, date)}/${hash}.${cleanExtension}`
 }
 
-export async function mediaWriteOriginalBuffer(hash: string, extension: string, buffer: Buffer, date = new Date()) {
-  const relativePath = mediaOriginalRelativePath(hash, extension, date)
-  const absolutePath = mediaResolveOriginalPath(relativePath)
-
-  await mkdir(dirname(absolutePath), { recursive: true })
-  await writeFile(absolutePath, buffer)
-
-  return relativePath
+export async function mediaPublishStagedFile(source: string, relativePath: string, variant = false, claim: string) {
+  const destination = variant ? mediaResolveVariantPath(relativePath) : mediaResolveOriginalPath(relativePath)
+  if (!/^[a-f0-9-]{36}$/.test(claim)) throw new Error('Invalid publication claim')
+  await mkdir(dirname(destination), {recursive: true})
+  // Durable ownership witness on the destination mount. link is exclusive:
+  // EEXIST never overwrites another object. The retained inode proves exactly
+  // which object a interrupted publishing operation may remove on restart.
+  const witness = `${destination}.${claim}.owned`
+  await copyFile(source, witness, constants.COPYFILE_EXCL)
+  const file = await open(witness, 'r+')
+  try {await file.sync()} finally {await file.close()}
+  await link(witness, destination)
+  await syncMediaParents(destination)
 }
-
-export async function mediaWriteVariantBuffer(hash: string, size: MediaVariantSize, extension: string, buffer: Buffer, date = new Date()) {
-  const relativePath = mediaVariantRelativePath(hash, size, extension, date)
-  const absolutePath = mediaResolveVariantPath(relativePath)
-
-  await mkdir(dirname(absolutePath), { recursive: true })
-  await writeFile(absolutePath, buffer)
-
-  return relativePath
+export async function mediaFinishPublication(paths: MediaStoredObjectPaths, claim: string, retire = false) {
+  if (!/^[a-f0-9-]{36}$/.test(claim)) throw new Error('Invalid publication claim')
+  const objects = [paths.original_path ? mediaResolveOriginalPath(paths.original_path) : null,
+    ...Object.values(paths.variants ?? {}).map(variant => variant?.path ? mediaResolveVariantPath(variant.path) : null)].filter((path): path is string => Boolean(path))
+  for (const destination of objects) {
+    const witness = `${destination}.${claim}.owned`
+    const info = await lstat(witness, {bigint: true}).catch(error => {if (error.code !== 'ENOENT') throw error; return null})
+    const final = await lstat(destination, {bigint: true}).catch(error => {if (error.code !== 'ENOENT') throw error; return null})
+    if (retire && final && (!info || final.ino !== info.ino || final.dev !== info.dev || !info.isFile() || !final.isFile())) throw new Error('Unproven media publication ownership; offline recovery required')
+    if (retire && final) await unlinkIfExists(destination)
+    if (info) await unlinkIfExists(witness)
+    await syncMediaParents(destination)
+  }
+}
+async function syncMediaParents(file: string) {
+  let directory = dirname(file)
+  for (let depth = 0; depth < 4; depth++) {
+    try {
+      const handle = await open(directory, 'r')
+      try {await handle.sync()} finally {await handle.close()}
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {directory = dirname(directory); continue}
+      if (process.platform !== 'win32' || !['EISDIR', 'EINVAL', 'EPERM', 'EACCES', 'EBADF', 'ENOTSUP'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error
+    }
+    directory = dirname(directory)
+  }
 }
 
 export function mediaResolveOriginalPath(relativePath: string) {
@@ -149,11 +171,7 @@ function assertPathInside(root: string, relativePath: string) {
 }
 
 async function unlinkIfExists(absolutePath: string) {
-  try {
-    await access(absolutePath)
-  } catch {
-    return
+  try {await unlink(absolutePath)} catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
-
-  await unlink(absolutePath)
 }

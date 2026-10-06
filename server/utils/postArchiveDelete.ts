@@ -108,8 +108,7 @@ async function hardDeletePost(db: Awaited<ReturnType<typeof useDb>>, record: Rec
   const post = normalizePost(record)
   const postId = recordIdPart(post.id, 'post')
 
-  await mediaRemoveAllReferencesForSource(db, post.id)
-
+  // Keep reservations until all current/historical source blocks are gone.
   await Promise.all([
     queryDb(db, 'DELETE tagged WHERE in = type::record($table, $id);', {
       table: 'post',
@@ -130,4 +129,5 @@ async function hardDeletePost(db: Awaited<ReturnType<typeof useDb>>, record: Rec
     table: 'post',
     id: postId
   })
+  await mediaRemoveAllReferencesForSource(db, post.id)
 }

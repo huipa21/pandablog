@@ -2,6 +2,7 @@ import type { MediaRecord } from '~/types/content'
 import type { SessionUser } from './users'
 
 export function mediaRecordVisibleToUser(file: MediaRecord, user?: SessionUser | null) {
+  if (file.storage_state && file.storage_state !== 'ready') return false
   if (file.visibility === 'public') return true
   if (file.visibility !== 'private') return false
 
@@ -17,6 +18,7 @@ export function mediaRecordVisibleToUser(file: MediaRecord, user?: SessionUser |
 }
 
 export function mediaRecordManageableByUser(file: MediaRecord, user: SessionUser) {
+  if (file.storage_state && file.storage_state !== 'ready') return false
   if (file.visibility !== 'private' && file.visibility !== 'public') return false
   if (user.role === 'superadmin') {
     return true

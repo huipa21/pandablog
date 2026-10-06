@@ -1,6 +1,7 @@
 import type { MediaFileType, MediaFolderRecord, MediaRecord, MediaTagSummary, UploadFileResult } from '~/types/content'
 
 interface MediaListResponse {
+  search_truncated?: boolean
   files: MediaRecord[]
   total: number
   page: number
@@ -55,9 +56,9 @@ export function useMedia() {
     if (options.tags?.length) query.set('tags', JSON.stringify(options.tags))
     if (options.tag_relation && options.tag_relation !== 'and') query.set('tag_relation', options.tag_relation)
     if (options.filename_regex) query.set('filename_regex', options.filename_regex)
-    if (options.filename_regex_case_insensitive) query.set('filename_regex_case_insensitive', 'true')
+    if (options.filename_regex_case_insensitive !== undefined) query.set('filename_regex_case_insensitive', String(options.filename_regex_case_insensitive))
     if (options.search_regex) query.set('search_regex', 'true')
-    if (options.case_insensitive) query.set('case_insensitive', 'true')
+    if (options.case_insensitive !== undefined) query.set('case_insensitive', String(options.case_insensitive))
     if (options.sort) query.set('sort', options.sort)
     if (options.type && options.type !== 'all') query.set('type', options.type)
     if (options.folder) query.set('folder', options.folder)
@@ -112,13 +113,13 @@ export function useMedia() {
   }
 
   async function listFolders() {
-    return await $fetch<{ folders: MediaFolderRecord[] }>('/api/media/folders')
+    return await $fetch<{ folders: MediaFolderRecord[], truncated?: boolean }>('/api/media/folders')
   }
 
   async function listMediaTags(query?: string) {
     const params = new URLSearchParams()
     if (query) params.set('q', query)
-    return await $fetch<{ tags: MediaTagSummary[] }>(`/api/media/tags?${params}`)
+    return await $fetch<{ tags: MediaTagSummary[], truncated?: boolean }>(`/api/media/tags?${params}`)
   }
 
   async function createFolder(name: string, parent?: string | null) {
@@ -142,7 +143,7 @@ export function useMedia() {
   }
 
   async function cleanupOrphans(options: { older_than_days?: number, hashes?: string[] } = {}) {
-    return await $fetch<{ deleted_count: number, failed_count: number }>('/api/media/orphans/cleanup', {
+    return await $fetch<{ deleted_count: number, failed_count: number, incomplete: boolean }>('/api/media/orphans/cleanup', {
       method: 'POST',
       body: options
     })

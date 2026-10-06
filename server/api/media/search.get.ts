@@ -8,9 +8,9 @@ export default defineEventHandler(async (event) => {
   const db = await useDb()
   const searchRegex = query.search_regex === 'true'
   const caseInsensitive = query.case_insensitive !== 'false'
-  const filenameRegex = safeRegexQuery(query.filename_regex)
+  const filenameRegex = stringQuery(query.filename_regex)
   const filenameRegexCaseInsensitive = query.filename_regex_case_insensitive !== 'false'
-  const safeSearch = searchRegex ? safeRegexQuery(query.search) : stringQuery(query.search)
+  const safeSearch = stringQuery(query.search)
 
   return await mediaSearchFileRecords(db, {
     page: Number(query.page || 1),
@@ -45,46 +45,38 @@ function stringQuery(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
 
-function safeRegexQuery(value: unknown) {
-  const raw = stringQuery(value).trim()
-  if (!raw) return ''
-  if (raw.length > 200) return ''
-
-  try {
-    // Validate only; actual matching is performed in DB query.
-    new RegExp(raw)
-    return raw
-  } catch {
-    return ''
-  }
-}
-
 function searchTextQuery(value: unknown) {
-  return stringQuery(value).trim().slice(0, 500)
+  return stringQuery(value).trim()
 }
 
 function nonNegativeIntQuery(value: unknown) {
-  const parsed = Number(stringQuery(value).trim())
-  if (!Number.isFinite(parsed) || parsed <= 0) return undefined
-  return Math.floor(parsed)
+  const raw = stringQuery(value).trim()
+  if (!raw) return undefined
+  const parsed = Number(raw)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) throw createError({statusCode: 400, message: 'Invalid media size filter'})
+  return parsed
 }
 
 function tagsQuery(value: unknown) {
   const raw = stringQuery(value).trim()
+  if (raw.length > 2048) throw createError({statusCode: 400, message: 'Invalid media tags'})
   if (!raw) return []
 
   if (raw.startsWith('[')) {
     try {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return parsed.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 20)
+        if (parsed.length > 20 || parsed.some(item => typeof item !== 'string')) throw createError({statusCode: 400, message: 'Invalid media tags'})
+        return parsed.map((item: string) => item.trim()).filter(Boolean)
       }
     } catch {
-      return []
+      throw createError({statusCode: 400, message: 'Invalid media tags'})
     }
   }
 
-  return raw.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 20)
+  const tags = raw.split(',').map((item) => item.trim()).filter(Boolean)
+  if (tags.length > 20) throw createError({statusCode: 400, message: 'Invalid media tags'})
+  return tags
 }
 
 function tagRelationQuery(value: unknown) {

@@ -1,4 +1,6 @@
 import { writeBarrier } from '../utils/maintenance'
+import { mediaInitializeLegacyState, mediaRecoverInterruptedObjects } from '../utils/mediaLibrary'
+import { mediaRecoverStageDirectories } from '../utils/media-upload'
 import { setupAuthority } from '../utils/setup-authority'
 import { ensureAuthEpochs } from '../utils/auth-epoch-migration'
 import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
@@ -80,6 +82,9 @@ export default defineNitroPlugin(async () => {
     await ensurePostVersionGraphMigration(db)
     await ensureVersionEdgeDedupMigration(db)
     await ensureMediaStorageVersion(db)
+    await mediaInitializeLegacyState(db)
+    await mediaRecoverInterruptedObjects(db)
+    await mediaRecoverStageDirectories()
     await ensureDefaultMediaSettings(db)
     await ensureDefaultAdminColorMode(db)
     await ensureDefaultAdminLocale(db)

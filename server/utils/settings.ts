@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { mediaReserveReferences } from './referenceTracker'
 import { queryDb, useDb } from './db'
 import { queryRows } from './surrealResult'
 import { createUserWithPasswordHash, findUserByUsername, setUserPasswordHash, updateUser } from './users'
@@ -219,6 +220,12 @@ export async function writeAppSettings(values: Record<string, unknown>, keys: re
   }
 
   const db = await useDb()
+  for (const [key, value] of entries) {
+    // Public logo/banner/favicon/avatar/bio/footer references must remain public.
+    // Wrap arbitrary settings values so literal hashes are not mistaken for
+    // media IDs, and never scan secret/admin-only setting material.
+    if (publicSettingKeySet.has(key)) await mediaReserveReferences(db, `app_settings:${key}`, [{value}])
+  }
   for (const [key, value] of entries) {
     await upsertAppSetting(db, key, value)
   }

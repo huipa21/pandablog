@@ -4,13 +4,14 @@
 
 import phash from 'sharp-phash'
 import distance from 'sharp-phash/distance.js'
+import { imageDecoderOptions } from './image-work'
 
 /**
  * Compute perceptual hash for an image buffer
  */
-export async function computePHash(buffer: Buffer): Promise<string> {
+export async function computePHash(buffer: Buffer | string): Promise<string> {
   try {
-    const hash = await phash(buffer)
+    const hash = await phash(buffer as Buffer, imageDecoderOptions)
     return hash
   } catch {
     // If perceptual hashing fails (e.g., unsupported format), return empty string

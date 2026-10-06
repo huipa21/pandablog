@@ -143,6 +143,9 @@
           </div>
         </div>
 
+        <UAlert v-if="files.some(file => file.metadata_truncated)" color="warning" :title="t('admin.media.metadataTruncated')" class="mb-3" />
+        <UAlert v-if="facetsTruncated" color="warning" :title="t('admin.media.facetsTruncated')" class="mb-3" />
+        <UAlert v-if="searchTruncated" color="warning" :title="t('admin.media.searchTruncated')" class="mb-3" />
         <template v-if="mode !== 'tag' || selectedMediaTags.length">
           <div v-if="loading" class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
             <USkeleton v-for="index in 10" :key="index" class="aspect-square rounded-lg" />
@@ -380,6 +383,8 @@ const selectedMediaTags = ref<string[]>([])
 const selectedTagRelation = ref<'and' | 'or'>('and')
 const selectedSmartFolder = ref('')
 const error = ref('')
+const searchTruncated = ref(false)
+const facetsTruncated = ref(false)
 const adminToast = useAdminToast()
 const viewMode = ref<'grid' | 'list'>((typeof localStorage !== 'undefined' && localStorage.getItem('media-view-mode') as 'grid' | 'list') || 'grid')
 const itemsPerPage = ref(25)
@@ -526,6 +531,7 @@ watch(() => route.query.upload, (value) => {
 async function loadMedia() {
   loading.value = true
   error.value = ''
+  searchTruncated.value = false
   try {
     const activeTagFilters = filters.value.tags.length
       ? [...filters.value.tags]
@@ -554,6 +560,7 @@ async function loadMedia() {
       orphan: filters.value.orphan
     })
     files.value = response.files
+    searchTruncated.value = response.search_truncated === true
     total.value = response.total
     pages.value = response.pages || 1
   } catch (err: any) {
@@ -572,11 +579,13 @@ async function loadMedia() {
 async function loadFolders() {
   const response = await listFolders()
   folders.value = response.folders
+  facetsTruncated.value ||= response.truncated === true
 }
 
 async function loadMediaTags() {
   const response = await listMediaTags()
   mediaTags.value = response.tags
+  facetsTruncated.value ||= response.truncated === true
 }
 
 async function loadSmartFolders() {
@@ -870,7 +879,8 @@ async function confirmOrphanCleanup() {
   orphanCleanupPending.value = true
   try {
     const result = await cleanupOrphans({ hashes: [...selectedHashes.value] })
-    adminToast.success(t('admin.media.orphansDeleted', { count: result.deleted_count }))
+    if (result.incomplete) adminToast.info(t('admin.media.cleanupIncomplete', {count: result.deleted_count, failed: result.failed_count}))
+    else adminToast.success(t('admin.media.orphansDeleted', { count: result.deleted_count }))
     selectedHashes.value = new Set()
     closeOrphanCleanupDialog()
     await loadMedia()
@@ -1043,7 +1053,7 @@ async function handleDeleteFolder(id: string) {
 }
 
 async function assignFileToFolder(hash: string, folderId: string) {
-  const file = files.value.find((item) => item.hash === hash) || await getMedia(hash)
+  const file = await getMedia(hash) // List DTOs intentionally omit/clip legacy detail metadata.
   const foldersForFile = Array.from(new Set([...(file.folders || []), folderId]))
   const updated = await updateMedia(file.id, { folders: foldersForFile })
   handleFileUpdated(updated)

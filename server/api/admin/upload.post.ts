@@ -2,32 +2,20 @@ import { requireContentManager } from '../../utils/auth'
 import { useDb } from '../../utils/db'
 import { mediaCreateOrReuseFileRecord } from '../../utils/mediaLibrary'
 import { getMediaSettings } from '../../utils/settings'
+import { MEDIA_UPLOAD_LIMITS, receiveMediaUpload } from '../../utils/media-upload'
 
 export default defineEventHandler(async (event) => {
-  const user = await requireContentManager(event)
-  const formData = await readMultipartFormData(event)
-  const file = formData?.find((item) => item.filename && item.data?.length)
-  const visibility = formData?.find((item) => item.name === 'visibility')?.data?.toString('utf8') === 'private' ? 'private' : 'public'
-
-  if (!file) {
-    throw createError({ statusCode: 400, message: 'File is required' })
-  }
-
-  const db = await useDb()
-  const settings = await getMediaSettings()
-  const result = await mediaCreateOrReuseFileRecord(db, {
-    originalName: file.filename || 'upload',
-    data: file.data,
-    mimeType: file.type,
-    uploadedBy: user.username,
-    createdBy: user.id,
-    visibility
-  }, settings)
-  const record = result.record ?? result.similar_to
-
-  if (!record) {
-    throw createError({ statusCode: 400, message: result.reason || 'Upload failed' })
-  }
-
-  return record
+  const user = await requireContentManager(event), settings = await getMediaSettings(), db = await useDb()
+  const controller = new AbortController()
+  const abort = () => {if (!event.node.res.writableEnded) controller.abort()}
+  event.node.res.once('close', abort)
+  let upload
+  try {
+    upload = await receiveMediaUpload(event.node.req, {files: 1, fileBytes: Math.floor(Math.min(MEDIA_UPLOAD_LIMITS.fileBytes, settings.max_file_size_mb * 1024 * 1024)), signal: controller.signal})
+    const result = await mediaCreateOrReuseFileRecord(db, {...upload.files[0]!, uploadedBy: user.username, createdBy: user.id, user, visibility: upload.visibility, signal: controller.signal}, settings)
+    const record = result.record ?? result.similar_to
+    if (!record) throw createError({statusCode: 400, message: result.reason || 'Upload failed'})
+    return record
+  } catch (error) {event.node.res.setHeader('Connection', 'close'); throw error}
+  finally {event.node.res.off('close', abort); await upload?.dispose()}
 })

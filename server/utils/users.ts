@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { mediaReserveReferences } from './referenceTracker'
 import { adminPasswordProblem, hashAdminPassword, verifyAdminPassword } from './admin-password'
 import { queryDb, queryDbRecord, useDb } from './db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
@@ -301,6 +302,7 @@ export async function createUserWithPasswordHash(input: CreateUserWithHashInput)
   const email = stringOrNull(input.email)
   const avatar = normalizeAvatarInput(input.avatar)
   const db = await useDb()
+  if (input.avatar) await mediaReserveReferences(db, `users:${userRecordId(username)}`, [input.avatar])
   const response = await queryDb(
     db,
     `CREATE type::record($table, $id) CONTENT {
@@ -378,6 +380,7 @@ export async function updateUser(idOrUsername: string, input: UpdateUserInput): 
     params.authEpoch = newAuthEpoch()
   }
   const db = await useDb()
+  if (input.avatar) await mediaReserveReferences(db, `users:${id}`, [input.avatar])
   const response = await queryDb(db, `UPDATE type::record($table, $id) MERGE { ${updates.join(', ')} };`, params, {retryOnReconnect: false})
 
   const row = firstRow<Record<string, unknown>>(response)

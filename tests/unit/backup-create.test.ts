@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   chainHashUnion: vi.fn(), pruneBackups: vi.fn(), listDatabaseTables: vi.fn(),
   acquireJob: vi.fn(), releaseJob: vi.fn(), updateJobProgress: vi.fn(), writeDurableJson: vi.fn(),
   exportSurrealDb: vi.fn(), sha256File: vi.fn(), collectOriginalPaths: vi.fn(), createMediaTar: vi.fn(),
-  getBackupSettings: vi.fn()
+  getBackupSettings: vi.fn(), queryDb: vi.fn(), useDb: vi.fn()
 }))
 vi.mock('../../server/utils/backups/config', () => ({ get BACKUPS_ROOT() { return mocks.root } }))
 vi.mock('../../server/utils/backups/registry', () => mocks)
@@ -18,6 +18,7 @@ vi.mock('../../server/utils/backups/jobMutex', () => mocks)
 vi.mock('../../server/utils/backups/surrealHttp', () => mocks)
 vi.mock('../../server/utils/backups/tarStream', () => mocks)
 vi.mock('../../server/utils/settings', () => mocks)
+vi.mock('../../server/utils/db', () => mocks)
 
 beforeEach(async () => {
   vi.resetAllMocks()
@@ -26,6 +27,8 @@ beforeEach(async () => {
   mocks.acquireJob.mockImplementation(async job => ({...job, token: 'a'.repeat(48), generation: 'b'.repeat(48)}))
   mocks.listDatabaseTables.mockResolvedValue(['access_logs', 'activity_logs', 'error_logs', 'post'])
   mocks.getBackupSettings.mockResolvedValue({ max_backups: 0 })
+  mocks.useDb.mockResolvedValue({})
+  mocks.queryDb.mockResolvedValue([[]])
   mocks.exportSurrealDb.mockImplementation(() => Promise.resolve(Readable.from('fixture dump')))
   mocks.sha256File.mockResolvedValue('sha256')
   mocks.collectOriginalPaths.mockResolvedValue([])
@@ -47,6 +50,13 @@ async function manifest(id: string) {
 }
 
 describe('backup creation', () => {
+  it('refuses a snapshot with interrupted media claims before export or packing', async () => {
+    mocks.queryDb.mockResolvedValue([[{id: 'files:pending'}]])
+    const id = await create('full')
+    expect(mocks.exportSurrealDb).not.toHaveBeenCalled()
+    expect(mocks.createMediaTar).not.toHaveBeenCalled()
+    expect(mocks.updateBackupRecord).toHaveBeenCalledWith(id, expect.objectContaining({status: 'failed', error: expect.stringContaining('Media publication/deletion recovery')}))
+  })
   it.each(['full', 'incremental'] as const)('exports all remaining DB tables for %s snapshots without marking them partial', async type => {
     const id = await create(type)
     expect(mocks.exportSurrealDb).toHaveBeenCalledExactlyOnceWith(undefined)

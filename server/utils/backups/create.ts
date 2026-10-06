@@ -9,6 +9,8 @@ import { BACKUP_LIMITS, streamToFile } from './streams'
 import { exportSurrealDb, sha256File } from './surrealHttp'
 import { collectOriginalPaths, createMediaTar } from './tarStream'
 import { getBackupSettings } from '../settings'
+import { useDb } from '../db'
+import { assertMediaSnapshotReady, mediaPublicationAdmission } from '../media-publication'
 
 export interface CreateBackupOptions {
   type: 'full' | 'incremental' | 'partial'
@@ -102,7 +104,10 @@ async function runBackupWork(
   includedTables: string[] | null
 ): Promise<void> {
   let created = false, publishing = false
+  let releaseMedia: (() => void) | undefined
   try {
+    releaseMedia = await mediaPublicationAdmission.acquire()
+    await assertMediaSnapshotReady(await useDb())
     const backupDir = path.join(BACKUPS_ROOT, id)
     await mkdir(backupDir, {mode: 0o700})
     created = true
@@ -213,6 +218,7 @@ async function runBackupWork(
     const backupDir = path.join(BACKUPS_ROOT, id)
     if (created && !publishing) await rm(backupDir, { recursive: true, force: true }).catch(() => {})
   } finally {
+    releaseMedia?.()
     await releaseJob(owner)
   }
 }

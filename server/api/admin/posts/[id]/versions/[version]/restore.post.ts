@@ -1,10 +1,11 @@
-import { queryDbRecord, useDb } from '../../../../../../utils/db'
+import { queryDb, queryDbRecord, useDb } from '../../../../../../utils/db'
 import { buildDocFromBlocks, computeStatsFromBlocks, loadBlocksForPost, restorePostVersion } from '../../../../../../utils/blocks'
 import { recordIdPart } from '../../../../../../utils/surrealResult'
 import { requireContentManager } from '../../../../../../utils/auth'
 import { assertCanManagePostRecord } from '../../../../../../utils/permissions'
 import { normalizePost } from '../../../../../../utils/content'
 import { syncPostSearchTerms } from '../../../../../../utils/searchTerms'
+import { mediaCascadeVisibilityForPost } from '../../../../../../utils/referenceTracker'
 
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event)
@@ -22,7 +23,7 @@ export default defineEventHandler(async (event) => {
   assertCanManagePostRecord(user, post)
 
   const previousBlocks = await loadBlocksForPost(db, `post:${id}`)
-  const blocks = await restorePostVersion(db, `post:${id}`, version, previousBlocks)
+  const blocks = await restorePostVersion(db, `post:${id}`, version, previousBlocks, user)
   const stats = computeStatsFromBlocks(blocks)
   await queryDb(
     db,
@@ -42,6 +43,7 @@ export default defineEventHandler(async (event) => {
     blockTexts: blocks.map((block) => block.text)
   })
 
+  await mediaCascadeVisibilityForPost(db, normalized.id, normalized.visibility ?? 'public', [normalized.cover_image, buildDocFromBlocks(blocks)])
   return {
     ...normalized,
     content_json: buildDocFromBlocks(blocks),

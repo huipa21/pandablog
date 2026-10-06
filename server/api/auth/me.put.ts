@@ -3,6 +3,8 @@ import { requireAuthenticatedUser } from '../../utils/auth'
 import { queryDb, useDb } from '../../utils/db'
 import { mediaReadFileByHash } from '../../utils/mediaLibrary'
 import { mediaRecordVisibleToUser } from '../../utils/mediaPermissions'
+import { mediaScope } from '../../utils/media-query'
+import { queryRows } from '../../utils/surrealResult'
 import { recordIdPart } from '../../utils/surrealResult'
 import { findUserById, toSessionUser, updateUser } from '../../utils/users'
 
@@ -54,10 +56,10 @@ async function assertAvatarMediaSelectable(user: Awaited<ReturnType<typeof requi
   }
 
   if (file.visibility !== 'public') {
-    await queryDb(db, 'UPDATE type::record($table, $id) SET visibility = $visibility, updated_at = time::now();', {
-      table: 'files',
-      id: hash,
-      visibility: 'public'
+    const scope = mediaScope(user, true)
+    const updated = await queryDb(db, `UPDATE type::record($table, $id) SET visibility = $visibility, updated_at = time::now() WHERE ${scope.where} RETURN id;`, {
+      ...scope.params, table: 'files', id: hash, visibility: 'public'
     })
+    if (!queryRows(updated).length) throw createError({statusCode: 409, message: 'Avatar media unavailable'})
   }
 }

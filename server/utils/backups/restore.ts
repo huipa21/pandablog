@@ -1,4 +1,4 @@
-import { readFile, mkdir, open, rm, rename, lstat } from 'node:fs/promises'
+import { mkdir, open, rm, rename, lstat } from 'node:fs/promises'
 import * as path from 'node:path'
 import { BACKUPS_ROOT } from './config'
 import { backupIdPart, getBackup, listBackups, replaceBackupRecords, updateBackupRecord, wipeDatabase } from './registry'
@@ -15,9 +15,8 @@ import { reloadLoggingSettings } from '../logging'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, recycleRuntimeConnection } from '../db'
 import { applySchema } from '../schema'
 import { queryRows } from '../surrealResult'
-import { mediaProcessImageBuffer } from '../imageProcessor'
+import { mediaProcessImageFile } from '../imageProcessor'
 import { newAuthEpoch } from '../users'
-import sharp from 'sharp'
 import { writeBarrier } from '../maintenance'
 
 /** Authorization occurs at the API BEFORE issuance of this job-only capability. */
@@ -211,9 +210,7 @@ async function regenerateVariants(deadlineAt: number) {
         await regularFile(original, 32 * 1024 * 1024)
         await checkDisk(path.dirname(original), 32 * 1024 * 1024)
         const date = new Date(`${file.original_path.slice(0, 4)}-${file.original_path.slice(5, 7)}-01T00:00:00Z`)
-        const buffer = await readFile(original)
-        await sharp(buffer, {limitInputPixels: 40_000_000, animated: false}).metadata()
-        const processed = await mediaProcessImageBuffer(buffer, file.hash, file.mime_type, settings.enable_perceptual_dedup, date)
+        const processed = await mediaProcessImageFile(original, file.hash, file.mime_type, settings.enable_perceptual_dedup, date)
         outputBytes += Object.values(processed.variants ?? {}).reduce((sum, variant) => sum + (variant?.size ?? 0), 0)
         if (outputBytes > BACKUP_LIMITS.mediaBytes) throw new Error('Restored variant disk budget exceeded')
         for (const variant of Object.values(processed.variants ?? {})) {
