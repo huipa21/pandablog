@@ -50,6 +50,15 @@ This is the stable finding register for the [implementation plan](./plan.md). **
 | F-26 | Medium / Source; query optimization Validate | Any schema hash change can remove/recreate FTS indexes; corpus backfills load all block/text/source maps before batched writes. Candidate filtering before visibility/current-version resolution may harm recall. Index/analyzer alternatives require measurement. | schema.surql/schema.ts/db-init; searchTerms/postSearch | REV-4.6 |
 | F-27 | Medium / Validate + Source lifecycle | Whole-cookie public cache variation may cause unbounded fragmentation depending on Nitro store; root HTML route/cache bypass and privacy invalidation need real tests. Some cron/interval teardown missing; Node 25 typings do not establish Node 22 support. | public-cache helpers/handlers; visibility; nuxt.config; analytics/download plugins; package.json | REV-4.7 |
 
+## Phase 5 disposition checkpoint (2026-10-06)
+
+Preparatory [release-handoff tooling](./release-handoff.md) closes **no finding**. F-09/F-20
+remain partially open; F-21/F-22/F-23/F-26/F-27 and F-25's visibility/cache portions remain
+open pending Phase 4. Locally corrected Phase 1–3 findings retain the limitations below,
+especially legacy reference reconciliation, Linux/power-loss, combined Nitro/browser/proxy/
+modules/constrained measurements and operator acceptance. REV-5.1/5.2/5.3 are blocked.
+The empty release manifest intentionally supplies no new combined or production evidence.
+
 ## Local correction evidence (not production acceptance)
 
 - **F-09 · partial Phase 4 correction:** REV-4.1 is corrected locally by `analytics-bounds.test.ts`, `analytics-track-http.test.ts` and guarded `tests/integration/analytics-phase4.test.ts`: DB-side exact distinct/count/duration results, finite grouped DTOs/ranges/bodies, atomic monotonic sessions/pageviews, legacy-safe salt and valid oldest-date lookup. REV-4.2's atomic verified publication/checkpoint/repair, epoch invalidation at restore and bounded finalized-day raw retention are also implemented and exercised on real Node 22.22.0 / SDK 2.0.3 / DB 3.2.4+20260803.93ab219. **F-09 remains partially open:** finite historical summary retention needs an approved preservation policy; existing summary history has not been deleted. Small generated cardinality and transaction-rollback fixtures are not constrained production, persistent DB crash or operator acceptance.

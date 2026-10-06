@@ -530,6 +530,15 @@ Notes:
   database persist across restarts.
 - First deployment still requires opening `/admin` once to complete setup.
 
+### Backend hardening release handoff
+
+Backend hardening is **not release-approved**: Phase 4 prerequisites and combined/operator
+acceptance remain incomplete. Read the [progress ledger](docs/backend-hardening/progress.md),
+[draft recovery/deployment runbook](docs/backend-hardening/operations.md), and
+[Phase 5 evidence matrix](docs/backend-hardening/release-handoff.md) before planning an upgrade.
+`npm run release:report` is read-only; `npm run release:check:local` and `npm run release:check`
+fail when required implementation/evidence is missing. They do not run tests or authorize deployment.
+
 ### Container logging
 
 See the [logging operations runbook](docs/logging/operations.md) for access-file inspection,

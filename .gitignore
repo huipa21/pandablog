@@ -116,6 +116,7 @@ tests/unit/*
 !tests/unit/backend-hardening-harness.test.ts
 !tests/unit/backend-hardening-baseline.test.ts
 !tests/unit/backend-hardening-lifecycle.test.ts
+!tests/unit/backend-release-readiness.test.ts
 !tests/helpers/
 !tests/helpers/backend-hardening.ts
 !tests/integration/

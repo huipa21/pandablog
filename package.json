@@ -25,6 +25,10 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:backend:integration": "tsx scripts/backend-hardening/run.ts",
+    "release:report": "tsx scripts/backend-hardening/release.ts --report --stage=postdeploy",
+    "release:check:local": "tsx scripts/backend-hardening/release.ts --check --stage=local",
+    "release:check": "tsx scripts/backend-hardening/release.ts --check --stage=predeploy",
+    "release:check:postdeploy": "tsx scripts/backend-hardening/release.ts --check --stage=postdeploy",
     "typecheck": "nuxt typecheck",
     "modules:print": "tsx scripts/print-modules.ts",
     "hash-password": "tsx scripts/hash-password.ts"

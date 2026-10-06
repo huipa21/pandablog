@@ -2,6 +2,24 @@
 
 This runbook describes the **final Phase 2/3 image**, not the old DB-backed access buffer. See [progress.md](./progress.md) for rollout evidence and the **pending production-copy, scale, Docker and overnight release gates**. Local completion is not production release approval.
 
+## Backend hardening candidate (not release-approved)
+
+Later backend-hardening work is only partially implemented; it does not supersede the
+historical logging acceptance or authorize an upgrade. Use its [progress ledger](../backend-hardening/progress.md),
+[draft operations runbook](../backend-hardening/operations.md) and
+[Phase 5 evidence matrix/checker](../backend-hardening/release-handoff.md). The candidate
+adds byte/line/scan bounds and 503 unavailable detail/hourly/stats, while unknown-count purge,
+global DB log admission and truthful deletion-report consumers remain unfinished. The older
+200K-match reader and count-first purge descriptions below describe logging's completed
+Phase 2/3 contract, not a claim that the unfinished hardening image is ready. Never disable
+bounds, purge data or bypass migration receipts to make a release check pass.
+
+The historical empty-media backup limitation noted below is corrected locally by hardening
+REV-2.4; approved-copy/combined runtime/Linux/operator acceptance is still required. Keep all
+logging production-copy, retained-day volume/DB/backup measurements, migration/backfill N,
+container/browser and overnight gates pending until actually supplied. Do not rewrite old
+progress as if these later results had already been verified.
+
 ## Where logs live
 
 | Stream | Durable store | Container console | Admin view |

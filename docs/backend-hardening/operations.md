@@ -1,6 +1,6 @@
 # Backend hardening: operations and release runbook
 
-**DRAFT RELEASE RUNBOOK — Phases 0–3 are implemented/tested locally, not deployed or release-approved.** Phase-specific sections below describe implemented controls; later-phase/deployment placeholders remain for REV-5.2. Task/evidence status is in [progress.md](./progress.md); existing deployed logging behavior remains documented in [logging operations](../logging/operations.md).
+**DRAFT RELEASE RUNBOOK — Phases 0–3 and REV-4.1 are implemented/tested locally, not deployed or release-approved.** Phase-specific sections below describe implemented controls; later-phase/deployment placeholders remain for REV-5.2, blocked by unfinished Phase 4 and REV-5.1. Task/evidence status is in [progress.md](./progress.md); the [Phase 5 handoff](./release-handoff.md) supplies a read-only evidence matrix/checker, not combined acceptance or final deployment instructions. Existing logging behavior remains documented in [logging operations](../logging/operations.md).
 
 ## 1. Current operator cautions
 
@@ -103,7 +103,7 @@ On recovery-required: stop writers, preserve the receipt/owned claim temporary f
 
 ## 3. Pre-release checklist
 
-1. Read the current progress release-gate table. Require REV-5.1 evidence on Node 22 and isolated stable 3.2.x, not only Node 24 unit tests.
+1. Read the current progress release-gate table and [Phase 5 evidence matrix](./release-handoff.md). `npm run release:report` lists unmet requirements without operating on data; `npm run release:check` must pass against reviewed, committed evidence before a release can be considered. Require REV-5.1 evidence on Node 22 and isolated stable 3.2.x, not only Node 24 unit tests. Check success is bookkeeping, never deployment authorization.
 2. Obtain an explicitly approved production-data copy with **separate** DB/media/access-log directories. Rehearse on that copy first.
 3. Take independently verified DB, originals, access logs/receipts and configuration backups. Confirm free space for SQL staging + safety snapshot + old/new media + compression artifacts. Never assume app DB/media backups contain access files.
 4. Identify all automatic writers, schema/backfill work and scheduled retention. Stop old writers before an incompatible schema cutover; no overlapping rolling old/new deployment.

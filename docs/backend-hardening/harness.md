@@ -30,6 +30,15 @@ No-argument execution, extra arguments, relative paths, wrong Node and wrong DB 
 
 CI's ordinary verification uses the same Node pin. The separate `workflow_dispatch` boolean `backend-fixture` deliberately opts into the exact 3.2.4 download and acceptance. That job fails, rather than substitutes a version, if the official release is unavailable. CI has **not** been executed locally. The previously ignored CI file referenced an ignored mutation e2e suite through Playwright configuration which loads `.env` and reuses an app server; that invocation is deliberately deferred until REV-5.1 provides an isolated Nitro/browser runner. It is **not** a browser pass.
 
+## Phase 5 readiness report (preparatory; blocked)
+
+See [release-handoff.md](./release-handoff.md) for the combined evidence matrix, remaining
+runner/environment gaps, read-only `npm run release:report` and fail-closed release checks.
+The new `backend-release-readiness.test.ts` tests the checker only; it is not evidence that
+any combined security/build/browser/Linux/scale/operator gate passed. CI prints pending
+readiness without treating report exit 0 as release approval. No test/deployment command is
+executed by the checker. Phase 4 prerequisites still block REV-5.1/5.2.
+
 ## Safety and ownership
 
 `scripts/backend-hardening/` tooling never reads `.env`, uses configured application DB credentials, accepts an external endpoint or defaults to `storage/`.

@@ -34,6 +34,8 @@ jobs:
       - run: npm run lint:css
       - run: npm run typecheck
       - run: npm run test:unit
+      # Read-only pending evidence report, NOT a release pass or deployment job.
+      - run: npm run release:report
       # Existing Playwright configuration reads .env and reuses an app server;
       # its referenced parity suite is also ignored by Git. Do not run that
       # mutation suite here until REV-5.1 supplies an isolated Nitro fixture.
