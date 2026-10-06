@@ -1,3 +1,4 @@
+import { writeBarrier } from './maintenance'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
@@ -557,7 +558,7 @@ function fireAndForgetDbWrite(task: () => Promise<void>) {
     return
   }
 
-  return task().catch((error) => {
+  return writeBarrier.run(task, true).catch((error) => {
     dbWritesBlockedUntil = Date.now() + CIRCUIT_BREAKER_MS
     const message = error instanceof Error ? error.message : 'unknown error'
     warn(`[logging] DB write failed; disabling DB writes for 60s (${message})`)

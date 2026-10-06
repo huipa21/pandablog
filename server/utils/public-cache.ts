@@ -1,7 +1,10 @@
+import { writeBarrier } from './maintenance'
 import type { H3Event } from 'h3'
 import { hasUnlockedPostCookie } from './post-password'
 import { hasAuthSessionCookie } from './session-cookie'
 import { getSiteVisibility } from './visibility'
+
+export function publicCacheKey(key: string) {return `${writeBarrier.cacheGeneration()}:${key}`}
 
 export const PUBLIC_LIST_CACHE_SECONDS = 300
 export const PUBLIC_POST_CACHE_SECONDS = 900

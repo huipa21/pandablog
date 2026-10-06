@@ -1,85 +1,79 @@
 import { randomBytes } from 'node:crypto'
-import { Readable } from 'node:stream'
-import { exportSurrealDbToBuffer, importSurrealDb, runSqlHttp } from './surrealHttp'
+import { open } from 'node:fs/promises'
+import { exportSurrealDbToFile, importSurrealDb, runSqlHttp } from './surrealHttp'
+import { BACKUP_LIMITS, regularFile } from './streams'
 
-/**
- * Minimum structural requirements for a SurrealDB export dump. The official
- * export always begins with an `OPTION IMPORT` directive and contains at least
- * one DEFINE / INSERT / CREATE / UPDATE statement.
- */
-export function validateDumpStructure(surql: string): void {
-  const text = surql.trim()
-  if (!text) {
-    throw createError({ statusCode: 400, message: 'Backup database dump is empty.' })
+/** Compatibility preflight, NOT a sandbox for administrator-controlled SQL. */
+export function validateDumpStructure(text: string): void {
+  if (!text.trim()) throw new Error('Backup dump is empty')
+  if (!/OPTION\s+IMPORT/i.test(text)) throw new Error('Backup dump is missing OPTION IMPORT')
+  if (!/(DEFINE|INSERT|CREATE|UPDATE|RELATE)\s/i.test(text)) throw new Error('Backup dump has no DEFINE/INSERT/CREATE statements')
+}
+async function preflight(source: string) {
+  await regularFile(source, BACKUP_LIMITS.sqlBytes)
+  const file = await open(source, 'r')
+  try { const prefix = Buffer.alloc(64 * 1024); const {bytesRead} = await file.read(prefix, 0, prefix.length, 0); validateDumpStructure(prefix.subarray(0, bytesRead).toString('utf8')) } finally {await file.close()}
+}
+const quote = (name: string) => {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error('Unsupported snapshot table identifier')
+  return '`' + name + '`'
+}
+export interface SnapshotProfile { [table: string]: { count: number, sample: string } }
+function result(body: unknown): unknown { return (body as {result: unknown}[])[0]?.result }
+export async function snapshotProfile(database?: string): Promise<SnapshotProfile> {
+  const info = result(await runSqlHttp('INFO FOR DB;', database)) as { tables?: Record<string, unknown> }
+  if (!info?.tables || typeof info.tables !== 'object') throw new Error('Invalid snapshot schema response')
+  const tables = Object.keys(info.tables).sort()
+  if (!tables.length || tables.length > 200) throw new Error('Unsupported snapshot table count')
+  const profile: SnapshotProfile = {}
+  for (const table of tables) {
+    const counts = result(await runSqlHttp(`SELECT count() AS total FROM ${quote(table)} GROUP ALL;`, database)) as {total: number}[]
+    const count = counts?.[0]?.total ?? 0
+    if (!Number.isSafeInteger(count) || count < 0) throw new Error('Invalid snapshot row count')
+    const sample = result(await runSqlHttp(`SELECT * FROM ${quote(table)} WITH NOINDEX ORDER BY id LIMIT 3;`, database))
+    if (/TYPE RELATION/i.test(String(info.tables[table]))) {
+      const dangling = result(await runSqlHttp(`SELECT id FROM ${quote(table)} WHERE !record::exists(in) OR !record::exists(out) LIMIT 1;`, database)) as unknown[]
+      if (dangling.length) throw new Error('Snapshot has dangling graph references; include all related tables')
+    }
+    profile[table] = {count, sample: JSON.stringify(sample)}
   }
-  if (!/OPTION\s+IMPORT/i.test(text)) {
-    throw createError({
-      statusCode: 400,
-      message: 'Backup dump is missing the required `OPTION IMPORT` directive — it does not look like a SurrealDB export.',
-    })
-  }
-  if (!/(DEFINE|INSERT|CREATE|UPDATE|RELATE)\s/i.test(text)) {
-    throw createError({
-      statusCode: 400,
-      message: 'Backup dump contains no DEFINE/INSERT/CREATE statements.',
-    })
-  }
+  return profile
 }
-
-function tempDbName(prefix: string): string {
-  return `${prefix}_${randomBytes(6).toString('hex')}`
+export async function verifySnapshot(expected: SnapshotProfile, database?: string) {
+  if (JSON.stringify(await snapshotProfile(database)) !== JSON.stringify(expected)) throw new Error('Snapshot record/schema verification failed')
 }
-
-/** Quotes a database identifier for use in SurrealQL. */
-function quoteDb(name: string): string {
-  return '`' + name.replace(/[`\\]/g, '') + '`'
-}
-
-async function dropDatabase(name: string): Promise<void> {
-  // REMOVE DATABASE is namespace-scoped; run it against the primary DB context.
-  await runSqlHttp(`REMOVE DATABASE IF EXISTS ${quoteDb(name)};`).catch(() => {})
-}
-
-/**
- * Validates a SurrealQL dump by importing it into a throwaway database in the
- * same namespace and inspecting every statement result. The staging database is
- * always removed afterwards. Throws if any statement fails so a corrupt or
- * partial dump can never be applied to the live database.
- */
-export async function validateDumpByStaging(surql: Buffer | string): Promise<void> {
-  const text = typeof surql === 'string' ? surql : surql.toString('utf8')
-  validateDumpStructure(text)
-
-  const stage = tempDbName('__pb_validate')
+export async function validateDumpByStaging(source: string, inspect?: (database: string) => Promise<void>): Promise<SnapshotProfile> {
+  await preflight(source)
+  const stage = `__pb_validate_${randomBytes(12).toString('hex')}`
   try {
-    // Selecting the staging DB via header auto-creates it on first write, but be
-    // explicit so an empty dump still has a database to target.
-    await runSqlHttp(`DEFINE DATABASE IF NOT EXISTS ${quoteDb(stage)};`)
-    await importSurrealDb(Readable.from(Buffer.from(text, 'utf8')), stage)
-  } finally {
-    await dropDatabase(stage)
-  }
+    await runSqlHttp(`DEFINE DATABASE ${quote(stage)};`)
+    await importSurrealDb(source, stage)
+    const profile = await snapshotProfile(stage)
+    await inspect?.(stage)
+    return profile
+  } finally {await runSqlHttp(`REMOVE DATABASE IF EXISTS ${quote(stage)};`)}
 }
 
-/**
- * Builds a single complete dump from a base full dump plus a partial (table
- * subset) dump layered on top. Used both when restoring a partial backup and
- * when downloading a consolidated DB for one.
- *
- * Imports the base into a staging database, applies the partial on top (its
- * records overwrite the base), exports the merged result, then drops the stage.
- */
-export async function consolidateDumps(baseFull: Buffer, partial: Buffer): Promise<Buffer> {
-  validateDumpStructure(baseFull.toString('utf8'))
-  validateDumpStructure(partial.toString('utf8'))
-
-  const stage = tempDbName('__pb_consolidate')
+/** Selected tables REPLACE base tables, including records deleted since base. */
+export async function consolidateDumps(base: string, partial: string, selected: string[], target: string): Promise<void> {
+  if (!Array.isArray(selected) || selected.length > 200 || new Set(selected).size !== selected.length) throw new Error('Invalid partial table selection')
+  await preflight(base)
+  if (selected.length) await preflight(partial)
+  const identifiers = selected.map(quote)
+  const stage = `__pb_consolidate_${randomBytes(12).toString('hex')}`
   try {
-    await runSqlHttp(`DEFINE DATABASE IF NOT EXISTS ${quoteDb(stage)};`)
-    await importSurrealDb(Readable.from(baseFull), stage)
-    await importSurrealDb(Readable.from(partial), stage)
-    return await exportSurrealDbToBuffer(undefined, stage)
-  } finally {
-    await dropDatabase(stage)
-  }
+    await runSqlHttp(`DEFINE DATABASE ${quote(stage)};`)
+    await importSurrealDb(base, stage)
+    const baseProfile = await snapshotProfile(stage)
+    if (identifiers.length) {
+      await runSqlHttp(identifiers.map(t => `REMOVE TABLE IF EXISTS ${t};`).join('\n'), stage)
+      await importSurrealDb(partial, stage)
+    }
+    // Empty selection deliberately leaves all base tables unchanged.
+    const mergedProfile = await snapshotProfile(stage)
+    for (const table of new Set([...Object.keys(baseProfile), ...Object.keys(mergedProfile)])) {
+      if (!selected.includes(table) && JSON.stringify(baseProfile[table]) !== JSON.stringify(mergedProfile[table])) throw new Error('Partial snapshot changed a nonselected table or related graph')
+    }
+    await exportSurrealDbToFile(target, undefined, stage)
+  } finally {await runSqlHttp(`REMOVE DATABASE IF EXISTS ${quote(stage)};`)}
 }

@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { queryDb, useDb } from '../../../utils/db'
 import { isAdminAuthenticated } from '../../../utils/auth'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../../utils/surrealResult'
-import { PUBLIC_LIST_CACHE_SECONDS, shouldBypassPublicCache } from '../../../utils/public-cache'
+import { PUBLIC_LIST_CACHE_SECONDS, publicCacheKey, shouldBypassPublicCache } from '../../../utils/public-cache'
 import type { PostListItem, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -22,7 +22,7 @@ const cachedRelatedPostsHandler = defineCachedEventHandler(handleRelatedPosts, {
   staleMaxAge: PUBLIC_LIST_CACHE_SECONDS * 2,
   swr: true,
   varies: ['cookie'],
-  getKey: event => `posts-related:${getRouterParam(event, 'slug') ?? ''}`
+  getKey: event => publicCacheKey(`posts-related:${getRouterParam(event, 'slug') ?? ''}`)
 })
 
 async function handleRelatedPosts(event: H3Event) {

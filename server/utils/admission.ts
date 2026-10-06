@@ -16,7 +16,7 @@ export class BoundedAdmission {
   private rejected = 0
   private drained?: () => void
   private closing?: Promise<boolean>
-  constructor(private readonly limits: { active: number, waiting: number, waitMs: number }) {
+  constructor(private readonly limits: { active: number, waiting: number, waitMs: number }, private readonly label = 'Password work') {
     if (!Number.isInteger(limits.active) || limits.active < 1 || limits.active > 16
       || !Number.isInteger(limits.waiting) || limits.waiting < 0 || limits.waiting > 128
       || !Number.isInteger(limits.waitMs) || limits.waitMs < 1 || limits.waitMs > 30_000) throw new Error('Invalid admission limits')
@@ -24,7 +24,7 @@ export class BoundedAdmission {
   diagnostics() { return { active: this.active, waiting: this.queue.length, highActive: this.highActive, highWaiting: this.highWaiting, rejected: this.rejected, closed: this.closed } }
   private unavailable(shutdown = false) {
     this.rejected++
-    return createError({ statusCode: shutdown ? 503 : 429, message: shutdown ? 'Password work is shutting down' : 'Password work capacity exceeded', data: { retryAfterSec: 1 } })
+    return createError({ statusCode: shutdown ? 503 : 429, message: shutdown ? `${this.label} is shutting down` : `${this.label} capacity exceeded`, data: { retryAfterSec: 1 } })
   }
   private lease(): () => void {
     this.active++
@@ -39,9 +39,9 @@ export class BoundedAdmission {
       if (!this.active) this.drained?.()
     }
   }
-  private acquire(signal?: AbortSignal): Promise<() => void> {
+  acquire(signal?: AbortSignal): Promise<() => void> {
     if (this.closed) return Promise.reject(this.unavailable(true))
-    if (signal?.aborted) return Promise.reject(new Error('Password work aborted'))
+    if (signal?.aborted) return Promise.reject(new Error(`${this.label} aborted`))
     if (this.active < this.limits.active) return Promise.resolve(this.lease())
     if (this.queue.length >= this.limits.waiting) return Promise.reject(this.unavailable())
     return new Promise((resolve, reject) => {
@@ -52,7 +52,7 @@ export class BoundedAdmission {
         waiting.cleanup()
         reject(error)
       }
-      const abort = () => remove(new Error('Password work aborted'))
+      const abort = () => remove(new Error(`${this.label} aborted`))
       const timer = setTimeout(() => remove(this.unavailable()), this.limits.waitMs)
       const waiting: Waiting = { resolve, reject, cleanup: () => { clearTimeout(timer); signal?.removeEventListener('abort', abort) } }
       signal?.addEventListener('abort', abort, {once: true})

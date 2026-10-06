@@ -5,7 +5,7 @@ import { evaluatePostAccess, sanitizePost, type PostVisibility } from '../../uti
 import { buildDocFromBlocks, loadBlocksForPost } from '../../utils/blocks'
 import { getSessionUser } from '../../utils/auth'
 import { assertCanManagePostRecord } from '../../utils/permissions'
-import { PUBLIC_POST_CACHE_SECONDS, shouldBypassPublicCache } from '../../utils/public-cache'
+import { PUBLIC_POST_CACHE_SECONDS, publicCacheKey, shouldBypassPublicCache } from '../../utils/public-cache'
 
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'Vary', 'Cookie')
@@ -24,7 +24,7 @@ const cachedPostHandler = defineCachedEventHandler(handlePost, {
   staleMaxAge: PUBLIC_POST_CACHE_SECONDS * 2,
   swr: true,
   varies: ['cookie'],
-  getKey: event => `post:${getRouterParam(event, 'slug') ?? ''}`
+  getKey: event => publicCacheKey(`post:${getRouterParam(event, 'slug') ?? ''}`)
 })
 
 async function handlePost(event: Parameters<typeof shouldBypassPublicCache>[0]) {

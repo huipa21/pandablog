@@ -45,7 +45,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  'restored': []
+  'restored': [statusToken: string]
 }>()
 
 const { t } = useI18n()
@@ -68,11 +68,11 @@ async function submit() {
   }
   submitting.value = true
   try {
-    await $fetch(`/api/admin/backups/${props.snapshotId}/restore`, {
+    const result = await $fetch<{status_token: string}>(`/api/admin/backups/${props.snapshotId}/restore`, {
       method: 'POST',
       body: { confirm_token: confirmInput.value, mode: 'replace' },
     })
-    emit('restored')
+    emit('restored', result.status_token)
     emit('update:open', false)
   } catch (err: any) {
     error.value = err?.data?.message ?? err?.message ?? t('admin.backups.restoreDialog.restoreFailed')

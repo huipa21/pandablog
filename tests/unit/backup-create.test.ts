@@ -2,13 +2,13 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
-import { gunzipSync, gzipSync } from 'node:zlib'
+import { gunzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   root: '', createBackupRecord: vi.fn(), updateBackupRecord: vi.fn(), getBackup: vi.fn(),
   chainHashUnion: vi.fn(), pruneBackups: vi.fn(), listDatabaseTables: vi.fn(),
-  acquireJob: vi.fn(), releaseJob: vi.fn(), updateJobProgress: vi.fn(),
+  acquireJob: vi.fn(), releaseJob: vi.fn(), updateJobProgress: vi.fn(), writeDurableJson: vi.fn(),
   exportSurrealDb: vi.fn(), sha256File: vi.fn(), collectOriginalPaths: vi.fn(), createMediaTar: vi.fn(),
   getBackupSettings: vi.fn()
 }))
@@ -22,13 +22,15 @@ vi.mock('../../server/utils/settings', () => mocks)
 beforeEach(async () => {
   vi.resetAllMocks()
   mocks.root = await mkdtemp(join(tmpdir(), 'pb-backup-test-'))
+  mocks.writeDurableJson.mockImplementation((file, data) => writeFile(file, JSON.stringify(data)))
+  mocks.acquireJob.mockImplementation(async job => ({...job, token: 'a'.repeat(48), generation: 'b'.repeat(48)}))
   mocks.listDatabaseTables.mockResolvedValue(['access_logs', 'activity_logs', 'error_logs', 'post'])
   mocks.getBackupSettings.mockResolvedValue({ max_backups: 0 })
   mocks.exportSurrealDb.mockImplementation(() => Promise.resolve(Readable.from('fixture dump')))
   mocks.sha256File.mockResolvedValue('sha256')
   mocks.collectOriginalPaths.mockResolvedValue([])
   mocks.createMediaTar.mockImplementation(async (_files, _root, output) => writeFile(output, 'media'))
-  mocks.getBackup.mockResolvedValue({ id: 'base', type: 'full', chain_root: null })
+  mocks.getBackup.mockResolvedValue({ id: 'base', type: 'full', status: 'ready', chain_root: null })
   mocks.chainHashUnion.mockResolvedValue(new Set())
 })
 afterEach(async () => { await rm(mocks.root, { recursive: true, force: true }) })
@@ -71,15 +73,11 @@ describe('backup creation', () => {
     expect(await manifest(id)).toMatchObject({ included_tables: ['access_logs', 'post'], excluded_tables: [] })
     expect(mocks.listDatabaseTables).not.toHaveBeenCalled()
   })
-  it('preserves optional exclusion metadata when importing an external snapshot', async () => {
-    const dbGzPath = join(mocks.root, 'external-db.gz')
-    const mediaTarGzPath = join(mocks.root, 'external-media.gz')
-    await writeFile(dbGzPath, gzipSync('external dump'))
-    await writeFile(mediaTarGzPath, gzipSync('external media'))
-    const { importExternalBackup } = await import('../../server/utils/backups/importExternal')
-    const id = await importExternalBackup({ dbGzPath, mediaTarGzPath,
-      manifestBuffer: Buffer.from(JSON.stringify({ excluded_tables: ['access_logs', 42, null] })) })
-    expect((await manifest(id)).excluded_tables).toEqual(['access_logs'])
+  it('strictly validates optional exclusion metadata instead of silently changing malformed manifests', async () => {
+    const {parseBackupManifest} = await import('../../server/utils/backups/importExternal')
+    expect(parseBackupManifest(Buffer.from(JSON.stringify({excluded_tables: ['access_logs']})))).toMatchObject({excluded_tables: ['access_logs']})
+    expect(() => parseBackupManifest(Buffer.from(JSON.stringify({excluded_tables: ['access_logs', 42, null]})))).toThrow()
+    expect(() => parseBackupManifest(Buffer.from(JSON.stringify({type: 'partial'})))).toThrow()
   })
   it('does not depend on the retired selection setting to export a full snapshot', async () => {
     mocks.getBackupSettings.mockRejectedValue(new Error('settings unavailable'))

@@ -198,6 +198,8 @@
       @imported="onImported"
     />
 
+    <UAlert v-if="statusData?.recovery_required" color="error" :description="t('admin.backups.restoreRecoveryRequired')" />
+
     <BackupSettingsDialog
       :open="settingsDialogOpen"
       @update:open="settingsDialogOpen = $event"
@@ -220,6 +222,7 @@ definePageMeta({ layout: 'admin' })
 type ActiveJobStatus = ActiveJob
 
 const { t } = useI18n()
+const toast = useToast()
 
 // ---- Data fetching ----
 const { data: snapshotsData, pending, error: loadError, refresh: refreshSnapshots } = await useAsyncData(
@@ -229,25 +232,38 @@ const { data: snapshotsData, pending, error: loadError, refresh: refreshSnapshot
 
 const snapshots = computed(() => snapshotsData.value ?? [])
 
-// ---- Status polling ----
+// ---- Status polling (capability only authorizes this job's status) ----
+const restoreStatusToken = ref('')
 const { data: statusData, refresh: refreshStatus } = await useAsyncData(
   'admin-backups-status',
-  () => $fetch<{ activeJob: ActiveJobStatus | null }>('/api/admin/backups/status')
+  () => $fetch<{ activeJob: ActiveJobStatus | null, maintenance: boolean, recovery_required: boolean, restore: {state: string} | null }>('/api/admin/backups/status', {
+    headers: restoreStatusToken.value ? {'X-PandaBlog-Restore-Status': restoreStatusToken.value} : undefined,
+    timeout: 10_000,
+  })
 )
 
 const activeJob = computed(() => statusData.value?.activeJob ?? null)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let polling = false
 
 watch(activeJob, (job) => {
   if (job && !pollTimer) {
     pollTimer = setInterval(async () => {
-      await refreshStatus()
-      await refreshSnapshots()
-      if (!activeJob.value) {
-        clearInterval(pollTimer!)
-        pollTimer = null
-      }
+      if (polling) return
+      polling = true
+      try {
+        await refreshStatus()
+        if (statusData.value?.recovery_required) return
+        if (!statusData.value?.maintenance) {
+          if (restoreStatusToken.value && ['committed', 'rolled-back'].includes(statusData.value?.restore?.state ?? '')) {
+            toast.add({title: t('admin.backups.restoreReauthenticate'), color: 'warning'})
+            await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
+            await navigateTo('/login')
+          } else await refreshSnapshots()
+        }
+        if (!activeJob.value) {clearInterval(pollTimer!); pollTimer = null}
+      } finally {polling = false}
     }, 1000)
   }
 }, { immediate: true })
@@ -294,9 +310,14 @@ async function onCreated(_id: string) {
   await refreshStatus()
 }
 
-async function onRestored() {
+async function onRestored(statusToken: string) {
+  restoreStatusToken.value = statusToken
   await refreshStatus()
-  await refreshSnapshots()
+  if (['committed', 'rolled-back'].includes(statusData.value?.restore?.state ?? '')) {
+    toast.add({title: t('admin.backups.restoreReauthenticate'), color: 'warning'})
+    await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
+    await navigateTo('/login')
+  }
 }
 
 async function onDeleted() {
@@ -357,6 +378,8 @@ function jobKindLabel(kind: string): string {
     create: t('admin.backups.kindCreate'),
     restore: t('admin.backups.kindRestore'),
     import: t('admin.backups.kindImport'),
+    consolidate: t('admin.backups.kindConsolidate'),
+    delete: t('admin.backups.kindDelete'),
   }[kind] ?? kind
 }
 

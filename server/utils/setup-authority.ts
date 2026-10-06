@@ -1,3 +1,4 @@
+import { writeBarrier } from './maintenance'
 import { randomBytes } from 'node:crypto'
 import { lstat, mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -161,7 +162,9 @@ export async function createSetupOwner(db: Database, passwordHash: string, reser
   try {
     // SDK collect() throws the FIRST cancelled statement and can hide the
     // later business THROW. Inspect every bounded response instead.
-    const execution = db.query(`BEGIN TRANSACTION;
+    const release = writeBarrier.acquire()
+    let execution
+    try {execution = db.query(`BEGIN TRANSACTION;
       IF array::len((SELECT id FROM users WHERE username = 'admin' LIMIT 1)) > 0
         OR array::len((SELECT id FROM app_settings WHERE (key = 'setup_completed' AND \`value\` = true)
           OR (key = 'admin_password_hash' AND \`value\` IS NOT NONE AND \`value\` != '') OR key = '__setup_claim' LIMIT 1)) > 0 { THROW 'SETUP_ALREADY_COMPLETED'; };
@@ -172,7 +175,7 @@ export async function createSetupOwner(db: Database, passwordHash: string, reser
       CREATE app_settings:admin_password_hash CONTENT {key: 'admin_password_hash', value: $passwordHash, updated_at: time::now()};
       CREATE app_settings:setup_completed CONTENT {key: 'setup_completed', value: true, updated_at: time::now()};
       CREATE app_settings:setup_claim CONTENT {key: '__setup_claim', value: $claim, updated_at: time::now()};
-      COMMIT TRANSACTION;`, {passwordHash, epoch: reservation.epoch, claim: reservation.claim}).responses()
+      COMMIT TRANSACTION;`, {passwordHash, epoch: reservation.epoch, claim: reservation.claim}).responses().finally(release)} catch (error) {release(); throw error}
     const responses = await Promise.race([execution, new Promise<never>((_resolve, reject) => {timer = setTimeout(() => reject(new Error('Setup response deadline exceeded')), 15_000)})])
     const errors = responses.filter(response => !response.success)
     for (const response of errors) {

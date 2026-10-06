@@ -1,4 +1,5 @@
-import { createReadStream } from 'node:fs'
+import { sendBackupFile } from '../../../../../utils/backups/download'
+import { BACKUP_LIMITS } from '../../../../../utils/backups/streams'
 import * as path from 'node:path'
 import { requireSuperadmin } from '../../../../../utils/auth'
 import { getBackup, backupIdPart } from '../../../../../utils/backups/registry'
@@ -19,7 +20,5 @@ export default defineEventHandler(async (event) => {
   const safePart = backupIdPart(id)
   const filePath = path.join(BACKUPS_ROOT, safePart, 'media.tar.gz')
 
-  setHeader(event, 'content-type', 'application/gzip')
-  setHeader(event, 'content-disposition', `attachment; filename="${safePart}-media.tar.gz"`)
-  return sendStream(event, createReadStream(filePath))
+  return sendBackupFile(event, filePath, `${safePart}-media.tar.gz`, BACKUP_LIMITS.mediaBytes)
 })

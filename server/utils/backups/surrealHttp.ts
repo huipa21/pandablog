@@ -3,211 +3,124 @@ import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { surrealHttpBase } from './config'
+import { BACKUP_LIMITS, byteLimit, regularFile, streamToFile } from './streams'
 
-function buildAuthHeader(username: string, password: string): string {
-  return 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
-}
+export interface ExportTableSelection { tables?: string[] }
+export interface ImportStatementSummary { total: number, ok: number, errorCount: number, errors: string[] }
+const RESPONSE_BYTES = 1024 * 1024
 
-export interface ExportTableSelection {
-  /** When provided, only these tables are exported. Omit/undefined = all tables. */
-  tables?: string[]
-}
-
-export interface ImportStatementSummary {
-  total: number
-  ok: number
-  errors: string[]
-}
-
-/**
- * Inspects the JSON body returned by the SurrealDB /import (and /sql) endpoints.
- *
- * SurrealDB returns HTTP 200 even when individual statements fail — the body is
- * an array of `{ status: 'OK' | 'ERR', result, time }`. A naive `response.ok`
- * check therefore silently swallows import failures (this caused restores to do
- * nothing while reporting success). We parse the body and surface every ERR.
- */
+/** [] is SurrealDB 3.2 OPTION IMPORT acknowledgement, NOT verified row counts. */
 export function summarizeStatementResults(body: unknown): ImportStatementSummary {
-  const rows = Array.isArray(body) ? body : body == null ? [] : [body]
+  if (!Array.isArray(body) || body.length > 10_000) throw new Error('Invalid database statement response')
+  let ok = 0, errorCount = 0
   const errors: string[] = []
-  let ok = 0
-
-  for (const row of rows) {
-    if (row && typeof row === 'object') {
-      const status = (row as { status?: unknown }).status
-      if (status === 'ERR') {
-        const detail = (row as { result?: unknown }).result
-        errors.push(typeof detail === 'string' ? detail : JSON.stringify(detail))
-        continue
-      }
-    }
-    ok++
+  for (const row of body) {
+    if (!row || typeof row !== 'object' || !['OK', 'ERR'].includes(row.status)) throw new Error('Invalid database statement response')
+    if (row.status === 'OK') ok++
+    else {errorCount++; if (errors.length < 8) errors.push((typeof row.result === 'string' ? row.result : JSON.stringify(row.result ?? 'Statement failed')).slice(0, 300))}
   }
-
-  return { total: rows.length, ok, errors }
+  return {total: body.length, ok, errorCount, errors}
 }
-
-/**
- * Streams a SurrealDB export from the HTTP /export endpoint.
- * Returns a raw Node.js Readable of the SurQL text.
- *
- * @param selection  optional table selection (default: all)
- * @param database   optional database name override (default: configured DB)
- */
-export async function exportSurrealDb(
-  selection?: ExportTableSelection,
-  database?: string
-): Promise<Readable> {
+function requestOptions(database?: string) {
   const config = useRuntimeConfig()
-  const base = surrealHttpBase(config.surrealUrl)
-  const url = `${base}/export`
-
-  // SurrealDB v2+/v3 require a Content-Type header and a JSON export-config body
-  // on POST /export. Omitting them yields: HTTP 400 "Header of type `content-type` was missing".
-  // An explicit empty list means NO tables, never an unrestricted snapshot.
-  const tablesValue = selection?.tables ?? true
-
-  const exportConfig = {
-    users: true,
-    accesses: true,
-    params: true,
-    functions: true,
-    analyzers: true,
-    versions: false,
-    tables: tablesValue,
-    records: true,
-  }
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': buildAuthHeader(config.surrealRoot, config.surrealRootPassword),
-      'Surreal-NS': config.surrealNamespace,
-      'Surreal-DB': database ?? config.surrealDatabase,
-      'Content-Type': 'application/json',
-      'Accept': 'application/octet-stream',
-    },
-    body: JSON.stringify(exportConfig),
-  })
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`SurrealDB export failed (HTTP ${response.status}): ${text.slice(0, 200)}`)
-  }
-
-  if (!response.body) {
-    throw new Error('SurrealDB export returned no body')
-  }
-
-  return Readable.fromWeb(response.body as import('stream/web').ReadableStream<Uint8Array>)
+  if (database !== undefined && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(database)) throw new Error('Invalid backup database target')
+  return { base: surrealHttpBase(config.surrealUrl), headers: {
+    'Authorization': 'Basic ' + Buffer.from(`${config.surrealRoot}:${config.surrealRootPassword}`).toString('base64'),
+    'Surreal-NS': config.surrealNamespace, 'Surreal-DB': database ?? config.surrealDatabase
+  } }
 }
-
-/** Convenience wrapper that buffers an export stream into a single Buffer. */
-export async function exportSurrealDbToBuffer(
-  selection?: ExportTableSelection,
-  database?: string
-): Promise<Buffer> {
-  const stream = await exportSurrealDb(selection, database)
-  const chunks: Buffer[] = []
-  for await (const chunk of stream) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
-  }
-  return Buffer.concat(chunks)
+function deadline(signal?: AbortSignal) {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  signal?.addEventListener('abort', abort, {once: true})
+  if (signal?.aborted) abort()
+  const timer = setTimeout(abort, BACKUP_LIMITS.deadlineMs)
+  return {signal: controller.signal, abort, dispose: () => {clearTimeout(timer); signal?.removeEventListener('abort', abort)}}
 }
-
-/**
- * Imports a SurQL stream into SurrealDB via the HTTP /import endpoint.
- *
- * Throws if the request is rejected OR if any individual statement returns an
- * ERR status, so callers never mistake a partial/failed import for success.
- *
- * @param database  optional target database override (used for staging DBs)
- */
-export async function importSurrealDb(stream: Readable, database?: string): Promise<ImportStatementSummary> {
-  const config = useRuntimeConfig()
-  const base = surrealHttpBase(config.surrealUrl)
-  const url = `${base}/import`
-
+async function responseJson(response: Response): Promise<unknown> {
+  if (!response.body) throw new Error('Database HTTP response has no body')
   const chunks: Buffer[] = []
-  for await (const chunk of stream) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
-  }
-  const body = Buffer.concat(chunks)
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': buildAuthHeader(config.surrealRoot, config.surrealRootPassword),
-      'Surreal-NS': config.surrealNamespace,
-      'Surreal-DB': database ?? config.surrealDatabase,
-      'Content-Type': 'text/plain',
-      'Accept': 'application/json',
-    },
-    body,
-  })
-
-  const text = await response.text().catch(() => '')
-
-  if (!response.ok) {
-    throw new Error(`SurrealDB import failed (HTTP ${response.status}): ${text.slice(0, 400)}`)
-  }
-
-  let parsed: unknown = null
+  let bytes = 0
+  const reader = response.body.getReader()
   try {
-    parsed = text ? JSON.parse(text) : null
-  } catch {
-    // Body was not JSON; treat as opaque success only when the status was ok.
-    return { total: 0, ok: 0, errors: [] }
-  }
-
-  const summary = summarizeStatementResults(parsed)
-  if (summary.errors.length > 0) {
-    throw new Error(
-      `SurrealDB import completed with ${summary.errors.length} failed statement(s): ${summary.errors[0]?.slice(0, 300)}`
-    )
-  }
-
+    while (true) {
+      const {value, done} = await reader.read()
+      if (done) break
+      bytes += value.length
+      if (bytes > RESPONSE_BYTES) throw new Error('Database HTTP response byte budget exceeded')
+      chunks.push(Buffer.from(value))
+    }
+    if (!response.ok) throw new Error(`Database HTTP request failed (${response.status})`)
+    try {return JSON.parse(Buffer.concat(chunks).toString('utf8'))} catch {throw new Error('Malformed database HTTP response')}
+  } finally {await reader.cancel().catch(() => {}); reader.releaseLock()}
+}
+function assertSuccess(body: unknown) {
+  const summary = summarizeStatementResults(body)
+  if (summary.errorCount) throw new Error(`Database import/SQL failed (${summary.errorCount} statement errors)`)
   return summary
 }
 
-/**
- * Runs raw SurrealQL over the HTTP /sql endpoint against an arbitrary database
- * (used for staging databases that are not the app's primary connection).
- * Throws on any ERR statement.
- */
-export async function runSqlHttp(sql: string, database?: string): Promise<unknown> {
-  const config = useRuntimeConfig()
-  const base = surrealHttpBase(config.surrealUrl)
-  const url = `${base}/sql`
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': buildAuthHeader(config.surrealRoot, config.surrealRootPassword),
-      'Surreal-NS': config.surrealNamespace,
-      'Surreal-DB': database ?? config.surrealDatabase,
-      'Content-Type': 'text/plain',
-      'Accept': 'application/json',
-    },
-    body: sql,
-  })
-
-  const text = await response.text().catch(() => '')
-  if (!response.ok) {
-    throw new Error(`SurrealDB SQL failed (HTTP ${response.status}): ${text.slice(0, 400)}`)
-  }
-
-  const parsed = text ? JSON.parse(text) : null
-  const summary = summarizeStatementResults(parsed)
-  if (summary.errors.length > 0) {
-    throw new Error(`SurrealDB SQL error: ${summary.errors[0]?.slice(0, 300)}`)
-  }
-  return parsed
+export async function exportSurrealDb(selection?: ExportTableSelection, database?: string, signal?: AbortSignal): Promise<Readable> {
+  const {base, headers} = requestOptions(database)
+  const tables = selection?.tables ?? true
+  if (Array.isArray(tables) && (tables.length > 200 || tables.some(t => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)))) throw new Error('Invalid export table selection')
+  const timer = deadline(signal)
+  let response: Response | undefined
+  try {
+    response = await fetch(`${base}/export`, {method: 'POST', redirect: 'error', signal: timer.signal,
+      headers: {...headers, 'Content-Type': 'application/json', 'Accept': 'application/octet-stream'},
+      body: JSON.stringify({users: true, accesses: true, params: true, functions: true, analyzers: true, versions: false, tables, records: true})})
+    if (!response.ok || !response.body) throw new Error(`Database export failed (${response.status})`)
+    const source = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>)
+    const limited = byteLimit(BACKUP_LIMITS.sqlBytes)
+    // pipeline propagates transport/limit failures and closes the fetch body.
+    void pipeline(source, limited, {signal: timer.signal}).catch(error => limited.destroy(error))
+    limited.once('close', () => {timer.abort(); timer.dispose()})
+    limited.once('end', timer.dispose)
+    return limited
+  } catch (error) {timer.abort(); timer.dispose(); await response?.body?.cancel().catch(() => {}); throw error}
+}
+export async function exportSurrealDbToFile(target: string, selection?: ExportTableSelection, database?: string, signal?: AbortSignal): Promise<number> {
+  return streamToFile(await exportSurrealDb(selection, database, signal), target, {signal})
 }
 
-/**
- * Computes the SHA-256 hex digest of a file on disk.
- */
+/** Streaming duplex request; never concatenate SQL. The server may buffer it. */
+export async function importSurrealDb(source: Readable | string, database?: string, signal?: AbortSignal): Promise<ImportStatementSummary> {
+  if (typeof source === 'string') await regularFile(source, BACKUP_LIMITS.sqlBytes)
+  const input = typeof source === 'string' ? createReadStream(source) : source
+  const {base, headers} = requestOptions(database)
+  const timer = deadline(signal)
+  const limited = byteLimit(BACKUP_LIMITS.sqlBytes)
+  const pumping = pipeline(input, limited, {signal: timer.signal})
+  void pumping.catch(() => {})
+  let response: Response | undefined
+  try {
+    response = await fetch(`${base}/import`, {method: 'POST', redirect: 'error', signal: timer.signal,
+      headers: {...headers, 'Content-Type': 'text/plain', 'Accept': 'application/json'}, body: limited as unknown as BodyInit, duplex: 'half'} as RequestInit)
+    const body = await responseJson(response)
+    await pumping
+    return assertSuccess(body)
+  } catch (error) {
+    if (!response || timer.signal.aborted || !(error instanceof Error && /^(Malformed database HTTP response|Invalid database statement response|Database import\/SQL failed|Database HTTP request failed)/.test(error.message))) throw Object.assign(new Error('Database import transport failed; execution may continue'), {uncertain: true})
+    throw error
+  } finally {
+    timer.abort(); timer.dispose(); input.destroy(); limited.destroy()
+    await pumping.catch(() => {})
+    await response?.body?.cancel().catch(() => {})
+  }
+}
+export async function runSqlHttp(sql: string, database?: string, signal?: AbortSignal): Promise<unknown> {
+  if (Buffer.byteLength(sql) > 64 * 1024) throw new Error('Maintenance SQL byte budget exceeded')
+  const {base, headers} = requestOptions(database), timer = deadline(signal)
+  let response: Response | undefined
+  try {
+    response = await fetch(`${base}/sql`, {method: 'POST', redirect: 'error', signal: timer.signal,
+      headers: {...headers, 'Content-Type': 'text/plain', 'Accept': 'application/json'}, body: sql})
+    const parsed = await responseJson(response)
+    assertSuccess(parsed)
+    return parsed
+  } finally {timer.abort(); timer.dispose(); await response?.body?.cancel().catch(() => {})}
+}
 export async function sha256File(filePath: string): Promise<string> {
   const hash = createHash('sha256')
   await pipeline(createReadStream(filePath), hash)

@@ -1,129 +1,103 @@
 import { createReadStream, createWriteStream } from 'node:fs'
-import { readdir, rm } from 'node:fs/promises'
+import { opendir, mkdir, open, rm, lstat } from 'node:fs/promises'
 import * as path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { createGunzip, createGzip } from 'node:zlib'
-import type { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import * as tar from 'tar'
+import { BACKUP_LIMITS, byteLimit, checkDisk, regularFile } from './streams'
 
-const SAFE_HASH_FILENAME = /^[a-f0-9]{64}\.[a-z0-9]{1,10}$/i
+export const ORIGINAL_PATH = /^\d{4}\/(?:0[1-9]|1[0-2])\/[a-f0-9]{64}\.[a-z0-9]{1,10}$/i
+const DIRECTORY = /^(?:\d{4}|\d{4}\/(?:0[1-9]|1[0-2]))\/?$/
 
-/**
- * Creates a gzipped tar archive of the given list of files relative to `cwd`.
- * Uses gzip level 1 for speed over compression (media files rarely compress well).
- * Returns the total number of bytes written to outPath.
- */
-export async function createMediaTar(
-  relativePaths: string[],
-  cwd: string,
-  outPath: string,
-  gzipLevel = 1,
-  onProgress?: (processed: number, total: number) => void
-): Promise<void> {
-  const total = relativePaths.length
-
-  if (total === 0) {
-    // Write an empty (header-only) tar.gz so the file always exists.
-    await tar.c(
-      { gzip: { level: gzipLevel }, cwd, file: outPath },
-      []
-    )
-    onProgress?.(0, 0)
-    return
+export async function createMediaTar(paths: string[], cwd: string, outPath: string, gzipLevel = 1, onProgress?: (processed: number, total: number) => void): Promise<void> {
+  if (paths.length > BACKUP_LIMITS.mediaEntries || new Set(paths).size !== paths.length) throw new Error('Media entry budget exceeded or duplicate originals')
+  let bytes = 0
+  for (const rel of paths) {
+    if (!ORIGINAL_PATH.test(rel)) throw new Error('Unsupported original media path')
+    bytes += await regularFile(path.join(cwd, rel), BACKUP_LIMITS.mediaBytes)
+    if (bytes > BACKUP_LIMITS.mediaBytes) throw new Error('Media byte budget exceeded')
   }
-
+  await checkDisk(path.dirname(outPath), bytes)
   let processed = 0
-  await tar.c(
-    {
-      gzip: { level: gzipLevel },
-      cwd,
-      file: outPath,
-      filter() {
-        // Called once per entry that is about to be archived. Each entry in
-        // relativePaths is a file, so this gives a reliable per-file count.
-        processed++
-        onProgress?.(processed, total)
-        return true
-      },
-    },
-    relativePaths
-  )
+  // tar.c rejects []; a POSIX empty archive is two zero blocks, gzipped.
+  const source = paths.length ? tar.c({cwd, portable: true, noDirRecurse: true, filter() {onProgress?.(++processed, paths.length); return true}}, paths) : Readable.from([Buffer.alloc(1024)])
+  await pipeline(source, byteLimit(BACKUP_LIMITS.mediaBytes), createGzip({level: gzipLevel}), byteLimit(BACKUP_LIMITS.mediaBytes, path.dirname(outPath)), createWriteStream(outPath, {flags: 'wx', mode: 0o600}), {signal: AbortSignal.timeout(BACKUP_LIMITS.deadlineMs)})
+  const file = await open(outPath, 'r+')
+  try {await file.sync()} finally {await file.close()}
+  if (!paths.length) onProgress?.(0, 0)
 }
 
-/**
- * Extracts a gzipped tar archive into `destRoot`.
- * Hard-filtered: only accepts entries whose resolved path stays inside destRoot
- * and whose basename matches the sha256 hash filename pattern.
- *
- * Throws if a path-traversal entry is detected so the caller can abort.
- */
-export async function extractMediaTar(
-  srcPath: string,
-  destRoot: string
-): Promise<number> {
-  let count = 0
-  const absDestRoot = path.resolve(destRoot)
-
-  await tar.x({
-    file: srcPath,
-    cwd: absDestRoot,
-    gzip: true,
-    filter(entryPath: string) {
-      // Reject absolute paths and path traversal attempts
-      if (path.isAbsolute(entryPath)) return false
-      if (entryPath.includes('..')) return false
-
-      const basename = path.basename(entryPath)
-      // Allow the directory entries (no extension in basename test) to pass
-      if (!basename.includes('.')) return true
-
-      if (!SAFE_HASH_FILENAME.test(basename)) return false
-
-      // Check resolved path stays inside destRoot
-      const resolved = path.resolve(absDestRoot, entryPath)
-      if (!resolved.startsWith(absDestRoot + path.sep) && resolved !== absDestRoot) {
-        return false
-      }
-
-      count++
-      return true
-    },
-  })
-
-  return count
+/** Must target a new owned stage, never live uploads. All unsupported entries
+ * are fatal, not silently filtered. Explicit gunzip caps actual expansion. */
+export async function extractMediaTar(srcPath: string, destRoot: string, limits = {bytes: BACKUP_LIMITS.mediaBytes, entries: BACKUP_LIMITS.mediaEntries * 2}): Promise<number> {
+  if (!Number.isSafeInteger(limits.bytes) || limits.bytes < 1 || limits.bytes > BACKUP_LIMITS.mediaBytes || !Number.isSafeInteger(limits.entries) || limits.entries < 1 || limits.entries > BACKUP_LIMITS.mediaEntries * 2) throw new Error('Invalid archive limits')
+  await regularFile(srcPath, BACKUP_LIMITS.mediaBytes)
+  await mkdir(destRoot, {recursive: true, mode: 0o700})
+  if (!(await lstat(destRoot)).isDirectory() || (await lstat(destRoot)).isSymbolicLink()) throw new Error('Unsafe media stage')
+  let files = 0, entries = 0, bytes = 0, expandedBytes = 0
+  let allZero = true
+  const emptyProbe = new Transform({transform(chunk: Buffer, _encoding, callback) {
+    expandedBytes += chunk.length
+    if (allZero && chunk.some(byte => byte !== 0)) allZero = false
+    callback(null, chunk)
+  }})
+  const names = new Set<string>()
+  const extractor = tar.x({cwd: path.resolve(destRoot), strict: false, preservePaths: false, noChmod: true, noMtime: true,
+    onwarn(code) {
+      // tar 7 calls canonical zero-block empty archives unrecognized. Permit
+      // ONLY verified empty POSIX blocks; every other parser warning is fatal.
+      if (code === 'TAR_BAD_ARCHIVE' && allZero && expandedBytes >= 1024 && expandedBytes <= 10240 && expandedBytes % 512 === 0) return
+      extractor.abort(new Error(`Invalid media archive: ${code}`))
+    }, filter(name, entry) {
+    entries++
+    const type = (entry as tar.ReadEntry).type
+    const valid = type === 'File' ? ORIGINAL_PATH.test(name) : type === 'Directory' && DIRECTORY.test(name)
+    const normalized = name.replace(/\/$/, '')
+    bytes += entry.size
+    if (!valid || !Number.isSafeInteger(entry.size) || entry.size < 0 || names.has(normalized) || entries > limits.entries || bytes > limits.bytes) {
+      extractor.abort(new Error('Unsafe, duplicate or oversized media archive entry'))
+      return false
+    }
+    names.add(normalized)
+    if (type === 'File') files++
+    return true
+  }})
+  await checkDisk(destRoot)
+  const input = createReadStream(srcPath), gunzip = createGunzip()
+  try {await pipeline(input, gunzip, byteLimit(limits.bytes, destRoot), emptyProbe, extractor)}
+  catch (error) {
+    // Unpack marks TAR_BAD_ARCHIVE non-recoverable even when onwarn permits
+    // it. Accept only complete CRC-checked canonical zero-block archives.
+    if (!(error instanceof Error && error.message === 'TAR_BAD_ARCHIVE: Unrecognized archive format' && gunzip.readableEnded && allZero && expandedBytes >= 1024 && expandedBytes <= 10240 && expandedBytes % 512 === 0 && files === 0 && entries === 0)) throw error
+  }
+  return files
 }
 
-/**
- * Collects all file paths under `root` recursively, relative to `root`.
- * Only returns files whose basename matches the sha256 hash filename pattern.
- */
+/** Finite library limit; incremental opendir avoids a full directory read. */
 export async function collectOriginalPaths(root: string): Promise<string[]> {
-  const results: string[] = []
-  await collectDir(root, root, results)
-  return results
-}
-
-async function collectDir(root: string, dir: string, out: string[]): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      await collectDir(root, full, out)
-    } else if (entry.isFile() && SAFE_HASH_FILENAME.test(entry.name)) {
-      out.push(path.relative(root, full))
+  const paths: string[] = []
+  let entries = 0, bytes = 0
+  async function walk(directory: string, depth: number) {
+    if (depth > 2) throw new Error('Unsupported original media layout')
+    let handle
+    try {handle = await opendir(directory)} catch (error) {if ((error as NodeJS.ErrnoException).code === 'ENOENT' && depth === 0) return; throw error}
+    for await (const entry of handle) {
+      if (++entries > BACKUP_LIMITS.mediaEntries * 2) throw new Error('Original media entry budget exceeded')
+      const full = path.join(directory, entry.name), rel = path.relative(root, full).replace(/\\/g, '/')
+      if (entry.isDirectory() && DIRECTORY.test(rel)) await walk(full, depth + 1)
+      else if (entry.isFile() && ORIGINAL_PATH.test(rel)) {
+        bytes += await regularFile(full, BACKUP_LIMITS.mediaBytes)
+        if (bytes > BACKUP_LIMITS.mediaBytes || paths.length >= BACKUP_LIMITS.mediaEntries) throw new Error('Original media budget exceeded')
+        paths.push(rel)
+      } else throw new Error('Unsupported file/symlink in original media library')
     }
   }
+  await walk(root, 0)
+  return paths
 }
-
-/**
- * Removes all contents of a directory without removing the directory itself.
- */
-export async function clearDirectory(dir: string): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
-  await Promise.all(
-    entries.map((entry) => {
-      const full = path.join(dir, entry.name)
-      return rm(full, { recursive: true, force: true })
-    })
-  )
+export async function clearDirectory(directory: string): Promise<void> {
+  let handle
+  try {handle = await opendir(directory)} catch (error) {if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error}
+  for await (const entry of handle) await rm(path.join(directory, entry.name), {recursive: true, force: true})
 }

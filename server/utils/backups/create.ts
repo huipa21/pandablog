@@ -1,11 +1,11 @@
-import { createWriteStream } from 'node:fs'
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { mkdir, rename, rm, stat } from 'node:fs/promises'
 import * as path from 'node:path'
-import { pipeline } from 'node:stream/promises'
-import { createGzip } from 'node:zlib'
 import { BACKUPS_ROOT } from './config'
 import { chainHashUnion, createBackupRecord, getBackup, pruneBackups, updateBackupRecord } from './registry'
-import { acquireJob, releaseJob, updateJobProgress } from './jobMutex'
+import { acquireJob, releaseJob, updateJobProgress, writeDurableJson, type JobOwner } from './jobMutex'
+import { writeBarrier } from '../maintenance'
+import { BACKUP_LIMITS, streamToFile } from './streams'
 import { exportSurrealDb, sha256File } from './surrealHttp'
 import { collectOriginalPaths, createMediaTar } from './tarStream'
 import { getBackupSettings } from '../settings'
@@ -24,6 +24,13 @@ export interface CreateBackupOptions {
  * caller can return it to the client.
  */
 export async function startBackupJob(options: CreateBackupOptions): Promise<string> {
+  const id = generateBackupId()
+  const owner = await acquireJob({id, kind: 'create', startedAt: new Date().toISOString()})
+  try {return await prepareBackupJob(options, id, owner)}
+  catch (error) {await releaseJob(owner); throw error}
+}
+
+async function prepareBackupJob(options: CreateBackupOptions, id: string, owner: JobOwner): Promise<string> {
   const { type, note = null, parent = null, tables = null } = options
 
   // Resolve chain info for incrementals
@@ -51,8 +58,8 @@ export async function startBackupJob(options: CreateBackupOptions): Promise<stri
     if (!parentRecord) {
       throw createError({ statusCode: 404, message: 'Parent backup not found.' })
     }
-    if (parentRecord.type !== 'full') {
-      throw createError({ statusCode: 400, message: 'A partial backup must be based on a full backup.' })
+    if (parentRecord.type !== 'full' || parentRecord.status !== 'ready') {
+      throw createError({ statusCode: 400, message: 'A partial backup must be based on a ready full backup.' })
     }
     const cleaned = (tables ?? []).filter((t) => typeof t === 'string' && t.trim().length > 0)
     if (!cleaned.length) {
@@ -62,17 +69,10 @@ export async function startBackupJob(options: CreateBackupOptions): Promise<stri
     chainRoot = parentRecord.chain_root ?? parentRecord.id
   }
 
-  const id = generateBackupId()
-
-  // Acquire mutex before creating the record so the 409 fires correctly.
-  await acquireJob({ id, kind: 'create', startedAt: new Date().toISOString() })
-
   // Create DB record synchronously so the id is visible in the list immediately.
-  // If this fails we must release the mutex here: runBackupWork (which owns the
-  // releaseJob in its finally) is never reached, so the lock would otherwise leak
-  // and every future job would return 409 until the process restarts.
-  try {
-    await createBackupRecord({
+  // Preparation failures are released by startBackupJob's catch; the background
+  // worker takes over release only after the record is durable.
+  await createBackupRecord({
       id,
       type,
       note,
@@ -81,13 +81,9 @@ export async function startBackupJob(options: CreateBackupOptions): Promise<stri
       included_hashes: [],
       included_tables: includedTables,
     })
-  } catch (err) {
-    await releaseJob()
-    throw err
-  }
 
   // Fire the rest of the work in the background.
-  runBackupWork(id, type, parent, chainRoot, ancestorHashes, includedTables).catch((err) => {
+  writeBarrier.run(() => runBackupWork(owner, id, type, parent, chainRoot, ancestorHashes, includedTables), true).catch((err) => {
     if (import.meta.dev) {
       console.error(`[backup] create job ${id} failed:`, err?.message)
     }
@@ -97,6 +93,7 @@ export async function startBackupJob(options: CreateBackupOptions): Promise<stri
 }
 
 async function runBackupWork(
+  owner: JobOwner,
   id: string,
   type: 'full' | 'incremental' | 'partial',
   parent: string | null,
@@ -104,9 +101,11 @@ async function runBackupWork(
   ancestorHashes: Set<string>,
   includedTables: string[] | null
 ): Promise<void> {
+  let created = false, publishing = false
   try {
     const backupDir = path.join(BACKUPS_ROOT, id)
-    await mkdir(backupDir, { recursive: true })
+    await mkdir(backupDir, {mode: 0o700})
+    created = true
     updateJobProgress({ phase: 'preparing', percent: 2 })
 
     // --- 1. Export and gzip the database ---
@@ -116,8 +115,8 @@ async function runBackupWork(
     // Access files are outside DB snapshots. Keep legacy manifest metadata readable.
     const excludedTables: string[] = []
     const dbStream = await exportSurrealDb(selection)
-    const gzip = createGzip({ level: 6 })
-    await pipeline(dbStream, gzip, createWriteStream(dbOutPath))
+    await streamToFile(dbStream, `${dbOutPath}.part`, {gzip: true, maxBytes: BACKUP_LIMITS.compressedBytes})
+    await rename(`${dbOutPath}.part`, dbOutPath)
     const dbStat = await stat(dbOutPath)
     const dbSha256 = await sha256File(dbOutPath)
     updateJobProgress({ phase: 'db-export', percent: 40 })
@@ -149,7 +148,7 @@ async function runBackupWork(
       detail: `0 / ${toArchive.length}`,
     })
     const mediaOutPath = path.join(backupDir, 'media.tar.gz')
-    await createMediaTar(toArchive, uploadsRoot, mediaOutPath, 1, (processed, total) => {
+    await createMediaTar(toArchive, uploadsRoot, `${mediaOutPath}.part`, 1, (processed, total) => {
       const fraction = total > 0 ? processed / total : 1
       updateJobProgress({
         phase: 'media-pack',
@@ -157,6 +156,7 @@ async function runBackupWork(
         detail: `${processed} / ${total}`,
       })
     })
+    await rename(`${mediaOutPath}.part`, mediaOutPath)
     const mediaStat = await stat(mediaOutPath)
     const mediaSha256 = await sha256File(mediaOutPath)
     updateJobProgress({ phase: 'finalize', percent: 95 })
@@ -177,9 +177,10 @@ async function runBackupWork(
       included_tables: includedTables ?? null,
       excluded_tables: excludedTables,
     }
-    await writeFile(path.join(backupDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
+    await writeDurableJson(path.join(backupDir, 'manifest.json'), manifest)
 
     // --- 5. Mark ready ---
+    publishing = true
     await updateBackupRecord(id, {
       status: 'ready',
       included_hashes: includedHashes,
@@ -210,9 +211,9 @@ async function runBackupWork(
       completed_at: new Date().toISOString(),
     }).catch(() => {})
     const backupDir = path.join(BACKUPS_ROOT, id)
-    await rm(backupDir, { recursive: true, force: true }).catch(() => {})
+    if (created && !publishing) await rm(backupDir, { recursive: true, force: true }).catch(() => {})
   } finally {
-    await releaseJob()
+    await releaseJob(owner)
   }
 }
 
@@ -226,6 +227,6 @@ function generateBackupId(): string {
     String(now.getUTCMinutes()).padStart(2, '0'),
     String(now.getUTCSeconds()).padStart(2, '0'),
   ].join('')
-  const rand = Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0')
+  const rand = randomBytes(12).toString('hex')
   return `${ts}${rand}`
 }

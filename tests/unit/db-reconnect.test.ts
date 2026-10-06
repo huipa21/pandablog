@@ -59,7 +59,7 @@ describe('queryDb reconnect retry policy', () => {
     vi.doUnmock('surrealdb')
   })
 
-  it('retries write queries after an anonymous auth rejection', async () => {
+  it('does not replay a write after an auth rejection (a script may already have effects)', async () => {
     vi.useFakeTimers()
 
     const { queryDb, instances } = await loadDbModule()
@@ -67,17 +67,10 @@ describe('queryDb reconnect retry policy', () => {
     const sql = 'UPDATE app_settings SET value = $value WHERE key = $key;'
     const params = { key: 'site_title', value: 'PandaBlog' }
 
-    const result = await queryDb(db as never, sql, params)
-
-    expect(result).toEqual([['retried']])
-    expect(db.query).toHaveBeenCalledWith(sql, params)
+    await expect(queryDb(db as never, sql, params)).rejects.toMatchObject({ statusCode: 503 })
+    expect(db.query).toHaveBeenCalledExactlyOnceWith(sql, params)
     expect(db.close).toHaveBeenCalledOnce()
-    expect(instances).toHaveLength(1)
-    const retryDb = instances[0]!
-    expect(retryDb.connect).toHaveBeenCalledWith('ws://surreal.test/rpc')
-    expect(retryDb.signin).toHaveBeenCalledWith({ username: 'root', password: 'root-password' })
-    expect(retryDb.use).toHaveBeenCalledWith({ namespace: 'main', database: 'main' })
-    expect(retryDb.query).toHaveBeenCalledWith(sql, params)
+    expect(instances).toHaveLength(0)
   })
 
   it('uses dedicated ROOT for schema work even when a runtime pool is already connected', async () => {
@@ -107,6 +100,24 @@ describe('queryDb reconnect retry policy', () => {
     expect(await useDb()).toBe(pool)
   })
 
+  it('does not infer read safety from the first token of a script', async () => {
+    vi.useFakeTimers()
+    const { queryDb, instances } = await loadDbModule()
+    const db = staleClient('websocket closed')
+    await expect(queryDb(db as never, 'SELECT * FROM post; CREATE post CONTENT {title: "late"};'))
+      .rejects.toMatchObject({ statusCode: 503 })
+    expect(db.query).toHaveBeenCalledOnce()
+    expect(instances).toHaveLength(0)
+  })
+
+  it('retries only explicitly classified reads', async () => {
+    vi.useFakeTimers()
+    const { queryDb, instances } = await loadDbModule()
+    const db = staleClient('websocket closed')
+    expect(await queryDb(db as never, 'SELECT * FROM post;', undefined, { retry: 'readOnly' })).toEqual([['retried']])
+    expect(instances).toHaveLength(1)
+  })
+
   it('does not retry write queries after a socket-level failure', async () => {
     vi.useFakeTimers()
 
@@ -115,7 +126,7 @@ describe('queryDb reconnect retry policy', () => {
 
     await expect(queryDb(db as never, 'UPDATE app_settings SET value = $value;', { value: 'PandaBlog' }))
       .rejects
-      .toMatchObject({ statusCode: 503, message: 'websocket closed' })
+      .toMatchObject({ statusCode: 503, message: 'Database connection failed' })
 
     expect(db.close).toHaveBeenCalledOnce()
     expect(instances).toHaveLength(0)

@@ -24,15 +24,20 @@ describe('REV-1.2 prerequisite gap: durable setup/recovery fence', () => {
       for (const [name, value] of Object.entries({defineEventHandler, createError, getRequestURL, setResponseHeader, replaceUserSession: async () => {}})) vi.stubGlobal(name, value)
       mocks.write.mockReset().mockResolvedValue({username: 'admin'})
       const before = await import('../../server/utils/backups/jobMutex')
-      await before.acquireJob({id: 'fixture-interrupted', kind: 'restore', startedAt: new Date().toISOString()})
+      const owner = await before.acquireJob({id: 'fixture-interrupted', kind: 'restore', startedAt: new Date().toISOString()})
+      await before.jobStore.beginRestore(owner)
+      await before.jobStore.transition(owner, {phase: 'db-wipe', destructive: true})
       before.updateJobProgress({phase: 'db-wipe', percent: 35})
       expect(before.getActiveJob()?.progress?.phase).toBe('db-wipe')
-      const lock = JSON.parse(await readFile(join(owned.root, 'storage/backups/.job.lock'), 'utf8'))
-      expect(lock.kind).toBe('restore')
-      expect(lock).not.toHaveProperty('progress') // phase is NOT durable
+      const journal = JSON.parse(await readFile(join(owned.root, 'storage/backups/.restore-journal.json'), 'utf8'))
+      expect(journal.owner.kind).toBe('restore')
+      expect(journal.phase).toBe('db-wipe') // phase IS durable now
       vi.resetModules() // unit restart simulation, not a real process/DB restore
       const restarted = await import('../../server/utils/backups/jobMutex')
       expect(restarted.getActiveJob()).toBeNull()
+      expect(await restarted.jobStore.loadJournal()).toBe(true)
+      const {writeBarrier} = await import('../../server/utils/maintenance')
+      writeBarrier.recoverFence()
       const {default: guard} = await import('../../server/middleware/restore-maintenance')
       const {default: setup} = await import('../../server/api/auth/setup.post')
       const app = createApp(); app.use(guard); app.use('/api/auth/setup', setup)
@@ -42,7 +47,7 @@ describe('REV-1.2 prerequisite gap: durable setup/recovery fence', () => {
         method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({password: 'fixture-only-password', confirm_password: 'fixture-only-password'})
       })
       await response.arrayBuffer()
-      process.stdout.write(JSON.stringify({evidence: 'REV-1.2-setup-guard-unit-H3-not-real-DB-or-process-crash', simulatedRestart: true, ownedRestoreLockRetained: true, durablePhase: false, observedSetupStatus: response.status, syntheticCredentialWrites: mocks.write.mock.calls.length}) + '\n')
+      process.stdout.write(JSON.stringify({evidence: 'REV-1.2-setup-guard-unit-H3-not-real-DB-or-process-crash', simulatedRestart: true, ownedRestoreLockRetained: true, durablePhase: true, observedSetupStatus: response.status, syntheticCredentialWrites: mocks.write.mock.calls.length}) + '\n')
       expect(response.status).toBe(503)
       expect(mocks.write).not.toHaveBeenCalled()
     } finally {

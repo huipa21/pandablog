@@ -26,10 +26,15 @@ export async function loadSchema(): Promise<{ schema: string, hash: string }> {
 }
 
 /** Apply the current, module-filtered schema using a privileged connection. */
-export async function applySchema(db: Awaited<ReturnType<typeof useDb>>, schema?: string): Promise<void> {
-  const sql = schema ?? (await loadSchema()).schema
+export async function applySchema(db: Awaited<ReturnType<typeof useDb>>, schema?: string, options: {preserveData?: boolean} = {}): Promise<void> {
+  let sql = schema ?? (await loadSchema()).schema
+  // Restore synchronizes our reviewed static definitions without running
+  // unrelated one-time removals/index rebuilds or resetting content statistics.
+  if (options.preserveData) sql = sql
+    .replace(/^(?:REMOVE|UPDATE) [^\r\n]*;\r?$/gm, '')
+    .replace(/^(DEFINE (?:TABLE|FIELD|ANALYZER)) OVERWRITE /gm, '$1 IF NOT EXISTS ')
   // Retain the boot initializer's compatibility reset for old post stats fields.
-  try {
+  if (!options.preserveData) try {
     await queryDb(
       db,
       `REMOVE FIELD IF EXISTS word_count ON post;

@@ -1,46 +1,32 @@
-import { rm } from 'node:fs/promises'
-import * as path from 'node:path'
+import { z } from 'zod'
 import { requireSuperadmin } from '../../../utils/auth'
-import { getBackup, deleteBackupRecord, getDirectDescendants, backupIdPart } from '../../../utils/backups/registry'
-import { BACKUPS_ROOT } from '../../../utils/backups/config'
+import { listBackups, deleteBackupRecord, deleteSnapshotFiles, backupIdPart } from '../../../utils/backups/registry'
+import { acquireJob, releaseJob } from '../../../utils/backups/jobMutex'
+import { readBoundedJson } from '../../../utils/bounded-json'
+
+const schema = z.object({confirm_token: z.string().max(128), cascade: z.boolean().optional()}).strict()
 
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)
-  const id = getRouterParam(event, 'id') ?? ''
-  const body = await readBody<{ confirm_token?: string, cascade?: boolean }>(event)
-
-  if (body.confirm_token !== `DELETE_${id}`) {
-    throw createError({ statusCode: 400, message: 'Invalid confirmation token. Expected DELETE_<id>.' })
-  }
-
-  const record = await getBackup(id)
-  if (!record) {
-    throw createError({ statusCode: 404, message: 'Backup snapshot not found' })
-  }
-
-  const descendants = await getDirectDescendants(id)
-  if (descendants.length > 0 && !body.cascade) {
-    throw createError({
-      statusCode: 409,
-      message: `This snapshot has ${descendants.length} dependent backup(s). Pass cascade: true to delete them too.`,
-    })
-  }
-
-  // Delete descendants first (cascade)
-  if (body.cascade) {
-    for (const desc of descendants) {
-      await deleteSnapshotFiles(desc.id)
-      await deleteBackupRecord(desc.id)
+  const id = getRouterParam(event, 'id') ?? '', part = backupIdPart(id)
+  const body = schema.safeParse(await readBoundedJson(event, 8 * 1024))
+  if (!body.success || body.data.confirm_token !== `DELETE_${id}`) throw createError({statusCode: 400, message: 'Invalid backup deletion confirmation'})
+  // No file deletion can race a create/import/consolidation/restore worker.
+  const owner = await acquireJob({id, kind: 'delete', startedAt: new Date().toISOString()})
+  try {
+    const records = await listBackups()
+    if (!records.some(record => backupIdPart(record.id) === part)) throw createError({statusCode: 404, message: 'Backup snapshot not found'})
+    const ordered: string[] = [], visited = new Set<string>(), visiting = new Set<string>()
+    const walk = (key: string) => {
+      if (visiting.has(key)) throw createError({statusCode: 409, message: 'Backup ancestry cycle requires offline recovery'})
+      if (visited.has(key)) return
+      visiting.add(key)
+      for (const record of records) if (record.parent && backupIdPart(record.parent) === key) walk(backupIdPart(record.id))
+      visiting.delete(key); visited.add(key); ordered.push(key)
     }
-  }
-
-  await deleteSnapshotFiles(id)
-  await deleteBackupRecord(id)
-
-  return { ok: true }
+    walk(part) // bounded history, complete descendants before any unlink
+    if (ordered.length > 1 && !body.data.cascade) throw createError({statusCode: 409, message: 'Dependent backups require cascade deletion'})
+    for (const key of ordered) {await deleteSnapshotFiles(key); await deleteBackupRecord(key)}
+    return {ok: true}
+  } finally {await releaseJob(owner)}
 })
-
-async function deleteSnapshotFiles(id: string): Promise<void> {
-  const dir = path.join(BACKUPS_ROOT, backupIdPart(id))
-  await rm(dir, { recursive: true, force: true }).catch(() => {})
-}

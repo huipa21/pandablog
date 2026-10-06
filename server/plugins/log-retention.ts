@@ -1,3 +1,4 @@
+import { writeBarrier } from '../utils/maintenance'
 import { resolveCron } from '../utils/cron'
 import type { CronTaskLike } from '../utils/cron'
 import { ACCESS_LOG_MAINTENANCE_SCHEDULE, LOG_RETENTION_SCHEDULE, runLogRetention } from '../utils/log-retention'
@@ -12,7 +13,7 @@ export default defineNitroPlugin(async (nitro) => {
   }
   const run = async () => {
     try {
-      await runLogRetention()
+      await writeBarrier.run(() => runLogRetention(), true)
     } catch (error) {
       warn('[logging] scheduled retention failed', { error: error instanceof Error ? error.message : 'Unknown error' })
     }

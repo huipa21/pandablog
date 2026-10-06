@@ -14,6 +14,7 @@ vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/visibility', () => ({ getSiteVisibility: mocks.getSiteVisibility }))
 vi.mock('../../server/utils/auth', () => ({ isAuthenticated: mocks.isAuthenticated }))
 vi.mock('../../server/utils/backups/jobMutex', () => ({ getActiveJob: mocks.getActiveJob }))
+vi.mock('../../server/utils/maintenance', () => ({writeBarrier: {status: () => ({closed: Boolean(mocks.getActiveJob())})}}))
 vi.mock('../../server/utils/settings', () => ({ getRuntimeFlags: mocks.getRuntimeFlags }))
 vi.mock('../../server/utils/logging', async () => {
   const { isHealthCheckPath } = await import('../../server/utils/logging-logic')

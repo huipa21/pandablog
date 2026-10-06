@@ -53,6 +53,17 @@ tests/unit/*
 !tests/unit/authRedirect.test.ts
 !tests/unit/analytics.test.ts
 !tests/unit/db-reconnect.test.ts
+!tests/unit/db-lifecycle.test.ts
+!tests/unit/backup-ownership.test.ts
+!tests/unit/maintenance-barrier.test.ts
+!tests/unit/maintenance-http.test.ts
+!tests/unit/maintenance-crash.test.ts
+!tests/unit/backup-status.test.ts
+!tests/unit/backups/
+!tests/unit/backups/*.test.ts
+!tests/integration/db-lifecycle.test.ts
+!tests/integration/backup-streaming.test.ts
+!tests/integration/backup-restore.test.ts
 !tests/unit/renderedBlockDiff.test.ts
 !tests/unit/fuzzy.test.ts
 !tests/unit/searchQuery.test.ts

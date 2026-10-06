@@ -1,104 +1,103 @@
-import { gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getBackup: vi.fn(), listBackups: vi.fn(), replaceBackupRecords: vi.fn(), updateBackupRecord: vi.fn(), wipeDatabase: vi.fn(),
-  acquireJob: vi.fn(), releaseJob: vi.fn(), updateJobProgress: vi.fn(),
-  exportSurrealDbToBuffer: vi.fn(), importSurrealDb: vi.fn(), validateDumpByStaging: vi.fn(), consolidateDumps: vi.fn(),
-  clearDirectory: vi.fn(), extractMediaTar: vi.fn(), getBackupSettings: vi.fn(), getMediaSettings: vi.fn(),
-  initializeRuntimeSettings: vi.fn(), initializeLoggingSettings: vi.fn(), queryDb: vi.fn(), useDb: vi.fn(),
-  connectRootClient: vi.fn(), closeRootClient: vi.fn(), applySchema: vi.fn(),
-  readFile: vi.fn(), mkdir: vi.fn(), writeFile: vi.fn(), rm: vi.fn(), rename: vi.fn(),
-  rebuildPostSearchTerms: vi.fn()
+  acquireJob: vi.fn(), releaseJob: vi.fn(), updateJobProgress: vi.fn(), syncDirectory: vi.fn(), transition: vi.fn(), beginRestore: vi.fn(),
+  exportSurrealDbToFile: vi.fn(), importSurrealDb: vi.fn(), validateDumpByStaging: vi.fn(), consolidateDumps: vi.fn(), verifySnapshot: vi.fn(), sha256File: vi.fn(),
+  collectOriginalPaths: vi.fn(), extractMediaTar: vi.fn(), expandDump: vi.fn(), checkDisk: vi.fn(), regularFile: vi.fn(),
+  getBackupSettings: vi.fn(), getMediaSettings: vi.fn(), initializeRuntimeSettings: vi.fn(), initializeAnalyticsSettings: vi.fn(), initializeSecuritySettings: vi.fn(), reloadLoggingSettings: vi.fn(),
+  queryDb: vi.fn(), connectRootClient: vi.fn(), closeRootClient: vi.fn(), provisionAppDatabaseUser: vi.fn(), recycleRuntimeConnection: vi.fn(), applySchema: vi.fn(),
+  mkdir: vi.fn(), rm: vi.fn(), rename: vi.fn(), lstat: vi.fn(), clear: vi.fn()
 }))
-vi.mock('../../server/utils/backups/registry', () => ({ ...mocks, backupIdPart: (id: string) => id.replace(/^backups:/, '') }))
-vi.mock('../../server/utils/backups/jobMutex', () => mocks)
+vi.mock('../../server/utils/backups/registry', () => ({...mocks, backupIdPart: (id: string) => id.replace(/^backups:/, '')}))
+vi.mock('../../server/utils/backups/jobMutex', () => ({...mocks, jobStore: {...mocks, recoveryRequired: () => false}}))
 vi.mock('../../server/utils/backups/surrealHttp', () => mocks)
 vi.mock('../../server/utils/backups/validate', () => mocks)
 vi.mock('../../server/utils/backups/tarStream', () => mocks)
+vi.mock('../../server/utils/backups/streams', () => ({...mocks, BACKUP_LIMITS: {sqlBytes: 100, chainDepth: 64}}))
 vi.mock('../../server/utils/settings', () => mocks)
 vi.mock('../../server/utils/logging', () => mocks)
 vi.mock('../../server/utils/db', () => mocks)
-vi.mock('../../server/utils/schema', () => ({ applySchema: mocks.applySchema, SCHEMA_HASH_KEY: '__schema_hash' }))
-vi.mock('../../server/utils/searchTerms', () => mocks)
-vi.mock('../../server/utils/mediaLibrary', () => ({ mediaNormalizeFileRecord: vi.fn() }))
-vi.mock('../../server/utils/imageProcessor', () => ({ mediaProcessImageBuffer: vi.fn() }))
-vi.mock('node:fs/promises', () => mocks)
-vi.mock('node:fs', () => ({ existsSync: () => false }))
+vi.mock('../../server/utils/schema', () => mocks)
+vi.mock('../../server/utils/imageProcessor', () => ({mediaProcessImageBuffer: vi.fn()}))
+vi.mock('../../server/utils/users', () => ({newAuthEpoch: () => 'a'.repeat(48)}))
+vi.mock('node:fs/promises', () => mocks) // absolutely no configured FS operations
 
-const root = { name: 'root' }
-const pool = { name: 'pool' }
-const record = { id: 'backups:fixture', type: 'full', status: 'ready', parent: null }
+const root = {name: 'dedicated-root'}
+const record = {id: 'backups:fixture', type: 'full', status: 'ready', parent: null, manifest_sha256_db: 'checksum', manifest_sha256_media: 'checksum'}
+const owner = {...record, kind: 'restore', token: 'a'.repeat(48), generation: 'b'.repeat(48), startedAt: new Date().toISOString()}
+
 beforeEach(() => {
-  vi.resetAllMocks()
+  vi.resetModules(); vi.resetAllMocks()
   for (const mock of Object.values(mocks)) mock.mockResolvedValue(undefined)
   mocks.getBackup.mockResolvedValue(record)
   mocks.listBackups.mockResolvedValue([record])
-  mocks.getBackupSettings.mockResolvedValue({ validate_before_restore: true, auto_safety_snapshot: false })
-  mocks.getMediaSettings.mockResolvedValue({})
-  mocks.readFile.mockResolvedValue(gzipSync('dump with current schema hash'))
-  mocks.useDb.mockResolvedValue(pool)
+  mocks.getBackupSettings.mockResolvedValue({auto_safety_snapshot: true})
   mocks.connectRootClient.mockResolvedValue(root)
-  mocks.queryDb.mockImplementation(async (_db, sql) => sql === 'INFO FOR DB;' ? [{ tables: { post: 'definition' } }] : [[]])
-  vi.stubGlobal('createError', (error: { message: string }) => new Error(error.message))
+  mocks.sha256File.mockResolvedValue('checksum')
+  mocks.lstat.mockResolvedValue({isDirectory: () => true})
+  mocks.validateDumpByStaging.mockResolvedValue({post: {count: 1, sample: 'synthetic'}})
+  mocks.queryDb.mockImplementation(async (_db, sql: string) => sql.includes('FROM users:admin') ? [[{id: 'users:admin'}]] : [[]])
+  vi.stubGlobal('useStorage', () => ({clear: mocks.clear}))
+  vi.stubGlobal('__PB_MODULE_ANALYTICS__', true)
+  vi.stubGlobal('__PB_MODULE_LOGS__', true)
 })
 afterEach(() => vi.unstubAllGlobals())
-
-async function restore() {
-  const { startRestoreJob } = await import('../../server/utils/backups/restore')
-  await startRestoreJob('fixture')
-  await vi.waitFor(() => expect(mocks.releaseJob).toHaveBeenCalledOnce())
+async function run() {
+  const {writeBarrier} = await import('../../server/utils/maintenance')
+  const {runRestoreWork} = await import('../../server/utils/backups/restore')
+  await writeBarrier.close(owner)
+  await writeBarrier.runOwner(owner, () => runRestoreWork(owner as never, record as never))
+  return writeBarrier.status()
 }
 
-describe('restore schema repair', () => {
-  it.each(['full', 'incremental', 'partial'])('reapplies the schema for %s before history/caches/job release', async type => {
-    mocks.getBackup.mockResolvedValue({ ...record, type, parent: type === 'partial' ? 'base' : null })
-    mocks.listBackups.mockResolvedValue([record, { ...record, id: 'backups:base' }])
-    mocks.consolidateDumps.mockReturnValue(Buffer.from('consolidated'))
-    await restore()
-    expect(mocks.applySchema).toHaveBeenCalledExactlyOnceWith(root)
-    const hashDelete = mocks.queryDb.mock.calls.find(call => call[3]?.label === 'restore schema hash invalidation')!
-    expect(hashDelete).toEqual([root, 'DELETE app_settings WHERE key = $key;', { key: '__schema_hash' }, {
-      label: 'restore schema hash invalidation', timeoutMs: 10_000, retryOnReconnect: false
-    }])
-    const order = mocks.applySchema.mock.invocationCallOrder[0]!
-    expect(order).toBeGreaterThan(mocks.importSurrealDb.mock.invocationCallOrder[0]!)
-    const verifyIndex = mocks.queryDb.mock.calls.findIndex(call => call[3]?.label === 'verify restore')
-    const invalidateIndex = mocks.queryDb.mock.calls.findIndex(call => call[3]?.label === 'restore schema hash invalidation')
-    expect(invalidateIndex).toBeGreaterThan(verifyIndex)
-    expect(order).toBeLessThan(mocks.replaceBackupRecords.mock.invocationCallOrder[0]!)
-    expect(order).toBeLessThan(mocks.initializeRuntimeSettings.mock.invocationCallOrder[0]!)
-    expect(order).toBeLessThan(mocks.releaseJob.mock.invocationCallOrder[0]!)
-    expect(mocks.closeRootClient).toHaveBeenCalledExactlyOnceWith(root)
-    expect(mocks.updateBackupRecord).toHaveBeenLastCalledWith('fixture', expect.objectContaining({ status: 'ready', error: null }))
+describe('journaled restore consistency and failure boundaries (synthetic work, real barrier)', () => {
+  it('verifies safety before wipe, repairs using ROOT without destructive schema reset, then publishes/revokes/refreshes before release', async () => {
+    expect((await run()).closed).toBe(false)
+    expect(mocks.exportSurrealDbToFile.mock.invocationCallOrder[0]).toBeLessThan(mocks.wipeDatabase.mock.invocationCallOrder[0]!)
+    expect(mocks.applySchema).toHaveBeenCalledExactlyOnceWith(root, undefined, {preserveData: true})
+    expect(mocks.provisionAppDatabaseUser).toHaveBeenCalledWith(root)
+    expect(mocks.recycleRuntimeConnection).toHaveBeenCalledOnce()
+    expect(mocks.verifySnapshot).toHaveBeenCalledOnce()
+    expect(mocks.clear).toHaveBeenCalledOnce()
+    const commit = mocks.transition.mock.calls.findIndex(call => call[1].state === 'committed')
+    expect(commit).toBeGreaterThan(0)
+    expect(mocks.releaseJob).toHaveBeenCalledExactlyOnceWith(owner)
   })
-  it('does not repair a failed/empty import or report success', async () => {
-    mocks.queryDb.mockResolvedValue([{ tables: {} }])
-    await restore()
-    expect(mocks.applySchema).not.toHaveBeenCalled()
-    expect(mocks.connectRootClient).not.toHaveBeenCalled()
-    expect(mocks.updateBackupRecord).toHaveBeenLastCalledWith('fixture', expect.objectContaining({ status: 'failed' }))
+  it.each(['expandDump', 'extractMediaTar', 'validateDumpByStaging', 'exportSurrealDbToFile'] as const)('aborts %s failure without wipe or unnecessary rollback', async key => {
+    mocks[key].mockRejectedValueOnce(new Error('preflight failure'))
+    expect((await run()).closed).toBe(false)
+    expect(mocks.wipeDatabase).not.toHaveBeenCalled()
+    expect(mocks.transition).toHaveBeenLastCalledWith(owner, expect.objectContaining({state: 'aborted'}))
   })
-  it('closes the privileged connection and rolls back if schema application fails', async () => {
-    mocks.getBackupSettings.mockResolvedValue({ validate_before_restore: true, auto_safety_snapshot: true })
-    mocks.exportSurrealDbToBuffer.mockResolvedValue(Buffer.from('safety'))
-    mocks.applySchema.mockRejectedValue(new Error('schema failure'))
-    await restore()
-    expect(mocks.closeRootClient).toHaveBeenCalledExactlyOnceWith(root)
+  it('requires safety even when the legacy operator setting disabled it', async () => {
+    mocks.getBackupSettings.mockResolvedValue({auto_safety_snapshot: false})
+    await run()
+    expect(mocks.wipeDatabase).not.toHaveBeenCalled()
+  })
+  it.each(['wipeDatabase', 'importSurrealDb', 'verifySnapshot', 'applySchema', 'replaceBackupRecords', 'initializeRuntimeSettings'] as const)('rolls back and verifies both generations after known %s failure', async key => {
+    mocks[key].mockRejectedValueOnce(new Error('injected cutover failure'))
+    expect((await run()).closed).toBe(false)
     expect(mocks.wipeDatabase).toHaveBeenCalledTimes(2)
-    expect(mocks.importSurrealDb).toHaveBeenCalledTimes(2)
-    expect(mocks.updateBackupRecord).toHaveBeenLastCalledWith('fixture', {
-      status: 'ready', error: 'schema failure — restore was rolled back to the pre-restore state.'
-    })
+    expect(mocks.transition).toHaveBeenLastCalledWith(owner, expect.objectContaining({state: 'rolled-back'}))
+    if (key === 'initializeRuntimeSettings') {
+      expect(mocks.rename.mock.calls.some(call => String(call[0]).endsWith('old-uploads'))).toBe(true)
+      expect(mocks.rename.mock.calls.some(call => String(call[0]).endsWith('old-variants'))).toBe(true)
+    }
   })
-  it('does not apply the schema if invalidating the hash fails', async () => {
-    mocks.queryDb.mockImplementation(async (_db, sql) => {
-      if (sql.startsWith('DELETE app_settings')) throw new Error('hash failure')
-      return [{ tables: { post: 'definition' } }]
-    })
-    await restore()
-    expect(mocks.applySchema).not.toHaveBeenCalled()
-    expect(mocks.closeRootClient).toHaveBeenCalledExactlyOnceWith(root)
-    expect(mocks.updateBackupRecord).toHaveBeenLastCalledWith('fixture', expect.objectContaining({ status: 'failed', error: expect.stringContaining('hash failure') }))
+  it('does not replay/rollback an ambiguous cutover or delete safety artifacts', async () => {
+    mocks.importSurrealDb.mockRejectedValueOnce(Object.assign(new Error('transport ambiguity'), {uncertain: true}))
+    expect((await run()).closed).toBe(true)
+    expect(mocks.wipeDatabase).toHaveBeenCalledOnce()
+    expect(mocks.releaseJob).not.toHaveBeenCalled()
+    expect(mocks.rm).not.toHaveBeenCalled()
+    expect(mocks.transition).toHaveBeenLastCalledWith(owner, expect.objectContaining({state: 'recovery-required'}))
+  })
+  it('rollback failure stays fenced and cannot be overwritten by later metadata success', async () => {
+    mocks.importSurrealDb.mockRejectedValue(new Error('known failed import'))
+    expect((await run()).closed).toBe(true)
+    expect(mocks.releaseJob).not.toHaveBeenCalled()
+    expect(mocks.updateBackupRecord).not.toHaveBeenCalled()
+    expect(mocks.rm).not.toHaveBeenCalled()
   })
 })

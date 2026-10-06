@@ -28,6 +28,9 @@ export default defineEventHandler(async (event) => {
   const originalUrl = event.node.req.url ?? requestUrl.pathname
   if (url.startsWith('/media/') || url.startsWith('/api/media/')) privateMediaHeaders(event)
 
+  // Status has its own exact job-capability/current-owner authorization and
+  // must remain DB-independent while restore has replaced runtime identity.
+  if (event.method === 'GET' && url === '/api/admin/backups/status') return
   if (ALWAYS_ALLOWED_EXACT.has(url)) return
 
   for (const prefix of ALWAYS_ALLOWED_PREFIXES) {

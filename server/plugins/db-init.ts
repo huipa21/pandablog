@@ -1,3 +1,4 @@
+import { writeBarrier } from '../utils/maintenance'
 import { setupAuthority } from '../utils/setup-authority'
 import { ensureAuthEpochs } from '../utils/auth-epoch-migration'
 import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
@@ -52,6 +53,7 @@ const DEFAULT_MEDIA_SETTINGS = {
 }
 
 export default defineNitroPlugin(async () => {
+  if (writeBarrier.status().closed) return // interrupted restore serves recovery/status only
   let rootDb: Awaited<ReturnType<typeof connectRootClient>> | null = null
   try {
     // Boot-time privileged work (provisioning the scoped runtime user, schema
@@ -119,7 +121,7 @@ export default defineNitroPlugin(async () => {
 async function runDeferredBackfillsViaPool() {
   try {
     const db = await useDb()
-    await runDeferredBackfills(db)
+    await writeBarrier.run(() => runDeferredBackfills(db), true)
   } catch (error) {
     console.warn('[db-init] deferred backfills could not start', error)
   }

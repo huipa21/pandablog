@@ -1,6 +1,7 @@
+import { RecordId } from 'surrealdb'
 import { rm } from 'node:fs/promises'
 import * as path from 'node:path'
-import { queryDb, useDb } from '../db'
+import { closeRootClient, connectRootClient, queryDb, useDb } from '../db'
 import { firstRow, queryRows } from '../surrealResult'
 import type { BackupRecord } from './config'
 import { BACKUPS_ROOT } from './config'
@@ -33,7 +34,9 @@ export function normalizeBackupRecord(raw: Record<string, unknown>): BackupRecor
 }
 
 export function backupIdPart(id: string): string {
-  return id.replace(/^backups:/, '')
+  const part = id.replace(/^backups:/, '')
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(part)) throw new Error('Invalid backup identifier')
+  return part
 }
 
 /** Coerces an ISO string / Date into a JS Date for safe datetime binding. */
@@ -49,8 +52,10 @@ function toBackupDate(value: unknown): Date | null {
 
 export async function listBackups(): Promise<BackupRecord[]> {
   const db = await useDb()
-  const res = await queryDb(db, 'SELECT * FROM backups ORDER BY created_at DESC;', undefined, { label: 'list backups' })
-  return queryRows<Record<string, unknown>>(res).map(normalizeBackupRecord)
+  const res = await queryDb(db, 'SELECT * FROM backups ORDER BY created_at DESC LIMIT 129;', undefined, { label: 'list backups', retry: 'readOnly' })
+  const rows = queryRows<Record<string, unknown>>(res)
+  if (rows.length > 128 || Buffer.byteLength(JSON.stringify(rows)) > 16 * 1024 * 1024) throw new Error('Backup history budget exceeded; offline history reconciliation required')
+  return rows.map(normalizeBackupRecord)
 }
 
 export async function getBackup(id: string): Promise<BackupRecord | null> {
@@ -81,11 +86,11 @@ export async function createBackupRecord(data: {
     `CREATE type::record($table, $id) CONTENT {
       type: $type,
       status: 'creating',
-      note: $note,
-      parent: $parent,
-      chain_root: $chain_root,
+      note: $note ?? NONE,
+      parent: $parent ?? NONE,
+      chain_root: $chain_root ?? NONE,
       included_hashes: $included_hashes,
-      included_tables: $included_tables,
+      included_tables: $included_tables ?? NONE,
       db_size_bytes: 0,
       media_size_bytes: 0,
       media_file_count: 0,
@@ -125,8 +130,9 @@ export async function updateBackupRecord(
   for (const [key, val] of Object.entries(fields)) {
     if (val === undefined) continue
     const paramKey = `field_${key}`
-    setClauses.push(`${key} = $${paramKey}`)
-    params[paramKey] = val
+    if (!/^[a-z][a-z0-9_]*$/.test(key)) throw new Error('Invalid backup metadata field')
+    setClauses.push(`${key} = $${paramKey} ?? NONE`)
+    params[paramKey] = key === 'completed_at' ? toBackupDate(val) : val
   }
 
   if (!setClauses.length) return getBackup(id)
@@ -163,15 +169,16 @@ export async function chainHashUnion(id: string): Promise<Set<string>> {
   let currentId: string | null = id
 
   while (currentId) {
-    const key = currentId
-    if (visited.has(key)) break
+    const key = backupIdPart(currentId)
+    if (visited.has(key) || visited.size >= 64) throw new Error('Backup ancestry cycle or depth limit')
     visited.add(key)
 
     const record = await getBackup(key)
-    if (!record) break
+    if (!record || record.status !== 'ready') throw new Error('Backup parent missing or not ready')
 
     for (const h of record.included_hashes) {
       hashes.add(h)
+      if (hashes.size > 20_000) throw new Error('Backup media manifest budget exceeded')
     }
 
     currentId = record.parent
@@ -225,7 +232,13 @@ export async function listDatabaseTables(): Promise<string[]> {
  * import is a true point-in-time replacement.
  */
 export async function wipeDatabase(): Promise<void> {
-  const db = await useDb()
+  const db = await connectRootClient()
+  try {
+    await wipeWithRoot(db)
+  } finally { await closeRootClient(db) }
+}
+
+async function wipeWithRoot(db: Awaited<ReturnType<typeof connectRootClient>>): Promise<void> {
   const info = await queryDb<unknown[]>(db, 'INFO FOR DB;', undefined, {
     label: 'info for db (wipe)',
     timeoutMs: 20_000,
@@ -237,7 +250,7 @@ export async function wipeDatabase(): Promise<void> {
     : entry) as Record<string, unknown> | null
 
   const statements: string[] = []
-  const quote = (name: string) => '`' + name.replace(/`/g, '') + '`'
+  const quote = (name: string) => '`' + name.replace(/\\/g, '\\\\').replace(/`/g, '\\`') + '`'
 
   const tables = root?.tables
   if (tables && typeof tables === 'object') {
@@ -257,6 +270,7 @@ export async function wipeDatabase(): Promise<void> {
   if (functions && typeof functions === 'object') {
     for (const name of Object.keys(functions)) {
       const fnName = name.startsWith('fn::') ? name.slice(4) : name
+      if (!/^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$/.test(fnName)) throw new Error('Unsupported function identifier during wipe')
       statements.push(`REMOVE FUNCTION IF EXISTS fn::${fnName};`)
     }
   }
@@ -265,7 +279,7 @@ export async function wipeDatabase(): Promise<void> {
   if (params && typeof params === 'object') {
     for (const name of Object.keys(params)) {
       const paramName = name.startsWith('$') ? name.slice(1) : name
-      statements.push(`REMOVE PARAM IF EXISTS $${paramName};`)
+      statements.push(`REMOVE PARAM IF EXISTS $${quote(paramName)};`)
     }
   }
 
@@ -281,6 +295,7 @@ export async function wipeDatabase(): Promise<void> {
   await queryDb(db, statements.join('\n'), undefined, {
     label: 'wipe database',
     timeoutMs: 60_000,
+    retry: 'never',
   })
 }
 
@@ -292,8 +307,9 @@ export async function wipeDatabase(): Promise<void> {
 export async function replaceBackupRecords(records: BackupRecord[]): Promise<void> {
   const db = await useDb()
 
-  const statements: string[] = ['DELETE backups;']
-  const params: Record<string, unknown> = {}
+  if (records.length > 128 || Buffer.byteLength(JSON.stringify(records)) > 16 * 1024 * 1024) throw new Error('Backup history budget exceeded')
+  const statements: string[] = ['BEGIN TRANSACTION;', 'DELETE backups WHERE id NOT IN $savedIds;']
+  const params: Record<string, unknown> = {savedIds: records.map(record => new RecordId('backups', backupIdPart(record.id)))}
 
   records.forEach((rec, i) => {
     params[`id_${i}`] = backupIdPart(rec.id)
@@ -317,25 +333,26 @@ export async function replaceBackupRecords(records: BackupRecord[]): Promise<voi
 
     const completedExpr = params[`completed_${i}`] ? `$completed_${i}` : 'NONE'
 
-    statements.push(`CREATE type::record('backups', $id_${i}) CONTENT {
+    statements.push(`UPSERT type::record('backups', $id_${i}) CONTENT {
       type: $type_${i},
       status: $status_${i},
-      note: $note_${i},
-      parent: $parent_${i},
-      chain_root: $chain_root_${i},
+      note: $note_${i} ?? NONE,
+      parent: $parent_${i} ?? NONE,
+      chain_root: $chain_root_${i} ?? NONE,
       included_hashes: $hashes_${i},
-      included_tables: $tables_${i},
+      included_tables: $tables_${i} ?? NONE,
       db_size_bytes: $dbsize_${i},
       media_size_bytes: $mediasize_${i},
       media_file_count: $count_${i},
-      manifest_sha256_db: $sdb_${i},
-      manifest_sha256_media: $smedia_${i},
+      manifest_sha256_db: $sdb_${i} ?? NONE,
+      manifest_sha256_media: $smedia_${i} ?? NONE,
       created_at: $created_${i},
       completed_at: ${completedExpr},
-      error: $error_${i}
+      error: $error_${i} ?? NONE
     };`)
   })
 
+  statements.push('COMMIT TRANSACTION;')
   await queryDb(db, statements.join('\n'), params, {
     label: 'replace backup records',
     timeoutMs: 30_000,

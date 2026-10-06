@@ -1,3 +1,4 @@
+import { writeBarrier } from '../utils/maintenance'
 import { cleanupAnalyticsRetention, rollupCompletedAnalyticsDays } from '../utils/analytics/rollup'
 import { ensureAnalyticsGeoDir } from '../utils/analytics/geo'
 
@@ -5,7 +6,7 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000
 let running = false
 let lastAttemptDate = ''
 
-export default defineNitroPlugin(() => {
+export default defineNitroPlugin((nitro) => {
   void ensureAnalyticsGeoDir()
   void runIfDue()
 
@@ -13,6 +14,7 @@ export default defineNitroPlugin(() => {
     void runIfDue()
   }, CHECK_INTERVAL_MS)
   timer.unref?.()
+  nitro.hooks.hook('close', () => {clearInterval(timer)})
 })
 
 async function runIfDue(now = new Date()) {
@@ -24,8 +26,10 @@ async function runIfDue(now = new Date()) {
   running = true
 
   try {
-    await rollupCompletedAnalyticsDays(now)
-    await cleanupAnalyticsRetention(now)
+    await writeBarrier.run(async () => {
+      await rollupCompletedAnalyticsDays(now)
+      await cleanupAnalyticsRetention(now)
+    }, true)
     lastAttemptDate = attemptDate
   } catch (error) {
     console.warn('[analytics] rollup job failed:', error instanceof Error ? error.message : error)

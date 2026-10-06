@@ -1,6 +1,6 @@
 # Backend hardening: operations and release runbook
 
-**DRAFT — planned behavior, not instructions claiming the current application is fixed.** Finalize in REV-5.2 after implementation and local verification. Task/evidence status is in [progress.md](./progress.md); existing deployed logging behavior remains documented in [logging operations](../logging/operations.md).
+**DRAFT RELEASE RUNBOOK — Phases 0–2 are implemented/tested locally, not deployed or release-approved.** Phase-specific sections below describe implemented controls; later-phase/deployment placeholders remain for REV-5.2. Task/evidence status is in [progress.md](./progress.md); existing deployed logging behavior remains documented in [logging operations](../logging/operations.md).
 
 ## 1. Current operator cautions
 
@@ -9,7 +9,7 @@ Until the relevant tasks are complete:
 - REV-1.1 now revokes sessions/devices using current account epochs locally. Deployment still requires coordinated schema/readers/writers and explicit legacy-cookie reauthentication acceptance.
 - Do not place private media behind a public cache assuming the current application headers are safe; already cached public responses need explicit proxy/CDN invalidation.
 - REV-1.4 now shares an IP-pinned, deadline-bounded SSRF transport locally. Restrict deployed outbound connectivity independently and verify the deployment/module boundary before release.
-- Avoid concurrent large media jobs and large restores on constrained memory; streamed backup creation does not imply streamed restore.
+- Phase 2 restore now streams SQL and fences writes. Its finite limits are compatibility boundaries, not a constrained-production memory guarantee; media upload/analytics/logging resource lanes remain pending.
 - Do not remove migration markers or receipts to bypass a failing startup. REV-1.6 now refuses an unrecognized media layout without resetting the catalog/settings; see the recovery note below.
 - Treat SQL backup artifacts as executable administrator-controlled input and protect them as secrets. Do not validate untrusted imports against a production DB process.
 - No review/handoff activity authorized a production migration, purge, image change or restore.
@@ -31,8 +31,8 @@ Before release record:
 | Persistent media/log/backup/journal/temp paths | pending actual mounts |
 | UID/GID, free-disk reserve and temp quota | pending |
 | Image/KDF/query/log/cache budgets | spec 00 proposes targets; final actual values pending |
-| Backup expanded-byte/import size limits | pending DB-side measurements |
-| Runtime scoped user / privileged maintenance identity | pending verified permissions |
+| Backup expanded-byte/import size limits | local defaults below; 101,476,675-byte fixture measured separately in driver/DB; deployment profile pending |
+| Runtime scoped user / privileged maintenance identity | local 3.2.4 EDITOR/ROOT matrix below; deployment identities pending |
 | Restart/migration/session invalidation effects | pending exact release behavior |
 
 Do not copy proposed spec budgets into production without validating the supported hardware/workload envelope.
@@ -77,7 +77,7 @@ AES-256-GCM v1 secrets stay compatible. One asynchronous scrypt derivation cache
 
 **Persist `storage/setup-authority.json` outside the DB** (the supplied whole-storage bind mount already does). It is an immutable one-time bootstrap receipt, not an auth token or REV-2.2 restore journal. Existing owner/completion/legacy credential evidence seals bootstrap on startup. New setup reserves a receipt exclusively before the one atomic owner+DB claim transaction; losers never update the winner's password. Verified matching DB claim+owner epoch can reconcile a committed response loss. A reserved/corrupt/mismatched receipt, missing/disabled owner, emptied initialized DB, DB outage or unresolved maintenance lock is recovery-required, never open setup. File sync and parent-directory sync are used where supported; Windows directory-fsync limitations are not a Linux power-loss approval.
 
-On recovery-required: stop writers, preserve the receipt/owned claim temporary file, DB/media snapshots and maintenance artifacts, verify the last committed owner/claim on an approved copy, then use reviewed owner/restore recovery under operator authorization. Do **not** delete/edit the receipt or insert markers to make bootstrap available, and do not run the old overwrite-capable setup code alongside this release. An uncommitted reserved claim intentionally requires recovery rather than accepting another owner's password. General restore phase journaling/draining/readiness remains REV-2.2; this receipt protects bootstrap only. Approved-copy, Linux crash/fsync, deployed browser/module/proxy and every release sign-off gate remain pending.
+On recovery-required: stop writers, preserve the receipt/owned claim temporary file, DB/media snapshots and maintenance artifacts, verify the last committed owner/claim on an approved copy, then use reviewed owner/restore recovery under operator authorization. Do **not** delete/edit the receipt or insert markers to make bootstrap available, and do not run the old overwrite-capable setup code alongside this release. An uncommitted reserved claim intentionally requires recovery rather than accepting another owner's password. The Phase 2 restore journal/barrier is separate; this receipt still protects bootstrap only. Approved-copy, Linux crash/fsync, deployed browser/module/proxy and every release sign-off gate remain pending.
 
 ## 3. Pre-release checklist
 
@@ -109,18 +109,58 @@ The read-only media preflight runs before schema synchronization and ownership b
 
 On refusal: stop the app writer, preserve the DB and media mounts, obtain verified backups, and rehearse a layout-specific conversion/verification on an explicitly approved isolated copy. Compare catalog paths, originals and variant metadata before/after; do not insert the current marker to silence the check. Obtain a reviewed converter and operator approval before attempting a production migration. An interrupted fresh marker write is safe to retry; a historical layout remains refused until a verified migration exists. Rolling back to the former initializer can reintroduce destructive reset and is not a safe recovery shortcut.
 
-## 5. Restore/recovery procedure (target)
+## 5. Database and restore safety (Phase 2, locally implemented)
 
-Only use this once REV-2.* is implemented and its exact controls are documented:
+### DB identity, admission and deadline contracts
 
-1. Verify artifact provenance, checksums, compatibility, expanded-size limits and disk reservation.
-2. Start one owner-authorized job and confirm a durable journal plus closed mutation admission.
-3. Require successful drain and staged validation before wipe. A failed drain/validation aborts without changing live data.
-4. Follow journal state through safety snapshot, destructive cutover, schema/credential repair, media publication and verification. Status must remain available through the approved owner-scoped mechanism without reopening general auth/setup.
-5. On error, leave consistency decisions to the journaled recovery procedure. Do not delete `.job.lock`, phase files or safety snapshots to make the UI usable.
-6. If rollback fails, keep service fenced; preserve DB/media safety artifacts and error evidence for reviewed recovery.
-7. Reopen only after DB/media/auth/cache verification. Release stale rebuild workers only under the committed generation/admission policy.
-8. Retain or remove safety artifacts according to the verified commit/recovery policy, never because a request timed out.
+The shared runtime client uses DATABASE EDITOR when both configured runtime credentials exist. Partial credential configuration refuses; legacy ROOT fallback emits one non-secret warning. Boot, wipe, security DDL and credential provisioning use separately owned ROOT clients; HTTP export/import use explicit ROOT credentials and namespace/database headers, never inbound credentials. Real 3.2.4 EDITOR acceptance: ordinary CRUD, `INFO FOR DB` and tested table DDL succeed; database/user provisioning fails. This is not a claim that every EDITOR DDL fails.
+
+Handshake stages each have a 10-second **response** deadline; close waits at most 2 seconds. Late uncancellable connects remain owned and are closed after settlement; failed/pending disposal retains the five-client budget. Shared initialization is single-flight with 250-ms exponential failure backoff capped at 30 seconds plus up to 20% jitter. The 30-second keepalive captures its exact generation, never overlaps probes, and pauses under maintenance. Nitro close stops admission/timers and drains for 5 seconds before bounded disposal.
+
+Query lanes: foreground **8 active / 32 waiting**, background/ROOT **2 active / 8 waiting**, 2-second admission wait. Default SDK response deadline is 15 seconds (validated 1–300,000 ms). A caller deadline/abort does **not** release still-executing work. Raw SDK 2.0.3 queries have no per-query AbortSignal/cancel method; supported transaction cancel is not cancellation of an arbitrary already-dispatched script or HTTP import. Real acceptance demonstrates a late CREATE still commits after the caller timeout. Auth rejection and a first `SELECT` token do not authorize replay. Entire-script retry metadata defaults to `never`; authored read helpers classify their known read scripts, and only explicitly read-only/idempotent operations can reconnect/retry once. Dedicated ROOT is never retried through runtime credentials. SDK `.responses()` inspection preserves the actual transaction error rather than the first cancelled-statement mask.
+
+`TIMEOUT` is applied only in an authored/supported statement, not appended to arbitrary scripts. Server-side `SELECT ... TIMEOUT` is verified on 3.2.4 and reported separately from response-only expiry. Operators should explicitly bound the deployed DB using its supported `--query-timeout` / `--transaction-timeout` settings (initial rehearsal target: 5 minutes), with independent DB memory limits. Closing fetch/socket is not execution-cancellation proof. Unclassified/write SDK transport ambiguity persists `storage/backups/.uncertain-writes.json`; destructive admission is refused until offline quiescence/recovery is verified. Do not blindly repeat counters/CREATE/RELATE/wipe after an uncertain response.
+
+### Persistent ownership and resource defaults
+
+Persist the entire storage root, including `setup-authority.json`, backup ownership directories, journal and safety artifacts. [Writer inventory](./writer-inventory.md) identifies all covered request/background/native/FS lanes. Exactly one writer is enforced with `.writer.lock`; multi-host/worker deployments and external concurrent DB writers are unsupported. Clean shutdown removes ownership only after verified drain. **Unclean writer restart requires offline inspection**; a dead PID cannot prove the server stopped its old queries. Interrupted restore/uncertainty journals start health/status-only recovery with boot migrations disabled. Legacy `.job.lock` files, corrupt/empty/remote owners and abandoned `.ownership.guard` are not automatically overwritten or TTL-stolen.
+
+| Resource | Implemented default / meaning |
+|---|---|
+| Backup-family jobs | 1, no queue; create/import/restore/consolidation/delete/prune share ownership |
+| Ready download streams | 8, no queue; 5-minute transfer deadline; private, no-store |
+| Expanded SQL/import body | 128 MiB; finite DB-compatible cap, not arbitrary-size restore |
+| Compressed DB upload/archive | 256 MiB; actual expansion is checked independently |
+| Expanded/compressed media tar | 2 GiB each, including tar framing; at most 20,000 originals / 40,000 entries |
+| Manifest / HTTP statement results | 4 MiB / 1 MiB; strict arrays/statuses; max 10,000 statement responses, 8 clipped error samples |
+| Snapshot profile | Up to 200 tables; exact counts + first 3 stable-ID record samples + relation-reference validation |
+| Backup history / ancestry | 128 records, 16-MiB serialized metadata; 64-parent depth, cycle/missing-parent refusal |
+| Free-disk reserve | 512 MiB; preflight plus rechecks as streams arrive. Include staged/safety SQL and old/new originals/variants |
+| Transport/file pipelines / restore | 5 minutes per pipeline/HTTP operation; 30-minute restore checkpoints/variant deadline |
+| Restore image regeneration | Sequential; 32-MiB input and 40-million-pixel check per image, 2-GiB variant output budget |
+
+No dump-sized buffers, sync gunzip/gzip or semicolon-splitting SQL parser are used. Files are staged exclusively and streams have backpressure. Native/fs operations which cannot cancel are not falsely freed: a stuck operation remains owned/fenced rather than authorizing overlap. Media swap requires regular directories on the **same filesystem supporting directory rename**; separately mounted upload/variant mountpoints need an approved-copy rehearsal or another reviewed publication design. POSIX file/directory sync is used where supported; Windows directory-sync skips are not Linux power-loss acceptance.
+
+The 128-MiB SQL cap is a deliberate conservative compatibility boundary based on the local 96-MiB-class driver/DB measurement, not proof of an arbitrary dump larger than a 1-GiB app budget. Large historical artifacts refuse before wipe. Raising budgets requires DB-side/resource measurements and reviewed changes, not a larger Node heap flag. Generic proxy upload limits may be smaller; do not remove limits broadly to accommodate backups.
+
+### Normal restore and status
+
+1. Verify provenance, SHA-256, layout compatibility and disk headroom on an approved isolated copy. SQL archives execute with ROOT; staging is **not a sandbox for hostile SQL**. Treat dumps as credentials. External registration accepts self-contained full snapshots only; malformed/partial/incremental manifests reject instead of losing their ancestry. Symlinks, hardlinks, devices, traversal, unexpected/duplicate tar entries and expansion bombs reject in an owned stage.
+2. Current superadmin POSTs `/api/admin/backups/<id>/restore` with `{confirm_token: 'RESTORE_<id>', mode: 'replace'}` (8-KiB body cap). Response 202 includes `status_token`. Poll only exact GET `/api/admin/backups/status` with `X-PandaBlog-Restore-Status: <status_token>` during maintenance. The capability is hash-persisted, expires after 24 hours, is confined to that restore's status, and cannot authorize login/setup/download/other jobs. Do not put it in URLs/logs. Without it a stale cookie cannot authorize status while closed; process health remains `/api/health`.
+3. The job reserves ownership, persists `.restore-journal.json`, closes new work, drains existing leases, resolves a bounded chain, validates SQL/media in staging, and takes/verifies current SQL plus a media rename plan before wipe. `validate_before_restore=false` does not skip this safety boundary; `auto_safety_snapshot=false` rejects automatic restore and requires an approved offline recovery mode. Unsupported media markers and historical nonempty `access_logs` require their reviewed conversion/receipt-verified migration on a copy, never marker bypass/deletion.
+4. Selected partial tables **replace** their base tables, including deleted records. Empty selection never means all tables. Nonselected base state must stay unchanged; dangling or changed related graph state rejects and requires selecting compatible related tables. The worker verifies imported counts/representative records, applies additive current definitions without unrelated REMOVE/UPDATE/index replacement, reprovisions/verifies configured runtime credentials, rotates every account epoch, deletes trusted devices and recycles the runtime client.
+5. Staged originals replace uploads via a journaled rename plan. Variants regenerate while still exclusively owned, using the original year/month and persisted new metadata. No detached old-generation rebuild can publish after release. Settings/security/log caches refresh, Nitro post keys change generation, and service reopens only after committed/rolled-back journal durability. Backup history is taken before wipe and reconciled from that saved generation, not a replaced table. History reconciliation failure is conservatively fatal, not silently reported as clean success.
+6. Successful commit or verified paired DB/originals/variants rollback removes the owned safety directory **after** durable verification/release. Both outcomes invalidate previous cookies/devices; sign in again using the restored account credentials/MFA. Restore intentionally returns account/settings data to snapshot-era values; it does not restore prior cookie authority. Public bytes already distributed or cached at a proxy/CDN cannot be recalled by app invalidation; purge/rehearse those boundaries separately.
+
+### Offline recovery (no public unfence endpoint)
+
+- If destructive work or rollback fails, or execution is ambiguous, the worker preserves `.restore-<owner-token>/safety.surql`, old originals/variants, stage artifacts, owner markers and journal and remains fenced. `recovery_required` describes a closed recovery condition; `restore_blocked` also identifies ordinary-service uncertainty which forbids new heavy jobs. A timed-out HTTP/SDK write may still execute: do **not** start rollback against it automatically.
+- Stop all app writers and independently establish DB execution quiescence (including stopping/restarting the separately managed DB when needed under operator approval). Preserve current DB/media/config and every journal/receipt/safety artifact first. Never use a PID/TTL or deleting a lock as proof of consistency.
+- Inspect the bounded journal and recorded artifact paths/owner generation offline. Rehearse verified import of the safety SQL and matching original/variant generation on an explicitly approved copy. A crash between renames is resolved from actual path existence and content hashes; no DB+filesystem atomicity or automatic resume is claimed.
+- If recovering pre-wipe or nonrestore ownership, still verify any pending server writes and artifact/metadata state. Unreadable/legacy markers and abandoned guards require inspection, not overwrite. Bootstrap `setup-authority.json` is monotonic and must never be removed to reopen setup.
+- Only after DB/media/auth/config/cache consistency and server quiescence are independently verified may an operator archive the **specific** completed/aborted journal and ownership/uncertainty markers under the approved offline procedure and restart one writer. There is no recovery CLI or ROOT HTTP endpoint in this release; do not invent blanket storage cleanup commands. Preserve safety data until the recovered deployment is accepted.
+
+Linux crash/fsync/rename/mount/disk-full, actual Nitro/module/browser/proxy, constrained mixed-load and production-copy/operator release acceptance remain pending.
 
 Rollback of a release is not necessarily an image-only operation. Schema states, auth epochs, media publication claims and journal format may require restoring the consistent pre-cutover snapshot or a supported downgrade path. Document the exact supported path before production.
 

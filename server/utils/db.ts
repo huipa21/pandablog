@@ -1,399 +1,304 @@
 import { Surreal } from 'surrealdb'
+import { createError } from 'h3'
+import { BoundedAdmission } from './admission'
 import { firstRow } from './surrealResult'
+import { writeBarrier } from './maintenance'
 
-interface QueryOptions {
+export interface QueryOptions {
   label?: string
+  /** Response deadline only. Raw SDK queries have no per-query cancellation. */
   timeoutMs?: number
+  /** Classification of the ENTIRE script; default is never replay. */
+  retry?: 'never' | 'readOnly' | 'idempotent'
+  /** Legacy false remains supported; true does not classify a query as safe. */
   retryOnReconnect?: boolean
+  lane?: 'foreground' | 'background'
+  signal?: AbortSignal
 }
 
 let client: Surreal | null = null
-// Dedicated privileged clients must never be redirected to the runtime pool.
 const rootClients = new WeakSet<Surreal>()
+const ownedClients = new Set<Surreal>()
+const pendingConnections = new Set<Surreal>()
 let connectionPromise: Promise<Surreal> | null = null
 let connectionGeneration = 0
-let keepAliveTimer: ReturnType<typeof globalThis.setInterval> | null = null
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null
+let probing = false
+let stopped = false
+let closing: Promise<void> | undefined
+let failures = 0
+let nextConnectAt = 0
+let lastConnectError: Error | undefined
+let warnedRootFallback = false
+const foreground = new BoundedAdmission({ active: 8, waiting: 32, waitMs: 2_000 }, 'Database foreground work')
+const background = new BoundedAdmission({ active: 2, waiting: 8, waitMs: 2_000 }, 'Database background work')
 
-const KEEP_ALIVE_INTERVAL_MS = 30_000
-
-interface RuntimeCredentials {
-  scope: 'database' | 'root'
-  signin: Parameters<Surreal['signin']>[0]
+export function databaseDiagnostics() {
+  return { foreground: foreground.diagnostics(), background: background.diagnostics(), ownedClients: ownedClients.size, nextConnectAt, stopped }
 }
 
-/**
- * Resolve which identity the runtime connection pool should authenticate as.
- *
- * When `SURREAL_APP_USER` + `SURREAL_APP_PASSWORD` are both configured, normal
- * request traffic signs in as that least-privilege, DATABASE-scoped EDITOR
- * user. Otherwise it falls back to root for backward compatibility.
- */
-function resolveRuntimeCredentials(): RuntimeCredentials {
+function credentials(root: boolean) {
   const config = useRuntimeConfig()
   const appUser = String(config.surrealAppUser ?? '').trim()
   const appPassword = String(config.surrealAppPassword ?? '')
-
-  if (appUser && appPassword) {
-    return {
-      scope: 'database',
-      signin: {
-        namespace: config.surrealNamespace,
-        database: config.surrealDatabase,
-        username: appUser,
-        password: appPassword
-      }
-    }
+  if (!root && Boolean(appUser) !== Boolean(appPassword)) throw new Error('Configure both SurrealDB runtime credentials')
+  if (!root && appUser && appPassword) return {
+    scope: 'database', signin: { namespace: config.surrealNamespace, database: config.surrealDatabase, username: appUser, password: appPassword }
   }
-
-  return {
-    scope: 'root',
-    signin: {
-      username: config.surrealRoot,
-      password: config.surrealRootPassword
-    }
+  if (!root && !warnedRootFallback) {
+    warnedRootFallback = true
+    console.warn('[db] Runtime uses legacy ROOT fallback; configure both scoped runtime credentials for production')
   }
+  return { scope: 'root', signin: { username: config.surrealRoot, password: config.surrealRootPassword } }
 }
 
-async function connectDb(generation: number) {
+/** Construction owns the socket, including late uncancellable connect completion. */
+async function handshake(root: boolean, generation?: number): Promise<Surreal> {
+  if (stopped) throw new Error('Database is shutting down')
   const config = useRuntimeConfig()
-  const credentials = resolveRuntimeCredentials()
+  const identity = credentials(root)
+  if (ownedClients.size >= 5) throw createError({ statusCode: 503, message: 'Database client capacity exceeded' })
   const db = new Surreal()
-  const startedAt = Date.now()
-
-  await withTimeout(db.connect(config.surrealUrl), 10_000, `Could not connect to SurrealDB at ${config.surrealUrl}`)
-  const socketAt = Date.now()
-  await withTimeout(db.signin(credentials.signin), 10_000, 'Could not authenticate with SurrealDB')
-  await withTimeout(db.use({
-    namespace: config.surrealNamespace,
-    database: config.surrealDatabase
-  }), 10_000, 'Could not select SurrealDB namespace/database')
-  const readyAt = Date.now()
-
-  if (generation !== connectionGeneration) {
+  ownedClients.add(db)
+  let abandoned = false
+  const started = Date.now()
+  const check = () => {
+    if (abandoned || stopped || (generation !== undefined && generation !== connectionGeneration)) throw new Error('Discarded stale database handshake')
+  }
+  try {
+    pendingConnections.add(db)
+    let connecting: Promise<unknown>
+    try {connecting = Promise.resolve(db.connect(config.surrealUrl))} catch (error) {pendingConnections.delete(db); throw error}
+    // Keep the constructor's ownership budget even if close() resolves before
+    // an uncancellable connect. Late allocation is closed, never orphaned.
+    void connecting.then(() => {pendingConnections.delete(db); if (abandoned || stopped) return closeDbClient(db)}, () => {pendingConnections.delete(db); if (abandoned || stopped) return closeDbClient(db)}).catch(() => {})
+    await withTimeout(connecting, 10_000, 'Database connection deadline exceeded')
+    check()
+    await withTimeout(Promise.resolve(db.signin(identity.signin)), 10_000, 'Database authentication deadline exceeded')
+    check()
+    await withTimeout(Promise.resolve(db.use({ namespace: config.surrealNamespace, database: config.surrealDatabase })), 10_000, 'Database selection deadline exceeded')
+    check()
+    if (root) rootClients.add(db)
+    else { client = db; startKeepAlive(); failures = 0; nextConnectAt = 0 }
+    console.info(`[db] connected as ${identity.scope} in ${Date.now() - started}ms`)
+    return db
+  } catch {
+    abandoned = true
     await closeDbClient(db)
-    throw new Error('Discarded stale SurrealDB connection attempt')
+    // SDK handshake errors can echo credentials/endpoints. Never relay them.
+    throw createError({statusCode: 503, message: 'Database handshake failed (connection, authentication or selection)'})
   }
-
-  client = db
-  startKeepAlive()
-
-  // (Re)connects are infrequent, so always surface how long the handshake took.
-  // A large value on the first request after idle is the signature of a stale
-  // socket being re-established on the request path (the slow-cold-load cause).
-  console.info(`[db] connected as ${credentials.scope} in ${readyAt - startedAt}ms (socket ${socketAt - startedAt}ms, auth+use ${readyAt - socketAt}ms)`)
-
-  return db
 }
 
-function startKeepAlive() {
-  if (keepAliveTimer) {
-    return
-  }
-
-  keepAliveTimer = globalThis.setInterval(async () => {
-    if (!client) {
-      stopKeepAlive()
-      return
+export async function useDb(): Promise<Surreal> {
+  if (stopped) throw createError({ statusCode: 503, message: 'Database is shutting down' })
+  if (client) return client
+  if (connectionPromise) return connectionPromise
+  if (Date.now() < nextConnectAt) throw lastConnectError ?? new Error('Database reconnect backoff')
+  const generation = ++connectionGeneration
+  connectionPromise = handshake(false, generation).catch(error => {
+    if (generation === connectionGeneration) {
+      failures = Math.min(failures + 1, 8)
+      nextConnectAt = Date.now() + Math.min(30_000, 250 * 2 ** (failures - 1)) * (1 + Math.random() * 0.2)
+      lastConnectError = error
     }
-
-    try {
-      // Probe with an auth-gated statement instead of `RETURN 1` (which any
-      // anonymous session can answer). If SurrealDB has silently dropped our
-      // auth, `INFO FOR DB` fails here and we reconnect in the background,
-      // instead of letting the next real request pay the reconnect cost.
-      await withTimeout(client.query('INFO FOR DB'), 5_000, 'keep-alive timed out')
-    } catch (error: any) {
-      if (import.meta.dev) {
-        console.warn('[db] keep-alive failed, resetting connection:', error?.message)
-      }
-
-      await discardDbConnection(client)
-      stopKeepAlive()
-      // Proactively reconnect so the next request doesn't pay the reconnect cost.
-      useDb().catch(() => {})
-    }
-  }, KEEP_ALIVE_INTERVAL_MS)
-}
-
-function stopKeepAlive() {
-  if (keepAliveTimer) {
-    globalThis.clearInterval(keepAliveTimer)
-    keepAliveTimer = null
-  }
-}
-
-export async function useDb() {
-  if (client) {
-    return client
-  }
-
-  if (!connectionPromise) {
-    const generation = ++connectionGeneration
-    connectionPromise = connectDb(generation).catch((error) => {
-      if (generation === connectionGeneration) {
-        connectionPromise = null
-      }
-      throw error
-    })
-  }
-
+    throw error
+  }).finally(() => { if (generation === connectionGeneration) connectionPromise = null })
   return connectionPromise
 }
 
-export async function queryDb<T extends unknown[] = unknown[]>(db: Surreal, sql: string, params?: Record<string, unknown>, options: QueryOptions = {}): Promise<T> {
-  const timeoutMs = options.timeoutMs ?? 15_000
-  const label = options.label ?? summarizeQuery(sql)
-  const startedAt = Date.now()
-  let queryClient = resolveQueryClient(db)
-
+function startKeepAlive() {
+  if (keepAliveTimer || stopped) return
+  keepAliveTimer = setInterval(() => { void probeConnection() }, 30_000)
+  keepAliveTimer.unref?.()
+}
+async function probeConnection() {
+  const probed = client
+  const generation = connectionGeneration
+  if (!probed || probing || stopped || writeBarrier.status().closed) return
+  probing = true
   try {
-    return await runQuery<T>(queryClient, sql, params, timeoutMs, label)
-  } catch (error: any) {
-    let failure = error
+    await runQuery(probed, 'INFO FOR DB', undefined, { timeoutMs: 5_000, lane: 'background', retry: 'readOnly' })
+  } catch {
+    if (probed === client && generation === connectionGeneration && !stopped) {
+      await discardDbConnection(probed)
+      void useDb().catch(() => {})
+    }
+  } finally { probing = false }
+}
+function stopKeepAlive() {
+  if (keepAliveTimer) clearInterval(keepAliveTimer)
+  keepAliveTimer = null
+}
 
-    if (options.retryOnReconnect !== false && !rootClients.has(queryClient) && isConnectionError(error)) {
-      await discardDbConnection(queryClient)
-
-      // Auth-rejection means SurrealDB refused the request before executing
-      // it (silent re-auth loss -> anonymous). The query had no side effects,
-      // so it is always safe to retry, even for writes. For socket-level
-      // failures the operation may have partially executed, so keep the
-      // read-only guard.
-      const safeToRetry = isAuthRejectionError(error) || isReadOnlyQuery(sql)
-
-      if (safeToRetry) {
-        try {
-          queryClient = await useDb()
-          const result = await runQuery<T>(queryClient, sql, params, timeoutMs, label)
-
-          if (import.meta.dev) {
-            console.warn(`[db] recovered connection and retried query: ${label}`)
-          }
-
-          return result as T
-        } catch (retryError: any) {
-          failure = retryError
+export async function queryDb<T extends unknown[] = unknown[]>(db: Surreal, sql: string, params?: Record<string, unknown>, options: QueryOptions = {}): Promise<T> {
+  const started = Date.now()
+  // Dedicated ROOT must never be rerouted through a runtime identity.
+  let selected = client && client !== db && !rootClients.has(db) ? client : db
+  try {
+    try { return await runQuery<T>(selected, sql, params, options) }
+    catch (error) {
+      if (!rootClients.has(selected) && isConnectionError(error)) {
+        await discardDbConnection(selected)
+        if (options.retryOnReconnect !== false && (options.retry === 'readOnly' || options.retry === 'idempotent') && !options.signal?.aborted) {
+          selected = await useDb()
+          return await runQuery<T>(selected, sql, params, options)
         }
       }
+      throw error
     }
-
-    const message = failure?.message ?? 'Database query failed'
-    const statusCode = isConnectionError(failure)
-      ? 503
-      : message.includes('timed out')
-        ? 504
-        : 500
-    throw createError({ statusCode, message })
+  } catch (error) {
+    const status = (error as { statusCode?: number }).statusCode
+    if (status) throw error
+    const connectionError = isConnectionError(error)
+    const deadline = error instanceof ResponseDeadlineError
+    const serverTimeout = Boolean((error as {timeout?: unknown})?.timeout)
+    throw createError({
+      statusCode: connectionError ? 503 : deadline || serverTimeout ? 504 : 500,
+      message: deadline ? 'Database response deadline exceeded' : connectionError ? isAuthRejectionError(error) ? 'Database authorization failed' : 'Database connection failed' : redactDatabaseError(error),
+      data: { kind: deadline ? 'response-deadline' : serverTimeout ? 'server-timeout' : isAuthRejectionError(error) ? 'authorization' : connectionError ? 'connection' : 'query', uncertain: options.retry !== 'readOnly' && (deadline || connectionError) }
+    })
   } finally {
-    const elapsed = Date.now() - startedAt
-    if (import.meta.dev && elapsed > 750) {
-      console.warn(`[db] slow query (${elapsed}ms): ${label}`)
-    }
+    if (import.meta.dev && Date.now() - started > 750) console.warn(`[db] slow query (${Date.now() - started}ms): ${options.label ?? 'unlabelled operation'}`)
   }
 }
 
-async function runQuery<T extends unknown[] = unknown[]>(db: Surreal, sql: string, params: Record<string, unknown> | undefined, timeoutMs: number, label: string): Promise<T> {
-  const result = await withTimeout(
-    db.query<T>(sql, params) as Promise<T>,
-    timeoutMs,
-    `Database query timed out after ${timeoutMs}ms: ${label}`
-  )
-
-  return result as T
+class ResponseDeadlineError extends Error {}
+async function runQuery<T extends unknown[] = unknown[]>(db: Surreal, sql: string, params: Record<string, unknown> | undefined, options: QueryOptions): Promise<T> {
+  const ms = options.timeoutMs ?? 15_000
+  if (!Number.isInteger(ms) || ms < 1 || ms > 300_000) throw new Error('Invalid database response deadline')
+  const admission = options.lane === 'background' || writeBarrier.isBackground() || rootClients.has(db) ? background : foreground
+  const releaseBarrier = writeBarrier.acquire()
+  let releaseAdmission: () => void
+  try { releaseAdmission = await admission.acquire(options.signal) } catch (error) {releaseBarrier(); throw error}
+  const release = () => {releaseAdmission(); releaseBarrier()}
+  let execution: Promise<T>
+  try {
+    if (options.signal?.aborted) throw new Error('Database operation aborted before execution')
+    // Retain admission until actual SDK settlement, even after caller timeout.
+    const query = db.query(sql, params)
+    execution = (typeof query.responses === 'function' ? collectResponses(query) : Promise.resolve(query)).catch(async error => {
+      if (options.retry !== 'readOnly' && isConnectionError(error)) await writeBarrier.noteUncertain()
+      throw error
+    }).finally(release) as Promise<T>
+  } catch (error) { release(); throw error }
+  return withTimeout(execution, ms, 'Database response deadline exceeded', options.signal)
 }
 
-function resolveQueryClient(db: Surreal) {
-  return client && client !== db && !rootClients.has(db) ? client : db
+async function collectResponses(query: ReturnType<Surreal['query']>) {
+  const responses = await query.responses()
+  if (responses.length > 10_000) throw new Error('Database statement response count exceeded')
+  const failures = responses.filter(response => !response.success)
+  // SDK collect() throws the first cancelled statement, masking a later
+  // business/constraint error. Inspect ALL responses without replaying work.
+  const failure = failures.find(response => !response.success && !/(not executed due to a failed transaction|transaction was not successful|query was cancelled)/i.test(response.error.message)) ?? failures[0]
+  if (failure && !failure.success) throw failure.error
+  return responses.map(response => response.success ? response.result : undefined)
 }
 
-async function discardDbConnection(staleClient?: Surreal | null) {
-  if (staleClient && client && staleClient !== client) {
-    return
-  }
-
-  if (!client && connectionPromise) {
-    return
-  }
-
-  const activeClient = staleClient ?? client
-  connectionGeneration += 1
+async function discardDbConnection(stale?: Surreal | null) {
+  if (stale && client && stale !== client) { await closeDbClient(stale); return }
+  if (!client && connectionPromise && stale) {await closeDbClient(stale); return}
+  const old = stale ?? client
+  connectionGeneration++
   client = null
   connectionPromise = null
   stopKeepAlive()
-  await closeDbClient(activeClient)
+  await closeDbClient(old)
 }
 
-async function closeDbClient(db: Surreal | null | undefined) {
-  if (!db) {
-    return
-  }
-
-  const closable = db as Surreal & { close?: () => Promise<void> | void }
-
+async function closeDbClient(db?: Surreal | null) {
+  if (!db) return
   try {
-    await closable.close?.()
-  } catch {
-    // Ignore close failures while discarding a broken connection.
-  }
+    const closed = Promise.resolve(db.close()).then(() => {if (!pendingConnections.has(db)) ownedClients.delete(db)})
+    await withTimeout(closed, 2_000, 'Database close deadline exceeded')
+  } catch { /* Retain ownership/budget on failed or still-pending close. */ }
 }
 
-/**
- * Open a short-lived, ROOT-authenticated client that is NOT registered in the
- * shared connection pool. Used at boot for privileged operations (provisioning
- * the scoped runtime user, schema/migrations) that the EDITOR-scoped runtime
- * user is not allowed to perform. The caller MUST close it with
- * `closeRootClient` when finished.
- */
-export async function connectRootClient(): Promise<Surreal> {
-  const config = useRuntimeConfig()
-  const db = new Surreal()
+export async function recycleRuntimeConnection() {
+  await discardDbConnection()
+  failures = 0; nextConnectAt = 0; lastConnectError = undefined
+}
+export function connectRootClient(): Promise<Surreal> { return handshake(true) }
+export async function closeRootClient(db?: Surreal | null) { await closeDbClient(db) }
 
-  await withTimeout(db.connect(config.surrealUrl), 10_000, `Could not connect to SurrealDB at ${config.surrealUrl}`)
-  await withTimeout(db.signin({
-    username: config.surrealRoot,
-    password: config.surrealRootPassword
-  }), 10_000, 'Could not authenticate with SurrealDB (root)')
-  await withTimeout(db.use({
-    namespace: config.surrealNamespace,
-    database: config.surrealDatabase
-  }), 10_000, 'Could not select SurrealDB namespace/database')
-
-  rootClients.add(db)
-  return db
+/** Stop admission first; preserve ownership of active work until settlement/close. */
+export function shutdownDb(): Promise<void> {
+  if (closing) return closing
+  stopped = true
+  connectionGeneration++
+  stopKeepAlive()
+  closing = (async () => {
+    await Promise.all([foreground.shutdown(5_000), background.shutdown(5_000)])
+    await Promise.all([...ownedClients].map(closeDbClient))
+    client = null
+  })()
+  return closing
 }
 
-/** Close a client created by `connectRootClient` (ignores failures). */
-export async function closeRootClient(db: Surreal | null | undefined) {
-  await closeDbClient(db)
-}
-
-/**
- * Provision (or update) the least-privilege DATABASE-scoped runtime user using
- * a root-authenticated client. Idempotent via `OVERWRITE`, so rotating
- * `SURREAL_APP_PASSWORD` simply takes effect on the next boot. No-op when the
- * scoped runtime user is not configured (root fallback mode).
- *
- * SurrealDB's `DEFINE USER ... PASSWORD` requires a string literal and rejects
- * bound parameters, so the password is embedded as an escaped SurrealQL strand
- * (backslashes and double quotes escaped) and the username is restricted to a
- * plain identifier. Any failure is rethrown with the password redacted so a
- * SurrealDB parse/permission error (which can echo the statement) never leaks
- * the secret into logs.
- */
 export async function provisionAppDatabaseUser(rootDb: Surreal): Promise<boolean> {
   const config = useRuntimeConfig()
-  const appUser = String(config.surrealAppUser ?? '').trim()
-  const appPassword = String(config.surrealAppPassword ?? '')
-
-  if (!appUser || !appPassword) {
-    return false
-  }
-
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(appUser)) {
-    throw new Error('SURREAL_APP_USER must be a simple identifier (letters, digits, underscore; not starting with a digit)')
-  }
-
-  const passwordLiteral = `"${appPassword.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-
+  const user = String(config.surrealAppUser ?? '').trim()
+  const password = String(config.surrealAppPassword ?? '')
+  if (!user && !password) return false
+  if (!user || !password || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(user)) throw new Error('Invalid scoped SurrealDB runtime credentials')
+  const literal = `"${password.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
   try {
-    await withTimeout(
-      rootDb.query(`DEFINE USER OVERWRITE ${appUser} ON DATABASE PASSWORD ${passwordLiteral} ROLES EDITOR;`),
-      10_000,
-      'Could not provision the scoped SurrealDB runtime user'
-    )
-  } catch (error) {
-    const raw = error instanceof Error ? error.message : String(error)
-    const redacted = raw.split(appPassword).join('***')
-    throw new Error(`Could not provision the scoped SurrealDB runtime user: ${redacted}`)
+    await queryDb(rootDb, `DEFINE USER OVERWRITE ${user} ON DATABASE PASSWORD ${literal} ROLES EDITOR;`, undefined, { label: 'provision scoped runtime identity', timeoutMs: 10_000, retry: 'never' })
+  } catch {
+    // No raw/escaped password, SQL or nested SDK cause escapes this boundary.
+    throw new Error('Could not provision the scoped SurrealDB runtime user')
   }
-
   return true
-}
-
-
-function isReadOnlyQuery(sql: string) {
-  return /^\s*(SELECT|INFO|RETURN)\b/i.test(sql)
 }
 
 function errorMessage(error: unknown) {
   const value = error as { message?: string, cause?: { message?: string } }
-  return [value?.message, value?.cause?.message]
-    .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
-    .join(' ')
+  return [value?.message, value?.cause?.message].filter((entry): entry is string => typeof entry === 'string').join(' ')
 }
-
-function isTransientConnectionError(error: unknown) {
-  // Also matches the SurrealDB SDK's own phrasing:
-  // "You must be connected to a SurrealDB instance before performing this operation"
+function redactDatabaseError(error: unknown) {
+  let message = errorMessage(error) || 'Database query failed'
+  const config = typeof useRuntimeConfig === 'function' ? useRuntimeConfig() : {surrealRootPassword: undefined, surrealAppPassword: undefined}
+  for (const secret of [config.surrealRootPassword, config.surrealAppPassword]) {
+    if (typeof secret !== 'string' || !secret) continue
+    for (const form of [secret.replace(/\\/g, '\\\\').replace(/"/g, '\\"'), secret]) message = message.split(form).join('***')
+  }
+  return message.slice(0, 1_000)
+}
+function isAuthRejectionError(error: unknown) {
+  const kind = (error as {kind?: string})?.kind
+  return (!kind || kind === 'NotAllowed') && /(anonymous access not allowed|not enough permissions to perform this action|token.*expired|invalid.*authentication)/i.test(errorMessage(error))
+}
+function isConnectionError(error: unknown) {
+  if (isAuthRejectionError(error)) return true
+  const kind = (error as {kind?: string})?.kind
+  // Structured server replies prove execution settled. A user THROW or field
+  // named "socket" is not a transport failure or authorization rejection.
+  if (kind && kind !== 'Connection') return false
   return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound|must be connected|not connected)/i.test(errorMessage(error))
 }
-
-function isAuthRejectionError(error: unknown) {
-  return /(anonymous access not allowed|not enough permissions to perform this action)/i.test(errorMessage(error))
-}
-
-function isConnectionError(error: unknown) {
-  return isTransientConnectionError(error) || isAuthRejectionError(error)
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  let timeout: NodeJS.Timeout | undefined
-
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string, signal?: AbortSignal): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let abort: (() => void) | undefined
   try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error(message)), ms)
-      })
-    ])
+    return await Promise.race([promise, new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new ResponseDeadlineError(message)), ms)
+      abort = () => reject(new ResponseDeadlineError('Database caller aborted; execution may continue'))
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
+    })])
   } finally {
-    if (timeout) {
-      clearTimeout(timeout)
-    }
+    if (timer) clearTimeout(timer)
+    if (abort) signal?.removeEventListener('abort', abort)
   }
 }
 
-function summarizeQuery(sql: string) {
-  return sql.replace(/\s+/g, ' ').trim().slice(0, 120)
-}
-
-export async function queryDbRecord<T extends Record<string, unknown> = Record<string, unknown>>(
-  db: Surreal,
-  table: string,
-  id: string,
-  options: QueryOptions = {}
-) {
-  const response = await queryDb(
-    db,
-    'SELECT * FROM type::record($table, $id) LIMIT 1;',
-    { table, id },
-    options
-  )
-
+export async function queryDbRecord<T extends Record<string, unknown> = Record<string, unknown>>(db: Surreal, table: string, id: string, options: QueryOptions = {}) {
+  const response = await queryDb(db, 'SELECT * FROM type::record($table, $id) LIMIT 1;', { table, id }, { retry: 'readOnly', ...options })
   return firstRow<T>(response)
 }
-
-export async function findBySlug<T extends { id: unknown } = { id: unknown }>(
-  db: Surreal,
-  table: string,
-  slug: string,
-  options: QueryOptions = {}
-) {
-  const tableName = safeTableName(table)
-  const response = await queryDb(
-    db,
-    `SELECT id FROM ${tableName} WHERE slug = $slug LIMIT 1;`,
-    { slug },
-    options
-  )
-
+export async function findBySlug<T extends { id: unknown } = { id: unknown }>(db: Surreal, table: string, slug: string, options: QueryOptions = {}) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(table)) throw createError({ statusCode: 500, message: 'Invalid database table name' })
+  const response = await queryDb(db, `SELECT id FROM ${table} WHERE slug = $slug LIMIT 1;`, { slug }, { retry: 'readOnly', ...options })
   return firstRow<T>(response)
-}
-
-function safeTableName(table: string) {
-  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(table)) {
-    return table
-  }
-
-  throw createError({ statusCode: 500, message: 'Invalid database table name' })
 }

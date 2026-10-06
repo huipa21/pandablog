@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { queryDb, useDb } from '../../utils/db'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from '../../utils/surrealResult'
 import { isAdminAuthenticated } from '../../utils/auth'
-import { PUBLIC_LIST_CACHE_SECONDS, shouldBypassPublicCache } from '../../utils/public-cache'
+import { PUBLIC_LIST_CACHE_SECONDS, publicCacheKey, shouldBypassPublicCache } from '../../utils/public-cache'
 import type { PostListItem, PostVisibility } from '~/types/content'
 
 export default defineEventHandler(async (event) => {
@@ -22,7 +22,7 @@ const cachedPostListHandler = defineCachedEventHandler(handlePostList, {
   staleMaxAge: PUBLIC_LIST_CACHE_SECONDS * 2,
   swr: true,
   varies: ['cookie'],
-  getKey: getPostListCacheKey
+  getKey: event => publicCacheKey(getPostListCacheKey(event))
 })
 
 async function handlePostList(event: H3Event) {

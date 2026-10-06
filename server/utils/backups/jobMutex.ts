@@ -1,157 +1,191 @@
-import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { mkdir, open, lstat, rename, rm } from 'node:fs/promises'
 import { hostname } from 'node:os'
 import * as path from 'node:path'
+import { createError } from 'h3'
 import { BACKUPS_ROOT } from './config'
 
 export interface JobProgress {
-  /** Coarse phase of the running job. */
   phase: 'preparing' | 'db-export' | 'media-collect' | 'media-pack' | 'finalize' | 'db-wipe' | 'db-restore' | 'media-restore' | 'safety-snapshot' | 'db-validate' | 'db-consolidate' | 'db-verify' | 'rollback'
-  /** Overall completion percentage, 0–100. */
   percent: number
-  /** Optional human-readable detail, e.g. "123 / 456 files". */
   detail?: string
 }
-
-export interface ActiveJob {
-  id: string
-  kind: 'create' | 'restore' | 'import'
-  startedAt: string
-  progress?: JobProgress
+export interface ActiveJob { id: string, kind: 'create' | 'restore' | 'import' | 'consolidate' | 'delete', startedAt: string, progress?: JobProgress }
+export interface JobOwner extends ActiveJob { readonly token: string, readonly generation: string }
+export interface RestoreJournal {
+  version: 1, owner: JobOwner, phase: string, updatedAt: string, destructive: boolean,
+  state: 'running' | 'committed' | 'rolled-back' | 'aborted' | 'recovery-required',
+  artifacts: Record<string, string>, statusHash: string, expiresAt: number, error?: string
 }
+interface DiskOwner { token: string, generation: string, host: string, pid: number, job?: ActiveJob }
 
-/** On-disk representation of the cross-process lock. */
-interface LockFileData {
-  id: string
-  kind: ActiveJob['kind']
-  startedAt: string
-  pid: number
-  host: string
+export async function syncDirectory(directory: string) {
+  let file
+  try { file = await open(directory, 'r'); await file.sync() }
+  catch (error) { if (process.platform !== 'win32' || !['EPERM', 'EISDIR', 'EINVAL', 'EACCES'].includes(String((error as NodeJS.ErrnoException).code))) throw error }
+  finally { await file?.close() }
 }
-
-/**
- * The lock file lives in the shared storage volume (`storage/backups`), NOT in
- * SurrealDB: a restore wipes the database, so a DB-backed lock would be deleted
- * mid-job. Because every Nitro worker / replica mounts the same volume, a single
- * lock file is a correct mutual-exclusion primitive across all of them.
- */
-const LOCK_PATH = path.join(BACKUPS_ROOT, '.job.lock')
-
-/**
- * A lock owned by a remote host (where we cannot probe the pid) is treated as
- * abandoned after this long. Generous so a genuinely long restore is never
- * stolen out from under itself.
- */
-const STALE_LOCK_TTL_MS = 6 * 60 * 60 * 1000 // 6h
-
-let _activeJob: ActiveJob | null = null
-
-export function getActiveJob(): ActiveJob | null {
-  return _activeJob
+export async function writeDurableJson(filePath: string, data: unknown) {
+  const temporary = `${filePath}.${randomBytes(12).toString('hex')}.tmp`
+  const file = await open(temporary, 'wx', 0o600)
+  try { await file.writeFile(JSON.stringify(data)); await file.sync() } finally { await file.close() }
+  try { await rename(temporary, filePath); await syncDirectory(path.dirname(filePath)) }
+  catch (error) { await rm(temporary, {force: true}).catch(() => {}); throw error }
 }
-
-/** True if a process with the given pid is currently running on this host. */
-function isProcessAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false
+async function readJson(filePath: string): Promise<unknown> {
+  if (!(await lstat(filePath)).isFile()) throw new Error('Unsafe maintenance record')
+  const file = await open(filePath, 'r')
   try {
-    // Signal 0 performs existence/permission checks without actually signalling.
-    process.kill(pid, 0)
+    const bytes = Buffer.alloc(64 * 1024 + 1)
+    const {bytesRead} = await file.read(bytes, 0, bytes.length, 0)
+    if (bytesRead > 64 * 1024) throw new Error('Oversized maintenance record')
+    return JSON.parse(bytes.subarray(0, bytesRead).toString('utf8'))
+  } finally {await file.close()}
+}
+function absent(error: unknown) {return (error as NodeJS.ErrnoException).code === 'ENOENT'}
+function dead(owner: DiskOwner) {
+  if (owner.host !== hostname() || !Number.isInteger(owner.pid) || owner.pid <= 0) return false
+  try {process.kill(owner.pid, 0); return false} catch (error) {return (error as NodeJS.ErrnoException).code === 'ESRCH'}
+}
+function validOwner(value: unknown): value is DiskOwner {
+  const v = value as DiskOwner | null
+  return Boolean(v && /^[a-f0-9]{48}$/.test(v.token) && /^[a-f0-9]{48}$/.test(v.generation) && typeof v.host === 'string' && Number.isInteger(v.pid))
+}
+const conflict = () => createError({statusCode: 409, message: 'Maintenance ownership is busy or requires offline recovery'})
+const hash = (value: string) => createHash('sha256').update(value).digest('hex')
+
+/** Atomic directory ownership. ALL acquire/release/reclaim uses one exclusive
+ * guard. An abandoned/unreadable guard is an offline recovery condition, never
+ * a TTL-stealable lock. Remote hosts/multiple app writers are unsupported. */
+export class JobStore {
+  private active: JobOwner | null = null
+  private reserved = false
+  private journal: RestoreJournal | null = null
+  private recovery = false
+  private readonly generation = randomBytes(24).toString('hex')
+  private writer?: DiskOwner
+  constructor(private readonly root: string) {}
+  getActiveJob() { return this.active }
+  getJournal() { return this.journal }
+  recoveryRequired() {return this.recovery || Boolean(this.journal && !['committed', 'rolled-back', 'aborted'].includes(this.journal.state) && !this.active)}
+  async loadJournal() {
+    try {
+      const value = await readJson(path.join(this.root, '.restore-journal.json')) as RestoreJournal
+      if (value.version !== 1 || !value.owner || !validOwner({...value.owner, host: hostname(), pid: process.pid}) || value.owner.kind !== 'restore' || !['running', 'committed', 'rolled-back', 'aborted', 'recovery-required'].includes(value.state) || !/^[a-f0-9]{64}$/.test(value.statusHash) || !Number.isFinite(value.expiresAt) || typeof value.destructive !== 'boolean' || !value.artifacts || typeof value.artifacts !== 'object') throw new Error('Invalid restore journal')
+      this.journal = value
+      this.recovery = !['committed', 'rolled-back', 'aborted'].includes(value.state)
+    } catch (error) {if (!absent(error)) this.recovery = true}
+    try {await lstat(path.join(this.root, '.uncertain-writes.json')); this.recovery = true} catch (error) {if (!absent(error)) this.recovery = true}
+    return this.recoveryRequired()
+  }
+  async markUncertain() {
+    this.recovery = true
+    await writeDurableJson(path.join(this.root, '.uncertain-writes.json'), {version: 1, generation: this.generation, updatedAt: new Date().toISOString()})
+  }
+  private async guard<T>(work: () => Promise<T>): Promise<T> {
+    await mkdir(this.root, {recursive: true, mode: 0o700})
+    const guard = path.join(this.root, '.ownership.guard')
+    try {await mkdir(guard, {mode: 0o700})} catch (error) {if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw conflict(); throw error}
+    // Never reclaim this guard automatically: a dead publisher needs offline
+    // inspection, and unreadable/empty is not evidence of abandonment.
+    try {return await work()} finally {await rm(guard, {recursive: true}); await syncDirectory(this.root)}
+  }
+  private async take(name: string, owner: DiskOwner, reclaim = true) {
+    const directory = path.join(this.root, name)
+    try {await mkdir(directory, {mode: 0o700})} catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      let previous: unknown
+      try {previous = await readJson(path.join(directory, 'owner.json'))} catch {throw conflict()}
+      if (!reclaim || !validOwner(previous) || !dead(previous) || this.recoveryRequired()) throw conflict()
+      const abandoned = `${directory}.abandoned-${owner.token}`
+      await rename(directory, abandoned)
+      await mkdir(directory, {mode: 0o700})
+      await rm(abandoned, {recursive: true})
+    }
+    await writeDurableJson(path.join(directory, 'owner.json'), owner)
+    await syncDirectory(this.root)
+  }
+  private async remove(name: string, owner: DiskOwner) {
+    const directory = path.join(this.root, name)
+    const current = await readJson(path.join(directory, 'owner.json')).catch(error => {if (absent(error)) return null; throw error})
+    if (!validOwner(current) || current.token !== owner.token || current.generation !== owner.generation) return
+    await rm(directory, {recursive: true})
+    await syncDirectory(this.root)
+  }
+  async startWriter() {
+    await this.loadJournal()
+    const writer = {token: randomBytes(24).toString('hex'), generation: this.generation, host: hostname(), pid: process.pid}
+    // Recovery still starts liveness/status only. Do not claim an existing
+    // crashed writer receipt or permit migrations in that state.
+    if (this.recoveryRequired()) return false
+    await this.guard(async () => {
+      await this.take('.writer.lock', writer, false)
+      try {
+        let previous: unknown
+        try {previous = await readJson(path.join(this.root, '.job.lock/owner.json'))} catch (error) {if (!absent(error)) throw conflict()}
+        if (previous) {
+          if (!validOwner(previous) || !dead(previous)) throw conflict()
+          await this.remove('.job.lock', previous)
+        }
+      } catch (error) {await this.remove('.writer.lock', writer); throw error}
+    })
+    this.writer = writer
     return true
-  } catch (err) {
-    // ESRCH = no such process (dead). EPERM = exists but owned by another user.
-    return (err as NodeJS.ErrnoException).code === 'EPERM'
+  }
+  async stopWriter() {
+    if (!this.writer || this.active || this.recoveryRequired()) return
+    const writer = this.writer
+    await this.guard(() => this.remove('.writer.lock', writer))
+    this.writer = undefined
+  }
+  async acquire(job: ActiveJob): Promise<JobOwner> {
+    if (this.reserved || this.active || this.recoveryRequired()) throw conflict()
+    this.reserved = true // before the first await
+    const owner: JobOwner = Object.freeze({...job, token: randomBytes(24).toString('hex'), generation: this.generation})
+    try {
+      await this.loadJournal()
+      if (this.recoveryRequired()) throw conflict()
+      await this.guard(() => this.take('.job.lock', {token: owner.token, generation: owner.generation, host: hostname(), pid: process.pid, job: {id: job.id, kind: job.kind, startedAt: job.startedAt}}))
+      this.active = owner
+      return owner
+    } finally {this.reserved = false}
+  }
+  async beginRestore(owner: JobOwner): Promise<string> {
+    this.assert(owner)
+    const token = randomBytes(32).toString('hex')
+    const journal: RestoreJournal = {version: 1, owner, phase: 'preparing', updatedAt: new Date().toISOString(), destructive: false, state: 'running', artifacts: {}, statusHash: hash(token), expiresAt: Date.now() + 24 * 60 * 60_000}
+    await this.persist(journal)
+    this.journal = journal
+    return token
+  }
+  async transition(owner: JobOwner, fields: Partial<Pick<RestoreJournal, 'phase' | 'destructive' | 'state' | 'artifacts' | 'error'>>) {
+    this.assert(owner)
+    if (!this.journal || this.journal.owner.token !== owner.token) throw new Error('Restore journal owner mismatch')
+    const journal = {...this.journal, ...fields, updatedAt: new Date().toISOString()}
+    await this.persist(journal)
+    this.journal = journal
+  }
+  private async persist(journal: RestoreJournal) {
+    try {await writeDurableJson(path.join(this.root, '.restore-journal.json'), journal)}
+    catch (error) {this.recovery = true; throw error}
+  }
+  private assert(owner: JobOwner) {if (this.active?.token !== owner.token || this.active.generation !== owner.generation) throw new Error('Stale maintenance owner')}
+  progress(progress: JobProgress) {
+    if (this.active) this.active = Object.freeze({...this.active, progress: {...progress, percent: Math.max(0, Math.min(100, Math.round(progress.percent)))}})
+  }
+  authorizeStatus(token: string) {
+    if (!this.journal || Date.now() > this.journal.expiresAt || !/^[a-f0-9]{64}$/.test(token)) return false
+    return timingSafeEqual(Buffer.from(this.journal.statusHash, 'hex'), Buffer.from(hash(token), 'hex'))
+  }
+  async release(owner: JobOwner) {
+    if (this.active?.token !== owner.token) return // old release cannot remove successor
+    if (owner.kind === 'restore' && (this.recovery || !this.journal || !['committed', 'rolled-back', 'aborted'].includes(this.journal.state))) {this.recovery = true; return}
+    await this.guard(() => this.remove('.job.lock', {token: owner.token, generation: owner.generation, host: hostname(), pid: process.pid}))
+    this.active = null
   }
 }
-
-function isLockStale(lock: LockFileData): boolean {
-  // Same host: the pid probe is authoritative — a dead pid means the owning
-  // worker crashed and the lock can be reclaimed immediately.
-  if (lock.host === hostname()) {
-    return !isProcessAlive(lock.pid)
-  }
-  // Different host (scaled deployment): we cannot probe the pid, so fall back to
-  // a time-to-live.
-  const started = Date.parse(lock.startedAt)
-  if (!Number.isFinite(started)) return true
-  return Date.now() - started > STALE_LOCK_TTL_MS
-}
-
-async function readLock(): Promise<LockFileData | null> {
-  try {
-    const parsed = JSON.parse(await readFile(LOCK_PATH, 'utf8')) as LockFileData
-    if (parsed && typeof parsed.id === 'string' && typeof parsed.pid === 'number') {
-      return parsed
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-function conflict(kind: string, startedAt: string): never {
-  throw createError({
-    statusCode: 409,
-    message: `A backup job (${kind}) is already running since ${startedAt}. Please wait for it to complete.`,
-  })
-}
-
-/**
- * Acquires the single global job lock. Backed by BOTH an in-process flag (fast
- * path for the common single-process deployment) AND an on-disk lock file under
- * the shared storage volume, so two Nitro workers / replicas that share
- * `storage/backups` can never run destructive jobs concurrently. The disk lock
- * also survives the database wipe performed during a restore.
- *
- * Throws a 409 if a non-stale job is already running.
- */
-export async function acquireJob(job: ActiveJob): Promise<void> {
-  // Fast path: this process already holds (or is mid-acquire of) the lock.
-  if (_activeJob) {
-    conflict(_activeJob.kind, _activeJob.startedAt)
-  }
-
-  await mkdir(BACKUPS_ROOT, { recursive: true })
-
-  const payload: LockFileData = {
-    id: job.id,
-    kind: job.kind,
-    startedAt: job.startedAt,
-    pid: process.pid,
-    host: hostname(),
-  }
-  const body = JSON.stringify(payload)
-
-  try {
-    // 'wx' = create exclusively; fails with EEXIST if the lock already exists.
-    await writeFile(LOCK_PATH, body, { flag: 'wx' })
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
-
-    const existing = await readLock()
-    if (existing && !isLockStale(existing)) {
-      conflict(existing.kind, existing.startedAt)
-    }
-    // Stale or unreadable lock: reclaim it.
-    if (import.meta.dev && existing) {
-      console.warn(`[backup] Reclaiming stale job lock from pid ${existing.pid} on ${existing.host}`)
-    }
-    await writeFile(LOCK_PATH, body, { flag: 'w' })
-  }
-
-  _activeJob = job
-}
-
-/** Updates the progress of the currently running job, if any. */
-export function updateJobProgress(progress: JobProgress): void {
-  if (_activeJob) {
-    _activeJob.progress = {
-      ...progress,
-      percent: Math.max(0, Math.min(100, Math.round(progress.percent))),
-    }
-  }
-}
-
-/** Releases the in-process flag and removes the on-disk lock file. */
-export async function releaseJob(): Promise<void> {
-  _activeJob = null
-  await rm(LOCK_PATH, { force: true }).catch(() => {})
-}
+export const jobStore = new JobStore(BACKUPS_ROOT)
+export const getActiveJob = () => jobStore.getActiveJob()
+export const acquireJob = (job: ActiveJob) => jobStore.acquire(job)
+export const releaseJob = (owner: JobOwner) => jobStore.release(owner)
+export const updateJobProgress = (progress: JobProgress) => jobStore.progress(progress)
