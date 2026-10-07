@@ -17,6 +17,7 @@ export const EDITOR_BLOCK_KEYS = [
   'codeBlock',
   'columnsBlock',
   'customHtml',
+  'dialogueBlock',
   'diffBlock',
   'filesBlock',
   'footnotesBlock',

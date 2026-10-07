@@ -47,9 +47,16 @@ tests/e2e/*
 !tests/e2e/login-redirect.spec.ts
 !tests/e2e/public-responsive-layout.spec.ts
 !tests/e2e/advanced-search.spec.ts
+!tests/e2e/all-blocks-parity.spec.ts
+!tests/e2e/editor-public-visual-parity.spec.ts
+!tests/e2e/dialogue-block.spec.ts
+!tests/e2e/fixtures/
+tests/e2e/fixtures/*
+!tests/e2e/fixtures/dialogue.ts
 !tests/unit/
 tests/unit/*
 !tests/unit/annotate.test.ts
+!tests/unit/dialogueBlock.test.ts
 !tests/unit/authRedirect.test.ts
 !tests/unit/analytics.test.ts
 !tests/unit/analytics-bounds.test.ts
@@ -170,4 +177,4 @@ scripts/*
 !scripts/backend-hardening/**
 !scripts/configure/
 !scripts/configure/index.html
-pandablog.modules.json.example
+!pandablog.modules.json.example

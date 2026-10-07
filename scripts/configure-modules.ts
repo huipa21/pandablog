@@ -89,6 +89,7 @@ function renderConfiguratorHtml(): string {
     codeBlock: 'Code block + syntax highlighting',
     columnsBlock: 'Columns',
     customHtml: 'Custom HTML',
+    dialogueBlock: 'Dialogue',
     diffBlock: 'Diff',
     filesBlock: 'Files',
     footnotesBlock: 'Footnotes',

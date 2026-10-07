@@ -172,6 +172,16 @@
     "#be123c": 1,
     "#f59e0b": 1
   },
+  "extensions/dialogueBlock.ts": {
+    "#059669": 1,
+    "#0d9488": 1,
+    "#2563eb": 1,
+    "#475569": 1,
+    "#7c3aed": 1,
+    "#d97706": 1,
+    "#db2777": 1,
+    "#dc2626": 1
+  },
   "extensions/separator.ts": {
     "#171a20": 1,
     "#393c41": 1,
@@ -207,6 +217,13 @@
     "#eef": 1,
     "#ffff00": 1,
     "#ffffff": 1
+  },
+  "tests/unit/dialogueBlock.test.ts": {
+    "#059669": 1,
+    "#2563eb": 1,
+    "#7c3aed": 1,
+    "#abcdef": 1,
+    "#fff": 1
   },
   "utils/highlightColors.ts": {
     "#fde047": 1

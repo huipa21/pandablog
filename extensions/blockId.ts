@@ -16,6 +16,7 @@ const BLOCK_ID_NODE_TYPES = [
   'columnsBlock',
   'tabsBlock',
   'accordionBlock',
+  'dialogueBlock',
   'customHtml',
   'diffBlock',
   'mermaid',

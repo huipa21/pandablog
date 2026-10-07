@@ -1,0 +1,188 @@
+:root {
+  --pb-dialogue-speaker-col: 7.5rem;
+  --pb-dialogue-gap: 1rem;
+  --pb-dialogue-line-gap: 0.75rem;
+  --pb-dialogue-muted: var(--pb-text-muted);
+  --pb-dialogue-accent-width: 2px;
+  --pb-dialogue-avatar-size: 2rem;
+}
+
+.dialogue-block {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dialogue-lines {
+  display: contents;
+}
+
+.dialogue-block-title {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 var(--pb-dialogue-line-gap);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--pb-dialogue-muted);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+}
+
+.dialogue-line {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--pb-dialogue-speaker-col) minmax(0, 1fr);
+  gap: 0 var(--pb-dialogue-gap);
+  min-width: 0;
+}
+
+.dialogue-line + .dialogue-line {
+  margin-top: var(--pb-dialogue-line-gap);
+}
+
+.dialogue-speaker {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.5rem;
+  align-self: start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: color-mix(in srgb, var(--pb-dialogue-color, var(--pb-text)) 60%, var(--pb-text));
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+.dialogue-speaker-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dialogue-text {
+  min-width: 0;
+  min-height: 1lh;
+  overflow-wrap: anywhere;
+}
+
+.dialogue-block[data-style="accent"] .dialogue-line:not([data-kind="narration"]) .dialogue-speaker {
+  border-left: var(--pb-dialogue-accent-width) solid var(--pb-dialogue-color);
+  padding-left: 0.5rem;
+}
+
+.dialogue-block[data-style="avatar"] .dialogue-speaker {
+  align-items: center;
+}
+
+.dialogue-block[data-style="avatar"] .dialogue-speaker-name {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.dialogue-avatar {
+  display: inline-flex;
+  width: var(--pb-dialogue-avatar-size);
+  height: var(--pb-dialogue-avatar-size);
+  flex: 0 0 var(--pb-dialogue-avatar-size);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pb-dialogue-color) 15%, var(--pb-card-bg));
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.dialogue-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  object-fit: cover;
+}
+
+.dialogue-line[data-kind="narration"] .dialogue-text,
+.dialogue-line[data-kind="thought"] .dialogue-text {
+  color: var(--pb-dialogue-muted);
+  font-style: italic;
+}
+
+.dialogue-line[data-kind="narration"] .dialogue-text {
+  font-size: 0.95em;
+}
+
+.dialogue-thought-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Chrome is out of flow: revealing controls never shifts reader-visible content. */
+.dialogue-block-chrome,
+.dialogue-block-footer,
+.dialogue-line-chrome {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  visibility: hidden;
+  border-radius: var(--pb-radius-sm);
+  background: var(--pb-card-bg);
+  color: var(--pb-text-muted);
+  font-size: 0.75rem;
+}
+
+.dialogue-block-chrome {
+  right: 0;
+  bottom: 100%;
+}
+
+.dialogue-block-footer {
+  top: 100%;
+  right: 0;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.dialogue-line-chrome {
+  top: 0;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.dialogue-block:hover > .dialogue-block-chrome,
+.dialogue-block:focus-within > .dialogue-block-chrome,
+.dialogue-block:hover > .dialogue-block-footer,
+.dialogue-block:focus-within > .dialogue-block-footer,
+.dialogue-block.ProseMirror-selectednode > .dialogue-block-chrome,
+.dialogue-line:hover > .dialogue-line-chrome,
+.dialogue-line:focus-within > .dialogue-line-chrome {
+  visibility: visible;
+}
+
+@media (max-width: 40rem) {
+  .dialogue-line {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.25rem;
+  }
+
+  .dialogue-line[data-kind="narration"] .dialogue-speaker {
+    display: none;
+  }
+}

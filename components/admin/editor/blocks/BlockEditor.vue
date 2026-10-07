@@ -243,6 +243,10 @@ import { FilesBlockNode } from '~/extensions/filesBlock'
 import { ColumnItemNode, ColumnsBlockNode } from '~/extensions/columnsBlock'
 import { TabPanelNode, TabsBlockNode } from '~/extensions/tabsBlock'
 import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlock'
+import { DialogueBlockNode, DialogueLineNode } from '~/extensions/dialogueBlock'
+import DialogueBlockNodeView from '~/components/admin/editor/DialogueBlockNodeView.vue'
+import DialogueLineNodeView from '~/components/admin/editor/DialogueLineNodeView.vue'
+import DisabledDialogueBlockNodeView from '~/components/admin/editor/DisabledDialogueBlockNodeView.vue'
 import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import VideoEmbedNodeView from '~/components/admin/editor/VideoEmbedNodeView.vue'
@@ -607,6 +611,21 @@ const editor = useEditor({
           })
         ]
       : []),
+    ...(__PB_BLOCK_DIALOGUE_BLOCK__
+      ? [
+          DialogueBlockNode.configure({ characterNames: [t('admin.editor.dialogue.characterA'), t('admin.editor.dialogue.characterB')] }).extend({ addNodeView() { return VueNodeViewRenderer(DialogueBlockNodeView) } }),
+          DialogueLineNode.extend({ addNodeView() { return VueNodeViewRenderer(DialogueLineNodeView) } })
+        ]
+      : [
+          // Keep the schema when disabled: opening/saving a post must not erase dialogue JSON.
+          DialogueBlockNode.extend({
+            addCommands() { return {} },
+            addKeyboardShortcuts() { return {} },
+            addProseMirrorPlugins() { return [] },
+            addNodeView() { return VueNodeViewRenderer(DisabledDialogueBlockNodeView) }
+          }),
+          DialogueLineNode.extend({ addKeyboardShortcuts() { return {} }, addInputRules() { return [] } })
+        ]),
     LinkEnhanced.configure({
       autolink: true,
       linkOnPaste: true,
@@ -1214,6 +1233,7 @@ function runTransform(target: string) {
   if (!ed) return
   const chain = ed.chain().focus()
   switch (target) {
+    case 'dialogueBlock': if (__PB_BLOCK_DIALOGUE_BLOCK__) chain.convertParagraphsToDialogue().run(); break
     case 'paragraph': chain.setParagraph().run(); break
     case 'heading-1': chain.setHeading({ level: 1 }).run(); break
     case 'heading-2': chain.setHeading({ level: 2 }).run(); break

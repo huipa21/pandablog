@@ -19,6 +19,7 @@
     <NodeFilesBlock v-else-if="NodeFilesBlock && node.type === 'filesBlock'" :node="node" />
     <NodeColumnsBlock v-else-if="NodeColumnsBlock && node.type === 'columnsBlock'" :node="node" />
     <NodeTabsBlock v-else-if="NodeTabsBlock && node.type === 'tabsBlock'" :node="node" />
+    <NodeDialogueBlock v-else-if="NodeDialogueBlock && node.type === 'dialogueBlock'" :node="node" />
     <NodeAccordionBlock v-else-if="NodeAccordionBlock && node.type === 'accordionBlock'" :node="node" />
     <NodeQuoteBlock v-else-if="NodeQuoteBlock && node.type === 'blockquote'" :node="node" />
     <NodeFootnotesBlock v-else-if="NodeFootnotesBlock && node.type === 'footnotesBlock'" :node="node" />
@@ -49,6 +50,7 @@ const NodeMediaText = __PB_BLOCK_MEDIA_TEXT__ ? defineAsyncComponent(() => impor
 const NodeFilesBlock = __PB_BLOCK_FILES_BLOCK__ ? defineAsyncComponent(() => import('./NodeFilesBlock.vue')) : null
 const NodeColumnsBlock = __PB_BLOCK_COLUMNS_BLOCK__ ? defineAsyncComponent(() => import('./NodeColumnsBlock.vue')) : null
 const NodeTabsBlock = __PB_BLOCK_TABS_BLOCK__ ? defineAsyncComponent(() => import('./NodeTabsBlock.vue')) : null
+const NodeDialogueBlock = __PB_BLOCK_DIALOGUE_BLOCK__ ? defineAsyncComponent(() => import('./NodeDialogueBlock.vue')) : null
 const NodeAccordionBlock = __PB_BLOCK_ACCORDION_BLOCK__ ? defineAsyncComponent(() => import('./NodeAccordionBlock.vue')) : null
 const NodeQuoteBlock = __PB_BLOCK_BLOCKQUOTE__ ? defineAsyncComponent(() => import('./NodeQuoteBlock.vue')) : null
 const NodeFootnotesBlock = __PB_BLOCK_FOOTNOTES_BLOCK__ ? defineAsyncComponent(() => import('./NodeFootnotesBlock.vue')) : null
@@ -67,6 +69,7 @@ const disabledBlockTypes = new Set([
   !__PB_BLOCK_COLUMNS_BLOCK__ ? 'columnsBlock' : '',
   !__PB_BLOCK_TABS_BLOCK__ ? 'tabsBlock' : '',
   !__PB_BLOCK_ACCORDION_BLOCK__ ? 'accordionBlock' : '',
+  !__PB_BLOCK_DIALOGUE_BLOCK__ ? 'dialogueBlock' : '',
   !__PB_BLOCK_BLOCKQUOTE__ ? 'blockquote' : '',
   !__PB_BLOCK_FOOTNOTES_BLOCK__ ? 'footnotesBlock' : '',
   !__PB_BLOCK_HORIZONTAL_RULE__ ? 'horizontalRule' : ''
@@ -158,7 +161,8 @@ const separatorStyle = computed(() => {
 })
 
 const isDisabledKnownBlock = computed(() => disabledBlockTypes.has(props.node.type ?? ''))
-const disabledBlockLabel = computed(() => `Disabled content block: ${props.node.type ?? 'unknown'}`)
+const { t } = useI18n()
+const disabledBlockLabel = computed(() => props.node.type === 'dialogueBlock' ? t('admin.editor.dialogue.disabled') : `Disabled content block: ${props.node.type ?? 'unknown'}`)
 
 
 function headingTag(level: unknown) {

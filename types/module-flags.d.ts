@@ -22,6 +22,7 @@ declare const __PB_BLOCK_BLOCKQUOTE__: boolean
 declare const __PB_BLOCK_CODE_BLOCK__: boolean
 declare const __PB_BLOCK_COLUMNS_BLOCK__: boolean
 declare const __PB_BLOCK_CUSTOM_HTML__: boolean
+declare const __PB_BLOCK_DIALOGUE_BLOCK__: boolean
 declare const __PB_BLOCK_DIFF_BLOCK__: boolean
 declare const __PB_BLOCK_FILES_BLOCK__: boolean
 declare const __PB_BLOCK_FOOTNOTES_BLOCK__: boolean

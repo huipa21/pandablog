@@ -467,6 +467,8 @@
         </div>
       </details>
 
+      <DialogueSettings v-if="blockName === 'dialogueBlock' && dialogueEnabled" :editor="editor" :attrs="attrs" :pos="selectedBlockNode?.pos ?? null" @update="updateAttrs" />
+
       <details v-if="blockName === 'accordionBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.accordion') }}</summary>
         <div class="mt-3 space-y-3">
@@ -805,6 +807,7 @@
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
+import DialogueSettings from './DialogueSettings.vue'
 import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES } from '~/extensions/codeBlockEnhanced'
 import { BLOCK_MATH_FONT_FAMILIES, DEFAULT_BLOCK_MATH_PADDING_X, DEFAULT_BLOCK_MATH_PADDING_Y, normalizeBlockMathFontSize, normalizeBlockMathPadding } from '~/extensions/blockMath'
 import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME, QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
@@ -812,6 +815,7 @@ import { DEFAULT_SEPARATOR_COLOR, SEPARATOR_PALETTE, SEPARATOR_SELECTED_BORDER_C
 import type { JsonContent } from '~/types/content'
 import { DIFF_BLOCK_LANGUAGES, normalizeDiffLanguage } from '~/utils/diffBlock'
 
+const dialogueEnabled = __PB_BLOCK_DIALOGUE_BLOCK__
 const props = defineProps<{
   editor: Editor | null
 }>()

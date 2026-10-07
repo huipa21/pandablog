@@ -7,6 +7,7 @@ import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME } from '~/extensions/bloc
 import { DEFAULT_BLOCK_MATH_ALIGN, DEFAULT_BLOCK_MATH_FONT_FAMILY, DEFAULT_BLOCK_MATH_FONT_SIZE, DEFAULT_BLOCK_MATH_PADDING_X, DEFAULT_BLOCK_MATH_PADDING_Y, DEFAULT_BLOCK_MATH_THEME } from '~/extensions/blockMath'
 import { DEFAULT_ANNOT_LANG } from '~/extensions/rubyUnit'
 import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
+import { createDialogueContent } from '~/extensions/dialogueBlock'
 
 export type BlockCategory = 'text' | 'media' | 'design' | 'embed' | 'advanced'
 
@@ -237,6 +238,17 @@ const blockDefinitions: BlockDefinition[] = [
     })
   },
   {
+    name: 'dialogueBlock',
+    title: 'Dialogue',
+    description: 'Write a scene with speakers, narration and thoughts.',
+    icon: 'i-lucide-message-square-quote',
+    category: 'text',
+    keywords: ['dialogue', 'roleplay', 'script', 'scene', 'conversation', 'chat'],
+    implemented: true,
+    supports: { spacing: true },
+    createContent: createDialogueContent
+  },
+  {
     name: 'table',
     title: 'Table',
     description: 'Insert a table with editable rows and columns.',
@@ -395,6 +407,7 @@ const optionalBlockEnabled: Record<string, boolean> = {
   columnsBlock: __PB_BLOCK_COLUMNS_BLOCK__,
   customHtml: __PB_BLOCK_CUSTOM_HTML__,
   diffBlock: __PB_BLOCK_DIFF_BLOCK__,
+  dialogueBlock: __PB_BLOCK_DIALOGUE_BLOCK__,
   embed: __PB_BLOCK_VIDEO_EMBED__,
   filesBlock: __PB_BLOCK_FILES_BLOCK__,
   footnotesBlock: __PB_BLOCK_FOOTNOTES_BLOCK__,
@@ -441,11 +454,16 @@ export function useBlockRegistry() {
       .map(({ searchText: _searchText, ...block }) => block)
   }
 
+  const { t } = useI18n()
+  const localize = (block: BlockDefinition) => block.name === 'dialogueBlock'
+    ? { ...block, title: t('admin.editor.dialogue.title'), description: t('admin.editor.dialogue.description'), createContent: () => createDialogueContent([t('admin.editor.dialogue.characterA'), t('admin.editor.dialogue.characterB')]) }
+    : block
+
   return {
     categories: blockCategories,
-    blocks: visibleBlockDefinitions,
-    getBlockDefinition,
-    getBlocksByCategory,
-    searchBlocks
+    blocks: visibleBlockDefinitions.map(localize),
+    getBlockDefinition: (name: string) => { const block = getBlockDefinition(name); return block ? localize(block) : null },
+    getBlocksByCategory: (category: BlockCategory) => getBlocksByCategory(category).map(localize),
+    searchBlocks: (query: string) => searchBlocks(query).map(localize)
   }
 }

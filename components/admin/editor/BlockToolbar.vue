@@ -557,6 +557,7 @@ const currentIcon = computed(() => {
     case 'columnsBlock': return 'i-lucide-columns-3'
     case 'tabsBlock': return 'i-lucide-panel-top'
     case 'accordionBlock': return 'i-lucide-chevrons-up-down'
+    case 'dialogueBlock': return 'i-lucide-message-square-quote'
     case 'customHtml': return 'i-lucide-file-code-2'
     case 'mermaid': return 'i-lucide-git-fork'
     default: return 'i-lucide-box'
@@ -572,7 +573,8 @@ const transformItems = computed(() => [[
   { label: t('admin.editor.toolbar.numberedList'), icon: 'i-lucide-list-ordered', onSelect: () => emit('transform', 'orderedList') },
   { label: t('admin.editor.toolbar.quote'), icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
   { label: t('admin.editor.toolbar.code'), icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') },
-  { label: t('admin.editor.toolbar.separator'), icon: 'i-lucide-minus', onSelect: () => emit('transform', 'horizontalRule') }
+  { label: t('admin.editor.toolbar.separator'), icon: 'i-lucide-minus', onSelect: () => emit('transform', 'horizontalRule') },
+  ...(__PB_BLOCK_DIALOGUE_BLOCK__ ? [{ label: t('admin.editor.dialogue.convert'), icon: 'i-lucide-message-square-quote', onSelect: () => emit('transform', 'dialogueBlock') }] : [])
 ]])
 
 const alignIcon = computed(() => {

@@ -2,7 +2,7 @@ import type { JsonContent } from '~/types/content'
 
 const DIFF_BLOCK_CONTAINERS = new Set([
   'doc', 'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel',
-  'accordionBlock', 'accordionPane', 'mediaText', 'footnotesBlock'
+  'accordionBlock', 'accordionPane', 'mediaText', 'footnotesBlock', 'dialogueBlock'
 ])
 
 function nodeText(node?: JsonContent | null): string {

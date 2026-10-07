@@ -79,6 +79,7 @@ export type EditorBlockKey =
   | 'codeBlock'
   | 'columnsBlock'
   | 'customHtml'
+  | 'dialogueBlock'
   | 'diffBlock'
   | 'filesBlock'
   | 'footnotesBlock'
