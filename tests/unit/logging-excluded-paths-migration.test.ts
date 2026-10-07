@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_LOGGING_EXCLUDED_PATHS } from '../../utils/loggingSettings'
 
 const mocks = vi.hoisted(() => ({
-  queryDb: vi.fn(), useDb: vi.fn(), connectRootClient: vi.fn(), closeRootClient: vi.fn(),
-  provisionAppDatabaseUser: vi.fn(), readFile: vi.fn(),
+  queryDb: vi.fn(), useDb: vi.fn(), initializeRuntimeDatabase: vi.fn(), readFile: vi.fn(),
   initializeRuntimeSettings: vi.fn(), initializeAnalyticsSettings: vi.fn(), initializeSecuritySettings: vi.fn()
 }))
+// Component tests isolate boot migrations; actual lifecycle is covered separately.
+vi.mock('../../server/utils/startup', () => ({startup: {initialize: async (work: () => Promise<void>) => {await work(); return true}}}))
 vi.mock('../../server/utils/setup-authority', () => ({setupAuthority: () => ({status: async () => ({completed: true})})}))
 // This logging fixture deliberately isolates unrelated media boot recovery.
 vi.mock('../../server/utils/mediaLibrary', () => ({mediaRecoverInterruptedObjects: vi.fn(), mediaInitializeLegacyState: vi.fn()}))
@@ -20,7 +21,6 @@ vi.mock('../../server/utils/taxonomy', () => ({ repairMisaddressedTaxonomyEdges:
 vi.mock('../../server/utils/access-log-migration', () => ({ removeMigratedAccessTable: vi.fn(), runAccessLogMigration: vi.fn() }))
 
 const markerKey = '__logging_excluded_paths_v2'
-const rootDb = { name: 'root' }
 const poolDb = { name: 'pool' }
 const schema = '-- test schema'
 let rows: Map<string, { value: unknown, updated_at?: string }>
@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.stubGlobal('__PB_MODULE_BACKUPS__', false)
   vi.stubEnv('LOG_CONSOLE', 'off')
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  mocks.connectRootClient.mockResolvedValue(rootDb)
+  mocks.initializeRuntimeDatabase.mockResolvedValue(poolDb)
   mocks.useDb.mockResolvedValue(poolDb)
   mocks.readFile.mockResolvedValue(schema)
   rows = new Map()
@@ -113,7 +113,7 @@ describe('excluded-path defaults and reset', () => {
 })
 
 describe('boot-time excluded-path migration', () => {
-  it('merges on the privileged boot connection, preserves other settings, and loads the merged cache', async () => {
+  it('merges on the scoped boot connection, preserves other settings, and loads the merged cache', async () => {
     const original = {
       enabled: false, access_log_enabled: false, console_output: true, sampling_rate: 0.25,
       retention_access_days: 7, future_setting: { keep: true },
@@ -126,8 +126,8 @@ describe('boot-time excluded-path migration', () => {
     expect(original.excluded_paths).toEqual(['/custom', '/_nuxt', '/custom', '/favicon', '/api/admin/logs', '/_ipx'])
     expect(migrationWrites('logging')).toHaveLength(1)
     expect(migrationWrites(markerKey)).toHaveLength(1)
-    expect(migrationWrites('logging')[0]?.[0]).toBe(rootDb)
-    expect(migrationWrites(markerKey)[0]?.[0]).toBe(rootDb)
+    expect(migrationWrites('logging')[0]?.[0]).toBe(poolDb)
+    expect(migrationWrites(markerKey)[0]?.[0]).toBe(poolDb)
     expect(rows.get(markerKey)?.value).toEqual(expect.any(String))
     const calls = mocks.queryDb.mock.calls
     const markerWriteIndex = calls.findIndex(call => call[3]?.label === 'logging excluded paths migration marker create')
@@ -136,7 +136,7 @@ describe('boot-time excluded-path migration', () => {
     const logging = await import('../../server/utils/logging')
     expect(logging.getLoggingSettings().excluded_paths).toEqual(expected)
     expect(logging.getLoggingSettings().enabled).toBe(false)
-    expect(mocks.closeRootClient).toHaveBeenCalledWith(rootDb)
+    expect(mocks.initializeRuntimeDatabase).toHaveBeenCalled()
   })
 
   it.each([undefined, null, 'invalid', [], 42])('initializes a fresh or invalid settings row (%j)', async (value) => {
@@ -198,7 +198,7 @@ describe('boot-time excluded-path migration', () => {
     failLabel = label
     await expect(boot()).rejects.toThrow('migration query failed')
     expect(rows.has(markerKey)).toBe(false)
-    expect(mocks.closeRootClient).toHaveBeenCalledWith(rootDb)
+    expect(mocks.initializeRuntimeDatabase).toHaveBeenCalled()
     expect(mocks.queryDb.mock.calls.find(call => call[3]?.label === 'logging settings init')).toBeUndefined()
     failLabel = undefined
     await boot()

@@ -20,6 +20,7 @@ storage/variants/*
 storage/downloads/*
 storage/geoip/*
 storage/backups/*
+storage/.recovery-archive/
 storage/logs/*
 storage/rate-limit/*
 storage/setup-authority.json
@@ -66,6 +67,17 @@ tests/unit/*
 !tests/integration/analytics-phase4.test.ts
 !tests/unit/db-reconnect.test.ts
 !tests/unit/db-lifecycle.test.ts
+!tests/unit/runtime-startup.test.ts
+!tests/unit/runtime-environment.test.ts
+!tests/unit/runtime-identities.test.ts
+!tests/unit/database-bootstrap.test.ts
+!tests/unit/e2e-environment.test.ts
+!tests/integration/database-bootstrap.test.ts
+!tests/unit/startup-coordinator.test.ts
+!tests/unit/startup-auth-recovery.test.ts
+!tests/unit/recovery-assistant.test.ts
+!tests/unit/maintenance-readiness-http.test.ts
+!tests/unit/runtime-nitro.test.ts
 !tests/unit/backup-ownership.test.ts
 !tests/unit/maintenance-barrier.test.ts
 !tests/unit/maintenance-http.test.ts
@@ -176,6 +188,9 @@ scripts/*
 !scripts/docker-build.mjs
 !scripts/backend-hardening/
 !scripts/backend-hardening/**
+!scripts/recover.ts
+!scripts/recovery/
+!scripts/recovery/assistant.ts
 !scripts/configure/
 !scripts/configure/index.html
 !pandablog.modules.json.example

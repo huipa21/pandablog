@@ -22,8 +22,18 @@ describe('download cleanup shared-cron regression', () => {
     await mocks.schedule.mock.calls[0]![1]()
     expect(mocks.cleanup).toHaveBeenCalledOnce()
     expect(mocks.hook).toHaveBeenCalledWith('close', expect.any(Function))
-    mocks.hook.mock.calls[0]![1]()
+    await mocks.hook.mock.calls[0]![1]()
     expect(mocks.stop).toHaveBeenCalledOnce(); expect(mocks.destroy).toHaveBeenCalledOnce()
+  })
+  it('does not create a late scheduler after close while cron loading is pending', async () => {
+    let resolve!: (value: unknown) => void
+    mocks.resolveCron.mockReturnValue(new Promise(yes => {resolve = yes}))
+    const {default: plugin} = await import('../../server/plugins/download-cleanup')
+    const installing = plugin({hooks: {hook: mocks.hook}} as never)
+    await mocks.hook.mock.calls[0]![1]()
+    resolve({validate: mocks.validate, schedule: mocks.schedule})
+    await installing
+    expect(mocks.schedule).not.toHaveBeenCalled()
   })
   it('does not schedule when cron loading fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

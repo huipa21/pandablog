@@ -31,6 +31,8 @@ async function loadDbModule() {
     surrealUrl: 'ws://surreal.test/rpc',
     surrealRoot: 'root',
     surrealRootPassword: 'root-password',
+    surrealAppUser: 'fixture_app',
+    surrealAppPassword: 'fixture-app-secret',
     surrealNamespace: 'main',
     surrealDatabase: 'main'
   }))

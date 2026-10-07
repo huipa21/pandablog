@@ -35,7 +35,7 @@ Heavy ownership is reserved synchronously, then acquired with an exclusive on-di
 
 Fresh/stale job acquisition, reclamation and release all use `.ownership.guard`. An unreadable/partially-published/remote lock or abandoned guard is not TTL-stealable. Old owner tokens cannot release successors. `.writer.lock` is **not automatically stolen after a crash**: a dead app does not prove its DB execution ended. Interrupted restore/uncertainty journals fence initialization and ordinary traffic; stale writer-only ownership requires offline inspection before startup. Clean close removes the writer receipt only after bounded drain with no active job or uncertain writes.
 
-Only exact GET health/status and static Nuxt assets remain available while closed. No blanket auth/backups/IPX exemption exists. Status requires the 24-hour, hash-persisted restore-job capability issued to the prevalidated caller; a stale cookie is not current owner authority, and a terminal capability cannot see an unrelated later job. There is no public ROOT/recovery/unfence endpoint.
+Only exact GET health/readiness/restore-status and static Nuxt assets reach ordinary routing while closed. Fenced browser requests receive a static explanation, not SSR; unavailable readiness includes sanitized startup guidance. No blanket auth/backups/IPX exemption exists. Status requires the 24-hour, hash-persisted restore-job capability issued to the prevalidated caller; a stale cookie is not current owner authority, and a terminal capability cannot see an unrelated later job. There is no public ROOT/recovery/unfence endpoint.
 
 ## Verification and remaining gates
 

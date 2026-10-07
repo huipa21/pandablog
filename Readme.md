@@ -97,7 +97,11 @@ managing media, and configuring your site — all backed by SurrealDB.
      start --user root --pass "your-local-password"
    ```
 
-3. **Create a `.env` file** in the project root (see [Environment variables](#environment-variables)).
+3. **Copy the [development environment template](.env.example)** and fill in the required secrets (see [Environment variables](#environment-variables)):
+
+   ```bash
+   cp .env.example .env
+   ```
 
 4. **Run the dev server**
 
@@ -116,18 +120,34 @@ On first launch, visit `/admin` and complete the [first-run setup](#first-run-se
 
 ## Environment variables
 
-PandaBlog reads a `.env` file in the project root. During development these values take
-priority over OS environment variables.
+Use the same canonical `NUXT_` names in development and production. Development loads
+`.env`; the standalone built server does not, so supply process environment (Compose
+`env_file` injects it). Canonical process values win over canonical file values, then
+declared defaults. Explicit empty values stay empty. Nuxt may copy file values into process
+environment before config evaluation, so source provenance can be indistinguishable.
+
+**Deprecated aliases are not supported**, in either environment. Migrate old unprefixed
+application variables to the canonical names below, and replace `APP_SPONSOR` /
+`NUXT_PUBLIC_APP_SPONSOR` with `NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY` before upgrading.
+Boolean values accept true/false, 1/0, yes/no and on/off; empty or unsupported values reject
+startup. Production builds use empty private defaults rather than embedding operator secrets.
 
 ### Minimal `.env` for local development
 
+Start with the root [.env.example](.env.example). Its required secret fields are deliberately
+empty: set local ROOT/runtime passwords and a generated session key before starting.
+
 ```env
 # SurrealDB connection
-SURREAL_URL="ws://127.0.0.1:8000/rpc"
-SURREAL_NAMESPACE="main"
-SURREAL_DATABASE="main"
-SURREAL_ROOT="root"
-SURREAL_ROOT_PASSWORD="your-local-password"
+NUXT_SURREAL_URL="ws://127.0.0.1:8000/rpc"
+NUXT_SURREAL_NAMESPACE="main"
+NUXT_SURREAL_DATABASE="main"
+NUXT_SURREAL_ROOT="root"
+NUXT_SURREAL_ROOT_PASSWORD="<local-root-secret>"
+NUXT_SURREAL_APP_USER="pandablog_app"
+NUXT_SURREAL_APP_PASSWORD="<separate-local-runtime-secret>"
+NUXT_APP_ORIGIN="http://127.0.0.1:3000"
+NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY=false
 
 # Session cookie encryption — MUST be 32+ random characters.
 # Generate one with:
@@ -139,17 +159,25 @@ NUXT_SESSION_PASSWORD="replace-with-a-32-plus-character-random-string"
 
 | Variable | Purpose | Required |
 | --- | --- | --- |
-| `SURREAL_URL` | SurrealDB WebSocket RPC endpoint | Yes |
-| `SURREAL_NAMESPACE` | Database namespace | Yes |
-| `SURREAL_DATABASE` | Database name | Yes |
-| `SURREAL_ROOT` | Root user (used at boot for provisioning, schema, and backups) | Yes |
-| `SURREAL_ROOT_PASSWORD` | Root user password | Yes |
+| `NUXT_SURREAL_URL` | SurrealDB WebSocket RPC endpoint | Yes |
+| `NUXT_SURREAL_NAMESPACE` | Database namespace | Yes |
+| `NUXT_SURREAL_DATABASE` | Database name | Yes |
+| `NUXT_SURREAL_ROOT` | ROOT bootstrap user for namespace/database/scoped-user provisioning | First run; optional afterward |
+| `NUXT_SURREAL_ROOT_PASSWORD` | ROOT bootstrap password; remove after provisioning for ROOT-free normal startup | First run; also needed by current privileged backup/restore |
+| `NUXT_APP_ORIGIN` | Exact canonical browser origin | Production; recommended locally |
 | `NUXT_SESSION_PASSWORD` | 32+ character random string for session cookie encryption. Production refuses to start without it. | Yes |
-| `SURREAL_APP_USER` | Optional least-privilege, database-scoped runtime user (see [Scoped database user](#scoped-database-user)) | No |
-| `SURREAL_APP_PASSWORD` | Password for `SURREAL_APP_USER` (required if it is set) | No |
-| `MFA_SECRET` | Optional dedicated key for encrypting stored TOTP secrets at rest; falls back to `NUXT_SESSION_PASSWORD` (see [Two-factor authentication](#two-factor-authentication)) | No |
-| `GEOIP_DB_PATH` | Path to a MaxMind-compatible `.mmdb` file for city-level analytics | No |
-| `APP_SPONSOR` | Enables an optional sponsor flag for the public UI | No |
+| `NUXT_SURREAL_APP_USER` | Required DATABASE-scoped EDITOR runtime user (see [Scoped database user](#scoped-database-user)) | Yes, dev and production |
+| `NUXT_SURREAL_APP_PASSWORD` | Separate runtime password; no ROOT fallback | Yes, dev and production |
+| `NUXT_MFA_SECRET` | Optional dedicated TOTP encryption key; falls back to `NUXT_SESSION_PASSWORD` | No |
+| `NUXT_GEOIP_DB_PATH` | Path to a MaxMind-compatible `.mmdb` file | No |
+| `NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY` | Show “Powered by PandaBlog” GitHub attribution; default false | No |
+| `NODE_OPTIONS` | Node process options; root example sets `--max-old-space-size=4096` | No |
+| `E2E_ADMIN_USERNAME` | Existing app-admin username for authenticated Playwright tests | Tests only |
+| `E2E_ADMIN_PASSWORD` | App-admin password for Playwright; not a database password | Tests only |
+
+`NODE_OPTIONS` is a native process setting, not Nuxt runtime config. Export it in the
+launching shell or inject it into the container before Node starts; loading a `.env` after
+launch does not resize the current process heap.
 
 > **Note on production / Docker:** when running the built server, Nitro only overrides runtime
 > config from `NUXT_`-prefixed variables (for example `NUXT_SURREAL_URL`,
@@ -165,7 +193,7 @@ a city-level database in MMDB format and place it at:
 storage/geoip/dbip-city-lite.mmdb
 ```
 
-To use a different location, set `GEOIP_DB_PATH` (or `NUXT_GEOIP_DB_PATH` in Docker). Until a
+To use a different location, set `NUXT_GEOIP_DB_PATH` in either environment. Until a
 database is present, the Analytics page shows a "GeoIP database not loaded" notice and the world
 map is empty.
 
@@ -427,26 +455,61 @@ location / {
 
 ### Scoped database user
 
-By default the app authenticates to SurrealDB as root. For defense in depth, you can run normal
-request traffic as a least-privilege, database-scoped `EDITOR` user and reserve root for boot-time
-provisioning, schema, and backups. Set both:
+Development and production both require a DATABASE-scoped `EDITOR` runtime user.
+ROOT bootstrap creates only the namespace, database and scoped user. All table schemas,
+boot migrations and ordinary queries use the scoped identity. Set both:
 
 ```env
-SURREAL_APP_USER="pandablog_app"        # a simple identifier (letters/digits/_)
-SURREAL_APP_PASSWORD="a-strong-password"
+NUXT_SURREAL_APP_USER="pandablog_app"   # starts with a letter/_; then letters/digits/_
+NUXT_SURREAL_APP_PASSWORD="<separate-runtime-secret>"
 ```
 
-When both are set, the app provisions/updates this user at boot using root (idempotent — rotating
-the password just takes effect on restart), then signs in as the scoped user for normal queries.
-Root remains required for boot and backups, so keep `SURREAL_ROOT` / `SURREAL_ROOT_PASSWORD` set.
-If either variable is unset, the app falls back to root for runtime queries.
+On first run, supply `NUXT_SURREAL_ROOT` / `NUXT_SURREAL_ROOT_PASSWORD`. Owned startup
+explicitly provisions the namespace/database and scoped user, then closes ROOT **before**
+scoped sign-in and schema/migrations. Normal bootstrap creates a **missing** scoped user but
+does not overwrite an existing user's password or roles. Keep ROOT configured if using current
+backup/restore. ROOT-free ordinary startup remains possible by removing its password and
+recreating the app container, but this is not a full-feature maintenance configuration.
+
+Missing, partial or invalid scoped credentials fence startup before privileged effects;
+failed scoped authentication never retries as ROOT. With ROOT removed, changing scoped
+credentials requires separate approved provisioning rather than automatic password repair.
+Namespace/database names use supported 1–128 character identifiers (letters/underscore first,
+then letters/digits/underscore/hyphen). Development follows the same policy, not the same
+production passwords or DB target.
+
+**Maintenance caveat:** the current backup/export/import/staging/restore implementation still
+requires explicit ROOT credentials, including temporary database creation and user refresh.
+These operations fail clearly when ROOT is absent; they are not silently run as EDITOR.
+A completely ROOT-free backup/restore design is separate work. The scoped EDITOR remains useful
+for limiting ordinary query/SQL-injection impact to the selected database and denying user or
+database provisioning, although it has broad table/data privileges there. It does **not** contain
+process compromise while that process has access to ROOT secrets. Keeping a scoped query client
+is defense in depth, not a claim that ROOT secrets in the same process are inaccessible.
+
+Startup stays fenced until ownership and mandatory initialization complete. `/api/health`
+is liveness only; `/api/ready` returns 200 only when ready (503 during startup, failure,
+maintenance or shutdown). Invalid configuration and verified pre-mutation connection/sign-in
+failures need only correction and restart: after verified client cleanup, the app releases its
+own writer and creates no recovery marker. Partial initialization, uncertain writes and
+interrupted restores remain fenced. Existing legacy markers are never silently cleared.
+Browser requests show a static maintenance explanation instead of an error-rendering loop.
+
+For recovery guidance, run `npm run recover` from the repository root (read-only; no database
+connection). After independently verifying stopped app writers, database quiescence, consistent
+data and a preserved backup, an administrator can use the expert-only archival flags shown by
+`npm run recover -- --help`. Normal inspection asks no technical verification questions and
+reports live ownership without recovery markers as normal, not a manual recovery problem. It refuses interrupted restores and unsafe ownership; there is
+no public unfence endpoint or automatic stale-writer takeover. See the
+[runtime startup operations](docs/runtime-startup-config/operations.md) for prerequisites.
+Compose environment changes require container recreation, not merely restart.
 
 ### Two-factor authentication
 
 Each account can enable TOTP from **Admin → Settings → Security**. Superadmins can require MFA for
 all administrators, forcing enrollment at next sign-in.
 
-TOTP secrets are encrypted at rest (AES-256-GCM). The key is derived from `MFA_SECRET` when set,
+TOTP secrets are encrypted at rest (AES-256-GCM). The key is derived from `NUXT_MFA_SECRET` when set,
 otherwise from `NUXT_SESSION_PASSWORD`.
 
 > Rotating the MFA key (or the session password when no dedicated MFA key is set) **invalidates
@@ -596,7 +659,16 @@ npm run test:e2e
 
 The e2e suite starts the dev server automatically unless `PLAYWRIGHT_BASE_URL` is set (point it at
 an already-running instance to test that instead). Admin credentials for the suite are read from
-your `.env` file via `E2E_ADMIN_USERNAME` and `E2E_ADMIN_PASSWORD`.
+process environment or `.env` via `E2E_ADMIN_USERNAME` and `E2E_ADMIN_PASSWORD`. These are
+existing **application admin** credentials, not ROOT/scoped database credentials; the test
+settings do not create an admin account. Empty credentials skip authenticated tests.
+Playwright loads process overrides first, then `.env.e2e.local`, `.env.e2e`, `.env.local`, and
+`.env` (first defined value wins). The root `.env.example` includes both optional keys.
+Use a disposable test deployment; authenticated tests can create/delete application data.
+Authenticated development E2E specs use those two E2E names only, without alternate login-name
+fallbacks. Anonymous public and explicitly mocked UI tests intentionally need no account;
+user-management cases generate credentials for their own test-created users. Unit/DB integration
+suites use independent owned fixture credentials, never the development E2E account.
 
 ---
 

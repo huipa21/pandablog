@@ -61,6 +61,18 @@ describe('retention scheduler', () => {
     expect(cronCallback(1)).toBe(cronCallback())
   })
 
+  it('does not install late cron tasks after close during asynchronous loading', async () => {
+    let resolve!: (value: unknown) => void
+    mocks.resolveCron.mockReturnValue(new Promise(yes => {resolve = yes}))
+    const {default: plugin} = await import('../../server/plugins/log-retention')
+    const hook = vi.fn(), installing = plugin({hooks: {hook}} as never)
+    await closeCallback(hook)()
+    resolve({validate: mocks.validate, schedule: mocks.schedule})
+    await installing
+    expect(mocks.schedule).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('clears the boot timeout and stops/destroys cron on shutdown', async () => {
     const hook = await install()
     await closeCallback(hook)()

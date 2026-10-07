@@ -12,7 +12,7 @@ export default defineNitroPlugin((nitro) => {
   const run = () => {
     const now = new Date(), date = now.toISOString().slice(0, 10)
     if (stopped || running || !analyticsReady() || writeBarrier.status().closed || lastCompletedDate === date) return
-    running = (async () => {
+    running = writeBarrier.run(async () => {
       try {
         await ensureAnalyticsGeoDir()
         const result = await rollupCompletedAnalyticsDays(now, abort.signal)
@@ -22,7 +22,7 @@ export default defineNitroPlugin((nitro) => {
       } catch (error) {
         console.warn('[analytics] maintenance failed; retry in one hour:', error instanceof Error ? error.message : 'unavailable')
       }
-    })().finally(() => {running = undefined})
+    }, true).catch(() => {console.warn('[analytics] maintenance admission closed')}).finally(() => {running = undefined})
   }
   const boot = setTimeout(run, 60_000), timer = setInterval(run, 60 * 60_000)
   boot.unref?.(); timer.unref?.()

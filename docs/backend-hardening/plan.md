@@ -4,6 +4,10 @@ This is the handoff plan for correcting the backend review of PandaBlog. **Do no
 
 **Status: planned, not implemented.** This package does not supersede the completed logging redesign; it extends its safety guarantees where the review found gaps. See [logging progress](../logging/progress.md) for historical decisions and still-open production gates.
 
+## Runtime startup/configuration follow-up (2026-10-07)
+
+A subsequent investigation found a Nitro startup integration gap: async plugins are not awaited, so writer acquisition can fail before protection is installed while DB initialization proceeds. Follow [runtime startup/configuration plan](../runtime-startup-config/plan.md) and [progress](../runtime-startup-config/progress.md) for the corrective tasks, canonical environment-name migration, approved removal of ordinary runtime ROOT fallback in development and production, and approved footer attribution rename to `NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY`. This follow-up does not replace the existing recovery/restore invariants or authorize deployment; startup coordination must be resolved before claiming safe writer enforcement through the actual runtime.
+
 ## How to use this plan
 
 Ask the implementing agent:

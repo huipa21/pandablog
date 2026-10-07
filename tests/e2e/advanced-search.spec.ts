@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const adminUsername = process.env.E2E_ADMIN_USERNAME ?? process.env.APP_LOGIN_USERNAME
+const adminUsername = process.env.E2E_ADMIN_USERNAME
 const adminPassword = process.env.E2E_ADMIN_PASSWORD
 
 /** Letters-only unique word (digits would split the token in the search analyzer). */

@@ -381,7 +381,8 @@ export async function runAccessLogMigration(db: Db, settings: LoggingSettings) {
   }
 }
 
-/** Only the dedicated ROOT boot connection may perform the destructive second phase. */
+/** Only owned boot may perform receipt-verified removal. DATABASE EDITOR has
+ * table-DDL authority; ROOT bootstrap never runs application migrations. */
 export async function removeMigratedAccessTable(db: Db) {
   const exported = await marker(db, ACCESS_EXPORTED_KEY)
   if (!exported) return

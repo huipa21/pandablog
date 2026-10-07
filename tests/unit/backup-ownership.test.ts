@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises'
 import { tmpdir, hostname } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { JobStore } from '../../server/utils/backups/jobMutex'
 
 const job = (id: string) => ({id, kind: 'create' as const, startedAt: new Date().toISOString()})
@@ -66,6 +66,47 @@ describe('durable maintenance ownership', () => {
     await store.startWriter()
     await store.markUncertain()
     expect(await new JobStore(root).startWriter()).toBe(false)
+  }))
+
+  it('refuses to claim writer release when its receipt was replaced', () => fixture(async root => {
+    const store = new JobStore(root)
+    await store.startWriter()
+    const path = join(root, '.writer.lock/owner.json')
+    const replaced = {...JSON.parse(await readFile(path, 'utf8')), token: 'c'.repeat(48)}
+    await writeFile(path, JSON.stringify(replaced))
+    expect(await store.stopWriter()).toBe(false)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(replaced)
+  }))
+
+  it('rechecks disk uncertainty before reporting a clean writer release', () => fixture(async root => {
+    const store = new JobStore(root)
+    await store.startWriter()
+    await new JobStore(root).markUncertain()
+    expect(await store.stopWriter()).toBe(false)
+    expect(await readFile(join(root, '.writer.lock/owner.json'), 'utf8')).toBeTruthy()
+  }))
+
+  it('waits for a same-PID dev generation to release cleanly without removing its receipt', () => fixture(async root => {
+    const previous = new JobStore(root), replacement = new JobStore(root)
+    await previous.startWriter()
+    const receipt = await readFile(join(root, '.writer.lock/owner.json'), 'utf8')
+    const acquire = vi.spyOn(replacement, 'startWriter')
+    const acquiring = replacement.startWriterAfterDevDrain(() => false, 1000)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(acquire).not.toHaveBeenCalled() // do not compete with old close for its guard
+    expect(await readFile(join(root, '.writer.lock/owner.json'), 'utf8')).toBe(receipt)
+    await previous.stopWriter()
+    expect(await acquiring).toBe(true)
+    await replacement.stopWriter()
+  }))
+
+  it('dev drain wait is bounded and does not take over a live generation', () => fixture(async root => {
+    const previous = new JobStore(root), replacement = new JobStore(root)
+    await previous.startWriter()
+    const receipt = await readFile(join(root, '.writer.lock/owner.json'), 'utf8')
+    await expect(replacement.startWriterAfterDevDrain(() => false, 50)).rejects.toThrow()
+    expect(await readFile(join(root, '.writer.lock/owner.json'), 'utf8')).toBe(receipt)
+    await previous.stopWriter()
   }))
 
   it('enforces one app writer and persists committed state before release', () => fixture(async root => {

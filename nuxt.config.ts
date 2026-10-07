@@ -1,22 +1,18 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { parseEnv } from 'node:util'
+import { parseEnvironmentBoolean, resolveEnvironment } from './utils/runtimeEnvironment'
 import svgLoader from 'vite-svg-loader'
 
-const localEnv = readLocalEnv()
-
-/**
- * Resolve env value with .env file as HIGHEST priority.
- * Falls back to process.env, then to the provided default.
- */
-function env(name: string, fallback = ''): string {
-  return localEnv[name] ?? process.env[name] ?? fallback
-}
-
-function envFlag(name: string, fallback = false): boolean {
-  const value = env(name, fallback ? 'true' : 'false').trim().toLowerCase()
-  return value === 'true' || value === '1' || value === 'yes' || value === 'on'
-}
-
 const isProd = process.env.NODE_ENV === 'production'
+const localEnv = isProd ? {} : readLocalEnv()
+
+/** Production defaults stay non-secret: distributable builds must not embed
+ * operator secrets. Built Nitro reads canonical process-env overrides. */
+function env(name: string, fallback = ''): string {
+  if (isProd) return fallback
+  return resolveEnvironment(name, localEnv, process.env, fallback)
+}
+
 const publicThemeInitScript = `(() => {
   try {
     const serverMode = document.documentElement.dataset.theme
@@ -33,7 +29,7 @@ const publicThemeInitScript = `(() => {
 })()`
 
 const sessionPassword = env('NUXT_SESSION_PASSWORD')
-if (!sessionPassword || sessionPassword.length < 32) {
+if (!isProd && (!sessionPassword || sessionPassword.length < 32)) {
   throw new Error(
     'NUXT_SESSION_PASSWORD must be set to a 32+ character random string in .env'
   )
@@ -93,24 +89,22 @@ export default defineNuxtConfig({
     appVersion: '',
     // Required in production for exact browser mutation origin checks. Never
     // derive this trust boundary from forwarded request headers.
-    appOrigin: env('APP_ORIGIN', ''),
-    surrealUrl: env('SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
-    surrealNamespace: env('SURREAL_NAMESPACE', 'main'),
-    surrealDatabase: env('SURREAL_DATABASE', 'main'),
-    surrealRoot: env('SURREAL_ROOT', 'root'),
-    surrealRootPassword: env('SURREAL_ROOT_PASSWORD', ''),
-    // Optional least-privilege runtime user. When both are set, normal request
-    // queries sign in as this DATABASE-scoped EDITOR user; root creds are then
-    // used only at boot (provisioning + schema) and for backups/restore. When
-    // unset, the app falls back to signing in as root (back-compatible).
-    surrealAppUser: env('SURREAL_APP_USER', ''),
-    surrealAppPassword: env('SURREAL_APP_PASSWORD', ''),
+    appOrigin: env('NUXT_APP_ORIGIN', ''),
+    surrealUrl: env('NUXT_SURREAL_URL', 'ws://127.0.0.1:8000/rpc'),
+    surrealNamespace: env('NUXT_SURREAL_NAMESPACE', 'main'),
+    surrealDatabase: env('NUXT_SURREAL_DATABASE', 'main'),
+    surrealRoot: env('NUXT_SURREAL_ROOT', 'root'),
+    surrealRootPassword: env('NUXT_SURREAL_ROOT_PASSWORD', ''),
+    // Required in every runtime mode. Ordinary work never falls back to ROOT;
+    // ROOT remains dedicated to owned provisioning/schema/backup/restore.
+    surrealAppUser: env('NUXT_SURREAL_APP_USER', ''),
+    surrealAppPassword: env('NUXT_SURREAL_APP_PASSWORD', ''),
     // Optional dedicated key for encrypting stored TOTP/MFA secrets at rest.
     // When unset, the session cookie password is used as the key source.
     // Rotating this value (or the session password fallback) invalidates all
     // stored MFA secrets and requires affected users to re-enroll.
-    mfaSecret: env('MFA_SECRET', ''),
-    geoipDbPath: env('GEOIP_DB_PATH', 'storage/geoip/dbip-city-lite.mmdb'),
+    mfaSecret: env('NUXT_MFA_SECRET', ''),
+    geoipDbPath: env('NUXT_GEOIP_DB_PATH', 'storage/geoip/dbip-city-lite.mmdb'),
     session: {
       password: sessionPassword,
       maxAge: 60 * 60 * 24 * 7, // 7 days
@@ -121,7 +115,9 @@ export default defineNuxtConfig({
       }
     },
     public: {
-      appSponsor: envFlag('APP_SPONSOR'),
+      footerShowPoweredBy: parseEnvironmentBoolean(resolveEnvironment(
+        'NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY', localEnv, process.env, 'false'
+      )),
       modules: {}
     }
   },
@@ -173,22 +169,9 @@ export default defineNuxtConfig({
  * Read .env file from project root.
  * Returns an empty object if the file doesn't exist.
  */
-function readLocalEnv(): Record<string, string> {
+function readLocalEnv(): Record<string, string | undefined> {
   const path = '.env'
   if (!existsSync(path)) return {}
 
-  return Object.fromEntries(
-    readFileSync(path, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'))
-      .map((line) => {
-        const idx = line.indexOf('=')
-        if (idx === -1) return ['', '']
-        const key = line.slice(0, idx).trim()
-        const value = line.slice(idx + 1).trim().replace(/^"|"$/g, '')
-        return [key, value]
-      })
-      .filter(([key]) => Boolean(key))
-  )
+  return parseEnv(readFileSync(path, 'utf8'))
 }

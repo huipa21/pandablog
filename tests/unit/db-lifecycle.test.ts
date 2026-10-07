@@ -18,7 +18,7 @@ async function load(fail?: 'connect' | 'signin' | 'use', connection?: Promise<vo
     query = vi.fn().mockResolvedValue([1])
     constructor() { instances.push(this) }
   } }))
-  vi.stubGlobal('useRuntimeConfig', () => ({ surrealUrl: 'ws://fixture.invalid/rpc', surrealRoot: 'fixture', surrealRootPassword: 'secret', surrealNamespace: 'fixture', surrealDatabase: 'fixture' }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ surrealUrl: 'ws://fixture.invalid/rpc', surrealRoot: 'fixture', surrealRootPassword: 'secret', surrealAppUser: 'fixture_app', surrealAppPassword: 'fixture-app-secret', surrealNamespace: 'fixture', surrealDatabase: 'fixture' }))
   vi.stubGlobal('createError', (options: object) => Object.assign(new Error(), options))
   const db = await import('../../server/utils/db')
   return { ...db, instances }

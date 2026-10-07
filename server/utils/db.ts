@@ -3,6 +3,7 @@ import { createError } from 'h3'
 import { BoundedAdmission } from './admission'
 import { firstRow } from './surrealResult'
 import { writeBarrier } from './maintenance'
+import { bootstrapCredentials, databaseIdentifier, rootCredentials, scopedCredentials } from './startup-config'
 
 export interface QueryOptions {
   label?: string
@@ -29,7 +30,15 @@ let closing: Promise<void> | undefined
 let failures = 0
 let nextConnectAt = 0
 let lastConnectError: Error | undefined
-let warnedRootFallback = false
+// Monotonic evidence, not SQL-text inference. After provisioning dispatch or
+// handoff to application migrations/FS work, a later handshake is not proof
+// that this initialization did nothing.
+let initializationEffectsStarted = false
+const handshakeFailures = new WeakSet<object>()
+
+export function isPreMutationInitializationFailure(error: unknown): boolean {
+  return !initializationEffectsStarted && typeof error === 'object' && error !== null && handshakeFailures.has(error)
+}
 const foreground = new BoundedAdmission({ active: 8, waiting: 32, waitMs: 2_000 }, 'Database foreground work')
 const background = new BoundedAdmission({ active: 2, waiting: 8, waitMs: 2_000 }, 'Database background work')
 
@@ -39,21 +48,20 @@ export function databaseDiagnostics() {
 
 function credentials(root: boolean) {
   const config = useRuntimeConfig()
-  const appUser = String(config.surrealAppUser ?? '').trim()
-  const appPassword = String(config.surrealAppPassword ?? '')
-  if (!root && Boolean(appUser) !== Boolean(appPassword)) throw new Error('Configure both SurrealDB runtime credentials')
-  if (!root && appUser && appPassword) return {
-    scope: 'database', signin: { namespace: config.surrealNamespace, database: config.surrealDatabase, username: appUser, password: appPassword }
+  if (!root) {
+    const {username, password} = scopedCredentials(config)
+    return {scope: 'database', signin: {namespace: config.surrealNamespace, database: config.surrealDatabase, username, password}}
   }
-  if (!root && !warnedRootFallback) {
-    warnedRootFallback = true
-    console.warn('[db] Runtime uses legacy ROOT fallback; configure both scoped runtime credentials for production')
-  }
-  return { scope: 'root', signin: { username: config.surrealRoot, password: config.surrealRootPassword } }
+  return {scope: 'root', signin: rootCredentials(config)}
 }
 
 /** Construction owns the socket, including late uncancellable connect completion. */
 async function handshake(root: boolean, generation?: number): Promise<Surreal> {
+  // Connection/auth/selection are side effects too; retain their lease.
+  const release = writeBarrier.acquire()
+  try {return await admittedHandshake(root, generation)} finally {release()}
+}
+async function admittedHandshake(root: boolean, generation?: number): Promise<Surreal> {
   if (stopped) throw new Error('Database is shutting down')
   const config = useRuntimeConfig()
   const identity = credentials(root)
@@ -62,6 +70,7 @@ async function handshake(root: boolean, generation?: number): Promise<Surreal> {
   ownedClients.add(db)
   let abandoned = false
   const started = Date.now()
+  let phase: 'connection' | 'authentication' | 'selection' = 'connection'
   const check = () => {
     if (abandoned || stopped || (generation !== undefined && generation !== connectionGeneration)) throw new Error('Discarded stale database handshake')
   }
@@ -74,8 +83,10 @@ async function handshake(root: boolean, generation?: number): Promise<Surreal> {
     void connecting.then(() => {pendingConnections.delete(db); if (abandoned || stopped) return closeDbClient(db)}, () => {pendingConnections.delete(db); if (abandoned || stopped) return closeDbClient(db)}).catch(() => {})
     await withTimeout(connecting, 10_000, 'Database connection deadline exceeded')
     check()
+    phase = 'authentication'
     await withTimeout(Promise.resolve(db.signin(identity.signin)), 10_000, 'Database authentication deadline exceeded')
     check()
+    phase = 'selection'
     await withTimeout(Promise.resolve(db.use({ namespace: config.surrealNamespace, database: config.surrealDatabase })), 10_000, 'Database selection deadline exceeded')
     check()
     if (root) rootClients.add(db)
@@ -86,7 +97,9 @@ async function handshake(root: boolean, generation?: number): Promise<Surreal> {
     abandoned = true
     await closeDbClient(db)
     // SDK handshake errors can echo credentials/endpoints. Never relay them.
-    throw createError({statusCode: 503, message: 'Database handshake failed (connection, authentication or selection)'})
+    const error = createError({statusCode: 503, message: `Database handshake failed (${identity.scope} ${phase})`, data: {kind: 'database-handshake', scope: identity.scope, phase}})
+    handshakeFailures.add(error)
+    throw error
   }
 }
 
@@ -176,6 +189,7 @@ async function runQuery<T extends unknown[] = unknown[]>(db: Surreal, sql: strin
   try {
     if (options.signal?.aborted) throw new Error('Database operation aborted before execution')
     // Retain admission until actual SDK settlement, even after caller timeout.
+    if (options.retry !== 'readOnly') initializationEffectsStarted = true
     const query = db.query(sql, params)
     execution = (typeof query.responses === 'function' ? collectResponses(query) : Promise.resolve(query)).catch(async error => {
       if (options.retry !== 'readOnly' && isConnectionError(error)) await writeBarrier.noteUncertain()
@@ -236,15 +250,47 @@ export function shutdownDb(): Promise<void> {
   return closing
 }
 
-export async function provisionAppDatabaseUser(rootDb: Surreal): Promise<boolean> {
+/** Optional, explicitly configured ROOT bootstrap only provisions the target
+ * and identity. Dispose it BEFORE scoped authentication/schema/migrations.
+ * An absent ROOT password is not an invitation to retry scoped failures as ROOT. */
+export async function initializeRuntimeDatabase(): Promise<Surreal> {
   const config = useRuntimeConfig()
-  const user = String(config.surrealAppUser ?? '').trim()
-  const password = String(config.surrealAppPassword ?? '')
-  if (!user && !password) return false
-  if (!user || !password || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(user)) throw new Error('Invalid scoped SurrealDB runtime credentials')
+  scopedCredentials(config)
+  const namespace = databaseIdentifier(config.surrealNamespace, 'NUXT_SURREAL_NAMESPACE')
+  const database = databaseIdentifier(config.surrealDatabase, 'NUXT_SURREAL_DATABASE')
+  if (bootstrapCredentials(config)) {
+    let root: Surreal | undefined
+    try {
+      root = await connectRootClient()
+      try {
+        await queryDb(root, `DEFINE NAMESPACE IF NOT EXISTS ${namespace}; DEFINE DATABASE IF NOT EXISTS ${database};`, undefined, {label: 'bootstrap database target', timeoutMs: 10_000, retry: 'never'})
+      } catch {throw new Error('Could not provision the SurrealDB namespace/database')}
+      await provisionAppDatabaseUser(root, {overwrite: false})
+    } finally {
+      await closeBootstrapRootClient(root)
+    }
+  }
+  const runtime = await useDb()
+  // Application initialization can now mutate files as well as the DB. Do
+  // not classify later failures as a harmless pre-mutation handshake failure.
+  initializationEffectsStarted = true
+  return runtime
+}
+
+async function closeBootstrapRootClient(root?: Surreal) {
+  await closeRootClient(root)
+  if (root && ownedClients.has(root)) throw new Error('Bootstrap ROOT disposal is incomplete')
+}
+
+/** Normal bootstrap only creates a missing identity. Restore/explicit
+ * credential refresh retains deliberate overwrite, never automatic auth repair. */
+export async function provisionAppDatabaseUser(rootDb: Surreal, options: {overwrite?: boolean} = {}): Promise<boolean> {
+  const config = useRuntimeConfig()
+  const {username: user, password} = scopedCredentials(config)
   const literal = `"${password.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
   try {
-    await queryDb(rootDb, `DEFINE USER OVERWRITE ${user} ON DATABASE PASSWORD ${literal} ROLES EDITOR;`, undefined, { label: 'provision scoped runtime identity', timeoutMs: 10_000, retry: 'never' })
+    const mode = options.overwrite === false ? 'IF NOT EXISTS' : 'OVERWRITE'
+    await queryDb(rootDb, `DEFINE USER ${mode} ${user} ON DATABASE PASSWORD ${literal} ROLES EDITOR;`, undefined, { label: 'provision scoped runtime identity', timeoutMs: 10_000, retry: 'never' })
   } catch {
     // No raw/escaped password, SQL or nested SDK cause escapes this boundary.
     throw new Error('Could not provision the scoped SurrealDB runtime user')

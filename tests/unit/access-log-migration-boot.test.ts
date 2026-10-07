@@ -4,10 +4,12 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  queryDb: vi.fn(), useDb: vi.fn(), connectRootClient: vi.fn(), closeRootClient: vi.fn(), provisionAppDatabaseUser: vi.fn(),
+  queryDb: vi.fn(), useDb: vi.fn(), initializeRuntimeDatabase: vi.fn(),
   initializeRuntimeSettings: vi.fn(), initializeAnalyticsSettings: vi.fn(), initializeSecuritySettings: vi.fn(),
   reloadLoggingSettings: vi.fn(), getLoggingSettings: vi.fn(), defaultLoggingSettings: vi.fn(), writeConsoleEntry: vi.fn()
 }))
+// Component tests isolate boot migrations; actual lifecycle is covered separately.
+vi.mock('../../server/utils/startup', () => ({startup: {initialize: async (work: () => Promise<void>) => {await work(); return true}}}))
 vi.mock('../../server/utils/setup-authority', () => ({setupAuthority: () => ({status: async () => ({completed: true})})}))
 // This logging fixture deliberately isolates unrelated media boot recovery.
 vi.mock('../../server/utils/mediaLibrary', () => ({mediaRecoverInterruptedObjects: vi.fn(), mediaInitializeLegacyState: vi.fn()}))
@@ -20,7 +22,6 @@ vi.mock('../../server/utils/schema', () => ({ loadSchema: vi.fn(async () => ({ s
 vi.mock('../../server/utils/blocks', () => ({ flattenBlockSearchText: vi.fn(), flattenNodeText: vi.fn() }))
 vi.mock('../../server/utils/searchTerms', () => ({ rebuildPostSearchTerms: vi.fn() }))
 vi.mock('../../server/utils/taxonomy', () => ({ repairMisaddressedTaxonomyEdges: vi.fn() }))
-const rootDb = { identity: 'ROOT' }
 const poolDb = { identity: 'EDITOR' }
 const checkpointKey = '__access_logs_to_files_v1'
 const exportedKey = '__access_logs_exported_v1'
@@ -50,7 +51,7 @@ beforeEach(async () => {
   source = [row('one'), row('two')]
   table = true
   failLabel = undefined
-  mocks.connectRootClient.mockResolvedValue(rootDb)
+  mocks.initializeRuntimeDatabase.mockResolvedValue(poolDb)
   mocks.useDb.mockResolvedValue(poolDb)
   mocks.getLoggingSettings.mockReturnValue({ retention_access_days: 30, redact_fields: ['password', 'token'], max_metadata_size_kb: 50 })
   mocks.queryDb.mockImplementation(async (db, sql: string, params?: Record<string, unknown>, options?: { label: string }) => {
@@ -58,7 +59,7 @@ beforeEach(async () => {
     if (options?.label === 'auth epoch migration page') return [[]] // unrelated users already migrated
     if (sql === 'INFO FOR DB;') return [{ tables: table ? { access_logs: 'schemafull' } : {} }]
     if (sql === 'REMOVE TABLE access_logs;') {
-      expect(db).toBe(rootDb)
+      expect(db).toBe(poolDb)
       table = false
       return [[]]
     }
@@ -102,7 +103,7 @@ async function fileRows() {
 }
 
 describe('real db-init two-phase migration with isolated mocked DB', () => {
-  it('exports through EDITOR without blocking boot, then drops only on the next ROOT boot', async () => {
+  it('exports through EDITOR without blocking boot, then drops only on the next owned EDITOR boot', async () => {
     await boot()
     await exported()
     expect(table).toBe(true)
@@ -114,7 +115,7 @@ describe('real db-init two-phase migration with isolated mocked DB', () => {
     expect(page[1]).not.toContain('START')
     expect(page[2].limit).toBe(5000)
     expect(page[3]).toMatchObject({ retryOnReconnect: false, timeoutMs: 30_000 })
-    expect(mocks.closeRootClient).toHaveBeenCalledWith(rootDb)
+    expect(mocks.initializeRuntimeDatabase).toHaveBeenCalled()
     await boot()
     expect(removalCalls()).toHaveLength(1)
     expect(table).toBe(false)
@@ -146,14 +147,14 @@ describe('real db-init two-phase migration with isolated mocked DB', () => {
     await exported()
     expect(await fileRows()).toHaveLength(2)
   })
-  it('fails closed on missing receipts/changed mounts before destructive ROOT work', async () => {
+  it('fails closed on missing receipts/changed mounts before owned table removal', async () => {
     await boot()
     await exported()
     await rm(join(dir, '.migration-v1.json'))
     await expect(boot()).rejects.toThrow()
     expect(removalCalls()).toHaveLength(0)
     expect(table).toBe(true)
-    expect(mocks.closeRootClient).toHaveBeenCalledWith(rootDb)
+    expect(mocks.initializeRuntimeDatabase).toHaveBeenCalled()
   })
   it('does not drop until export is complete and safely retries REMOVE failures', async () => {
     await boot()

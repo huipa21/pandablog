@@ -11,7 +11,9 @@ export default defineNitroPlugin(async (nitro) => {
   if (!__PB_MODULE_LOGS__ || !resolveModuleFlags(getRuntimeModuleConfig()).logs) {
     return
   }
+  let stopped = false
   const run = async () => {
+    if (stopped) return
     try {
       await writeBarrier.run(() => runLogRetention(), true)
     } catch (error) {
@@ -23,6 +25,7 @@ export default defineNitroPlugin(async (nitro) => {
   timer.unref?.()
   const scheduled: CronTaskLike[] = []
   nitro.hooks.hook('close', async () => {
+    stopped = true
     clearTimeout(timer)
     for (const task of scheduled) {
       await task.stop()
@@ -33,6 +36,7 @@ export default defineNitroPlugin(async (nitro) => {
   const cron = await resolveCron((error) => {
     warn('[logging] retention cron require failed', { error: error instanceof Error ? error.message : 'Unknown error' })
   })
+  if (stopped) return
   if (!cron) {
     warn('[logging] retention cron disabled because node-cron could not be loaded safely')
     return

@@ -1,4 +1,5 @@
 import { writeBarrier } from '../utils/maintenance'
+import { startup } from '../utils/startup'
 import { markAnalyticsReady } from '../utils/analytics/lifecycle'
 import { mediaInitializeLegacyState, mediaRecoverInterruptedObjects } from '../utils/mediaLibrary'
 import { mediaRecoverStageDirectories } from '../utils/media-upload'
@@ -7,7 +8,7 @@ import { ensureAuthEpochs } from '../utils/auth-epoch-migration'
 import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
 import { assertMediaStorageCompatible, ensureMediaStorageVersion } from '../utils/media-storage-migration'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
-import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, useDb } from '../utils/db'
+import { initializeRuntimeDatabase, queryDb, useDb } from '../utils/db'
 import { defaultLoggingSettings, getLoggingSettings, reloadLoggingSettings } from '../utils/logging'
 import { runErrorGroupBackfill } from '../utils/error-group-backfill'
 import { removeMigratedAccessTable, runAccessLogMigration } from '../utils/access-log-migration'
@@ -55,82 +56,66 @@ const DEFAULT_MEDIA_SETTINGS = {
   orphan_cleanup_cron: '0 4 * * *'
 }
 
-export default defineNitroPlugin(async () => {
-  if (writeBarrier.status().closed) return // interrupted restore serves recovery/status only
-  let rootDb: Awaited<ReturnType<typeof connectRootClient>> | null = null
-  try {
-    // Boot-time privileged work (provisioning the scoped runtime user, schema
-    // and migrations) runs on a dedicated short-lived ROOT client so the shared
-    // runtime pool can authenticate as the least-privilege EDITOR user. Provision
-    // the runtime user FIRST so the pool's first scoped sign-in (deferred
-    // backfills and real requests) succeeds on a fresh install.
-    rootDb = await connectRootClient()
-    await provisionAppDatabaseUser(rootDb)
-    const db = rootDb
-
-    await migrateLegacyAppSettingsTable(db)
-    await assertMediaStorageCompatible(db)
-    const { schema, hash: schemaHash } = await loadSchema()
-
-    if (!await hasCurrentSchemaHash(db, schemaHash)) {
-      await applySchema(db, schema)
-      await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
-    }
-
-    await ensureUserTableMigration(db)
-    await ensureAuthEpochs(db)
-    await setupAuthority().status(db)
-    await ensurePostVersionGraphMigration(db)
-    await ensureVersionEdgeDedupMigration(db)
-    await ensureMediaStorageVersion(db)
-    await mediaInitializeLegacyState(db)
-    await mediaRecoverInterruptedObjects(db)
-    await mediaRecoverStageDirectories()
-    await ensureDefaultMediaSettings(db)
-    await ensureDefaultAdminColorMode(db)
-    await ensureDefaultAdminLocale(db)
-    await ensureDefaultAdminRegionalSettings(db)
-    await initializeRuntimeSettings(true)
-    if (__PB_MODULE_ANALYTICS__) {
-      await initializeAnalyticsSettings(true)
-    }
-    await initializeSecuritySettings(true)
-    await ensureDefaultFolder(db)
-    if (__PB_MODULE_LOGS__) {
-      await ensureLoggingExcludedPathsMigration(db)
-      // Other plugins may have loaded settings already; refresh after the merge.
-      await reloadLoggingSettings()
-      if (resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
-        await removeMigratedAccessTable(db)
-      }
-    }
-
-    // One-time, marker-guarded backfills do a full-table scan + FTS reindex.
-    // Run them in the background via the runtime pool (scoped user) so a fresh
-    // deploy starts serving requests immediately instead of blocking boot (and
-    // the first request) on them.
+export default defineNitroPlugin(() => {
+  return startup.initialize(initializeDatabase).then(ready => {
+    if (!ready) return
     if (__PB_MODULE_ANALYTICS__) markAnalyticsReady()
     void runDeferredBackfillsViaPool()
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error('[db-init] FATAL: database initialization failed:', message)
-    if (error instanceof Error && error.stack) {
-      console.error(error.stack)
-    }
-    throw error
-  } finally {
-    // Release the privileged boot connection; all subsequent traffic uses the
-    // least-privilege runtime pool.
-    await closeRootClient(rootDb)
-  }
+  })
 })
+
+async function initializeDatabase() {
+  // Optional ROOT bootstrap creates only namespace/database/scoped user and
+  // closes before this returns. ALL schemas and boot migrations use EDITOR.
+  // Without ROOT, authenticate directly as the already-provisioned user.
+  const db = await initializeRuntimeDatabase()
+
+  await migrateLegacyAppSettingsTable(db)
+  await assertMediaStorageCompatible(db)
+  const { schema, hash: schemaHash } = await loadSchema()
+
+  if (!await hasCurrentSchemaHash(db, schemaHash)) {
+    await applySchema(db, schema)
+    await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
+  }
+
+  await ensureUserTableMigration(db)
+  await ensureAuthEpochs(db)
+  await setupAuthority().status(db)
+  await ensurePostVersionGraphMigration(db)
+  await ensureVersionEdgeDedupMigration(db)
+  await ensureMediaStorageVersion(db)
+  await mediaInitializeLegacyState(db)
+  await mediaRecoverInterruptedObjects(db)
+  await mediaRecoverStageDirectories()
+  await ensureDefaultMediaSettings(db)
+  await ensureDefaultAdminColorMode(db)
+  await ensureDefaultAdminLocale(db)
+  await ensureDefaultAdminRegionalSettings(db)
+  await initializeRuntimeSettings(true)
+  if (__PB_MODULE_ANALYTICS__) {
+    await initializeAnalyticsSettings(true)
+  }
+  await initializeSecuritySettings(true)
+  await ensureDefaultFolder(db)
+  if (__PB_MODULE_LOGS__) {
+    await ensureLoggingExcludedPathsMigration(db)
+    // Refresh settings after the owned migration merge.
+    await reloadLoggingSettings()
+    if (resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
+      await removeMigratedAccessTable(db)
+    }
+  }
+  // Optional marker-guarded backfills still start after readiness through the
+  // scoped pool under ordinary leases, rather than blocking required boot.
+}
 
 async function runDeferredBackfillsViaPool() {
   try {
     const db = await useDb()
     await writeBarrier.run(() => runDeferredBackfills(db), true)
   } catch (error) {
-    console.warn('[db-init] deferred backfills could not start', error)
+    console.warn('[db-init] deferred backfills could not start', {statusCode: (error as {statusCode?: number})?.statusCode})
   }
 }
 

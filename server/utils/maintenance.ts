@@ -27,7 +27,7 @@ export class WriteBarrier {
   acquire(): () => void {
     const scope = this.context.getStore()
     const admitted = scope?.live && (!scope.owner || scope.owner === this.owner)
-    if (this.closed && !(scope?.live && scope.owner === this.owner && this.owner) && !admitted) throw createError({ statusCode: 503, message: 'Maintenance is fenced', data: { retryAfterSec: 15 } })
+    if (this.closed && !(scope?.live && scope.owner === this.owner && this.owner) && !admitted) throw createError({ statusCode: 503, message: 'Maintenance is fenced', data: { kind: 'maintenance-fenced', retryAfterSec: 15 } })
     this.active++
     let released = false
     return () => { if (released) return; released = true; this.active--; if (!this.active) this.onDrain?.() }

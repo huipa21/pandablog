@@ -1,5 +1,3 @@
-import { validateMutationOrigin } from '../middleware/api-origin'
-
-export default defineNitroPlugin(() => {
-  if (process.env.NODE_ENV === 'production') validateMutationOrigin(useRuntimeConfig().appOrigin)
-})
+// Origin validation is part of the owned startup flight, before provisioning.
+// Do not throw independently from Nitro's non-awaiting plugin loop.
+export default defineNitroPlugin(() => {})

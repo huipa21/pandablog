@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { surrealHttpBase } from './config'
+import { rootCredentials } from '../startup-config'
 import { BACKUP_LIMITS, byteLimit, regularFile, streamToFile } from './streams'
 
 export interface ExportTableSelection { tables?: string[] }
@@ -23,9 +24,10 @@ export function summarizeStatementResults(body: unknown): ImportStatementSummary
 }
 function requestOptions(database?: string) {
   const config = useRuntimeConfig()
+  const {username, password} = rootCredentials(config)
   if (database !== undefined && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(database)) throw new Error('Invalid backup database target')
   return { base: surrealHttpBase(config.surrealUrl), headers: {
-    'Authorization': 'Basic ' + Buffer.from(`${config.surrealRoot}:${config.surrealRootPassword}`).toString('base64'),
+    'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
     'Surreal-NS': config.surrealNamespace, 'Surreal-DB': database ?? config.surrealDatabase
   } }
 }
@@ -86,9 +88,9 @@ export async function exportSurrealDbToFile(target: string, selection?: ExportTa
 
 /** Streaming duplex request; never concatenate SQL. The server may buffer it. */
 export async function importSurrealDb(source: Readable | string, database?: string, signal?: AbortSignal): Promise<ImportStatementSummary> {
+  const {base, headers} = requestOptions(database) // reject missing authority before allocating a file stream
   if (typeof source === 'string') await regularFile(source, BACKUP_LIMITS.sqlBytes)
   const input = typeof source === 'string' ? createReadStream(source) : source
-  const {base, headers} = requestOptions(database)
   const timer = deadline(signal)
   const limited = byteLimit(BACKUP_LIMITS.sqlBytes)
   const pumping = pipeline(input, limited, {signal: timer.signal})

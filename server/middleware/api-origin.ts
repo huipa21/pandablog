@@ -1,15 +1,7 @@
 import { createError, getRequestHeader, getRequestURL, type H3Event } from 'h3'
+import { validateMutationOrigin } from '../utils/application-origin'
+export { validateMutationOrigin } from '../utils/application-origin'
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
-
-/** Canonical deployment origin is configuration, never forwarded client headers. */
-export function validateMutationOrigin(configured: unknown): string {
-  try {
-    if (typeof configured !== 'string' || !configured || configured.length > 2048) throw new Error('invalid origin')
-    const url = new URL(configured)
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('invalid origin')
-    return url.origin
-  } catch {throw createError({statusCode: 503, message: 'Canonical application origin is invalid'})}
-}
 export function mutationOrigin(event: H3Event): string {
   const config = useRuntimeConfig()
   const configured = typeof config.appOrigin === 'string' ? config.appOrigin : ''

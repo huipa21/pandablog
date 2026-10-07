@@ -4,6 +4,8 @@
 
 ## 1. Current operator cautions
 
+**2026-10-07 startup follow-up:** installed Nitro does not await async plugins. The RSC patch now installs protection/close hooks synchronously and coordinates owned boot; core local regressions pass, but full Nuxt build/runtime release acceptance remains incomplete. Do not treat an ownership console error or liveness success as readiness proof. See the [runtime startup/configuration runbook](../runtime-startup-config/operations.md) and [remaining corrective acceptance](../runtime-startup-config/progress.md). Conservative offline recovery below remains required for ambiguous existing receipts. D-07 adds a local startup-only inspection/reviewed-archival assistant; no automatic receipt cleanup, interrupted-restore resume or public unfence is authorized.
+
 Until the relevant tasks are complete:
 
 - REV-1.1 now revokes sessions/devices using current account epochs locally. Deployment still requires coordinated schema/readers/writers and explicit legacy-cookie reauthentication acceptance.
@@ -180,7 +182,7 @@ The 128-MiB SQL cap is a deliberate conservative compatibility boundary based on
 - Stop all app writers and independently establish DB execution quiescence (including stopping/restarting the separately managed DB when needed under operator approval). Preserve current DB/media/config and every journal/receipt/safety artifact first. Never use a PID/TTL or deleting a lock as proof of consistency.
 - Inspect the bounded journal and recorded artifact paths/owner generation offline. Rehearse verified import of the safety SQL and matching original/variant generation on an explicitly approved copy. A crash between renames is resolved from actual path existence and content hashes; no DB+filesystem atomicity or automatic resume is claimed.
 - If recovering pre-wipe or nonrestore ownership, still verify any pending server writes and artifact/metadata state. Unreadable/legacy markers and abandoned guards require inspection, not overwrite. Bootstrap `setup-authority.json` is monotonic and must never be removed to reopen setup.
-- Only after DB/media/auth/config/cache consistency and server quiescence are independently verified may an operator archive the **specific** completed/aborted journal and ownership/uncertainty markers under the approved offline procedure and restart one writer. There is no recovery CLI or ROOT HTTP endpoint in this release; do not invent blanket storage cleanup commands. Preserve safety data until the recovered deployment is accepted.
+- Only after DB/media/auth/config/cache consistency and server quiescence are independently verified may an operator archive the **specific** completed/aborted journal and ownership/uncertainty markers under the approved offline procedure and restart one writer. There is no automated **restore** recovery CLI or ROOT HTTP endpoint in this release; do not invent blanket storage cleanup commands. The D-07 `npm run recover` assistant only inspects or archives operator-reviewed startup-only receipts; it refuses restore journals/artifacts and never dispatches SQL. Preserve safety data until the recovered deployment is accepted.
 
 Linux crash/fsync/rename/mount/disk-full, actual Nitro/module/browser/proxy, constrained mixed-load and production-copy/operator release acceptance remain pending.
 

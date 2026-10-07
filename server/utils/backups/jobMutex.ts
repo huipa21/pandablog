@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdir, open, lstat, rename, rm } from 'node:fs/promises'
 import { hostname } from 'node:os'
+import { setTimeout as delay } from 'node:timers/promises'
 import * as path from 'node:path'
 import { createError } from 'h3'
 import { BACKUPS_ROOT } from './config'
@@ -51,7 +52,7 @@ function validOwner(value: unknown): value is DiskOwner {
   const v = value as DiskOwner | null
   return Boolean(v && /^[a-f0-9]{48}$/.test(v.token) && /^[a-f0-9]{48}$/.test(v.generation) && typeof v.host === 'string' && Number.isInteger(v.pid))
 }
-const conflict = () => createError({statusCode: 409, message: 'Maintenance ownership is busy or requires offline recovery'})
+const conflict = (reason = 'maintenance-busy') => createError({statusCode: 409, message: 'Maintenance ownership is busy or requires offline recovery', data: {reason}})
 const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 
 /** Atomic directory ownership. ALL acquire/release/reclaim uses one exclusive
@@ -85,7 +86,7 @@ export class JobStore {
   private async guard<T>(work: () => Promise<T>): Promise<T> {
     await mkdir(this.root, {recursive: true, mode: 0o700})
     const guard = path.join(this.root, '.ownership.guard')
-    try {await mkdir(guard, {mode: 0o700})} catch (error) {if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw conflict(); throw error}
+    try {await mkdir(guard, {mode: 0o700})} catch (error) {if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw conflict('ownership-guard-present'); throw error}
     // Never reclaim this guard automatically: a dead publisher needs offline
     // inspection, and unreadable/empty is not evidence of abandonment.
     try {return await work()} finally {await rm(guard, {recursive: true}); await syncDirectory(this.root)}
@@ -95,8 +96,11 @@ export class JobStore {
     try {await mkdir(directory, {mode: 0o700})} catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
       let previous: unknown
-      try {previous = await readJson(path.join(directory, 'owner.json'))} catch {throw conflict()}
-      if (!reclaim || !validOwner(previous) || !dead(previous) || this.recoveryRequired()) throw conflict()
+      try {previous = await readJson(path.join(directory, 'owner.json'))} catch {throw conflict('owner-unreadable')}
+      if (!validOwner(previous)) throw conflict('owner-corrupt')
+      if (previous.host !== hostname()) throw conflict('owner-remote')
+      if (!dead(previous)) throw conflict(previous.pid === process.pid ? 'owner-live-same-process' : 'owner-live')
+      if (!reclaim || this.recoveryRequired()) throw conflict('owner-offline-review')
       const abandoned = `${directory}.abandoned-${owner.token}`
       await rename(directory, abandoned)
       await mkdir(directory, {mode: 0o700})
@@ -108,9 +112,10 @@ export class JobStore {
   private async remove(name: string, owner: DiskOwner) {
     const directory = path.join(this.root, name)
     const current = await readJson(path.join(directory, 'owner.json')).catch(error => {if (absent(error)) return null; throw error})
-    if (!validOwner(current) || current.token !== owner.token || current.generation !== owner.generation) return
+    if (!validOwner(current) || current.token !== owner.token || current.generation !== owner.generation) return false
     await rm(directory, {recursive: true})
     await syncDirectory(this.root)
+    return true
   }
   async startWriter() {
     await this.loadJournal()
@@ -132,11 +137,46 @@ export class JobStore {
     this.writer = writer
     return true
   }
-  async stopWriter() {
-    if (!this.writer || this.active || this.recoveryRequired()) return
+  /** Nitro starts a replacement worker before awaiting the old worker close.
+   * Wait only for a same-process live generation / transient publication guard
+   * to release cleanly. Never remove/adopt its receipt or retry stale, remote,
+   * corrupt or recovery authority. Forced termination still requires recovery. */
+  async startWriterAfterDevDrain(stopping: () => boolean, deadlineMs = 5_000) {
+    const deadline = Date.now() + deadlineMs
+    while (!stopping()) {
+      try {
+        if (await this.loadJournal()) return false
+        let previous: unknown
+        try {previous = await readJson(path.join(this.root, '.writer.lock/owner.json'))} catch (error) {if (!absent(error)) throw conflict('owner-unreadable')}
+        // Non-authoritative read avoids repeatedly occupying the publication
+        // guard while the old worker is trying to release it. Acquisition still
+        // uses startWriter's atomic guard and token checks after disappearance.
+        if (validOwner(previous) && previous.host === hostname() && previous.pid === process.pid) {
+          if (Date.now() >= deadline) throw conflict('owner-live-same-process')
+          await delay(Math.min(50, Math.max(1, deadline - Date.now())))
+          continue
+        }
+        return await this.startWriter()
+      } catch (error) {
+        const reason = (error as {data?: {reason?: string}})?.data?.reason
+        if (!['owner-live-same-process', 'ownership-guard-present'].includes(reason ?? '') || Date.now() >= deadline) throw error
+        await delay(Math.min(50, Math.max(1, deadline - Date.now())))
+      }
+    }
+    return false
+  }
+  async stopWriter(): Promise<boolean> {
+    if (!this.writer) return true
+    if (this.active || this.recoveryRequired()) return false
     const writer = this.writer
-    await this.guard(() => this.remove('.writer.lock', writer))
-    this.writer = undefined
+    const removed = await this.guard(async () => {
+      // Do not claim verified release when new persisted recovery authority or
+      // a mismatched generation is found during cleanup.
+      if (await this.loadJournal()) return false
+      return this.remove('.writer.lock', writer)
+    })
+    if (removed) this.writer = undefined
+    return removed
   }
   async acquire(job: ActiveJob): Promise<JobOwner> {
     if (this.reserved || this.active || this.recoveryRequired()) throw conflict()
