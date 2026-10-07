@@ -31,6 +31,7 @@ async function selectLine(page: Page, index: number, offset = 0) {
     editor.state.doc.descendants((node, pos) => { if (node.type.name === 'dialogueLine') positions.push(pos) })
     editor.chain().focus().setTextSelection(positions[args.index]! + 1 + args.offset).run()
   }, { index, offset })
+  await expect(page.locator('.ProseMirror')).toBeFocused()
 }
 async function lines(page: Page) { return (await json(page)).content?.find((node) => node.type === 'dialogueBlock')?.content ?? [] }
 
@@ -62,7 +63,7 @@ for (const keyword of ['dialogue', 'roleplay', 'script']) {
   })
 }
 
-test('keyboard insertion, six-line alternation, same speaker, hard break, Backspace and exit', async ({ page }) => {
+test('keyboard insertion, six-line alternation, Ctrl+Enter, hard break, Backspace and exit', async ({ page }) => {
   await openPost(page, { type: 'doc', content: [{ type: 'paragraph' }] })
   await page.locator('.ProseMirror p').first().click()
   await page.keyboard.press(`${mod}+Shift+d`)
@@ -76,8 +77,8 @@ test('keyboard insertion, six-line alternation, same speaker, hard break, Backsp
   }
   expect((await lines(page)).map((line) => line.attrs?.characterId)).toEqual(['maya', 'alex', 'maya', 'alex', 'maya', 'alex'])
   await page.keyboard.press(`${mod}+Enter`)
-  expect((await lines(page))[6]?.attrs?.characterId).toBe('alex')
-  await page.keyboard.type('Same speaker')
+  expect((await lines(page))[6]?.attrs?.characterId).toBe('maya')
+  await page.keyboard.type('Next speaker')
   await page.keyboard.press('Shift+Enter')
   await page.keyboard.type('Second visual line')
   expect((await lines(page))[6]?.content?.some((node) => node.type === 'hardBreak')).toBe(true)
@@ -184,33 +185,68 @@ test('character picker search, keyboard selection, Esc and creation; settings re
   await expect(page.locator('.dialogue-line').first()).toHaveAttribute('data-kind', 'narration')
 })
 
-test('line menu duplicate, move, kind and deletion are undoable', async ({ page }) => {
+test('line menu offers switching, duplicate, reorder and delete dialogue; actions are undoable', async ({ page }) => {
   await openPost(page)
   await selectLine(page, 0)
-  async function menu(label: string) {
-    await page.locator('.dialogue-line').first().hover()
-    await page.locator('.dialogue-line').first().getByRole('button', { name: 'Line actions' }).click()
+  async function menu(index: number, label: string) {
+    await selectLine(page, index)
+    await page.locator('.dialogue-line').nth(index).getByRole('button', { name: 'Line actions' }).click()
+    await expect(page.getByRole('menuitem')).toHaveText(['Switch to narration', 'Duplicate line', 'Move up', 'Move down', 'Delete dialogue'])
     await page.getByRole('menuitem', { name: label, exact: true }).click()
+    await expect(page.getByRole('menu')).toHaveCount(0)
+    await expect(page.locator('.ProseMirror')).toBeFocused()
   }
-  await menu('Duplicate line')
+  await menu(0, 'Duplicate line')
   expect(await lines(page)).toHaveLength(5)
   await page.keyboard.press(`${mod}+z`)
   expect(await lines(page)).toHaveLength(4)
-  await menu('Move down')
+  await menu(0, 'Move down')
   expect((await lines(page))[0]?.attrs?.characterId).toBe('alex')
+  await menu(1, 'Move up')
+  expect((await lines(page))[0]?.attrs?.characterId).toBe('maya')
+  await menu(0, 'Delete dialogue')
+  expect(await lines(page)).toHaveLength(3)
   await page.keyboard.press(`${mod}+z`)
-  await menu('Narration')
-  expect((await lines(page))[0]?.attrs?.kind).toBe('narration')
-  await menu('Thought')
-  expect((await lines(page))[0]?.attrs?.kind).toBe('thought')
-  await menu('Dialogue')
-  expect((await lines(page))[0]?.attrs?.kind).toBe('speech')
-  await menu('Add line below')
-  expect(await lines(page)).toHaveLength(5)
-  await menu('Delete line')
   expect(await lines(page)).toHaveLength(4)
-  await page.keyboard.press(`${mod}+z`)
+})
+
+test('only the trailing plus adds dialogue or narration', async ({ page }) => {
+  await openPost(page)
+  const block = page.locator('.dialogue-block')
+  await block.hover()
+  await expect(block.locator('.dialogue-block-chrome, .dialogue-block-footer')).toHaveCount(0)
+  const plus = block.getByRole('button', { name: 'Add dialogue or narration', exact: true })
+  const lastLine = block.locator('.dialogue-line').last()
+  const plusBox = await plus.boundingBox()
+  const lineBox = await lastLine.boundingBox()
+  const blockBox = await block.boundingBox()
+  expect(plusBox!.y).toBeGreaterThanOrEqual(lineBox!.y + lineBox!.height)
+  expect(plusBox!.x).toBeCloseTo(blockBox!.x, 0)
+  await plus.click()
+  await expect(page.getByRole('menuitem')).toHaveText(['Dialogue', 'Narration'])
+  await page.getByRole('menuitem', { name: 'Narration', exact: true }).click()
+  await expect(block.locator('.dialogue-line')).toHaveCount(5)
+  await expect(page.locator('.ProseMirror')).toBeFocused()
   expect(await lines(page)).toHaveLength(5)
+  expect((await lines(page))[4]?.attrs).toMatchObject({ kind: 'narration', characterId: null })
+  await page.keyboard.type('The door opens.')
+  await expect(block.locator('.dialogue-text').last()).toHaveText('The door opens.')
+  await plus.click()
+  await page.getByRole('menuitem', { name: 'Dialogue', exact: true }).click()
+  await expect(block.locator('.dialogue-line')).toHaveCount(6)
+  await expect(page.locator('.ProseMirror')).toBeFocused()
+  expect(await lines(page)).toHaveLength(6)
+  expect((await lines(page))[5]?.attrs?.kind).toBe('speech')
+  await expect(block.locator('.dialogue-line-kind')).toHaveCount(0)
+  await page.keyboard.type('Hello')
+  await expect(block.locator('.dialogue-text').last()).toHaveText('Hello')
+  await page.keyboard.press('Enter')
+  await expect(block.locator('.dialogue-line')).toHaveCount(7)
+  await expect(block.locator('.dialogue-line-kind')).toHaveCount(0)
+  await page.keyboard.press(`${mod}+Enter`)
+  expect(await lines(page)).toHaveLength(6)
+  const selectionType = await page.locator('.ProseMirror').evaluate((element) => (element as EditorElement).editor.state.selection.$from.parent.type.name)
+  expect(selectionType).toBe('paragraph')
 })
 
 for (const style of ['compact', 'accent', 'avatar'] as const) {
@@ -248,7 +284,23 @@ for (const style of ['compact', 'accent', 'avatar'] as const) {
         if (width === 360) {
           expect(layout.textTop).toBeGreaterThan(layout.speakerTop)
           expect(Math.abs(layout.textLeft - layout.speakerLeft)).toBeLessThan(1)
-        } else expect(layout.speakerWidth).toBeCloseTo(120, 0)
+        } else {
+          expect(layout.speakerWidth).toBeCloseTo(120, 0)
+          const alignment = await block.locator('.dialogue-line').first().evaluate((element) => {
+            const name = element.querySelector('.dialogue-speaker-name')!
+            const text = element.querySelector('.dialogue-text')!
+            const glyphTop = (node: Element) => {
+              const first = document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode()!
+              const range = document.createRange()
+              range.setStart(first, 0)
+              range.setEnd(first, 1)
+              return range.getBoundingClientRect().top
+            }
+            return { nameTop: glyphTop(name), textTop: glyphTop(text), nameSize: getComputedStyle(name).fontSize, textSize: getComputedStyle(text).fontSize }
+          })
+          expect(alignment.nameSize).toBe(alignment.textSize)
+          expect(Math.abs(alignment.nameTop - alignment.textTop)).toBeLessThan(1)
+        }
         expect(await surface.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
       }
       const metrics = async (surface: Page) => surface.locator('.dialogue-text').first().evaluate((element) => {
@@ -284,7 +336,8 @@ test('media-library avatar renders on both surfaces and clearing returns to init
     await publicPage.goto(`/blog/${slug}`)
     await expect(publicPage.locator('.dialogue-avatar img').first()).toHaveAttribute('src', await avatar.getAttribute('src') ?? '')
     await selectLine(page, 0)
-    await page.getByTestId('dialogue-character-settings').first().getByRole('button', { name: 'Clear avatar' }).click()
+    await page.getByTestId('dialogue-character-settings').first().getByRole('button', { name: 'Character colour and avatar' }).click()
+    await page.getByTestId('dialogue-character-appearance').getByRole('button', { name: 'Clear avatar' }).click()
     await expect(page.locator('.dialogue-line .dialogue-avatar img')).toHaveCount(0)
     await expect(page.locator('.dialogue-line .dialogue-avatar').first()).toHaveText('MW')
     await publicPage.close()

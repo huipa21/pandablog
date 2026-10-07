@@ -50,6 +50,7 @@ tests/e2e/*
 !tests/e2e/all-blocks-parity.spec.ts
 !tests/e2e/editor-public-visual-parity.spec.ts
 !tests/e2e/dialogue-block.spec.ts
+!tests/e2e/dialogue-controls.spec.ts
 !tests/e2e/fixtures/
 tests/e2e/fixtures/*
 !tests/e2e/fixtures/dialogue.ts

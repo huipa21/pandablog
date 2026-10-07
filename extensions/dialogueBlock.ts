@@ -263,12 +263,10 @@ function selectDialogueLine(tr: Transaction, pos: number, offset = 0) {
   return true
 }
 
-function lineAttrsFor(ctx: NonNullable<ReturnType<typeof dialogueContext>>, kind: DialogueLineKind, sameSpeaker = false) {
+function lineAttrsFor(ctx: NonNullable<ReturnType<typeof dialogueContext>>, kind: DialogueLineKind) {
   const lines: DialogueLineAttrs[] = []
   ctx.block.forEach((line) => lines.push(line.attrs as DialogueLineAttrs))
-  const characterId = kind === 'narration' ? null : sameSpeaker
-    ? ctx.line.attrs.characterId ?? ctx.characters[0]?.id ?? null
-    : nextAlternatingSpeaker(lines, ctx.index, ctx.characters)
+  const characterId = kind === 'narration' ? null : nextAlternatingSpeaker(lines, ctx.index, ctx.characters)
   return normalizeDialogueLineAttrs({ kind, characterId }, new Set(ctx.characters.map((character) => character.id)))
 }
 
@@ -280,10 +278,10 @@ export function addDialogueLineTransaction(tr: Transaction, kind: DialogueLineKi
   return selectDialogueLine(tr, pos)
 }
 
-export function splitDialogueLineTransaction(tr: Transaction, sameSpeaker = false) {
+export function splitDialogueLineTransaction(tr: Transaction) {
   let ctx = dialogueContext(tr)
   if (!ctx || tr.selection.$to.parent !== ctx.line) return false
-  if (!sameSpeaker && tr.selection.empty && !ctx.line.content.size && ctx.index === ctx.block.childCount - 1) {
+  if (tr.selection.empty && !ctx.line.content.size && ctx.index === ctx.block.childCount - 1) {
     const paragraph = tr.doc.type.schema.nodes.paragraph?.create()
     if (!paragraph) return false
     const after = ctx.blockPos + ctx.block.nodeSize
@@ -303,7 +301,7 @@ export function splitDialogueLineTransaction(tr: Transaction, sameSpeaker = fals
   if (!ctx) return false
   const offset = tr.selection.$from.parentOffset
   const first = ctx.line.type.create(ctx.line.attrs, ctx.line.content.cut(0, offset), ctx.line.marks)
-  const second = ctx.line.type.create(lineAttrsFor(ctx, 'speech', sameSpeaker), ctx.line.content.cut(offset), ctx.line.marks)
+  const second = ctx.line.type.create(lineAttrsFor(ctx, 'speech'), ctx.line.content.cut(offset), ctx.line.marks)
   tr.replaceWith(ctx.linePos, ctx.linePos + ctx.line.nodeSize, Fragment.fromArray([first, second]))
   return selectDialogueLine(tr, ctx.linePos + first.nodeSize)
 }
@@ -619,7 +617,7 @@ export const DialogueLineNode = Node.create({
   addKeyboardShortcuts() {
     return {
       Enter: () => this.editor.commands.command(({ tr }) => splitDialogueLineTransaction(tr)),
-      'Mod-Enter': () => this.editor.commands.command(({ tr }) => splitDialogueLineTransaction(tr, true)),
+      'Mod-Enter': () => this.editor.commands.command(({ tr }) => splitDialogueLineTransaction(tr)),
       'Shift-Enter': () => this.editor.isActive('dialogueLine') ? this.editor.commands.setHardBreak() : false,
       'Mod-z': () => this.editor.isActive('dialogueLine') ? this.editor.commands.undoInputRule() : false,
       Backspace: () => this.editor.commands.command(({ tr }) => {

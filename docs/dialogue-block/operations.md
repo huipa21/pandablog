@@ -9,13 +9,14 @@
 ## Authoring
 
 - Insert via `/dialogue`, `/roleplay`, `/script`, the block inserter, or Ctrl/Cmd+Shift+D. New blocks contain two characters and two empty speech lines.
-- Inside a line: Enter splits and alternates speakers; Ctrl/Cmd+Enter splits with the same speaker; Shift+Enter inserts a hard break; Ctrl/Cmd+Shift+D adds a speech line below.
+- Inside a line: Enter and Ctrl/Cmd+Enter split and alternate speakers; Shift+Enter inserts a hard break within the same dialogue, with no inter-dialogue spacing; Ctrl/Cmd+Shift+D adds a speech line below.
 - Enter on an empty last line exits to a paragraph. If it is the only line, the empty block is replaced by a paragraph to preserve the `dialogueLine+` schema. Backspace deletes an empty line but never the only line.
 - Type `Name: ` or `Name：` at line start to assign/create a character. Names match case-insensitively. Ctrl/Cmd+Z immediately after conversion restores the typed prefix.
 - Multiline plain-text paste **inside** a dialogue line parses speech, thought (`Name (thought): text`) and narration. Blank script lines are skipped. Single-line paste is unchanged; pasting outside dialogue does not auto-convert.
 - To convert existing paragraphs, select contiguous paragraphs and choose **Transform to… → Convert paragraphs to dialogue** in the expanded block toolbar. Prefixes become metadata; remaining marks and inline nodes are retained. The operation is undoable.
-- Click a speaker to search/select/create a character. Up/Down navigate, Enter selects and Esc returns focus to the line. The line menu offers kind, duplication, reorder and deletion actions.
-- The block menu selects Compact / Accent / Avatar, duplicates or deletes the scene. Settings additionally edit character names, palette colours, media-library avatars and spacing. Deleting a character requires confirmation and turns its lines into narration.
+- Click the single plus in the trailing blank row to append Dialogue or Narration. It sits directly under the preceding character name, including in Accent and Avatar styles; there are no per-line plus buttons. Thought is no longer offered in these controls; existing thought content and legacy script paste remain supported. Thoughts can be written in parentheses within dialogue.
+- Click a speaker to search/select/create a character. Up/Down navigate, Enter selects and Esc returns focus to the line. The line menu offers Switch to narration / Switch to dialogue, Duplicate line, Move up, Move down and Delete dialogue. Switching preserves inline text/marks and is independently undoable. Narration → Dialogue selects the first available character (change it via the speaker button); it is disabled until a character exists.
+- Settings select Compact / Accent / Avatar and edit character names and spacing. **Add character** creates a new character and focuses its name for editing (up to 24). Click a character's initials/avatar to open the colour palette, choose a custom avatar from the image-filtered media library, or clear an existing avatar back to initials. The general hovering block toolbar duplicates/deletes the scene; there is no separate dialogue block menu. Deleting a character requires confirmation and turns its lines into narration.
 - Character limit: 24 per block; name limit: 40 characters; title limit: 120 characters. At the character limit, unmatched script prefixes remain narration and the picker stops offering creation.
 - Title/name/spacing inputs commit on change, allowing spaces to be typed before normalization. Changes update every affected line.
 
@@ -43,7 +44,7 @@ Override tokens in theme CSS only:
 - `--pb-dialogue-gap`, `--pb-dialogue-line-gap`
 - `--pb-dialogue-muted`, `--pb-dialogue-accent-width`, `--pb-dialogue-avatar-size`
 
-Structural rules live exclusively in `assets/css/dialogue-block.css`, imported by both surfaces. Speaker text mixes the character colour with the theme text token for light/dark legibility; the colour remains an accent and is never the only identifier. Names remain visible and have full-name tooltips. At <=40rem the speaker stacks above the text; narration has no indent. Long words wrap rather than creating viewport scroll.
+Structural rules live exclusively in `assets/css/dialogue-block.css`, imported by both surfaces. Speaker text mixes the character colour with the theme text token for light/dark legibility; the colour remains an accent and is never the only identifier. Names inherit the dialogue font size/line height, align with its first text baseline in every style, and have full-name tooltips. Avatars stay centred beside that first line without affecting its baseline. At <=40rem the speaker stacks above the text; narration has no indent. Long words wrap rather than creating viewport scroll.
 
 The style-drift baseline intentionally permits only the persisted character palette and colour-validation test fixtures; the new UI/CSS uses theme tokens.
 
@@ -68,9 +69,11 @@ npm run lint
 npm run typecheck
 npx vitest run tests/unit/dialogueBlock.test.ts
 npx stylelint assets/css/dialogue-block.css
+# UI-only browser tests use mocked API responses: no credentials or database writes.
+npx playwright test tests/e2e/dialogue-controls.spec.ts --workers=1
 $env:PLAYWRIGHT_BASE_URL = 'http://[::1]:3000' # only if using this existing local server
 # Supply E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD for that server.
 npx playwright test tests/e2e/all-blocks-parity.spec.ts tests/e2e/editor-public-visual-parity.spec.ts tests/e2e/dialogue-block.spec.ts --workers=1 --max-failures=1
 ```
 
-As of 2026-10-07: lint, typecheck, CSS lint and 30 unit tests pass. An isolated Chromium smoke check passed actual Tiptap keyboard/input-rule/paste/conversion flows. Full authenticated tests are **pending**, blocked by `401 Invalid username or password` with the environment's E2E credentials. See `acceptance-test.md` for outstanding manual checks, especially real media/privacy, flag-off save/reload, theme contrast, backup/restore and version-history UI.
+As of 2026-10-07: targeted lint, style-drift check, typecheck, CSS lint and 31 unit tests pass. Fourteen UI-only Chromium tests pass against the real editor with browser-local mocked API responses, covering the trailing plus, focus/Escape, Enter/Ctrl+Enter/Shift+Enter and spacing, line actions and Dialogue/Narration switching with formatting preservation/undo, character creation/rename/limit and picker availability, colour/avatar library selection/cancel/clear, and first-line typography/alignment (including wrapped text, hard breaks and image avatars) plus trailing-plus alignment in all three styles at 360/768/1440px. Full authenticated tests are **pending**, blocked by `401 Invalid username or password` with the environment's E2E credentials. See `acceptance-test.md` for outstanding manual checks, especially real media/privacy, flag-off save/reload, theme contrast, backup/restore and version-history UI.

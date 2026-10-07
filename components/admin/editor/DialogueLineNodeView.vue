@@ -1,5 +1,5 @@
 <template>
-  <NodeViewWrapper class="dialogue-line" data-type="dialogue-line" :data-kind="lineAttrs.kind" :data-character-id="lineAttrs.characterId" :style="{ '--pb-dialogue-color': character?.color }">
+  <NodeViewWrapper class="dialogue-line" data-type="dialogue-line" :data-active="active" :data-kind="lineAttrs.kind" :data-character-id="lineAttrs.characterId" :style="{ '--pb-dialogue-color': character?.color }">
     <UPopover v-model:open="pickerOpen" :content="{ side: 'bottom', align: 'start', onCloseAutoFocus: onPickerCloseAutoFocus }" @update:open="onPickerOpen">
       <button class="dialogue-speaker" type="button" contenteditable="false" :disabled="!editor.isEditable" :aria-hidden="lineAttrs.kind === 'narration' ? 'true' : undefined" :tabindex="lineAttrs.kind === 'narration' ? -1 : undefined" :aria-label="t('admin.editor.dialogue.changeCharacter')" @mousedown.prevent="focusLine">
         <template v-if="character">
@@ -17,7 +17,7 @@
     </UPopover>
     <NodeViewContent class="dialogue-text" />
     <div v-if="editor.isEditable" class="dialogue-line-chrome" contenteditable="false">
-      <UDropdownMenu :items="menuItems">
+      <UDropdownMenu :items="menuItems" :content="{ onCloseAutoFocus: onMenuCloseAutoFocus }">
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-ellipsis" :aria-label="t('admin.editor.dialogue.lineMenu')" @mousedown.prevent="focusLine" />
       </UDropdownMenu>
     </div>
@@ -26,7 +26,8 @@
 
 <script setup lang="ts">
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { generateDialogueCharacterId, initialsOf, normalizeDialogueAttrs, normalizeDialogueLineAttrs, resolveCharacter, type DialogueLineKind } from '~/extensions/dialogueBlock'
+import { closeHistory } from '@tiptap/pm/history'
+import { generateDialogueCharacterId, initialsOf, normalizeDialogueAttrs, normalizeDialogueLineAttrs, resolveCharacter } from '~/extensions/dialogueBlock'
 import DialogueCharacterPicker from './DialogueCharacterPicker.vue'
 import '~/assets/css/dialogue-block.css'
 const props = defineProps(nodeViewProps)
@@ -44,6 +45,12 @@ const blockAttrs = computed(() => {
 })
 const lineAttrs = computed(() => normalizeDialogueLineAttrs(props.node.attrs, new Set(blockAttrs.value.characters.map((character) => character.id))))
 const character = computed(() => resolveCharacter(blockAttrs.value.characters, lineAttrs.value.characterId))
+const active = computed(() => {
+  void tick.value
+  const pos = props.getPos()
+  const selection = props.editor.state.selection
+  return typeof pos === 'number' && selection.from >= pos + 1 && selection.to <= pos + props.node.nodeSize - 1
+})
 function focusLine() {
   const pos = props.getPos()
   if (typeof pos !== 'number') return false
@@ -70,15 +77,39 @@ function createCharacter(name: string) {
   props.editor.chain().upsertDialogueCharacter({ id, name }).setDialogueLineCharacter(id).run()
   closePicker()
 }
-function run(action: () => void) { focusLine(); action(); props.editor.view.focus() }
-function setKind(kind: DialogueLineKind) { run(() => props.editor.commands.setDialogueLineKind(kind)) }
+function run(action: () => void) {
+  const editor = props.editor
+  focusLine()
+  // Each explicit menu action should undo separately from typing/other actions.
+  editor.commands.command(({ tr }) => { closeHistory(tr); return true })
+  action()
+  // Moving/deleting can unmount this node view; retain the editor reference and
+  // restore focus after both Vue's DOM patch and the menu's focus-scope cleanup.
+  nextTick(() => requestAnimationFrame(() => {
+    if (!editor.isDestroyed) editor.view.focus()
+  }))
+}
+let pendingAction: (() => void) | null = null
+function onMenuCloseAutoFocus(event: Event) {
+  if (!pendingAction) return
+  event.preventDefault()
+  const action = pendingAction
+  pendingAction = null
+  // Finish Reka's focus-scope teardown before an action can update/unmount it.
+  nextTick(() => setTimeout(() => run(action), 0))
+}
+const switchKind = computed(() => lineAttrs.value.kind === 'narration' ? 'speech' : 'narration')
 const menuItems = computed(() => [[
-  { label: t('admin.editor.dialogue.changeCharacter'), onSelect: () => { focusLine(); pickerOpen.value = true } },
-  { label: t('admin.editor.dialogue.addBelow'), onSelect: () => run(() => props.editor.commands.addDialogueLine()) }
-], ['speech', 'narration', 'thought'].map((kind) => ({ label: t(`admin.editor.dialogue.${kind}`), onSelect: () => setKind(kind as DialogueLineKind) })), [
-  { label: t('admin.editor.dialogue.duplicateLine'), onSelect: () => run(() => props.editor.commands.duplicateDialogueLine()) },
-  { label: t('admin.editor.dialogue.moveUp'), onSelect: () => run(() => props.editor.commands.moveDialogueLine('up')) },
-  { label: t('admin.editor.dialogue.moveDown'), onSelect: () => run(() => props.editor.commands.moveDialogueLine('down')) },
-  { label: t('admin.editor.dialogue.deleteLine'), onSelect: () => run(() => props.editor.commands.deleteDialogueLine()) }
+  {
+    label: t(`admin.editor.dialogue.${switchKind.value === 'speech' ? 'switchToDialogue' : 'switchToNarration'}`),
+    icon: 'i-lucide-repeat-2',
+    disabled: switchKind.value === 'speech' && !blockAttrs.value.characters.length,
+    onSelect: () => { pendingAction = () => props.editor.commands.setDialogueLineKind(switchKind.value) }
+  }
+], [
+  { label: t('admin.editor.dialogue.duplicateLine'), onSelect: () => { pendingAction = () => props.editor.commands.duplicateDialogueLine() } },
+  { label: t('admin.editor.dialogue.moveUp'), onSelect: () => { pendingAction = () => props.editor.commands.moveDialogueLine('up') } },
+  { label: t('admin.editor.dialogue.moveDown'), onSelect: () => { pendingAction = () => props.editor.commands.moveDialogueLine('down') } },
+  { label: t('admin.editor.dialogue.deleteLine'), onSelect: () => { pendingAction = () => props.editor.commands.deleteDialogueLine() } }
 ]])
 </script>

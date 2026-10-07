@@ -200,10 +200,16 @@ describe('dialogue authoring transactions', () => {
     tr.doc.check()
   })
 
-  it('Mod+Enter keeps the speaker, including at an empty last line', () => {
-    const tr = commandState([''], 0).tr
-    expect(splitDialogueLineTransaction(tr, true)).toBe(true)
-    expect(blockLines(tr).map((line: any) => line.attrs.characterId)).toEqual(['maya', 'maya'])
+  it('Enter and Mod+Enter use the same splitting shortcut', () => {
+    const editor = { commands: { command: (callback: (args: { tr: ReturnType<EditorState['tr']['setSelection']> }) => boolean) => {
+      const tr = commandState(['Hello'], 0, 5).tr
+      expect(callback({ tr })).toBe(true)
+      expect(blockLines(tr).map((line: any) => line.attrs.characterId)).toEqual(['maya', 'alex'])
+      return true
+    } } }
+    const shortcuts = DialogueLineNode.config.addKeyboardShortcuts!.call({ editor } as any)
+    expect(shortcuts.Enter!({ editor } as any)).toBe(true)
+    expect(shortcuts['Mod-Enter']!({ editor } as any)).toBe(true)
   })
 
   it('Enter deletes the selected text before splitting', () => {
@@ -246,6 +252,23 @@ describe('dialogue authoring transactions', () => {
     expect(tr.selection.$from.parent.attrs).toEqual({ kind: 'thought', characterId: 'maya' })
     expect(setDialogueLineTransaction(tr, { kind: 'narration' })).toBe(true)
     expect(tr.selection.$from.parent.attrs).toEqual(narration)
+  })
+
+  it('switches speech/narration without changing inline content, cast or selection', () => {
+    const tr = commandState(['Hello'], 0, 5).tr.addMark(2, 7, commandSchema.marks.bold!.create())
+    tr.insert(7, commandSchema.nodes.hardBreak!.create())
+    const content = tr.doc.firstChild!.firstChild!.content
+    const characters = tr.doc.firstChild!.attrs.characters
+    const selection = tr.selection
+    expect(setDialogueLineTransaction(tr, { kind: 'narration' })).toBe(true)
+    expect(tr.doc.firstChild!.firstChild!.attrs).toEqual(narration)
+    expect(tr.doc.firstChild!.firstChild!.content.eq(content)).toBe(true)
+    expect(setDialogueLineTransaction(tr, { kind: 'speech' })).toBe(true)
+    expect(tr.doc.firstChild!.firstChild!.attrs).toEqual(speech('maya'))
+    expect(tr.doc.firstChild!.firstChild!.content.eq(content)).toBe(true)
+    expect(tr.doc.firstChild!.attrs.characters).toEqual(characters)
+    expect(tr.selection.eq(selection)).toBe(true)
+    tr.doc.check()
   })
 
   it('duplicates and moves a line in both directions without losing inline content', () => {

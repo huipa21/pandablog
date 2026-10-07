@@ -1,5 +1,5 @@
 <template>
-  <details open class="rounded-md border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3" data-testid="dialogue-settings">
+  <details ref="settingsRoot" open class="rounded-md border border-[var(--pb-divider)] bg-[var(--pb-card-bg)] p-3" data-testid="dialogue-settings">
     <summary class="cursor-pointer text-sm font-semibold">{{ t('admin.editor.dialogue.title') }}</summary>
     <div class="mt-3 space-y-4">
       <div class="space-y-2">
@@ -18,28 +18,26 @@
         <h3 class="text-sm font-semibold">{{ t('admin.editor.dialogue.characters') }}</h3>
         <div v-for="character in normalized.characters" :key="character.id" class="space-y-2 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-2" data-testid="dialogue-character-settings">
           <div class="flex items-center gap-2">
-            <UPopover>
-              <button type="button" class="size-6 shrink-0 rounded-full border border-[var(--pb-divider)]" :style="{ backgroundColor: character.color }" :aria-label="t('admin.editor.dialogue.color')">
-                <span class="sr-only">{{ character.color }}</span>
+            <UPopover :open="appearanceId === character.id" :content="{ onCloseAutoFocus: onAppearanceCloseAutoFocus }" @update:open="onAppearanceOpen(character.id, $event)">
+              <button type="button" class="dialogue-avatar border border-[var(--pb-divider)] text-[var(--pb-text)]" :style="{ '--pb-dialogue-color': character.color }" :aria-label="t('admin.editor.dialogue.appearance')">
+                <img v-if="character.avatarSrc" :src="avatarUrl(character.avatarSrc)" alt="">
+                <template v-else>{{ initialsOf(character.name) }}</template>
               </button>
               <template #content>
-                <div class="grid grid-cols-4 gap-2 p-3">
-                  <button v-for="color in DIALOGUE_PALETTE" :key="color" type="button" class="size-7 rounded-full border-2" :class="color === character.color ? 'border-[var(--pb-text)]' : 'border-transparent'" :style="{ backgroundColor: color }" :aria-label="color" :aria-pressed="color === character.color" @click="updateCharacter(character, { color })" />
+                <div class="space-y-3 p-3" data-testid="dialogue-character-appearance">
+                  <div class="grid grid-cols-4 gap-2" role="group" :aria-label="t('admin.editor.dialogue.color')">
+                    <button v-for="color in DIALOGUE_PALETTE" :key="color" type="button" class="size-7 rounded-full border-2" :class="color === character.color ? 'border-[var(--pb-text)]' : 'border-transparent'" :style="{ backgroundColor: color }" :aria-label="color" :aria-pressed="color === character.color" @click="updateCharacter(character, { color })" />
+                  </div>
+                  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-image" @click="pickAvatar(character.id)">{{ t('admin.editor.dialogue.pickAvatar') }}</UButton>
+                  <UButton v-if="character.avatarSrc" size="xs" color="neutral" variant="ghost" @click="updateCharacter(character, { avatarSrc: null, avatarMediaId: null })">{{ t('admin.editor.dialogue.clearAvatar') }}</UButton>
                 </div>
               </template>
             </UPopover>
             <input :value="character.name" maxlength="40" class="min-w-0 w-full rounded border border-[var(--pb-divider)] bg-transparent p-1 text-sm" :aria-label="t('admin.editor.dialogue.name')" @change="updateCharacter(character, { name: ($event.target as HTMLInputElement).value })">
             <UButton size="xs" color="error" variant="ghost" icon="i-lucide-trash" :aria-label="t('admin.editor.dialogue.deleteCharacter')" @click="askDelete(character.id)" />
           </div>
-          <div class="flex items-center gap-2">
-            <span class="dialogue-avatar" :style="{ '--pb-dialogue-color': character.color }" aria-hidden="true">
-              <img v-if="character.avatarSrc" :src="avatarUrl(character.avatarSrc)" alt="">
-              <template v-else>{{ initialsOf(character.name) }}</template>
-            </span>
-            <UButton size="xs" color="neutral" variant="ghost" @click="pickAvatar(character.id)">{{ t('admin.editor.dialogue.pickAvatar') }}</UButton>
-            <UButton v-if="character.avatarSrc" size="xs" color="neutral" variant="ghost" @click="updateCharacter(character, { avatarSrc: null, avatarMediaId: null })">{{ t('admin.editor.dialogue.clearAvatar') }}</UButton>
-          </div>
         </div>
+        <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-plus" :disabled="normalized.characters.length >= DIALOGUE_MAX_CHARACTERS || !editor?.isEditable" @click="addCharacter">{{ t('admin.editor.dialogue.addCharacter') }}</UButton>
       </div>
       <div class="grid grid-cols-2 gap-2">
         <UFormField :label="t('admin.editor.settingsPanel.marginAbove')"><UInput :model-value="normalized.marginTop" @change="emit('update', { marginTop: ($event.target as HTMLInputElement).value })" /></UFormField>
@@ -47,14 +45,14 @@
       </div>
     </div>
     <MediaPicker v-model:open="mediaOpen" type-filter="image" @select="onMediaSelected" />
-    <ConfirmActionDialog :open="!!deleteId" :title="t('admin.editor.dialogue.deleteCharacter')" :description="t('admin.editor.dialogue.deleteCharacterConfirm')" :confirm-label="t('admin.editor.dialogue.deleteCharacter')" :cancel-label="t('admin.editor.dialogue.cancel')" @update:open="if (!$event) deleteId = null" @confirm="confirmDelete" />
+    <ConfirmActionDialog :open="!!deleteId" :title="t('admin.editor.dialogue.deleteCharacter')" :description="t('admin.editor.dialogue.deleteCharacterConfirm')" :confirm-label="t('admin.editor.dialogue.deleteCharacter')" :cancel-label="t('admin.editor.dialogue.cancel')" @update:open="onDeleteDialogOpen" @confirm="confirmDelete" />
   </details>
 </template>
 
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
 import type { MediaRecord } from '~/types/content'
-import { DIALOGUE_PALETTE, initialsOf, normalizeDialogueAttrs, type DialogueCharacter, type DialogueStyle } from '~/extensions/dialogueBlock'
+import { DIALOGUE_MAX_CHARACTERS, DIALOGUE_PALETTE, findCharacterByName, initialsOf, normalizeDialogueAttrs, type DialogueCharacter, type DialogueStyle } from '~/extensions/dialogueBlock'
 import MediaPicker from '~/components/admin/media/MediaPicker.vue'
 import ConfirmActionDialog from '~/components/admin/ConfirmActionDialog.vue'
 import '~/assets/css/dialogue-block.css'
@@ -64,24 +62,64 @@ const { t } = useI18n()
 const { toPublicMediaUrl: avatarUrl } = useMediaUrl()
 const styles: DialogueStyle[] = ['compact', 'accent', 'avatar']
 const normalized = computed(() => normalizeDialogueAttrs(props.attrs))
+const settingsRoot = ref<HTMLDetailsElement | null>(null)
+const appearanceId = ref<string | null>(null)
 const mediaOpen = ref(false)
+let pendingAvatar = false
 const avatarId = ref<string | null>(null)
 const deleteId = ref<string | null>(null)
 const targetBlockId = ref<unknown>(null)
-watch(() => props.pos, () => { mediaOpen.value = false; deleteId.value = null; avatarId.value = null })
+watch([() => props.pos, () => props.attrs.blockId], () => {
+  mediaOpen.value = false
+  appearanceId.value = null
+  deleteId.value = null
+  avatarId.value = null
+  pendingAvatar = false
+})
 function validTarget() {
-  return props.editor && props.pos !== null && props.editor.state.doc.nodeAt(props.pos)?.type.name === 'dialogueBlock'
+  return props.editor?.isEditable && props.pos !== null && props.editor.state.doc.nodeAt(props.pos)?.type.name === 'dialogueBlock'
+}
+function addCharacter() {
+  if (!validTarget() || normalized.value.characters.length >= DIALOGUE_MAX_CHARACTERS) return
+  let number = normalized.value.characters.length + 1
+  let name = t('admin.editor.dialogue.characterName', { number })
+  while (findCharacterByName(normalized.value.characters, name)) name = t('admin.editor.dialogue.characterName', { number: ++number })
+  if (!props.editor!.chain().setNodeSelection(props.pos!).upsertDialogueCharacter({ name }).run()) return
+  nextTick(() => {
+    const inputs = settingsRoot.value?.querySelectorAll<HTMLInputElement>('[data-testid="dialogue-character-settings"] input')
+    const input = inputs?.item(inputs.length - 1)
+    input?.focus()
+    input?.select()
+  })
+}
+function onAppearanceOpen(id: string, open: boolean) {
+  appearanceId.value = open ? id : appearanceId.value === id ? null : appearanceId.value
+}
+function onAppearanceCloseAutoFocus(event: Event) {
+  if (!pendingAvatar) return
+  event.preventDefault()
+  pendingAvatar = false
+  if (validTarget() && targetBlockId.value === props.attrs.blockId) mediaOpen.value = true
 }
 function updateCharacter(character: DialogueCharacter, patch: Partial<DialogueCharacter>) {
   if (!validTarget()) return
   props.editor!.chain().setNodeSelection(props.pos!).upsertDialogueCharacter({ ...character, ...patch }).run()
 }
 function askDelete(id: string) { targetBlockId.value = props.attrs.blockId; deleteId.value = id }
+function onDeleteDialogOpen(open: boolean) {
+  if (!open) deleteId.value = null
+}
 function confirmDelete() {
   if (deleteId.value && validTarget() && targetBlockId.value === props.attrs.blockId) props.editor!.chain().setNodeSelection(props.pos!).removeDialogueCharacter(deleteId.value).run()
   deleteId.value = null
 }
-function pickAvatar(id: string) { targetBlockId.value = props.attrs.blockId; avatarId.value = id; mediaOpen.value = true }
+function pickAvatar(id: string) {
+  if (!validTarget()) return
+  targetBlockId.value = props.attrs.blockId
+  avatarId.value = id
+  pendingAvatar = true
+  appearanceId.value = null
+}
 function onMediaSelected(files: MediaRecord[]) {
   const file = files[0]
   const character = normalized.value.characters.find((item) => item.id === avatarId.value)

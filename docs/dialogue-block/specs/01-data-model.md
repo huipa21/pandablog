@@ -49,8 +49,8 @@ All code lives in `extensions/dialogueBlock.ts`.
 | Key | Behaviour |
 |---|---|
 | Enter | Split the line; the new line is speech by `nextAlternatingSpeaker` |
-| Mod+Enter | Split the line; same speaker |
-| Shift+Enter | Hard break inside the line |
+| Mod+Enter | Same as Enter, including alternating speakers and exiting an empty last line |
+| Shift+Enter | Hard break inside the same dialogue, without the extra inter-dialogue spacing |
 | Enter on an empty last line | Delete the line, insert a paragraph after the block and focus it; if it is the only line, replace the empty block with a paragraph |
 | Backspace at the start of an empty line | Delete the line (never the last one); caret moves to the end of the previous line |
 | Mod+Shift+D | Inside: add a speech line below. Outside: insert a dialogue block |

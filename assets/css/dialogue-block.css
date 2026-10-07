@@ -8,6 +8,8 @@
 }
 
 .dialogue-block {
+  --pb-dialogue-speaker-name-inset: 0px;
+
   position: relative;
   min-width: 0;
   max-width: 100%;
@@ -37,6 +39,7 @@
   position: relative;
   display: grid;
   grid-template-columns: var(--pb-dialogue-speaker-col) minmax(0, 1fr);
+  align-items: first baseline;
   gap: 0 var(--pb-dialogue-gap);
   min-width: 0;
 }
@@ -48,9 +51,8 @@
 .dialogue-speaker {
   display: flex;
   min-width: 0;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 0.5rem;
-  align-self: start;
   border: 0;
   background: transparent;
   padding: 0;
@@ -63,8 +65,9 @@
 .dialogue-speaker-name {
   min-width: 0;
   overflow: hidden;
-  font-size: 0.75rem;
+  font-size: inherit;
   font-weight: 600;
+  line-height: inherit;
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -77,13 +80,32 @@
   overflow-wrap: anywhere;
 }
 
+.dialogue-block[data-style="accent"] {
+  --pb-dialogue-speaker-name-inset: calc(var(--pb-dialogue-accent-width) + 0.5rem);
+}
+
+.dialogue-block[data-style="avatar"] {
+  --pb-dialogue-speaker-name-inset: calc(var(--pb-dialogue-avatar-size) + 0.5rem);
+}
+
 .dialogue-block[data-style="accent"] .dialogue-line:not([data-kind="narration"]) .dialogue-speaker {
   border-left: var(--pb-dialogue-accent-width) solid var(--pb-dialogue-color);
   padding-left: 0.5rem;
 }
 
-.dialogue-block[data-style="avatar"] .dialogue-speaker {
+/* Only the name supplies the speaker baseline; images/initials cannot alter it. */
+.dialogue-block[data-style="avatar"] .dialogue-line:not([data-kind="narration"]) .dialogue-speaker {
+  position: relative;
+  min-height: var(--pb-dialogue-avatar-size);
   align-items: center;
+  padding-left: var(--pb-dialogue-speaker-name-inset);
+}
+
+.dialogue-speaker > .dialogue-avatar {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
 }
 
 .dialogue-block[data-style="avatar"] .dialogue-speaker-name {
@@ -132,9 +154,7 @@
   white-space: nowrap;
 }
 
-/* Chrome is out of flow: revealing controls never shifts reader-visible content. */
-.dialogue-block-chrome,
-.dialogue-block-footer,
+/* Line controls are out of flow so revealing them never shifts the text. */
 .dialogue-line-chrome {
   position: absolute;
   z-index: 10;
@@ -148,16 +168,17 @@
   font-size: 0.75rem;
 }
 
-.dialogue-block-chrome {
-  right: 0;
-  bottom: 100%;
+/* A permanent editor-only trailing row keeps the plus below the last line. */
+.dialogue-add-row {
+  display: flex;
+  min-height: 1lh;
+  align-items: flex-start;
+  margin-top: var(--pb-dialogue-line-gap);
+  padding-left: var(--pb-dialogue-speaker-name-inset);
 }
 
-.dialogue-block-footer {
-  top: 100%;
-  right: 0;
-  flex-wrap: wrap;
-  max-width: 100%;
+.dialogue-add-row > * {
+  visibility: hidden;
 }
 
 .dialogue-line-chrome {
@@ -166,13 +187,12 @@
   transform: translateY(-50%);
 }
 
-.dialogue-block:hover > .dialogue-block-chrome,
-.dialogue-block:focus-within > .dialogue-block-chrome,
-.dialogue-block:hover > .dialogue-block-footer,
-.dialogue-block:focus-within > .dialogue-block-footer,
-.dialogue-block.ProseMirror-selectednode > .dialogue-block-chrome,
+.dialogue-block:hover > .dialogue-add-row > *,
+.dialogue-block:focus-within > .dialogue-add-row > *,
+.dialogue-block[data-active="true"] > .dialogue-add-row > *,
 .dialogue-line:hover > .dialogue-line-chrome,
-.dialogue-line:focus-within > .dialogue-line-chrome {
+.dialogue-line:focus-within > .dialogue-line-chrome,
+.dialogue-line[data-active="true"] > .dialogue-line-chrome {
   visibility: visible;
 }
 
