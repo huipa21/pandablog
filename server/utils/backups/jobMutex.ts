@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import * as path from 'node:path'
 import { createError } from 'h3'
 import { BACKUPS_ROOT } from './config'
+import { UNCERTAIN_WRITE_QUIESCENCE_MS } from '../maintenance'
 
 export interface JobProgress {
   phase: 'preparing' | 'db-export' | 'media-collect' | 'media-pack' | 'finalize' | 'db-wipe' | 'db-restore' | 'media-restore' | 'safety-snapshot' | 'db-validate' | 'db-consolidate' | 'db-verify' | 'rollback'
@@ -63,12 +64,18 @@ export class JobStore {
   private reserved = false
   private journal: RestoreJournal | null = null
   private recovery = false
+  /** End of the uncertain-write quiescence window (ms epoch); 0 when clear. */
+  private uncertainUntil = 0
+  private uncertainFile: Promise<unknown> = Promise.resolve()
   private readonly generation = randomBytes(24).toString('hex')
   private writer?: DiskOwner
   constructor(private readonly root: string) {}
   getActiveJob() { return this.active }
   getJournal() { return this.journal }
+  /** Restore journals and unreadable journal state only. Uncertain writes are
+   * a time-bounded maintenance block, never a startup/writer recovery state. */
   recoveryRequired() {return this.recovery || Boolean(this.journal && !['committed', 'rolled-back', 'aborted'].includes(this.journal.state) && !this.active)}
+  uncertaintyUntil() {return this.uncertainUntil > Date.now() ? this.uncertainUntil : 0}
   async loadJournal() {
     try {
       const value = await readJson(path.join(this.root, '.restore-journal.json')) as RestoreJournal
@@ -76,12 +83,42 @@ export class JobStore {
       this.journal = value
       this.recovery = !['committed', 'rolled-back', 'aborted'].includes(value.state)
     } catch (error) {if (!absent(error)) this.recovery = true}
-    try {await lstat(path.join(this.root, '.uncertain-writes.json')); this.recovery = true} catch (error) {if (!absent(error)) this.recovery = true}
+    await this.loadUncertainty()
     return this.recoveryRequired()
   }
+  private async loadUncertainty() {
+    let updatedAt: number
+    try {
+      const value = await readJson(path.join(this.root, '.uncertain-writes.json')) as {updatedAt?: unknown}
+      updatedAt = typeof value?.updatedAt === 'string' ? Date.parse(value.updatedAt) : Number.NaN
+    } catch (error) {
+      if (absent(error)) return
+      updatedAt = Number.NaN
+    }
+    // Unreadable/future timestamps restart the window conservatively.
+    if (!Number.isFinite(updatedAt) || updatedAt > Date.now()) updatedAt = Date.now()
+    this.uncertainUntil = Math.max(this.uncertainUntil, updatedAt + UNCERTAIN_WRITE_QUIESCENCE_MS)
+    await this.settleUncertainty()
+  }
+  /** Remove the persisted marker once its quiescence window has elapsed. */
+  async settleUncertainty() {
+    const task = this.uncertainFile.then(async () => {
+      if (!this.uncertainUntil || Date.now() < this.uncertainUntil) return
+      await rm(path.join(this.root, '.uncertain-writes.json'), {force: true})
+      this.uncertainUntil = 0
+      console.info('[maintenance] uncertain-write quiescence window elapsed; backup/restore maintenance is available again')
+    })
+    this.uncertainFile = task.catch(() => {})
+    await task
+  }
   async markUncertain() {
-    this.recovery = true
-    await writeDurableJson(path.join(this.root, '.uncertain-writes.json'), {version: 1, generation: this.generation, updatedAt: new Date().toISOString()})
+    this.uncertainUntil = Date.now() + UNCERTAIN_WRITE_QUIESCENCE_MS
+    const task = this.uncertainFile.then(async () => {
+      await mkdir(this.root, {recursive: true, mode: 0o700})
+      await writeDurableJson(path.join(this.root, '.uncertain-writes.json'), {version: 1, generation: this.generation, updatedAt: new Date().toISOString()})
+    })
+    this.uncertainFile = task.catch(() => {})
+    await task
   }
   private async guard<T>(work: () => Promise<T>): Promise<T> {
     await mkdir(this.root, {recursive: true, mode: 0o700})
@@ -183,8 +220,9 @@ export class JobStore {
     this.reserved = true // before the first await
     const owner: JobOwner = Object.freeze({...job, token: randomBytes(24).toString('hex'), generation: this.generation})
     try {
-      await this.loadJournal()
+      await this.loadJournal() // also settles an elapsed uncertainty window
       if (this.recoveryRequired()) throw conflict()
+      if (this.uncertaintyUntil()) throw conflict('uncertain-writes-quiescing')
       await this.guard(() => this.take('.job.lock', {token: owner.token, generation: owner.generation, host: hostname(), pid: process.pid, job: {id: job.id, kind: job.kind, startedAt: job.startedAt}}))
       this.active = owner
       return owner

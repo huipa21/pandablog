@@ -8,6 +8,10 @@ services:
     pull_policy: never
     container_name: pandablog-app
     restart: unless-stopped
+    # Allow the app to drain HTTP (NITRO_SHUTDOWN_TIMEOUT=15s) and then close the
+    # DB and release its writer lock (<=10s). If Docker kills it first, the stale
+    # writer lock requires the offline recovery assistant on the next start.
+    stop_grace_period: 45s
     logging:
       driver: json-file
       options:
@@ -29,7 +33,9 @@ services:
     networks:
       - nginx
     healthcheck:
-      test: ["CMD", "panda", "health", "--timeout", "4"]
+      # Readiness, not just liveness: /api/health returns 200 even while startup
+      # is fenced or the database is unreachable (and is being retried).
+      test: ["CMD", "panda", "health", "--url", "http://127.0.0.1:3000/api/ready", "--timeout", "4"]
       interval: 30s
       timeout: 5s
       retries: 5

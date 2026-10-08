@@ -30,6 +30,16 @@ Installed Nitro starts a replacement worker before awaiting old close. Developme
 
 ## 2. Ownership refusal and offline recovery
 
+### Database outages never require recovery (2026-10-08 amendment)
+
+This supersedes the stricter wording elsewhere in this runbook and in the backend-hardening runbook wherever they conflict.
+
+- **Unreachable DB at boot** (refused, DNS, timeout, rejected sign-in, or a connection lost mid-boot): the process keeps its writer lock and **retries initialization in-process** with backoff (2 s doubling to 60 s). `/api/ready` returns 503 with `state: initializing`, `retry: {attempt, nextAttemptAt}` and guidance `action: wait`, `recoveryRequired: false`. The site opens by itself when the DB answers; no restart and no recovery tool. Boot work (DEFINE ... IF NOT EXISTS / OVERWRITE, marker-guarded resumable migrations) is idempotent, which is what makes the retry safe.
+- **DB lost at runtime:** the dead client is dropped and requests reconnect with backoff. Closing a client now settles its stuck in-flight calls, so admission slots and leases are released (they previously leaked until `capacity exceeded`). The SurrealDB SDK's own reconnect is disabled because it replays in-flight requests after reconnecting.
+- **Uncertain writes** (a write whose response was lost) persist `storage/backups/.uncertain-writes.json`. The marker is now a **10-minute quiescence window** (`UNCERTAIN_WRITE_QUIESCENCE_MS`). It refuses backup/restore jobs (`uncertain-writes-quiescing`) and is removed automatically when the window ends. It **never** blocks startup or writer release. Configure SurrealDB `--query-timeout` / `--transaction-timeout` well below 10 minutes so the window is a real execution bound.
+- **Shutdown during an outage:** after a bounded drain, DB sockets are closed, which settles stuck calls, and the writer lock is released. Allow the time in Docker (`stop_grace_period: 45s`, `NITRO_SHUTDOWN_TIMEOUT=15000`).
+- **Still fenced for offline review:** non-connectivity boot failures (e.g. media layout refusal, malformed migration data), restore journals and restore artifacts, and a stale `.writer.lock` left by a **killed** process (SIGKILL, OOM, power loss). The container image ships the assistant as `panda-recover`. Run it only with the app stopped: `docker compose run --rm --no-deps --entrypoint panda-recover app [--help]`.
+
 `Maintenance ownership is busy or requires offline recovery` is not proof of a harmless stale PID. Existing writer receipts deliberately cannot be reclaimed after process death: submitted DB execution can outlive the process. The former non-awaiting-plugin admission gap is fixed in source; this does not repair pre-existing receipts or authorize running the configured application.
 
 1. Stop all application writers and prevent restarts/overlapping dev and production processes.

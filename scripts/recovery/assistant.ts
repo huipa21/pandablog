@@ -93,17 +93,19 @@ async function inspect(storage: string, ownGuard = false): Promise<{report: Reco
     } catch {blockers.push('Writer ownership is unreadable, malformed or contains unexpected artifacts. It will not be archived automatically.')}
   }
   if (await exists(join(backups, '.uncertain-writes.json'))) {
+    // Informational only: the application no longer fences startup on this
+    // marker. It refuses backup/restore jobs until the marker's quiescence
+    // window ends and then removes it automatically.
     try {
       const current = await record(join(backups, '.uncertain-writes.json'))
       const value = current.value as {version?: number, generation?: string, updatedAt?: string} | null
       if (!value || value.version !== 1 || !/^[a-f0-9]{48}$/.test(value.generation ?? '') || typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt))) throw new Error('Invalid uncertainty marker')
       evidence.uncertainBytes = current.raw
-      findings.push('An uncertainty marker is present. It does not record enough evidence to distinguish a credential failure from unfinished writes.')
-      if (evidence.writer && value.generation !== evidence.writer.generation) blockers.push('Writer and uncertainty records describe different generations. Manual inspection is required.')
-    } catch {blockers.push('The uncertainty marker is unreadable or unrecognized. It will not be archived automatically.')}
+      findings.push('An uncertain-write marker is present (a DB response was lost). It does not block startup; backup/restore stay unavailable until its quiescence window ends, then it clears automatically.')
+    } catch {findings.push('An uncertain-write marker is unreadable. It does not block startup; the application restarts its quiescence window and clears it automatically.')}
   }
-  const hasReceipts = Boolean(evidence.writerBytes || evidence.emptyWriter || evidence.uncertainBytes)
-  if (liveWriter && (blockers.length || evidence.uncertainBytes)) blockers.push('A writer process is running; recovery must not modify its records.')
+  const hasReceipts = Boolean(evidence.writerBytes || evidence.emptyWriter)
+  if (liveWriter && blockers.length) blockers.push('A writer process is running; recovery must not modify its records.')
   const status = blockers.length ? 'manual-recovery-required' : liveWriter ? 'writer-active' : hasReceipts ? 'review-required' : 'clear'
   return {report: {
     status,

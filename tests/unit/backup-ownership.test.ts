@@ -3,6 +3,7 @@ import { tmpdir, hostname } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { JobStore } from '../../server/utils/backups/jobMutex'
+import { UNCERTAIN_WRITE_QUIESCENCE_MS } from '../../server/utils/maintenance'
 
 const job = (id: string) => ({id, kind: 'create' as const, startedAt: new Date().toISOString()})
 async function fixture(work: (root: string) => Promise<void>) { const root = await mkdtemp(join(tmpdir(), 'pb-job-owned-')); try {await work(root)} finally {await rm(root, {recursive: true, force: true})} }
@@ -61,11 +62,27 @@ describe('durable maintenance ownership', () => {
     expect(restarted.getJournal()?.artifacts.safetySql).toContain('owned.surql')
   }))
 
-  it('uncertain writes remain durable and block fresh writer startup', () => fixture(async root => {
+  it('uncertain writes persist a time-bounded maintenance block without blocking writer startup', () => fixture(async root => {
     const store = new JobStore(root)
     await store.startWriter()
     await store.markUncertain()
-    expect(await new JobStore(root).startWriter()).toBe(false)
+    expect(await store.stopWriter()).toBe(true)
+    const fresh = new JobStore(root)
+    expect(await fresh.startWriter()).toBe(true)
+    expect(fresh.uncertaintyUntil()).toBeGreaterThan(Date.now())
+    await expect(fresh.acquire({id: 'b1', kind: 'create', startedAt: new Date().toISOString()})).rejects.toMatchObject({data: {reason: 'uncertain-writes-quiescing'}})
+    expect(await readFile(join(root, '.uncertain-writes.json'), 'utf8')).toBeTruthy()
+  }))
+
+  it('clears an uncertain-write marker after its quiescence window', () => fixture(async root => {
+    const stale = new Date(Date.now() - UNCERTAIN_WRITE_QUIESCENCE_MS - 1_000).toISOString()
+    await writeFile(join(root, '.uncertain-writes.json'), JSON.stringify({version: 1, generation: 'b'.repeat(48), updatedAt: stale}))
+    const store = new JobStore(root)
+    expect(await store.startWriter()).toBe(true)
+    expect(store.uncertaintyUntil()).toBe(0)
+    await expect(readFile(join(root, '.uncertain-writes.json'), 'utf8')).rejects.toMatchObject({code: 'ENOENT'})
+    const owner = await store.acquire({id: 'b1', kind: 'create', startedAt: new Date().toISOString()})
+    await store.release(owner)
   }))
 
   it('refuses to claim writer release when its receipt was replaced', () => fixture(async root => {
@@ -78,12 +95,12 @@ describe('durable maintenance ownership', () => {
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(replaced)
   }))
 
-  it('rechecks disk uncertainty before reporting a clean writer release', () => fixture(async root => {
+  it('releases the writer cleanly even while an uncertain-write window is pending', () => fixture(async root => {
     const store = new JobStore(root)
     await store.startWriter()
     await new JobStore(root).markUncertain()
-    expect(await store.stopWriter()).toBe(false)
-    expect(await readFile(join(root, '.writer.lock/owner.json'), 'utf8')).toBeTruthy()
+    expect(await store.stopWriter()).toBe(true)
+    await expect(readFile(join(root, '.writer.lock/owner.json'), 'utf8')).rejects.toMatchObject({code: 'ENOENT'})
   }))
 
   it('waits for a same-PID dev generation to release cleanly without removing its receipt', () => fixture(async root => {

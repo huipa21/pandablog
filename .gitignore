@@ -66,6 +66,7 @@ tests/unit/*
 !tests/unit/access-log-bounds.test.ts
 !tests/integration/analytics-phase4.test.ts
 !tests/unit/db-reconnect.test.ts
+!tests/unit/db-outage.test.ts
 !tests/unit/db-lifecycle.test.ts
 !tests/unit/runtime-startup.test.ts
 !tests/unit/runtime-environment.test.ts

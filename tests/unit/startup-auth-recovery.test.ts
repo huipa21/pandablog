@@ -4,103 +4,142 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JobStore } from '../../server/utils/backups/jobMutex'
 
-async function load(failure?: 'root' | 'database', bootstrap = true, failedClose = false) {
+interface Fault {
+  /** Which sign-in identity is rejected while `remaining` > 0. */
+  failure?: 'root' | 'database'
+  remaining: number
+  failedClose?: boolean
+}
+
+async function load(fault: Fault, bootstrap = true) {
   vi.resetModules()
   const instances: {query: ReturnType<typeof vi.fn>, close: ReturnType<typeof vi.fn>}[] = []
   vi.doMock('surrealdb', () => ({Surreal: class {
     connect = vi.fn().mockResolvedValue(undefined)
     signin = vi.fn(async (identity: object) => {
-      if (failure === ('namespace' in identity ? 'database' : 'root')) throw new Error('synthetic-password SQL must-not-leak')
+      if (fault.remaining > 0 && fault.failure === ('namespace' in identity ? 'database' : 'root')) {
+        fault.remaining--
+        throw new Error('synthetic-password SQL must-not-leak')
+      }
     })
     use = vi.fn().mockResolvedValue(undefined)
     query = vi.fn().mockResolvedValue([[]])
-    close = vi.fn(async () => {if (failedClose) throw new Error('synthetic close failure')})
+    close = vi.fn(async () => {if (fault.failedClose) throw new Error('synthetic close failure')})
     constructor() {instances.push(this)}
   }}))
   vi.stubGlobal('useRuntimeConfig', () => ({surrealUrl: 'ws://fixture.invalid/rpc', surrealNamespace: 'fixture', surrealDatabase: 'fixture', surrealRoot: 'fixture_root', surrealRootPassword: bootstrap ? 'synthetic-root' : '', surrealAppUser: 'fixture_app', surrealAppPassword: 'synthetic-app'}))
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'info').mockImplementation(() => {})
   const db = await import('../../server/utils/db')
   const {writeBarrier} = await import('../../server/utils/maintenance')
   const {StartupCoordinator} = await import('../../server/utils/startup')
-  return {db, instances, barrier: writeBarrier, coordinator: new StartupCoordinator(writeBarrier)}
+  return {db, instances, barrier: writeBarrier, coordinator: new StartupCoordinator(writeBarrier, {baseMs: 5, maxMs: 20})}
 }
 const exists = (path: string) => stat(path).then(() => true, () => false)
 afterEach(() => {vi.unstubAllGlobals(); vi.doUnmock('surrealdb'); vi.restoreAllMocks()})
 
-async function boot(root: string, failure?: 'root' | 'database', bootstrap = true, failedClose = false) {
-  const fixture = await load(failure, bootstrap, failedClose), store = new JobStore(root)
+async function boot(root: string, fault: Fault = {remaining: 0}, bootstrap = true, work?: (db: Awaited<ReturnType<typeof load>>['db']) => Promise<void>) {
+  const fixture = await load(fault, bootstrap), store = new JobStore(root)
   const preserve = vi.fn(() => store.markUncertain())
   await fixture.coordinator.start({
-    validate: () => {}, acquireWriter: () => store.startWriter(), preserveFailure: preserve,
+    validate: () => {},
+    acquireWriter: async () => {const owned = await store.startWriter(); fixture.barrier.seedUncertainty(store.uncertaintyUntil()); return owned},
+    preserveFailure: preserve,
     isPreMutationFailure: fixture.db.isPreMutationInitializationFailure,
+    connectivityFailures: fixture.db.databaseConnectivityFailureCount,
+    resetDatabase: fixture.db.recycleRuntimeConnection,
     releaseWriter: async () => {if (!await store.stopWriter()) throw new Error('Writer release failed')},
     dispose: async () => {await fixture.db.shutdownDb(); if (fixture.db.databaseDiagnostics().ownedClients) throw new Error('Incomplete database disposal')}
   })
-  const ready = await fixture.coordinator.initialize(async () => {await fixture.db.initializeRuntimeDatabase()})
-  return {...fixture, store, preserve, ready}
+  const initializing = fixture.coordinator.initialize(async () => {
+    await fixture.db.initializeRuntimeDatabase()
+    await work?.(fixture.db)
+  })
+  return {...fixture, store, preserve, initializing}
 }
 
-describe('real coordinator + DB execution evidence + owned receipts (mock DB; no configured endpoint)', () => {
-  it.each([['root', true], ['database', false]] as const)('failed %s sign-in before SQL creates no recovery marker; corrected start succeeds', async (failure, bootstrap) => {
-    const root = await mkdtemp(join(tmpdir(), 'pb-pre-mutation-'))
+describe('startup coordinator: DB outages self-heal; data failures stay fenced (mock DB; no configured endpoint)', () => {
+  it.each([['root', true], ['database', false]] as const)('rejected %s sign-in retries in-process and opens without restart or recovery', async (failure, bootstrap) => {
+    const root = await mkdtemp(join(tmpdir(), 'pb-self-heal-'))
     try {
-      const failed = await boot(root, failure, bootstrap)
-      expect(failed.ready).toBe(false)
-      expect(failed.coordinator.guidance()).toMatchObject({recoveryRequired: false, action: 'fix-config-and-restart'})
-      expect(failed.preserve).not.toHaveBeenCalled()
-      expect(failed.instances.every(client => !client.query.mock.calls.length)).toBe(true)
+      const run = await boot(root, {failure, remaining: 3}, bootstrap)
+      expect(await run.initializing).toBe(true)
+      expect(run.coordinator.status()).toMatchObject({state: 'ready', ready: true})
+      expect(run.coordinator.status().failure).toBeUndefined()
+      expect(run.preserve).not.toHaveBeenCalled()
       expect(await exists(join(root, '.uncertain-writes.json'))).toBe(false)
-      expect(await exists(join(root, '.writer.lock'))).toBe(false)
-      await failed.coordinator.stop()
-      const corrected = await boot(root, undefined, bootstrap)
-      expect(corrected.ready).toBe(true)
       expect(await exists(join(root, '.writer.lock'))).toBe(true)
-      await corrected.coordinator.stop()
+      await run.coordinator.stop()
       expect(await exists(join(root, '.writer.lock'))).toBe(false)
     } finally {await rm(root, {recursive: true, force: true})}
   })
-  it('scoped sign-in rejected AFTER ROOT provisioning remains a partial initialization failure', async () => {
+
+  it('reports wait guidance (not recovery) while the database is unreachable, and stop() releases the writer', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pb-outage-stop-'))
+    try {
+      const run = await boot(root, {failure: 'root', remaining: Number.POSITIVE_INFINITY})
+      await vi.waitFor(() => expect(run.coordinator.status().retry?.attempt).toBeGreaterThanOrEqual(2))
+      expect(run.coordinator.status()).toMatchObject({state: 'initializing', ready: false, failure: {category: 'database-root-authentication-failed'}})
+      expect(run.coordinator.guidance()).toMatchObject({action: 'wait', recoveryRequired: false})
+      await run.coordinator.stop()
+      expect(await run.initializing).toBe(false)
+      expect(run.preserve).not.toHaveBeenCalled()
+      expect(await exists(join(root, '.writer.lock'))).toBe(false)
+      expect(await new JobStore(root).startWriter()).toBe(true)
+    } finally {await rm(root, {recursive: true, force: true})}
+  })
+
+  it('scoped sign-in rejected AFTER ROOT provisioning is retried (idempotent bootstrap), not fenced', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pb-partial-boot-'))
     try {
-      const failed = await boot(root, 'database', true)
-      expect(failed.ready).toBe(false)
-      expect(failed.instances[0]!.query).toHaveBeenCalledTimes(2)
-      expect(failed.preserve).toHaveBeenCalledOnce()
-      expect(failed.coordinator.guidance().recoveryRequired).toBe(true)
-      expect(await exists(join(root, '.uncertain-writes.json'))).toBe(true)
-      await failed.coordinator.stop()
-      expect(await exists(join(root, '.writer.lock'))).toBe(true)
-      expect(await new JobStore(root).startWriter()).toBe(false)
+      const run = await boot(root, {failure: 'database', remaining: 1}, true)
+      expect(await run.initializing).toBe(true)
+      expect(run.preserve).not.toHaveBeenCalled()
+      await run.coordinator.stop()
+      expect(await exists(join(root, '.writer.lock'))).toBe(false)
     } finally {await rm(root, {recursive: true, force: true})}
   })
-  it('failed socket disposal cannot claim a verified clean pre-mutation exit', async () => {
+
+  it('a client whose close() fails does not prevent recovery once the database answers', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pb-failed-disposal-'))
     try {
-      const failed = await boot(root, 'root', true, true)
-      expect(failed.ready).toBe(false)
-      expect(failed.db.databaseDiagnostics().ownedClients).toBe(1)
-      expect(failed.preserve).toHaveBeenCalledOnce()
-      await failed.coordinator.stop()
+      const run = await boot(root, {failure: 'root', remaining: 1, failedClose: true})
+      expect(await run.initializing).toBe(true)
+      expect(run.coordinator.status().ready).toBe(true)
+    } finally {await rm(root, {recursive: true, force: true})}
+  })
+
+  it('a pending uncertain-write window does not block startup; it only refuses maintenance jobs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pb-legacy-uncertainty-'))
+    try {
+      await new JobStore(root).markUncertain()
+      const before = await readFile(join(root, '.uncertain-writes.json'), 'utf8')
+      const run = await boot(root)
+      expect(await run.initializing).toBe(true)
+      expect(run.barrier.status().uncertainWrites).toBeGreaterThan(0)
+      expect(await readFile(join(root, '.uncertain-writes.json'), 'utf8')).toBe(before)
+      await expect(run.store.acquire({id: 'b1', kind: 'restore', startedAt: new Date().toISOString()})).rejects.toMatchObject({data: {reason: 'uncertain-writes-quiescing'}})
+      await run.coordinator.stop()
+      expect(await exists(join(root, '.writer.lock'))).toBe(false)
+    } finally {await rm(root, {recursive: true, force: true})}
+  })
+
+  it('a non-connectivity initialization failure still fences and preserves recovery authority', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pb-data-failure-'))
+    try {
+      const run = await boot(root, {remaining: 0}, true, async () => {throw new Error('Unsupported or missing media storage layout marker')})
+      expect(await run.initializing).toBe(false)
+      expect(run.coordinator.status().state).toBe('failed')
+      expect(run.coordinator.guidance().recoveryRequired).toBe(true)
+      expect(run.preserve).toHaveBeenCalledOnce()
+      await run.coordinator.stop()
       expect(await exists(join(root, '.writer.lock'))).toBe(true)
     } finally {await rm(root, {recursive: true, force: true})}
   })
-  it('never clears legacy uncertainty even when corrected credentials would work', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'pb-legacy-uncertainty-'))
-    try {
-      const store = new JobStore(root)
-      await store.markUncertain()
-      const before = await readFile(join(root, '.uncertain-writes.json'), 'utf8')
-      const corrected = await boot(root)
-      expect(corrected.ready).toBe(false)
-      expect(corrected.instances).toHaveLength(0)
-      expect(corrected.coordinator.status().state).toBe('recovery-required')
-      expect(await readFile(join(root, '.uncertain-writes.json'), 'utf8')).toBe(before)
-      await corrected.coordinator.stop()
-    } finally {await rm(root, {recursive: true, force: true})}
-  })
+
   it('a forged handshake-shaped error cannot establish pre-mutation execution evidence', async () => {
-    const {db} = await load()
+    const {db} = await load({remaining: 0})
     expect(db.isPreMutationInitializationFailure({data: {kind: 'database-handshake', scope: 'root', phase: 'authentication'}})).toBe(false)
     await db.shutdownDb()
   })

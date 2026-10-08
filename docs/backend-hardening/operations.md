@@ -8,6 +8,7 @@
 
 Until the relevant tasks are complete:
 
+- **2026-10-08 amendment:** DB connectivity failures (at boot or runtime) self-heal and never require offline recovery; uncertain writes are a 10-minute restore/backup quiescence window, not a startup fence. See [Database outages never require recovery](../runtime-startup-config/operations.md#database-outages-never-require-recovery-2026-10-08-amendment); it supersedes conflicting statements below.
 - REV-1.1 now revokes sessions/devices using current account epochs locally. Deployment still requires coordinated schema/readers/writers and explicit legacy-cookie reauthentication acceptance.
 - Do not place private media behind a public cache assuming the current application headers are safe; already cached public responses need explicit proxy/CDN invalidation.
 - REV-1.4 now shares an IP-pinned, deadline-bounded SSRF transport locally. Restrict deployed outbound connectivity independently and verify the deployment/module boundary before release.

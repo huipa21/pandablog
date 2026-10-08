@@ -25,7 +25,13 @@ interface StartupResources {
   dispose: () => Promise<void>
   /** Trusted execution evidence, not an exception message/status code. */
   isPreMutationFailure?: (error: unknown) => boolean
+  /** Monotonic count of observed DB connectivity failures. */
+  connectivityFailures?: () => number
+  /** Drop the runtime client and reconnect backoff before a retry. */
+  resetDatabase?: () => Promise<void>
 }
+const RETRY_BASE_MS = 2_000
+const RETRY_MAX_MS = 60_000
 
 /** Nitro does not await plugins. This coordinator owns every flight and uses
  * a private, unexported boot token; no HTTP caller can obtain boot authority.
@@ -41,10 +47,15 @@ export class StartupCoordinator {
   private unsafe = false
   private failure?: StartupFailure
   private retryableFailure = false
+  private retry?: {attempt: number, nextAttemptAt: number}
+  private wakeRetry?: () => void
   private disposing?: Promise<void>
-  constructor(private readonly barrier: WriteBarrier) {}
-  status() {return {state: this.state, ready: this.state === 'ready' && !this.barrier.status().closed, ...(this.failure ? {failure: {...this.failure}} : {})}}
+  constructor(private readonly barrier: WriteBarrier, private readonly retryTiming: {baseMs: number, maxMs: number} = {baseMs: RETRY_BASE_MS, maxMs: RETRY_MAX_MS}) {}
+  status() {return {state: this.state, ready: this.state === 'ready' && !this.barrier.status().closed, ...(this.failure ? {failure: {...this.failure}} : {}), ...(this.retry && this.state !== 'ready' ? {retry: {...this.retry}} : {})}}
   guidance() {
+    if (this.retry && this.state === 'initializing') {
+      return {message: 'The database is currently unreachable. PandaBlog keeps retrying automatically and will open as soon as the database responds; no restart or recovery is needed. If this persists, check the database service and network.', action: 'wait', recoveryRequired: false}
+    }
     if (this.retryableFailure) {
       const category = this.failure?.category
       const message = category === 'invalid-scoped-username'
@@ -89,7 +100,7 @@ export class StartupCoordinator {
     if (this.ownership) return this.ownership
     this.resources = resources
     // close() changes admission before its first await. Capture its rejection.
-    const fence = this.barrier.close(this.bootOwner)
+    const fence = this.barrier.close(this.bootOwner, undefined, {ignoreUncertainty: true})
     this.ownership = (async () => {
       let validating = false
       try {
@@ -126,45 +137,84 @@ export class StartupCoordinator {
     if (this.initialization) return this.initialization
     this.initialization = (async () => {
       if (!this.ownership || !await this.ownership || this.state === 'stopping') return false
-      this.state = 'initializing'
-      try {
-        await this.barrier.runOwner(this.bootOwner, work)
-        if (this.barrier.status().uncertainWrites) throw new Error('Uncertain boot execution')
+      for (let attempt = 1; ; attempt++) {
+        this.state = 'initializing'
+        // Leases from a failed attempt settle once its sockets are closed.
+        for (let waited = 0; attempt > 1 && this.barrier.status().active && waited < 10_000 && !this.isStopping(); waited += 50) await new Promise(resolve => setTimeout(resolve, 50))
         if (this.isStopping()) return false
-        this.barrier.reopen(this.bootOwner)
-        this.state = 'ready'
-        return true
-      } catch (error) {
-        this.failure = failureDiagnostic(error, 'initialization')
-        this.barrier.recoverFence()
-        if (!this.isStopping()) this.state = 'failed'
-        if (await this.cleanPreMutationFailure(error)) {
-          this.retryableFailure = true
-          console.error('[startup] initialization failed before mutations; clients disposed and writer released; correct configuration/connection and restart', this.failure)
-        } else {
-          this.unsafe = true // partial/unknown execution is not proof of consistency
-          try {await this.resources!.preserveFailure()} catch { /* Keep writer authority even if persistence fails. */ }
-          console.error('[startup] partial or uncertain initialization; service remains fenced; run npm run recover for guidance', this.failure)
+        const failuresBefore = this.resources?.connectivityFailures?.() ?? 0
+        try {
+          // Boot work is idempotent and re-run on every start; a time-bounded
+          // uncertain-write window only restricts destructive maintenance.
+          await this.barrier.runOwner(this.bootOwner, work, {ignoreUncertainty: true})
+          if (this.isStopping()) return false
+          this.barrier.reopen(this.bootOwner)
+          this.state = 'ready'
+          if (this.retry) console.info('[startup] database reachable again; initialization completed', {attempts: attempt})
+          this.failure = undefined
+          this.retry = undefined
+          return true
+        } catch (error) {
+          this.failure = failureDiagnostic(error, 'initialization')
+          // Our own shutdown interrupted boot: the next process re-runs it.
+          if (this.isStopping()) return false
+          if (this.isDatabaseOutage(error, failuresBefore)) {
+            const delayMs = Math.min(this.retryTiming.maxMs, this.retryTiming.baseMs * 2 ** Math.min(attempt - 1, 6))
+            this.retry = {attempt, nextAttemptAt: Date.now() + delayMs}
+            console.warn('[startup] database unavailable during initialization; retrying automatically', {...this.failure, attempt, retryInMs: delayMs})
+            await this.resources?.resetDatabase?.().catch(() => {})
+            if (!await this.waitForRetry(delayMs)) return false
+            continue
+          }
+          this.retry = undefined
+          this.barrier.recoverFence()
+          this.state = 'failed'
+          if (await this.cleanPreMutationFailure(error)) {
+            this.retryableFailure = true
+            console.error('[startup] initialization failed before mutations; clients disposed and writer released; correct configuration/connection and restart', this.failure)
+          } else {
+            this.unsafe = true // partial/unknown execution is not proof of consistency
+            try {await this.resources!.preserveFailure()} catch { /* Keep writer authority even if persistence fails. */ }
+            console.error('[startup] initialization failed with a non-connectivity error; service remains fenced; run npm run recover for guidance', this.failure)
+          }
+          return false
         }
-        return false
       }
     })()
     return this.initialization
   }
+  /** Connectivity, not data: a handshake failure, or any transport/deadline
+   * failure observed while this attempt ran (helpers may wrap the cause). */
+  private isDatabaseOutage(error: unknown, failuresBefore: number) {
+    if ((error as {data?: {kind?: unknown}})?.data?.kind === 'database-handshake') return true
+    return (this.resources?.connectivityFailures?.() ?? 0) > failuresBefore
+  }
+  private waitForRetry(delayMs: number): Promise<boolean> {
+    return new Promise(resolve => {
+      const timer = setTimeout(() => {this.wakeRetry = undefined; resolve(!this.isStopping())}, delayMs)
+      this.wakeRetry = () => {clearTimeout(timer); this.wakeRetry = undefined; resolve(false)}
+    })
+  }
   private isStopping() {return this.state === 'stopping'}
 
-  stop(deadlineMs = 5_000): Promise<void> {
+  stop(deadlineMs = 10_000): Promise<void> {
     if (this.closing) return this.closing
     this.state = 'stopping'
+    this.wakeRetry?.()
     // Fence synchronously. Do not revoke the private boot scope while it drains.
-    const drain = this.barrier.status().closed ? Promise.resolve() : this.barrier.close(this.bootOwner, deadlineMs)
+    const drain = this.barrier.status().closed ? Promise.resolve() : this.barrier.close(this.bootOwner, Math.floor(deadlineMs * 0.4), {ignoreUncertainty: true})
     this.closing = (async () => {
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         const settled = (async () => {
-          await Promise.all([drain, this.ownership, this.initialization])
-          if (this.barrier.status().active || this.barrier.status().uncertainWrites) throw new Error('Unsettled writer work')
+          await this.ownership
+          // A drain timeout means DB calls are stuck (e.g. black-holed network).
+          // Disposal closes their sockets, which settles them deterministically.
+          await drain.catch(() => {})
           await this.disposeResources()
+          await this.initialization?.catch(() => false)
+          for (let waited = 0; this.barrier.status().active && waited < 1_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25))
+          if (this.barrier.status().active) throw new Error('Unsettled writer work')
           if (this.owned && !this.unsafe) {await this.resources?.releaseWriter(); this.owned = false}
         })()
         await Promise.race([settled, new Promise<never>((_, reject) => {

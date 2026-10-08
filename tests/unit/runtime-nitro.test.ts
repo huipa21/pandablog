@@ -175,11 +175,15 @@ export default defineNitroPlugin(nitro => {
       }
       const preMutation = await launch(entry, storage, {PB_BOOT_PRE_MUTATION_FAIL: '1', NUXT_SURREAL_URL: 'http://127.0.0.1:1/rpc'})
       children.push(preMutation)
-      await expect.poll(async () => (await (await preMutation.get('/api/ready')).json()).guidance?.action, {timeout: 5000}).toBe('fix-config-and-restart')
-      expect(await exists(lock)).toBe(false) // released without requiring a stop/recovery command
+      // An unreachable DB is an outage, not a recovery case: the live process keeps
+      // its writer, retries automatically and tells clients to wait.
+      await expect.poll(async () => (await (await preMutation.get('/api/ready')).json()).guidance?.action, {timeout: 5000}).toBe('wait')
+      expect((await (await preMutation.get('/api/ready')).json()).guidance?.recoveryRequired).toBe(false)
+      expect(await exists(lock)).toBe(true)
       expect(await exists(join(storage.root, 'storage/backups/.uncertain-writes.json'))).toBe(false)
       expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('3')
       await preMutation.stop()
+      expect(await exists(lock)).toBe(false) // clean shutdown during an outage needs no recovery
       const failing = await launch(entry, storage, {PB_BOOT_FAIL: '1'})
       children.push(failing)
       await expect.poll(() => exists(join(storage.root, 'storage/backups/.uncertain-writes.json')), {timeout: 5000}).toBe(true)
@@ -189,9 +193,12 @@ export default defineNitroPlugin(nitro => {
       expect(await exists(lock)).toBe(true)
       const recovering = await launch(entry, storage)
       children.push(recovering)
+      // A genuine (non-connectivity) boot failure retained its writer receipt:
+      // the next process still refuses it for offline review.
+      await expect.poll(async () => (await (await recovering.get('/api/ready')).json()).state, {timeout: 5000}).toBe('failed')
       const recoveryReadiness = await recovering.get('/api/ready')
       expect(recoveryReadiness.status).toBe(503)
-      expect(await recoveryReadiness.json()).toMatchObject({state: 'recovery-required', ready: false, failure: {phase: 'recovery', category: 'offline-recovery-required'}})
+      expect(await recoveryReadiness.json()).toMatchObject({state: 'failed', ready: false, failure: {phase: 'ownership', category: 'owner-offline-review'}, guidance: {recoveryRequired: true}})
       expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('4')
       await recovering.stop()
       for (const child of children) {

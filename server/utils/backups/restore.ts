@@ -33,7 +33,9 @@ export async function startRestoreJob(id: string): Promise<string> {
     await writeBarrier.runOwner(owner, () => updateBackupRecord(id, {status: 'restoring'}))
   } catch (error) {
     try {
-      if (jobStore.recoveryRequired() || writeBarrier.status().uncertainWrites || (drained && writeBarrier.status().active)) throw new Error('Restore admission needs offline recovery')
+      // Before the drain nothing destructive happened: an uncertainty that blocked
+      // close() simply aborts this admission (restore can be retried later).
+      if (jobStore.recoveryRequired() || (drained && (writeBarrier.status().uncertainWrites || writeBarrier.status().active))) throw new Error('Restore admission needs offline recovery')
       await jobStore.transition(owner, {state: 'aborted', phase: 'preparing'})
       if (writeBarrier.status().closed) {
         if (!drained && writeBarrier.status().active) writeBarrier.cancelDrain(owner)

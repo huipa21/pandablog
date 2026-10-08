@@ -17,7 +17,10 @@ import type { SessionUser } from './users'
 import type { StagedMediaFile } from './media-upload'
 import type { MediaFolderRecord, MediaRecord, MediaVariantRecord, MediaVariantSize, UploadFileResult } from '~/types/content'
 
-export const MEDIA_FILE_RECORD_COLUMNS = `id, hash, string::slice(original_name, 0, 255) AS original_name, extension, mime_type, size, is_image,
+// Exported separately: unimport's regex export scanner otherwise reads the
+// SurrealQL inside this template (string::slice, array::slice, ...) as exports
+// named `string`/`array` and injects them into unrelated SSR chunks.
+const MEDIA_FILE_RECORD_COLUMNS = `id, hash, string::slice(original_name, 0, 255) AS original_name, extension, mime_type, size, is_image,
   array::slice(folders, 0, 32) AS folders, array::slice(tags, 0, 32) AS tags, string::slice(comment ?? '', 0, 2000) AS comment, reference_count,
   (array::len(folders) > 32 OR array::len(tags) > 32 OR string::len(original_name) > 255 OR string::len(comment ?? '') > 2000) AS metadata_truncated,
   visibility, created_by, uploaded_by, uploaded_at, updated_at, storage_state,
@@ -25,6 +28,7 @@ export const MEDIA_FILE_RECORD_COLUMNS = `id, hash, string::slice(original_name,
   {thumbnail: {path: variants.thumbnail.path, mime_type: variants.thumbnail.mime_type, width: variants.thumbnail.width, height: variants.thumbnail.height, size: variants.thumbnail.size},
    medium: {path: variants.medium.path, mime_type: variants.medium.mime_type, width: variants.medium.width, height: variants.medium.height, size: variants.medium.size},
    large: {path: variants.large.path, mime_type: variants.large.mime_type, width: variants.large.width, height: variants.large.height, size: variants.large.size}} AS variants`
+export { MEDIA_FILE_RECORD_COLUMNS }
 // Reference arrays, pHash, disk ownership/path receipts and arbitrary EXIF/variant
 // object properties are not list DTO payloads; the authorized detail route owns them.
 export interface MediaCreateUploadInput extends StagedMediaFile {

@@ -97,11 +97,15 @@ describe('ROOT-only provisioning followed by scoped schema authority', () => {
     expect(db.instances[0]!.close).toHaveBeenCalledOnce()
     await db.shutdownDb()
   })
-  it('does not proceed to scoped schema if ROOT disposal is incomplete', async () => {
+  it('a failed ROOT close() is terminated and released, counted as connectivity, never retained as a stuck client', async () => {
     const db = await load(false, false, true)
-    await expect(db.initializeRuntimeDatabase()).rejects.toThrow('Bootstrap ROOT disposal is incomplete')
-    expect(db.instances).toHaveLength(1)
-    expect(db.databaseDiagnostics().ownedClients).toBe(1)
+    const before = db.databaseConnectivityFailureCount()
+    await db.initializeRuntimeDatabase()
+    // ROOT closed (even though close() rejected) before the scoped runtime client exists.
+    expect(db.instances).toHaveLength(2)
+    expect(db.instances[0]!.close).toHaveBeenCalled()
+    expect(db.databaseDiagnostics().ownedClients).toBe(1) // only the runtime client
+    expect(db.databaseConnectivityFailureCount()).toBeGreaterThan(before)
     await db.shutdownDb()
   })
   it('fails scoped-only restart authentication without ever constructing ROOT', async () => {

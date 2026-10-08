@@ -35,6 +35,27 @@ let lastConnectError: Error | undefined
 // that this initialization did nothing.
 let initializationEffectsStarted = false
 const handshakeFailures = new WeakSet<object>()
+// Monotonic count of observed connectivity failures (handshake, transport,
+// response deadline). Startup uses it to recognise a DB outage even when an
+// initialization helper wraps the original error.
+let connectivityFailures = 0
+export function databaseConnectivityFailureCount() {return connectivityFailures}
+// SDK 2.0.3 never settles calls still pending when close() is called
+// explicitly (it only rejects them on an UNEXPECTED disconnect). Track our own
+// in-flight executions so closing a client settles them and releases their
+// admission slots/barrier leases instead of leaking them forever.
+const inflight = new Map<Surreal, Set<(error: Error) => void>>()
+class DatabaseClientClosedError extends Error {
+  constructor() {super('Database connection closed before the response arrived')}
+}
+// The driver's own reconnect REPLAYS in-flight requests after reconnecting,
+// which can execute a write twice. Reconnection is owned here instead. Note:
+// the SDK treats `reconnect: false` as "use defaults"; only the object form
+// actually disables it.
+const CONNECT_OPTIONS = {reconnect: {enabled: false}} as const
+function onDisconnected(db: Surreal, listener: () => void): (() => void) | undefined {
+  return typeof db.subscribe === 'function' ? db.subscribe('disconnected', listener) : undefined
+}
 
 export function isPreMutationInitializationFailure(error: unknown): boolean {
   return !initializationEffectsStarted && typeof error === 'object' && error !== null && handshakeFailures.has(error)
@@ -65,7 +86,7 @@ async function admittedHandshake(root: boolean, generation?: number): Promise<Su
   if (stopped) throw new Error('Database is shutting down')
   const config = useRuntimeConfig()
   const identity = credentials(root)
-  if (ownedClients.size >= 5) throw createError({ statusCode: 503, message: 'Database client capacity exceeded' })
+  if (ownedClients.size >= 5) {connectivityFailures++; throw createError({ statusCode: 503, message: 'Database client capacity exceeded' })}
   const db = new Surreal()
   ownedClients.add(db)
   let abandoned = false
@@ -74,14 +95,22 @@ async function admittedHandshake(root: boolean, generation?: number): Promise<Su
   const check = () => {
     if (abandoned || stopped || (generation !== undefined && generation !== connectionGeneration)) throw new Error('Discarded stale database handshake')
   }
+  let unsubscribe: (() => void) | undefined
   try {
     pendingConnections.add(db)
     let connecting: Promise<unknown>
-    try {connecting = Promise.resolve(db.connect(config.surrealUrl))} catch (error) {pendingConnections.delete(db); throw error}
+    try {connecting = Promise.resolve(db.connect(config.surrealUrl, CONNECT_OPTIONS))} catch (error) {pendingConnections.delete(db); throw error}
     // Keep the constructor's ownership budget even if close() resolves before
     // an uncancellable connect. Late allocation is closed, never orphaned.
     void connecting.then(() => {pendingConnections.delete(db); if (abandoned || stopped) return closeDbClient(db)}, () => {pendingConnections.delete(db); if (abandoned || stopped) return closeDbClient(db)}).catch(() => {})
-    await withTimeout(connecting, 10_000, 'Database connection deadline exceeded')
+    // An unreachable server never rejects connect(); its engine only emits
+    // "disconnected". Fail fast instead of waiting for the full deadline.
+    const refused = new Promise<never>((_, reject) => {
+      unsubscribe = onDisconnected(db, () => reject(new Error('Database connection refused or closed')))
+    })
+    refused.catch(() => {})
+    await withTimeout(Promise.race([connecting, refused]), 10_000, 'Database connection deadline exceeded')
+    unsubscribe?.(); unsubscribe = undefined
     check()
     phase = 'authentication'
     await withTimeout(Promise.resolve(db.signin(identity.signin)), 10_000, 'Database authentication deadline exceeded')
@@ -90,11 +119,18 @@ async function admittedHandshake(root: boolean, generation?: number): Promise<Su
     await withTimeout(Promise.resolve(db.use({ namespace: config.surrealNamespace, database: config.surrealDatabase })), 10_000, 'Database selection deadline exceeded')
     check()
     if (root) rootClients.add(db)
-    else { client = db; startKeepAlive(); failures = 0; nextConnectAt = 0 }
+    else {
+      client = db; startKeepAlive(); failures = 0; nextConnectAt = 0
+      // Without driver reconnect, a dropped socket leaves a dead client. Drop
+      // it immediately so the next request reconnects through useDb().
+      onDisconnected(db, () => {if (client === db && !stopped) {connectivityFailures++; void discardDbConnection(db)}})
+    }
     console.info(`[db] connected as ${identity.scope} in ${Date.now() - started}ms`)
     return db
   } catch {
+    unsubscribe?.()
     abandoned = true
+    connectivityFailures++
     await closeDbClient(db)
     // SDK handshake errors can echo credentials/endpoints. Never relay them.
     const error = createError({statusCode: 503, message: `Database handshake failed (${identity.scope} ${phase})`, data: {kind: 'database-handshake', scope: identity.scope, phase}})
@@ -191,8 +227,19 @@ async function runQuery<T extends unknown[] = unknown[]>(db: Surreal, sql: strin
     // Retain admission until actual SDK settlement, even after caller timeout.
     if (options.retry !== 'readOnly') initializationEffectsStarted = true
     const query = db.query(sql, params)
-    execution = (typeof query.responses === 'function' ? collectResponses(query) : Promise.resolve(query)).catch(async error => {
-      if (options.retry !== 'readOnly' && isConnectionError(error)) await writeBarrier.noteUncertain()
+    const sdk = (typeof query.responses === 'function' ? collectResponses(query) : Promise.resolve(query)) as Promise<T>
+    // Settle with the SDK, or when we close this client (see `inflight`).
+    const calls = inflight.get(db) ?? new Set()
+    inflight.set(db, calls)
+    let orphan!: (error: Error) => void
+    const tracked = new Promise<T>((resolve, reject) => {
+      orphan = reject
+      sdk.then(resolve, reject)
+    }).finally(() => {calls.delete(orphan); if (!calls.size && inflight.get(db) === calls) inflight.delete(db)})
+    calls.add(orphan)
+    execution = tracked.catch(async error => {
+      if (isConnectionError(error) || error instanceof ResponseDeadlineError) connectivityFailures++
+      if (options.retry !== 'readOnly' && isPossiblyExecutedTransportFailure(error)) await writeBarrier.noteUncertain()
       throw error
     }).finally(release) as Promise<T>
   } catch (error) { release(); throw error }
@@ -224,9 +271,26 @@ async function discardDbConnection(stale?: Surreal | null) {
 async function closeDbClient(db?: Surreal | null) {
   if (!db) return
   try {
-    const closed = Promise.resolve(db.close()).then(() => {if (!pendingConnections.has(db)) ownedClients.delete(db)})
-    await withTimeout(closed, 2_000, 'Database close deadline exceeded')
-  } catch { /* Retain ownership/budget on failed or still-pending close. */ }
+    // SDK 2.0.3: close() terminates the engine and its socket. A connect()
+    // that never reached the server stays pending forever but owns no socket,
+    // so a resolved close() IS disposal. Retaining such clients exhausted the
+    // 5-client budget during outages and blocked verified shutdown.
+    await withTimeout(Promise.resolve(db.close()), 2_000, 'Database close deadline exceeded')
+  } catch {
+    // close() marks the engine terminated before it awaits the socket's close
+    // handshake, which can hang on a black-holed network. The client can no
+    // longer send anything; keeping it "owned" only leaked the client budget
+    // and blocked recovery. Count it as a connectivity failure instead.
+    connectivityFailures++
+  }
+  pendingConnections.delete(db)
+  ownedClients.delete(db)
+  // Responses for calls still pending on this socket can never arrive now.
+  const calls = inflight.get(db)
+  if (calls) {
+    inflight.delete(db)
+    for (const orphan of [...calls]) orphan(new DatabaseClientClosedError())
+  }
 }
 
 export async function recycleRuntimeConnection() {
@@ -243,8 +307,11 @@ export function shutdownDb(): Promise<void> {
   connectionGeneration++
   stopKeepAlive()
   closing = (async () => {
-    await Promise.all([foreground.shutdown(5_000), background.shutdown(5_000)])
+    // Short grace for in-flight work, then close sockets: closing settles any
+    // call stuck on a black-holed network instead of waiting for it forever.
+    await Promise.all([foreground.shutdown(1_000), background.shutdown(1_000)])
     await Promise.all([...ownedClients].map(closeDbClient))
+    await Promise.all([foreground.shutdown(1_000), background.shutdown(1_000)])
     client = null
   })()
   return closing
@@ -316,12 +383,20 @@ function isAuthRejectionError(error: unknown) {
   return (!kind || kind === 'NotAllowed') && /(anonymous access not allowed|not enough permissions to perform this action|token.*expired|invalid.*authentication)/i.test(errorMessage(error))
 }
 function isConnectionError(error: unknown) {
+  if (error instanceof DatabaseClientClosedError) return true
   if (isAuthRejectionError(error)) return true
   const kind = (error as {kind?: string})?.kind
   // Structured server replies prove execution settled. A user THROW or field
   // named "socket" is not a transport failure or authorization rejection.
   if (kind && kind !== 'Connection') return false
   return /(websocket|socket|connection|disconnect|not open|closed|network|transport|broken pipe|econn|ehost|enet|eai_again|enotfound|must be connected|not connected)/i.test(errorMessage(error))
+}
+/** A transport failure AFTER the request may have reached the server. An
+ * authorization rejection is a definitive server reply, and the SDK raises
+ * ConnectionUnavailableError before sending anything; neither is uncertain. */
+function isPossiblyExecutedTransportFailure(error: unknown) {
+  if (!isConnectionError(error) || isAuthRejectionError(error)) return false
+  return (error as {name?: string})?.name !== 'ConnectionUnavailableError'
 }
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string, signal?: AbortSignal): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined

@@ -42,17 +42,26 @@ RUN test -n "$APP_VERSION" || { \
       exit 1; \
     }
 
-# Build does NOT need real secrets at runtime — runtimeConfig is overridden
-# at boot via NUXT_* env vars. We only set a placeholder session password to
-# satisfy nuxt.config.ts production guard.
+# Build does NOT need real secrets — runtimeConfig is overridden at boot via
+# NUXT_* env vars, and production builds embed only non-secret defaults.
+# The full Nitro bundle peaks at ~5.5 GiB of V8 heap; Node's default (~4 GiB)
+# runs out of memory during bundling. The build host/VM needs >= 8 GiB RAM.
 ENV NODE_ENV=production \
     NUXT_TELEMETRY_DISABLED=1 \
-    NUXT_SESSION_PASSWORD=build-time-placeholder-replace-via-runtime-env-vars \
+    NODE_OPTIONS=--max-old-space-size=7168 \
     APP_VERSION=${APP_VERSION} \
     APP_COMMIT=${APP_COMMIT} \
     APP_COMMIT_DATE=${APP_COMMIT_DATE}
 
 RUN npm run build
+
+# Offline recovery assistant (normally `npm run recover`). Bundled to a single
+# dependency-free file so it runs inside the runtime image without tsx/sources:
+#   docker compose run --rm --no-deps app panda-recover [--help]
+# Run it only while the app container is stopped.
+RUN npx --no-install esbuild scripts/recover.ts --bundle --platform=node \
+      --format=cjs --target=node22 --log-level=warning \
+      --outfile=/app/recover.cjs
 
 # Prune workspace down to runtime artefacts
 RUN mkdir -p /app/runtime \
@@ -62,6 +71,7 @@ RUN mkdir -p /app/runtime \
  && cp server/utils/schema.surql   /app/runtime/server/utils/schema.surql \
  && cp package.json                /app/runtime/package.json \
  && cp -r bin                      /app/runtime/bin \
+ && cp /app/recover.cjs            /app/runtime/bin/recover.cjs \
  && mkdir -p /app/runtime/.output/server/node_modules \
  && cp -r node_modules/node-cron   /app/runtime/.output/server/node_modules/node-cron
 
@@ -132,7 +142,9 @@ RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups 
 # Operator CLI: `panda --version`, `panda info`, `panda health`.
 # Must be created while still root — the shim lives outside /app.
 RUN printf '#!/bin/sh\nexec node /app/bin/panda.mjs "$@"\n' > /usr/local/bin/panda \
- && chmod 0755 /usr/local/bin/panda
+ && chmod 0755 /usr/local/bin/panda \
+ && printf '#!/bin/sh\ncd /app && exec node /app/bin/recover.cjs "$@"\n' > /usr/local/bin/panda-recover \
+ && chmod 0755 /usr/local/bin/panda-recover
 
 USER nuxt
 
@@ -142,6 +154,7 @@ ENV NODE_ENV=production \
     NITRO_HOST=0.0.0.0 \
     NITRO_PORT=3000 \
     NODE_OPTIONS=--max-old-space-size=1024 \
+    NITRO_SHUTDOWN_TIMEOUT=15000 \
     PORT=3000
 
 EXPOSE 3000

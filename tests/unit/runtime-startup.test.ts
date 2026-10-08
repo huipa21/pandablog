@@ -2,9 +2,9 @@ import { createApp, defineEventHandler, toNodeListener } from 'h3'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const jobs = vi.hoisted(() => ({startWriter: vi.fn(), stopWriter: vi.fn(), markUncertain: vi.fn(), initializeRuntimeDatabase: vi.fn()}))
+const jobs = vi.hoisted(() => ({startWriter: vi.fn(), stopWriter: vi.fn(), markUncertain: vi.fn(), uncertaintyUntil: vi.fn(), initializeRuntimeDatabase: vi.fn()}))
 vi.mock('../../server/utils/backups/jobMutex', () => ({jobStore: jobs}))
-vi.mock('../../server/utils/db', () => ({shutdownDb: vi.fn(), databaseDiagnostics: () => ({ownedClients: 0}), isPreMutationInitializationFailure: () => false, initializeRuntimeDatabase: jobs.initializeRuntimeDatabase}))
+vi.mock('../../server/utils/db', () => ({shutdownDb: vi.fn(), databaseDiagnostics: () => ({ownedClients: 0}), isPreMutationInitializationFailure: () => false, databaseConnectivityFailureCount: () => 0, recycleRuntimeConnection: vi.fn(), initializeRuntimeDatabase: jobs.initializeRuntimeDatabase}))
 vi.mock('../../server/utils/startup-config', () => ({validateStartupConfig: vi.fn(), normalizePublicRuntimeConfig: vi.fn()}))
 function deferred<T>() {
   let resolve!: (value: T) => void
