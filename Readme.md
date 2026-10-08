@@ -229,14 +229,14 @@ argon2id and stored in SurrealDB. You can change it later from **Admin → Setti
 | `npm run container:build` | Build container image (auto-detects Docker / Podman) |
 | `npm run docker:build` | Build container image with Docker |
 | `npm run podman:build` | Build container image with Podman |
+| `npm run panda -- <command>` | Run the `panda` operator CLI from a checkout (`npm run panda -- --help`) |
+| `npm run recover` | Shortcut for `panda recover`: read-only offline recovery inspection |
 
 ---
 
 ## Versioning & the `panda` CLI
 
-PandaBlog uses a deterministic, date-based versioning scheme (`YYMMDD-N+g<sha>`, e.g. `260923-1+gedb176f`) and ships a lightweight operator CLI `panda` inside the runtime image.
-
-Quick commands:
+PandaBlog uses a deterministic, date-based versioning scheme (`YYMMDD-N+g<sha>`, e.g. `260923-1+gedb176f`) and ships a single, dependency-free operator CLI, `panda`, inside the runtime image (`/usr/local/bin/panda` → `/app/bin/panda.mjs`). It never loads `.env` secrets, never connects to the database and never prints credentials or owner tokens.
 
 ```bash
 # Print version for the current commit
@@ -245,13 +245,62 @@ npm run version:print
 # Build the container image (auto-detects Docker or Podman)
 npm run container:build
 
-# Inspect inside the container
-docker exec pandablog-app panda --version   # or: podman exec pandablog-app panda --version
-docker exec pandablog-app panda info
-docker exec pandablog-app panda health
+# Full CLI reference, or detailed help for one command
+docker exec pandablog-app panda --help
+docker exec pandablog-app panda help recover     # same as: panda recover --help
 ```
 
-See [docs/versioning-and-cli.md](docs/versioning-and-cli.md) for full documentation on the version format, determinism guarantees, OCI labels, admin API, and CLI reference.
+### Commands
+
+| Command | What it does |
+|---|---|
+| `panda version [--json]` (also `--version`, `-v`) | Prints the build version. Source: `/app/version.json` (image), git via `scripts/version.mjs` (dev checkout), then `PANDABLOG_VERSION`. Fails rather than guessing. |
+| `panda info [--json]` | Version, commit, commit date, version source, Node.js/platform, `NODE_ENV`, listen host:port, app root, and each storage directory as writable / read-only / missing. Reads local files only. |
+| `panda health [--url <url>] [--timeout <s>] [--json]` | Probes the server over loopback (default `http://127.0.0.1:$PORT/api/health`, 5 s). Exit `0` for any non-5xx response, `1` for 5xx/refused/timeout. Use `--url …/api/ready` for readiness or `…/api/health?db=1` for a DB connectivity probe. |
+| `panda recover` | Offline startup-recovery assistant. Read-only inspection of `storage/backups` recovery records (writer lock, uncertain-writes marker, restore journal/artifacts). No `.env`, no DB, no SQL. Reports `clear`, `writer-active`, `review-required` or `manual-recovery-required`. |
+| `panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent` | **Expert-only.** Moves independently reviewed startup-only receipts into `storage/.recovery-archive/startup-*` with a review record. The three flags are operator assertions, not checks; restore journals/artifacts and live, remote or corrupt ownership are always refused. |
+| `panda help [command]` (also `--help`, `-h`, `panda <command> --help`) | Overview, or detailed help for one command. |
+
+Exit codes: `0` success/healthy/inspection completed; `1` failure, unhealthy, refused recovery action or usage error.
+
+### Where to run it
+
+| | App container up | App container **not** up | Dev checkout |
+|---|---|---|---|
+| How | `docker exec pandablog-app panda <cmd>` | `docker compose run --rm app panda <cmd>` | `node bin/panda.mjs <cmd>` or `npm run panda -- <cmd>` |
+| `version`, `info` | yes | yes | yes |
+| `health` | yes | no: nothing listens, always FAIL | yes, against a running dev server |
+| `recover` | inspection only (a live writer is `writer-active`) | yes, after `docker compose stop app` | yes (`npm run recover` still works) |
+
+`docker compose run` starts a one-off container from the same image with the same `.env`, user and
+`./app-storage` mount, and replaces the image's command (the web server) with `panda`. The server
+does not start, so a failing boot does not get in the way. With Podman, use `podman exec` /
+`podman compose run` the same way.
+
+When the app container will not come up (run from `deploy/production/`):
+
+```bash
+docker compose logs app --tail 100        # read the boot error first
+docker compose stop app                   # end the restart loop (restart: unless-stopped)
+docker compose run --rm app panda info    # build identity + storage writability
+docker compose run --rm app panda recover # read-only recovery inspection
+# fix .env (configuration errors only need correction + recreation), or follow the
+# recover guidance and, only after independent review, run the expert-only archival
+docker compose up -d app
+docker exec pandablog-app panda health --url http://127.0.0.1:3000/api/ready
+```
+
+> **Hostname and archival.** The writer lock records the container hostname, so
+> `deploy/production/docker-compose.yml` sets a fixed `hostname: pandablog-app`. That way a one-off
+> `docker compose run` container matches the app container and can archive a reviewed lock the app
+> left behind. Without it, the lock is reported as belonging to *another host* and archival is refused
+> (inspection still works). PID numbering restarts in every container, so a recorded PID that now
+> belongs to `panda` itself is reported as not running here. A one-off container cannot see the app
+> container's processes, so **always `docker compose stop app` before archival**, and run only one
+> app instance.
+
+See [docs/versioning-and-cli.md](docs/versioning-and-cli.md) for the version format, determinism
+guarantees, OCI labels, admin API and the full CLI reference.
 
 ---
 
@@ -495,10 +544,11 @@ own writer and creates no recovery marker. Partial initialization, uncertain wri
 interrupted restores remain fenced. Existing legacy markers are never silently cleared.
 Browser requests show a static maintenance explanation instead of an error-rendering loop.
 
-For recovery guidance, run `npm run recover` from the repository root (read-only; no database
-connection). After independently verifying stopped app writers, database quiescence, consistent
+For recovery guidance, run `panda recover` (read-only; no database connection): in the image via
+`docker compose stop app && docker compose run --rm app panda recover`, or from a checkout via
+`npm run recover`. After independently verifying stopped app writers, database quiescence, consistent
 data and a preserved backup, an administrator can use the expert-only archival flags shown by
-`npm run recover -- --help`. Normal inspection asks no technical verification questions and
+`panda recover --help`. Normal inspection asks no technical verification questions and
 reports live ownership without recovery markers as normal, not a manual recovery problem. It refuses interrupted restores and unsafe ownership; there is
 no public unfence endpoint or automatic stale-writer takeover. See the
 [runtime startup operations](docs/runtime-startup-config/operations.md) for prerequisites.
@@ -572,6 +622,7 @@ A production-ready `Dockerfile` and Compose setup are included.
    ```bash
    docker run -d \
      --name pandablog \
+     --hostname pandablog \
      -p 127.0.0.1:3000:3000 \
      --env-file deploy/production/.env \
      --log-driver json-file --log-opt max-size=10m --log-opt max-file=5 \

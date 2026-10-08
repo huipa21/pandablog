@@ -7,6 +7,14 @@ services:
     user: "1000:1000"
     pull_policy: never
     container_name: pandablog-app
+    # Fixed hostname. The writer lock (storage/backups/.writer.lock) records the
+    # hostname of the process that owns it. Without this, every recreated
+    # container and every one-off `docker compose run --rm app panda recover`
+    # gets a random hostname, so a lock left by the app is reported as
+    # "another host" and reviewed archival is refused. A one-off container
+    # cannot see the app container's processes, so ALWAYS `docker compose stop
+    # app` before running `panda recover` this way. Run one app instance only.
+    hostname: pandablog-app
     restart: unless-stopped
     # Allow the app to drain HTTP (NITRO_SHUTDOWN_TIMEOUT=15s) and then close the
     # DB and release its writer lock (<=10s). If Docker kills it first, the stale

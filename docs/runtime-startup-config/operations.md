@@ -38,7 +38,7 @@ This supersedes the stricter wording elsewhere in this runbook and in the backen
 - **DB lost at runtime:** the dead client is dropped and requests reconnect with backoff. Closing a client now settles its stuck in-flight calls, so admission slots and leases are released (they previously leaked until `capacity exceeded`). The SurrealDB SDK's own reconnect is disabled because it replays in-flight requests after reconnecting.
 - **Uncertain writes** (a write whose response was lost) persist `storage/backups/.uncertain-writes.json`. The marker is now a **10-minute quiescence window** (`UNCERTAIN_WRITE_QUIESCENCE_MS`). It refuses backup/restore jobs (`uncertain-writes-quiescing`) and is removed automatically when the window ends. It **never** blocks startup or writer release. Configure SurrealDB `--query-timeout` / `--transaction-timeout` well below 10 minutes so the window is a real execution bound.
 - **Shutdown during an outage:** after a bounded drain, DB sockets are closed, which settles stuck calls, and the writer lock is released. Allow the time in Docker (`stop_grace_period: 45s`, `NITRO_SHUTDOWN_TIMEOUT=15000`).
-- **Still fenced for offline review:** non-connectivity boot failures (e.g. media layout refusal, malformed migration data), restore journals and restore artifacts, and a stale `.writer.lock` left by a **killed** process (SIGKILL, OOM, power loss). The container image ships the assistant as `panda-recover`. Run it only with the app stopped: `docker compose run --rm --no-deps --entrypoint panda-recover app [--help]`.
+- **Still fenced for offline review:** non-connectivity boot failures (e.g. media layout refusal, malformed migration data), restore journals and restore artifacts, and a stale `.writer.lock` left by a **killed** process (SIGKILL, OOM, power loss). The container image ships the assistant as `panda recover` (see `panda recover --help`). Run it only with the app stopped: `docker compose stop app && docker compose run --rm app panda recover`. The production compose file pins `hostname: pandablog-app` so the one-off container matches the writer lock's recorded host. See [versioning-and-cli.md](../versioning-and-cli.md#recovery-panda-recover) for hostname/PID-reuse details.
 
 `Maintenance ownership is busy or requires offline recovery` is not proof of a harmless stale PID. Existing writer receipts deliberately cannot be reclaimed after process death: submitted DB execution can outlive the process. The former non-awaiting-plugin admission gap is fixed in source; this does not repair pre-existing receipts or authorize running the configured application.
 
@@ -61,11 +61,12 @@ For a handshake authentication failure, verify the canonical credentials against
 
 ### Local recovery assistant (D-07)
 
-From the repository root, with dependencies installed:
+From the repository root, with dependencies installed (`npm run recover` is a shortcut for `node bin/panda.mjs recover`), or in the container image as `panda recover`:
 
 ```sh
 npm run recover
-npm run recover -- --help
+npm run panda -- recover --help
+docker compose run --rm app panda recover   # container; stop the app first
 ```
 
 Inspection is read-only, does not load `.env`, never contacts a database, and never prints owner/status tokens or record contents. `review-required` means records are eligible for **operator-reviewed** startup-only archival, not that the tool proved the failure harmless. It explains whether legacy uncertainty, dead/live/remote ownership, a restore journal or artifacts prevent restart.
@@ -73,7 +74,7 @@ Inspection is read-only, does not load `.env`, never contacts a database, and ne
 If independent review confirms that the application is stopped, no old DB operations remain pending, data is consistent and a backup is preserved, use:
 
 ```sh
-npm run recover -- --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent
+panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent
 ```
 
 This is an **expert-only** path, not a normal-user recovery workflow. The tool no longer asks users technical verification questions. Archival requires **all** `--app-stopped --database-quiescent --data-consistent` flags, supplied only by an administrator who has independently established the facts; these are operator assertions, not automatic execution/consistency proof. Never supply them solely because a PID is dead or a restore journal is absent. A plain inspection of a live writer without recovery markers reports `writer-active`, not manual recovery: check `/api/ready` before taking any action.

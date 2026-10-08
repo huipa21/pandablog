@@ -67,7 +67,7 @@ export class StartupCoordinator {
             : 'Startup failed before application mutations. Check the configuration and database connection.'
       return {message, action: 'fix-config-and-restart', recoveryRequired: false}
     }
-    if (this.failure) return {message: 'Startup is blocked by unresolved ownership, partial initialization or uncertain execution. Run npm run recover for guidance; do not delete recovery files.', action: 'run-recovery-assistant', recoveryRequired: true}
+    if (this.failure) return {message: 'Startup is blocked by unresolved ownership, partial initialization or uncertain execution. Run panda recover for guidance; do not delete recovery files.', action: 'run-recovery-assistant', recoveryRequired: true}
     return {message: this.status().ready ? 'PandaBlog is ready.' : 'PandaBlog is starting or temporarily unavailable. Please retry shortly.', action: 'wait', recoveryRequired: false}
   }
   private disposeResources() {
@@ -126,7 +126,7 @@ export class StartupCoordinator {
         this.retryableFailure = validating
         console.error(this.retryableFailure
           ? '[startup] configuration is invalid; correct it and restart; no recovery cleanup is required for this attempt'
-          : '[startup] writer ownership failed; service remains fenced; run npm run recover for guidance', this.failure)
+          : '[startup] writer ownership failed; service remains fenced; run panda recover for guidance', this.failure)
         return false
       }
     })()
@@ -175,7 +175,7 @@ export class StartupCoordinator {
           } else {
             this.unsafe = true // partial/unknown execution is not proof of consistency
             try {await this.resources!.preserveFailure()} catch { /* Keep writer authority even if persistence fails. */ }
-            console.error('[startup] initialization failed with a non-connectivity error; service remains fenced; run npm run recover for guidance', this.failure)
+            console.error('[startup] initialization failed with a non-connectivity error; service remains fenced; run panda recover for guidance', this.failure)
           }
           return false
         }

@@ -39,7 +39,13 @@ function owner(value: unknown): value is Owner {
   const v = value as Owner | undefined
   return Boolean(v && /^[a-f0-9]{48}$/.test(v.token) && /^[a-f0-9]{48}$/.test(v.generation) && typeof v.host === 'string' && Number.isInteger(v.pid) && v.pid > 0 && !('job' in v))
 }
-function localProcessState(value: Owner): 'live' | 'dead' | 'unknown' {
+function localProcessState(value: Owner): 'live' | 'dead' | 'unknown' | 'this-tool' {
+  // PID numbering restarts in every container. A one-off `docker compose run`
+  // container (same fixed hostname as the app) typically gives the panda
+  // launcher the very PID the app's server had. This tool and its launcher are
+  // never the writer, and two processes cannot share a PID in one namespace,
+  // so the recorded writer is not running here. Do not report it as live.
+  if (value.pid === process.pid || value.pid === process.ppid) return 'this-tool'
   try {process.kill(value.pid, 0); return 'live'} catch (error) {return (error as NodeJS.ErrnoException).code === 'ESRCH' ? 'dead' : 'unknown'}
 }
 
@@ -87,6 +93,7 @@ async function inspect(storage: string, ownGuard = false): Promise<{report: Reco
             liveWriter = true
             findings.push('The recorded writer process is running. An active writer lock is normal and must not be archived.')
           } else if (state === 'unknown') blockers.push('Writer process state could not be checked. Its ownership must not be archived automatically.')
+          else if (state === 'this-tool') findings.push('The recorded writer PID now belongs to this recovery tool, so the recorded writer is not running in this process namespace (expected in a one-off container). This does not prove that another container or host is stopped, or that database execution stopped.')
           else findings.push('A dead local writer receipt is present. A dead PID alone does not prove database execution stopped.')
         }
       }

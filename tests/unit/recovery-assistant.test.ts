@@ -18,6 +18,13 @@ async function records(root: string) {
   await writeFile(join(root, 'backups/.uncertain-writes.json'), JSON.stringify({version: 1, generation: receipt.generation, updatedAt: new Date().toISOString()}))
 }
 const exists = (path: string) => stat(path).then(() => true, () => false)
+/** A real, separate live process: the tool's own PID and its parent's PID are
+ * deliberately not treated as the writer (container PID reuse). */
+async function withLiveProcess(work: (pid: number) => Promise<void>) {
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio: 'ignore'})
+  await new Promise<void>((resolve, reject) => {child.once('spawn', resolve); child.once('error', reject)})
+  try {await work(child.pid!)} finally {child.kill()}
+}
 
 describe('local reviewed startup recovery assistant (owned storage; no DB)', () => {
   it('read-only inspection explains legacy ambiguity without exposing tokens or editing markers', () => fixture(async root => {
@@ -103,15 +110,15 @@ describe('local reviewed startup recovery assistant (owned storage; no DB)', () 
     await expect(archiveReviewedStartup(root, confirmations)).rejects.toThrow('not eligible')
     expect(await readFile(writerPath, 'utf8')).toBe(before)
   }))
-  it('treats a live writer with a pending uncertain-write window as normal, never archivable', () => fixture(async root => {
+  it('treats a live writer with a pending uncertain-write window as normal, never archivable', () => fixture(root => withLiveProcess(async pid => {
     await records(root)
     const writerPath = join(root, 'backups/.writer.lock/owner.json')
-    await writeFile(writerPath, JSON.stringify({...receipt, pid: process.pid}))
+    await writeFile(writerPath, JSON.stringify({...receipt, pid}))
     const before = await readFile(writerPath, 'utf8')
     expect(await inspectRecovery(root)).toMatchObject({status: 'writer-active', canArchiveReviewedStartup: false, blockers: []})
     await expect(archiveReviewedStartup(root, confirmations)).rejects.toThrow('not eligible')
     expect(await readFile(writerPath, 'utf8')).toBe(before)
-  }))
+  })))
   it.each(['different-generation', 'unknown-uncertainty'])('does not let %s uncertainty block reviewed writer archival', kind => fixture(async root => {
     await records(root)
     const writerPath = join(root, 'backups/.writer.lock/owner.json')
@@ -126,10 +133,10 @@ describe('local reviewed startup recovery assistant (owned storage; no DB)', () 
     await writeFile(join(root, 'backups/.uncertain-writes.json'), JSON.stringify({version: 1, generation: receipt.generation, updatedAt: new Date().toISOString()}))
     expect(await inspectRecovery(root)).toMatchObject({status: 'clear', canArchiveReviewedStartup: false, blockers: []})
   }))
-  it('treats normal live ownership without recovery markers as informational, never as a recovery request', () => fixture(async root => {
+  it('treats normal live ownership without recovery markers as informational, never as a recovery request', () => fixture(root => withLiveProcess(async pid => {
     await mkdir(join(root, 'backups/.writer.lock'))
     const path = join(root, 'backups/.writer.lock/owner.json')
-    const raw = JSON.stringify({...receipt, pid: process.pid})
+    const raw = JSON.stringify({...receipt, pid})
     await writeFile(path, raw)
     const report = await inspectRecovery(root)
     expect(report).toMatchObject({status: 'writer-active', canArchiveReviewedStartup: false, blockers: []})
@@ -138,6 +145,19 @@ describe('local reviewed startup recovery assistant (owned storage; no DB)', () 
     await expect(archiveReviewedStartup(root, confirmations)).rejects.toThrow('not eligible')
     expect(await readFile(path, 'utf8')).toBe(raw)
     expect(await exists(join(root, '.recovery-archive'))).toBe(false)
+  })))
+  it.each(['own', 'parent'])('does not mistake its %s PID for the recorded writer (container PID reuse); archival still needs every assertion', which => fixture(async root => {
+    await records(root)
+    const writerPath = join(root, 'backups/.writer.lock/owner.json')
+    await writeFile(writerPath, JSON.stringify({...receipt, pid: which === 'own' ? process.pid : process.ppid}))
+    const report = await inspectRecovery(root)
+    expect(report).toMatchObject({status: 'review-required', canArchiveReviewedStartup: true, blockers: []})
+    expect(report.findings.join(' ')).toContain('belongs to this recovery tool')
+    expect(report.findings.join(' ')).toContain('does not prove')
+    for (const key of Object.keys(confirmations)) await expect(archiveReviewedStartup(root, {...confirmations, [key]: false})).rejects.toThrow('All recovery confirmations')
+    expect(await exists(writerPath)).toBe(true)
+    const destination = await archiveReviewedStartup(root, confirmations)
+    expect(await exists(join(destination, '.writer.lock/owner.json'))).toBe(true)
   }))
   it('two reviewed contenders cannot archive the same receipts twice', () => fixture(async root => {
     await records(root)

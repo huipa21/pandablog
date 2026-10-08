@@ -80,20 +80,27 @@ Git is not included inside the container (`.git` is excluded by `.dockerignore`)
 
 ## 4. The Container CLI (`panda`)
 
-The runtime image includes a dependency-free operator CLI at `/app/bin/panda.mjs` and linked to `/usr/local/bin/panda`.
+The runtime image includes a single, dependency-free operator CLI at `/app/bin/panda.mjs`, linked to `/usr/local/bin/panda`. Every operator command, including the offline recovery assistant, is a `panda` subcommand; there is no separate recovery binary. `panda --help` prints the full reference, and `panda help <command>` (or `panda <command> --help`) prints detailed help for one command.
 
 ### Usage
 
 ```bash
-# Using Docker
+# App container is up
 docker exec pandablog-app panda --version
 docker exec pandablog-app panda info
 docker exec pandablog-app panda health
+podman exec pandablog-app panda info          # Podman equivalent
 
-# Using Podman
-podman exec pandablog-app panda --version
-podman exec pandablog-app panda info
-podman exec pandablog-app panda health
+# App container is NOT up (failed boot, crash loop): one-off container,
+# same image/.env/user/storage mount; panda replaces the server command
+docker compose stop app
+docker compose run --rm app panda info
+docker compose run --rm app panda recover
+
+# Development checkout
+node bin/panda.mjs --help
+npm run panda -- info
+npm run recover                               # = panda recover
 ```
 
 ### Commands
@@ -103,13 +110,27 @@ podman exec pandablog-app panda health
 | `panda version` (or `-v`, `--version`) | Output the version string (e.g., `260923-1+gedb176f`) |
 | `panda info` | Output version, commit hash, commit date, Node.js version, platform, listen host/port, and storage mount writability |
 | `panda health` | Send an HTTP probe to `http://127.0.0.1:$PORT/api/health`. Exits `0` for healthy (`< 500`), `1` on error/timeout |
-| `panda help` | Show CLI help |
+| `panda recover` | Read-only offline recovery inspection of `storage/backups` (no `.env`, no DB). See [Recovery](#recovery-panda-recover) |
+| `panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent` | Expert-only archival of independently reviewed startup-only receipts |
+| `panda help [command]` (or `-h`, `--help`) | Show the CLI overview, or detailed help for one command |
+
+### Where each command works
+
+| Command | `docker exec` (app up) | `docker compose run --rm app` (app down) | Dev checkout |
+|---|---|---|---|
+| `version` | yes | yes | yes (from git) |
+| `info` | yes | yes | yes |
+| `health` | yes | no: nothing listens, always FAIL | yes, against a running dev server |
+| `recover` | inspection only | yes, after `docker compose stop app` | yes |
+
+Exit codes: `0` success/healthy/inspection completed; `1` failure, unhealthy, refused recovery action or usage error.
 
 ### Global Flags
 
-- `--json`: Format output as JSON.
+- `--json`: Format output as JSON (`version`, `info`, `health`).
 - `--url <url>`: Target URL for `panda health` (default: `http://127.0.0.1:$PORT/api/health`).
 - `--timeout <seconds>`: Timeout for `panda health` (default: `5`).
+- `-h`, `--help`: Show help; after a command, show that command's help.
 
 The port resolves from `NITRO_PORT`, then `PORT`, then `3000`. The default
 `/api/health` probe returns `{ "ok": true, "uptime_s": 123 }` with
@@ -130,6 +151,38 @@ readiness check. No version/build information is exposed; use `panda info` for
 that. The CLI's existing non-5xx-is-healthy rule is unchanged, including for
 custom `--url` targets. Existing compose healthchecks that invoke `panda health`
 need no change; a rebuilt image uses the new lightweight URL.
+
+### Recovery (`panda recover`)
+
+The offline startup-recovery assistant (source: `scripts/recover.ts` + `scripts/recovery/assistant.ts`) is bundled at image build time to `/app/bin/recover.cjs`; `panda recover` runs it as a child process with `/app` as the working directory and exits with its exit code. In a dev checkout `panda recover` runs `scripts/recover.ts` through the installed `tsx` loader.
+
+Use it when `/api/ready` reports guidance `run-recovery-assistant` or the boot log says the service "remains fenced; run panda recover for guidance". It is **not** needed for an unreachable database (the app retries and opens by itself) or for invalid configuration / rejected pre-mutation sign-in (fix `.env`, recreate the container).
+
+```bash
+docker compose stop app                     # never inspect-and-archive next to a running app
+docker compose run --rm app panda recover   # read-only inspection
+```
+
+| Result | Meaning |
+|---|---|
+| `clear` | No persisted recovery blocker. Check `/api/ready` and the logs for configuration errors. |
+| `writer-active` | The recorded writer process is running. Normal; no recovery action indicated. |
+| `review-required` | Startup-only receipts (e.g. a writer lock left by a killed process) need evidence the tool cannot establish. Expert-reviewed archival is available. |
+| `manual-recovery-required` | Restore journal/artifacts, maintenance job, ownership from another host, or corrupt records. Nothing changed; follow the [offline recovery runbook](backend-hardening/operations.md#offline-recovery-no-public-unfence-endpoint). |
+
+Expert-only archival moves the reviewed `.writer.lock` (and any `.uncertain-writes.json`) into `storage/.recovery-archive/startup-*` with a review record; no DB, media or setup data is modified:
+
+```bash
+docker compose run --rm app panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent
+```
+
+All three assertion flags are required and are operator assertions, not checks. Never pass one for a fact you have not independently established.
+
+**Hostname and PID reuse.** The writer lock records `hostname()` and `pid`. `deploy/production/docker-compose.yml` sets a fixed `hostname: pandablog-app`, so a one-off `docker compose run` container has the same hostname as the app container. Without a fixed hostname (default Docker behavior), a lock written by the app is reported as *another host* and archival is refused, though inspection still works. For plain `docker run`, pass `--hostname`.
+
+PID numbering restarts in every container, so the one-off `panda` process usually gets the PID the app's server had. The assistant therefore never treats its own PID or its parent's PID as the recorded writer. Instead it reports "the recorded writer PID now belongs to this recovery tool" and continues to `review-required`. Neither this nor a dead PID proves anything about other containers: a one-off container cannot see the app container's processes. The app **must** be stopped (`docker compose stop app`) before archival, and only one app instance may use a storage/DB target.
+
+The fixed hostname does not let the app take over a stale lock. On boot, `startWriter` never reclaims an existing `.writer.lock`: a same-host lock is refused (`owner-offline-review` / `owner-live-same-process`), just as a different-host lock is (`owner-remote`).
 
 ---
 

@@ -55,10 +55,10 @@ ENV NODE_ENV=production \
 
 RUN npm run build
 
-# Offline recovery assistant (normally `npm run recover`). Bundled to a single
-# dependency-free file so it runs inside the runtime image without tsx/sources:
-#   docker compose run --rm --no-deps app panda-recover [--help]
-# Run it only while the app container is stopped.
+# Offline recovery assistant behind `panda recover`. Bundled to a single
+# dependency-free file so it runs inside the runtime image without tsx/sources.
+# bin/panda.mjs runs it as a child process when bin/recover.cjs exists:
+#   docker compose stop app && docker compose run --rm app panda recover [--help]
 RUN npx --no-install esbuild scripts/recover.ts --bundle --platform=node \
       --format=cjs --target=node22 --log-level=warning \
       --outfile=/app/recover.cjs
@@ -139,12 +139,11 @@ COPY --from=builder --chown=nuxt:nodejs /app/runtime/ ./
 RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip storage/logs storage/rate-limit \
  && chown -R nuxt:nodejs storage
 
-# Operator CLI: `panda --version`, `panda info`, `panda health`.
-# Must be created while still root — the shim lives outside /app.
+# The single operator CLI: `panda version | info | health | recover | help`
+# (`panda --help` for the full reference). Must be created while still root —
+# the shim lives outside /app.
 RUN printf '#!/bin/sh\nexec node /app/bin/panda.mjs "$@"\n' > /usr/local/bin/panda \
- && chmod 0755 /usr/local/bin/panda \
- && printf '#!/bin/sh\ncd /app && exec node /app/bin/recover.cjs "$@"\n' > /usr/local/bin/panda-recover \
- && chmod 0755 /usr/local/bin/panda-recover
+ && chmod 0755 /usr/local/bin/panda
 
 USER nuxt
 
