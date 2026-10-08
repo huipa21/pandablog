@@ -2,19 +2,17 @@
 /**
  * `panda` — PandaBlog operator CLI (the single CLI shipped in the image).
  *
- * A dependency-free operator tool that ships inside the runtime image. It is
- * deliberately thin: it reports build identity, probes the running server
- * over loopback HTTP and runs the offline recovery assistant. It does NOT
- * reach into the Nitro bundle or the database, because the runtime image
- * contains only a compiled server and importing its internals would break on
- * every Nitro upgrade. Anything needing real data should go through the
- * authenticated /api/admin/* routes instead.
+ * A thin operator dispatcher shipped inside the runtime image. It reports
+ * build identity, probes loopback HTTP and launches separately bundled tools.
+ * It never imports Nitro internals. Only password-reset loads database
+ * configuration and writes directly using the scoped runtime credentials.
  *
  * Commands (full reference: `panda --help`, `panda help <command>`):
  *   panda version [--json]   Print the build version
  *   panda info [--json]      Build identity + runtime environment
  *   panda health [--json]    Probe the local server; exit 0 healthy, 1 unhealthy
  *   panda recover [...]      Offline startup-recovery assistant (no DB access)
+ *   panda password-reset <username>  Interactive account password reset
  *   panda help [command]     Show usage
  */
 
@@ -221,36 +219,35 @@ function cmdHealth(args) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Locate the recovery assistant.
- *
- * In the image it is pre-bundled by the Dockerfile to bin/recover.cjs (no
- * tsx, no sources). In a dev checkout it runs scripts/recover.ts through the
- * installed tsx loader. It always runs as a child process with the app root
- * as working directory, because the assistant resolves ./storage relative to
- * its cwd. The child inherits stdio, and panda exits with its exit code.
+ * Locate a separately bundled operator tool, or its source in a dev checkout.
+ * Always run with the app root as cwd for .env and storage paths. Password
+ * reset lives beside the server's runtime dependencies, not inside Nitro.
+ * The child inherits stdio, and panda exits with its exit code.
  */
-function recoveryCommand() {
-  const bundled = resolve(HERE, 'recover.cjs')
+function operatorCommand(name) {
+  const bundled = name === 'recover'
+    ? resolve(HERE, 'recover.cjs')
+    : resolve(APP_ROOT, '.output', 'server', `${name}.cjs`)
   if (existsSync(bundled)) return [bundled]
 
-  const source = resolve(APP_ROOT, 'scripts', 'recover.ts')
+  const source = resolve(APP_ROOT, 'scripts', `${name}.ts`)
   const loader = resolve(APP_ROOT, 'node_modules', 'tsx', 'dist', 'loader.mjs')
   if (existsSync(source) && existsSync(loader)) return ['--import', pathToFileURL(loader).href, source]
 
   fail(
-    'recovery assistant not found.\n'
+    `${name} tool not found.\n`
     + `  Expected ${bundled} (container image) or\n`
-    + '  scripts/recover.ts with tsx installed (development checkout; run npm install).'
+    + `  scripts/${name}.ts with tsx installed (development checkout; run npm install).`
   )
 }
 
-function cmdRecover(args) {
-  const command = recoveryCommand()
+function cmdOperator(args) {
+  const command = operatorCommand(args[0])
   const result = spawnSync(process.execPath, [...command, ...args.slice(1)], {
     cwd: APP_ROOT,
     stdio: 'inherit'
   })
-  if (result.error) fail(`could not start the recovery assistant: ${result.error.message}`)
+  if (result.error) fail(`could not start ${args[0]}: ${result.error.message}`)
   process.exit(result.status ?? 1)
 }
 
@@ -263,9 +260,9 @@ const HELP = {
   panda — PandaBlog operator CLI
 
   The single operator tool shipped in the PandaBlog runtime image
-  (/usr/local/bin/panda -> /app/bin/panda.mjs). It is dependency-free, never
-  loads .env secrets, never connects to the database and never prints
-  credentials or owner tokens.
+  (/usr/local/bin/panda -> /app/bin/panda.mjs). Only password-reset reads
+  .env database configuration and connects to the database. No command
+  prints credentials or owner tokens.
 
   Usage
     panda <command> [options]
@@ -276,7 +273,9 @@ const HELP = {
     version     Print the build version (YYMMDD-N+g<sha>)
     info        Build identity, runtime environment and storage writability
     health      Probe the local HTTP server; exit 0 healthy, 1 unhealthy
+                (default http://127.0.0.1:$PORT/api/health)
     recover     Offline startup-recovery assistant (read-only by default)
+    password-reset <username>  Set a new password using hidden prompts
     help        Show this message, or detailed help for one command
 
   Global options
@@ -307,6 +306,7 @@ const HELP = {
                                always reports FAIL      running dev server
     recover   inspect only     yes (stop the app        yes
                                first)
+    password-reset             yes, with an interactive terminal and DB access
 
   Troubleshooting a container that will not come up
     docker compose logs app --tail 100       # read the boot error first
@@ -423,6 +423,37 @@ const HELP = {
   Examples
     docker exec pandablog-app panda health
     docker exec pandablog-app panda health --url http://127.0.0.1:3000/api/ready --timeout 4
+`,
+
+  'password-reset': `
+  panda password-reset — reset an existing account's password
+
+  Usage
+    panda password-reset <username>
+
+  Prompts for a password and confirmation without echoing either input.
+  Passwords must be 8–200 characters and match exactly. Passwords are never
+  accepted as arguments or via pipes. Ctrl-C cancels a prompt without writing.
+
+  Uses Argon2id and atomically updates users.password_hash, auth_epoch and
+  updated_at. Existing sessions and trusted devices are invalidated. Unknown
+  users are not created; roles, active status and MFA are not changed.
+
+  Connects directly to SurrealDB using NUXT_SURREAL_URL, NAMESPACE, DATABASE,
+  APP_USER and APP_PASSWORD (all prefixed NUXT_SURREAL_). Reads the app-root
+  .env as a fallback; shell/container environment takes precedence.
+  ROOT credentials are never used, and the web server need not be running.
+  Requires the same storage mount as the app; refuses concurrent maintenance
+  or unresolved restore recovery. Never remove locks to force a reset.
+
+  Examples
+    docker exec -it pandablog-app panda password-reset admin
+    docker compose run --rm app panda password-reset admin
+    npm run panda -- password-reset admin
+
+  Exit codes
+    0   password saved
+    1   usage, validation, cancellation, maintenance or database failure
 `,
 
   recover: `
@@ -549,7 +580,11 @@ switch (argv[0]) {
     break
   case 'recover':
     if (wantsHelp) cmdHelp('recover')
-    else cmdRecover(argv)
+    else cmdOperator(argv)
+    break
+  case 'password-reset':
+    if (wantsHelp) cmdHelp('password-reset')
+    else cmdOperator(argv)
     break
   case undefined:
   case '--help':

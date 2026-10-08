@@ -149,6 +149,7 @@ tests/unit/*
 !tests/unit/password-admission.test.ts
 !tests/unit/password-native.test.ts
 !tests/unit/password-routes.test.ts
+!tests/unit/password-reset.test.ts
 !tests/unit/current-identity.test.ts
 !tests/unit/auth-epoch-migration.test.ts
 !tests/unit/setup-maintenance-blocker.test.ts
@@ -190,6 +191,9 @@ scripts/*
 !scripts/backend-hardening/
 !scripts/backend-hardening/**
 !scripts/recover.ts
+!scripts/password-reset.ts
+!scripts/password-reset/
+!scripts/password-reset/*.ts
 !scripts/recovery/
 !scripts/recovery/assistant.ts
 !scripts/configure/

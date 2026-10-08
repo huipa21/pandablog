@@ -80,7 +80,7 @@ Git is not included inside the container (`.git` is excluded by `.dockerignore`)
 
 ## 4. The Container CLI (`panda`)
 
-The runtime image includes a single, dependency-free operator CLI at `/app/bin/panda.mjs`, linked to `/usr/local/bin/panda`. Every operator command, including the offline recovery assistant, is a `panda` subcommand; there is no separate recovery binary. `panda --help` prints the full reference, and `panda help <command>` (or `panda <command> --help`) prints detailed help for one command.
+The runtime image includes a single operator CLI at `/app/bin/panda.mjs`, linked to `/usr/local/bin/panda`. The dispatcher has no dependencies; `password-reset` uses separately bundled database/password code and the image's native Argon2 binding. Every operator command, including the offline recovery assistant, is a `panda` subcommand; there is no separate recovery binary. `panda --help` prints the full reference, and `panda help <command>` (or `panda <command> --help`) prints detailed help for one command.
 
 ### Usage
 
@@ -112,6 +112,7 @@ npm run recover                               # = panda recover
 | `panda health` | Send an HTTP probe to `http://127.0.0.1:$PORT/api/health`. Exits `0` for healthy (`< 500`), `1` on error/timeout |
 | `panda recover` | Read-only offline recovery inspection of `storage/backups` (no `.env`, no DB). See [Recovery](#recovery-panda-recover) |
 | `panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent` | Expert-only archival of independently reviewed startup-only receipts |
+| `panda password-reset <username>` | Hidden password/confirmation prompts, then updates the existing user's Argon2id hash and invalidates sessions/trusted devices. Requires an interactive terminal and DB access. |
 | `panda help [command]` (or `-h`, `--help`) | Show the CLI overview, or detailed help for one command |
 
 ### Where each command works
@@ -122,6 +123,7 @@ npm run recover                               # = panda recover
 | `info` | yes | yes | yes |
 | `health` | yes | no: nothing listens, always FAIL | yes, against a running dev server |
 | `recover` | inspection only | yes, after `docker compose stop app` | yes |
+| `password-reset` | yes, with `-it` | yes, with DB access and a terminal | yes |
 
 Exit codes: `0` success/healthy/inspection completed; `1` failure, unhealthy, refused recovery action or usage error.
 
@@ -151,6 +153,26 @@ readiness check. No version/build information is exposed; use `panda info` for
 that. The CLI's existing non-5xx-is-healthy rule is unchanged, including for
 custom `--url` targets. Existing compose healthchecks that invoke `panda health`
 need no change; a rebuilt image uses the new lightweight URL.
+
+### Password reset (`panda password-reset <username>`)
+
+```bash
+docker exec -it pandablog-app panda password-reset admin
+# Or, with the app stopped (from deploy/production/):
+docker compose run --rm app panda password-reset admin
+# Development checkout:
+npm run panda -- password-reset admin
+```
+
+The command prompts `Type password:` and `Confirm password:` without echoing input. Passwords must match exactly and satisfy the existing 8–200 character policy. `Ctrl-C`/`Ctrl-D` cancels a prompt. Password arguments, pipes and non-interactive execution are refused; passwords and hashes are never printed.
+
+A single parameterized UPDATE writes `users.password_hash`, a new `auth_epoch`, and `updated_at`. Unknown usernames fail without creating an account. Existing sessions and trusted devices are invalidated; role, active status and MFA configuration remain unchanged. Disabled accounts remain disabled.
+
+Only this subcommand reads app-root `.env` configuration (inherited process environment wins). It uses `NUXT_SURREAL_URL`, `NUXT_SURREAL_NAMESPACE`, `NUXT_SURREAL_DATABASE`, `NUXT_SURREAL_APP_USER` and `NUXT_SURREAL_APP_PASSWORD`. Endpoint/namespace/database defaults match the app's local defaults. ROOT credentials are never used and the web server need not be running.
+
+Use the app's **same storage mount and database target**. The command participates in the persisted maintenance job mutex, refusing overlap with backup/restore/import jobs and unresolved restore recovery. Lost database responses are not retried automatically; an uncertain-write marker protects subsequent destructive maintenance. Verify sign-in before retrying an uncertain reset. Never delete recovery records to force a reset.
+
+The Dockerfile bundles `scripts/password-reset.ts` separately to `.output/server/password-reset.cjs`, beside the native Argon2 runtime dependency. Development checkouts use the installed `tsx` loader. Neither path imports Nitro internals. Rebuild the runtime image to ship the new command.
 
 ### Recovery (`panda recover`)
 

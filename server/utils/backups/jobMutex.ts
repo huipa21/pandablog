@@ -12,7 +12,7 @@ export interface JobProgress {
   percent: number
   detail?: string
 }
-export interface ActiveJob { id: string, kind: 'create' | 'restore' | 'import' | 'consolidate' | 'delete', startedAt: string, progress?: JobProgress }
+export interface ActiveJob { id: string, kind: 'create' | 'restore' | 'import' | 'consolidate' | 'delete' | 'password-reset', startedAt: string, progress?: JobProgress }
 export interface JobOwner extends ActiveJob { readonly token: string, readonly generation: string }
 export interface RestoreJournal {
   version: 1, owner: JobOwner, phase: string, updatedAt: string, destructive: boolean,

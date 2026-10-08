@@ -236,7 +236,7 @@ argon2id and stored in SurrealDB. You can change it later from **Admin → Setti
 
 ## Versioning & the `panda` CLI
 
-PandaBlog uses a deterministic, date-based versioning scheme (`YYMMDD-N+g<sha>`, e.g. `260923-1+gedb176f`) and ships a single, dependency-free operator CLI, `panda`, inside the runtime image (`/usr/local/bin/panda` → `/app/bin/panda.mjs`). It never loads `.env` secrets, never connects to the database and never prints credentials or owner tokens.
+PandaBlog uses a deterministic, date-based versioning scheme (`YYMMDD-N+g<sha>`, e.g. `260923-1+gedb176f`) and ships a single operator CLI, `panda`, inside the runtime image (`/usr/local/bin/panda` → `/app/bin/panda.mjs`). Only `password-reset` loads `.env` database configuration and connects directly to the database. No command prints credentials or owner tokens.
 
 ```bash
 # Print version for the current commit
@@ -259,6 +259,7 @@ docker exec pandablog-app panda help recover     # same as: panda recover --help
 | `panda health [--url <url>] [--timeout <s>] [--json]` | Probes the server over loopback (default `http://127.0.0.1:$PORT/api/health`, 5 s). Exit `0` for any non-5xx response, `1` for 5xx/refused/timeout. Use `--url …/api/ready` for readiness or `…/api/health?db=1` for a DB connectivity probe. |
 | `panda recover` | Offline startup-recovery assistant. Read-only inspection of `storage/backups` recovery records (writer lock, uncertain-writes marker, restore journal/artifacts). No `.env`, no DB, no SQL. Reports `clear`, `writer-active`, `review-required` or `manual-recovery-required`. |
 | `panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent` | **Expert-only.** Moves independently reviewed startup-only receipts into `storage/.recovery-archive/startup-*` with a review record. The three flags are operator assertions, not checks; restore journals/artifacts and live, remote or corrupt ownership are always refused. |
+| `panda password-reset <username>` | Hidden password and confirmation prompts, then saves an Argon2id hash for an existing user and invalidates old sessions/trusted devices. Requires an interactive terminal and scoped DB credentials; preserves roles, account status and MFA. |
 | `panda help [command]` (also `--help`, `-h`, `panda <command> --help`) | Overview, or detailed help for one command. |
 
 Exit codes: `0` success/healthy/inspection completed; `1` failure, unhealthy, refused recovery action or usage error.
@@ -271,11 +272,22 @@ Exit codes: `0` success/healthy/inspection completed; `1` failure, unhealthy, re
 | `version`, `info` | yes | yes | yes |
 | `health` | yes | no: nothing listens, always FAIL | yes, against a running dev server |
 | `recover` | inspection only (a live writer is `writer-active`) | yes, after `docker compose stop app` | yes (`npm run recover` still works) |
+| `password-reset` | yes, use `docker exec -it` | yes, with DB access | yes, loads app-root `.env` as fallback |
 
 `docker compose run` starts a one-off container from the same image with the same `.env`, user and
 `./app-storage` mount, and replaces the image's command (the web server) with `panda`. The server
 does not start, so a failing boot does not get in the way. With Podman, use `podman exec` /
 `podman compose run` the same way.
+
+To reset a forgotten password (8–200 characters; input is never echoed):
+
+```bash
+docker exec -it pandablog-app panda password-reset admin
+# Development checkout:
+npm run panda -- password-reset admin
+```
+
+The command uses `NUXT_SURREAL_APP_USER` / `NUXT_SURREAL_APP_PASSWORD`, never ROOT credentials. Shell/container environment overrides app-root `.env` values. It needs the same storage mount as the app and refuses overlapping maintenance jobs or unresolved restore recovery. Unknown users are not created. `Ctrl-C` cancels a prompt without changing the database.
 
 When the app container will not come up (run from `deploy/production/`):
 

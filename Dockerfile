@@ -63,6 +63,13 @@ RUN npx --no-install esbuild scripts/recover.ts --bundle --platform=node \
       --format=cjs --target=node22 --log-level=warning \
       --outfile=/app/recover.cjs
 
+# Interactive account recovery behind `panda password-reset`. Keep the native
+# Argon2 binding external and resolve it from Nitro's traced runtime deps.
+# This is a standalone tool, not an import of the compiled web server.
+RUN npx --no-install esbuild scripts/password-reset.ts --bundle --platform=node \
+      --format=cjs --target=node22 --log-level=warning --external:argon2 \
+      --outfile=/app/.output/server/password-reset.cjs
+
 # Prune workspace down to runtime artefacts
 RUN mkdir -p /app/runtime \
  && cp -r .output                  /app/runtime/.output \
@@ -139,7 +146,7 @@ COPY --from=builder --chown=nuxt:nodejs /app/runtime/ ./
 RUN mkdir -p storage/uploads storage/variants storage/downloads storage/backups storage/geoip storage/logs storage/rate-limit \
  && chown -R nuxt:nodejs storage
 
-# The single operator CLI: `panda version | info | health | recover | help`
+# The single operator CLI (includes `panda password-reset <username>`).
 # (`panda --help` for the full reference). Must be created while still root —
 # the shim lives outside /app.
 RUN printf '#!/bin/sh\nexec node /app/bin/panda.mjs "$@"\n' > /usr/local/bin/panda \
