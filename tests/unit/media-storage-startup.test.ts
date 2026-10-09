@@ -42,10 +42,10 @@ describe('media startup preservation (isolated synthetic records)', () => {
   })
   it('checks layout before applying schema or ownership backfills', async () => {
     const source = await readFile('server/plugins/db-init.ts', 'utf8')
-    const check = source.indexOf('await assertMediaStorageCompatible(db)')
+    const check = source.indexOf('assertMediaStorageCompatible(db))')
     expect(check).toBeGreaterThan(0)
-    expect(check).toBeLessThan(source.indexOf('await applySchema(db, schema)'))
-    expect(check).toBeLessThan(source.indexOf('await ensureUserTableMigration(db)'))
+    expect(check).toBeLessThan(source.indexOf('applySchema(db, schema))'))
+    expect(check).toBeLessThan(source.indexOf('ensureUserTableMigration(db))'))
     expect(source).not.toContain('DELETE FROM files;')
   })
 })

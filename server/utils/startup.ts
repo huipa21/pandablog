@@ -1,7 +1,7 @@
 import { writeBarrier, type WriteBarrier } from './maintenance'
 
 export type StartupState = 'starting' | 'initializing' | 'ready' | 'recovery-required' | 'failed' | 'stopping'
-interface StartupFailure { phase: 'ownership' | 'initialization' | 'recovery', category: string }
+interface StartupFailure { phase: 'ownership' | 'initialization' | 'recovery', category: string, step?: string }
 
 /** Allow-listed metadata only: never expose SDK errors, SQL or credentials. */
 function failureDiagnostic(error: unknown, phase: StartupFailure['phase']): StartupFailure {
@@ -14,6 +14,11 @@ function failureDiagnostic(error: unknown, phase: StartupFailure['phase']): Star
   }
   if (data?.kind === 'database-handshake' && (data.scope === 'root' || data.scope === 'database') && ['connection', 'authentication', 'selection'].includes(String(data.phase))) {
     return {phase, category: `database-${data.scope}-${data.phase}-failed`}
+  }
+  const step = (error as {pandaBootStep?: unknown} | null)?.pandaBootStep
+  // Fixed boot-step names from db-init only; never SDK messages or SQL.
+  if (phase === 'initialization' && typeof step === 'string' && /^[a-z0-9-]{1,64}$/.test(step)) {
+    return {phase, category: 'initialization-failed', step}
   }
   return {phase, category: phase === 'ownership' ? 'configuration-or-ownership' : 'initialization-failed'}
 }

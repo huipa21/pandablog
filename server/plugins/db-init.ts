@@ -64,46 +64,60 @@ export default defineNitroPlugin(() => {
   })
 })
 
+/** Tag a boot failure with a fixed, non-secret step name so operators can see
+ * WHICH initialization step failed. The error itself is not wrapped: handshake
+ * and connectivity classification in the startup coordinator stay unchanged. */
+async function bootStep<T>(name: string, work: () => Promise<T>): Promise<T> {
+  try {
+    return await work()
+  } catch (error) {
+    if (error && typeof error === 'object' && !Object.prototype.hasOwnProperty.call(error, 'pandaBootStep')) {
+      try { Object.defineProperty(error, 'pandaBootStep', { value: name }) } catch { /* frozen error: keep original */ }
+    }
+    throw error
+  }
+}
+
 async function initializeDatabase() {
   // Optional ROOT bootstrap creates only namespace/database/scoped user and
   // closes before this returns. ALL schemas and boot migrations use EDITOR.
   // Without ROOT, authenticate directly as the already-provisioned user.
   const db = await initializeRuntimeDatabase()
 
-  await migrateLegacyAppSettingsTable(db)
-  await assertMediaStorageCompatible(db)
-  const { schema, hash: schemaHash } = await loadSchema()
+  await bootStep('legacy-app-settings', () => migrateLegacyAppSettingsTable(db))
+  await bootStep('media-layout-preflight', () => assertMediaStorageCompatible(db))
+  const { schema, hash: schemaHash } = await bootStep('schema-load', () => loadSchema())
 
-  if (!await hasCurrentSchemaHash(db, schemaHash)) {
-    await applySchema(db, schema)
-    await setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update')
+  if (!await bootStep('schema-hash-lookup', () => hasCurrentSchemaHash(db, schemaHash))) {
+    await bootStep('schema-apply', () => applySchema(db, schema))
+    await bootStep('schema-hash-update', () => setAppSetting(db, SCHEMA_HASH_KEY, schemaHash, 'schema hash update'))
   }
 
-  await ensureUserTableMigration(db)
-  await ensureAuthEpochs(db)
-  await setupAuthority().status(db)
-  await ensurePostVersionGraphMigration(db)
-  await ensureVersionEdgeDedupMigration(db)
-  await ensureMediaStorageVersion(db)
-  await mediaInitializeLegacyState(db)
-  await mediaRecoverInterruptedObjects(db)
-  await mediaRecoverStageDirectories()
-  await ensureDefaultMediaSettings(db)
-  await ensureDefaultAdminColorMode(db)
-  await ensureDefaultAdminLocale(db)
-  await ensureDefaultAdminRegionalSettings(db)
-  await initializeRuntimeSettings(true)
+  await bootStep('user-table-migration', () => ensureUserTableMigration(db))
+  await bootStep('auth-epoch-migration', () => ensureAuthEpochs(db))
+  await bootStep('setup-authority', () => setupAuthority().status(db))
+  await bootStep('post-version-graph-migration', () => ensurePostVersionGraphMigration(db))
+  await bootStep('version-edge-dedup-migration', () => ensureVersionEdgeDedupMigration(db))
+  await bootStep('media-storage-version', () => ensureMediaStorageVersion(db))
+  await bootStep('media-state-migration', () => mediaInitializeLegacyState(db))
+  await bootStep('media-interrupted-recovery', () => mediaRecoverInterruptedObjects(db))
+  await bootStep('media-stage-recovery', () => mediaRecoverStageDirectories())
+  await bootStep('default-media-settings', () => ensureDefaultMediaSettings(db))
+  await bootStep('default-admin-color-mode', () => ensureDefaultAdminColorMode(db))
+  await bootStep('default-admin-locale', () => ensureDefaultAdminLocale(db))
+  await bootStep('default-admin-regional', () => ensureDefaultAdminRegionalSettings(db))
+  await bootStep('runtime-settings', () => initializeRuntimeSettings(true))
   if (__PB_MODULE_ANALYTICS__) {
-    await initializeAnalyticsSettings(true)
+    await bootStep('analytics-settings', () => initializeAnalyticsSettings(true))
   }
-  await initializeSecuritySettings(true)
-  await ensureDefaultFolder(db)
+  await bootStep('security-settings', () => initializeSecuritySettings(true))
+  await bootStep('default-folder', () => ensureDefaultFolder(db))
   if (__PB_MODULE_LOGS__) {
-    await ensureLoggingExcludedPathsMigration(db)
+    await bootStep('logging-excluded-paths-migration', () => ensureLoggingExcludedPathsMigration(db))
     // Refresh settings after the owned migration merge.
-    await reloadLoggingSettings()
+    await bootStep('logging-settings-reload', () => reloadLoggingSettings())
     if (resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
-      await removeMigratedAccessTable(db)
+      await bootStep('access-table-removal', () => removeMigratedAccessTable(db))
     }
   }
   // Optional marker-guarded backfills still start after readiness through the

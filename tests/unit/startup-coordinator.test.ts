@@ -164,6 +164,22 @@ describe('owned startup coordination and bounded shutdown', () => {
     await coordinator.stop()
     expect(await boot).toBe(false)
   })
+  it('reports the fixed boot step of a non-connectivity failure, never arbitrary values', async () => {
+    const {coordinator, resources} = fixture()
+    await coordinator.start(resources)
+    const tagged = Object.defineProperty(new Error('SQL must-not-leak'), 'pandaBootStep', {value: 'media-stage-recovery'})
+    expect(await coordinator.initialize(async () => {throw tagged})).toBe(false)
+    expect(coordinator.status().failure).toEqual({phase: 'initialization', category: 'initialization-failed', step: 'media-stage-recovery'})
+    expect(JSON.stringify([coordinator.status(), vi.mocked(console.error).mock.calls])).not.toContain('must-not-leak')
+    await coordinator.stop()
+
+    const other = fixture()
+    await other.coordinator.start(other.resources)
+    const unsafe = Object.defineProperty(new Error('x'), 'pandaBootStep', {value: 'Password=must-not-leak'})
+    expect(await other.coordinator.initialize(async () => {throw unsafe})).toBe(false)
+    expect(other.coordinator.status().failure).toEqual({phase: 'initialization', category: 'initialization-failed'})
+    await other.coordinator.stop()
+  })
   it('explains persistent recovery even when the writer receipt has been removed', async () => {
     const {coordinator, resources} = fixture()
     resources.acquireWriter.mockResolvedValue(false)
