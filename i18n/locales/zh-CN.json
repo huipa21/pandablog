@@ -176,6 +176,7 @@
       "reusedCount": "{count} 篇文章",
       "empty": "暂无上传的媒体。",
       "emptyStorage": "暂无存储占用。",
+      "emptyStorageRange": "此范围内暂无存储占用。",
       "noLargestFiles": "暂无文件可显示。",
       "noOversizedImages": "暂无超大图片。",
       "noOrphans": "暂无孤立媒体。",

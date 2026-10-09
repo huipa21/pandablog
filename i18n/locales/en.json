@@ -176,6 +176,7 @@
       "reusedCount": "{count} posts",
       "empty": "No media uploaded yet.",
       "emptyStorage": "No storage used yet.",
+      "emptyStorageRange": "No storage used in this range.",
       "noLargestFiles": "No files to show.",
       "noOversizedImages": "No oversized images.",
       "noOrphans": "No orphaned media.",

@@ -22,7 +22,7 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.mediaDashboard.loadFailed')" />
 
-    <section class="grid gap-4">
+    <section v-if="showDashboard" class="grid gap-4">
       <div class="flex flex-col gap-1">
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.mediaDashboard.inventory') }}</h2>
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.inventoryDescription') }}</p>
@@ -68,11 +68,11 @@
             </div>
           </NuxtLink>
         </div>
-        <p v-else class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.empty') }}</p>
+        <p v-else class="text-sm text-[var(--pb-text-muted)]">{{ t(range === 'all' ? 'admin.mediaDashboard.empty' : 'admin.mediaDashboard.emptyRange') }}</p>
       </section>
     </section>
 
-    <section class="grid gap-4">
+    <section v-if="showDashboard" class="grid gap-4">
       <div class="flex flex-col gap-1">
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.mediaDashboard.timeInsights') }}</h2>
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.timeInsightsDescription') }}</p>
@@ -122,7 +122,7 @@
       </section>
     </section>
 
-    <section class="grid gap-4">
+    <section v-if="showDashboard" class="grid gap-4">
       <div class="flex flex-col gap-1">
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.mediaDashboard.storageWeight') }}</h2>
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.storageWeightDescription') }}</p>
@@ -172,14 +172,14 @@
               </div>
             </NuxtLink>
           </div>
-          <p v-else class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.emptyStorage') }}</p>
+          <p v-else class="text-sm text-[var(--pb-text-muted)]">{{ t(range === 'all' ? 'admin.mediaDashboard.emptyStorage' : 'admin.mediaDashboard.emptyStorageRange') }}</p>
         </section>
       </div>
 
       <section class="pb-admin-surface p-5">
         <div class="mb-4 flex flex-col gap-1">
           <h3 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.mediaDashboard.oversizedImages') }}</h3>
-          <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.oversizedImagesDescription', { threshold: formatSize(oversized.threshold_bytes) }) }}</p>
+          <p v-if="!pending" class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.oversizedImagesDescription', { threshold: formatSize(oversized.threshold_bytes) }) }}</p>
         </div>
 
         <div v-if="pending" class="grid gap-3 md:grid-cols-2">
@@ -197,7 +197,7 @@
       </section>
     </section>
 
-    <section class="grid gap-4">
+    <section v-if="showDashboard" class="grid gap-4">
       <div class="flex flex-col gap-1">
         <h2 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.mediaDashboard.usageCleanup') }}</h2>
         <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.usageCleanupDescription') }}</p>
@@ -210,7 +210,7 @@
               <h3 class="text-lg font-semibold text-[var(--pb-text)]">{{ t('admin.mediaDashboard.orphans') }}</h3>
               <p class="text-sm text-[var(--pb-text-muted)]">{{ t('admin.mediaDashboard.orphansDescription') }}</p>
             </div>
-            <UBadge color="warning" variant="soft">{{ formatNumber(orphans.count) }}</UBadge>
+            <UBadge v-if="!pending" color="warning" variant="soft">{{ formatNumber(orphans.count) }}</UBadge>
           </div>
 
           <div v-if="pending" class="grid gap-3">
@@ -319,7 +319,7 @@ interface MediaDashboardResponse {
 
 const { t, locale } = useI18n()
 const sessionFetch = useSessionFetch()
-const range = ref<RangeOption>('7d')
+const range = ref<RangeOption>('all')
 const customFrom = ref(addDateInputDays(formatDateInput(new Date()), -6))
 const customTo = ref(formatDateInput(new Date()))
 const rangeItems = computed<Array<{ label: string, value: RangeOption }>>(() => [
@@ -347,6 +347,7 @@ const { data: dashboard, pending, error, refresh } = await useAsyncData(
   { watch: [range, customFrom, customTo] }
 )
 
+const showDashboard = computed(() => pending.value || (!error.value && !!dashboard.value))
 const numberFormatter = computed(() => new Intl.NumberFormat(locale.value))
 const summary = computed(() => dashboard.value?.summary ?? emptySummary())
 const byType = computed(() => dashboard.value?.by_type ?? emptyTypeStats())

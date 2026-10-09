@@ -165,6 +165,9 @@ tests/unit/*
 !tests/unit/media-upload-http.test.ts
 !tests/unit/media-reference-writers.test.ts
 !tests/unit/media-dashboard.test.ts
+!tests/unit/media-dashboard-api.test.ts
+!tests/unit/media-dashboard-ui.test.ts
+!tests/integration/media-dashboard-tags.test.ts
 !tests/unit/media-publication.test.ts
 !tests/integration/media-phase3.test.ts
 !tests/unit/media-privacy-http.test.ts

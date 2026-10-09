@@ -79,7 +79,7 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('Phase 3 actual SDK/3.2.
       await db.query("DELETE type::record('files', $hash);", {hash: hash(6)})
       expect((await mediaSearchFileRecords(db, {visibleToUser: owner, owner: 'other', uploaded_from: '2024-01-02'})).files.map(file => file.hash)).toEqual([hash(2)])
       const scope = mediaScope(owner)
-      const tags = await db.query(`SELECT key, array::first(array::group(name)) AS name, count() AS count, time::max(uploaded_at) AS latest FROM (SELECT tags AS name, string::lowercase(tags) AS key, uploaded_at FROM (SELECT tags, uploaded_at FROM files WITH NOINDEX WHERE ${scope.where} SPLIT tags TIMEOUT 5s)) WHERE string::contains(key, $search) GROUP BY key ORDER BY count DESC, key ASC LIMIT 201 TIMEOUT 5s;`, {...scope.params, search: ''})
+      const tags = await db.query(`SELECT key, array::first(array::group(name)) AS name, count() AS count, time::max(uploaded_at) AS latest FROM (SELECT tags AS name, string::lowercase(tags) AS key, uploaded_at FROM (SELECT tags, uploaded_at FROM files WITH NOINDEX WHERE ${scope.where} AND array::len(tags) > 0 SPLIT tags TIMEOUT 5s)) WHERE string::contains(key, $search) GROUP BY key ORDER BY count DESC, key ASC LIMIT 201 TIMEOUT 5s;`, {...scope.params, search: ''})
       expect(queryRows<{name: string}>(tags).some(row => row.name === 'secret')).toBe(false)
       expect(queryRows<{key: string, count: number}>(tags).find(row => row.key === 'nature')?.count).toBe(3)
       const owners = await db.query(`SELECT uploaded_by FROM files WITH NOINDEX WHERE ${scope.where} AND uploaded_by != NONE GROUP BY uploaded_by ORDER BY uploaded_by LIMIT 201 TIMEOUT 5s;`, scope.params)

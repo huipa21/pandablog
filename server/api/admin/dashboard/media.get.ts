@@ -6,7 +6,7 @@ import { mediaDashboard, type MediaDashboardRange } from '../../../utils/media-d
 const presets = new Set(['today', '7d', '30d', '90d', 'all', 'custom'])
 export default defineEventHandler(async (event) => {
   const user = await requireContentManager(event), query = getQuery(event)
-  const range = typeof query.range === 'string' && presets.has(query.range) ? query.range : '7d'
+  const range = typeof query.range === 'string' && presets.has(query.range) ? query.range : 'all'
   const window = rangeWindow(range, query.from, query.to)
   const [db, settings] = await Promise.all([useDb(), getMediaSettings()])
   const thresholdMb = settings.oversized_image_threshold_mb > 0 ? settings.oversized_image_threshold_mb : settings.max_file_size_mb / 10
