@@ -7,11 +7,11 @@ import { BACKUPS_ROOT } from './config'
 import { UNCERTAIN_WRITE_QUIESCENCE_MS, writeBarrier } from '../maintenance'
 
 export interface JobProgress {
-  phase: 'preparing' | 'db-export' | 'media-collect' | 'media-pack' | 'finalize' | 'db-wipe' | 'db-restore' | 'media-restore' | 'safety-snapshot' | 'db-validate' | 'db-consolidate' | 'db-verify' | 'rollback'
+  phase: 'preparing' | 'db-export' | 'media-collect' | 'media-pack' | 'bundle-pack' | 'finalize' | 'db-wipe' | 'db-restore' | 'media-restore' | 'safety-snapshot' | 'db-validate' | 'db-consolidate' | 'db-verify' | 'rollback'
   percent: number
   detail?: string
 }
-export interface ActiveJob { id: string, kind: 'create' | 'restore' | 'import' | 'consolidate' | 'delete' | 'password-reset', startedAt: string, progress?: JobProgress }
+export interface ActiveJob { id: string, kind: 'create' | 'restore' | 'import' | 'package' | 'consolidate' | 'delete' | 'password-reset', startedAt: string, progress?: JobProgress }
 export interface JobOwner extends ActiveJob { readonly token: string, readonly generation: string }
 export interface RestoreJournal {
   version: 1, owner: JobOwner, phase: string, updatedAt: string, destructive: boolean,

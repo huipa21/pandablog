@@ -816,21 +816,18 @@ function normalizePostVersioningSettings(value: Record<string, unknown>): PostVe
 // ---------------------------------------------------------------------------
 
 export interface BackupSettings {
-  /** Maximum number of READY backups to retain (ancestors are always kept). 0 = unlimited. */
+  /** Maximum READY full snapshots; legacy evidence suspends pruning. 0 = unlimited. */
   max_backups: number
   /** Validate a dump in a throwaway staging DB before importing it. */
   validate_before_restore: boolean
   /** Take an automatic safety snapshot before a restore so it can be rolled back. */
   auto_safety_snapshot: boolean
-  /** Tables excluded from a partial backup by default in the create dialog. */
-  default_excluded_tables: string[]
 }
 
 const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
   max_backups: 10,
   validate_before_restore: true,
-  auto_safety_snapshot: true,
-  default_excluded_tables: []
+  auto_safety_snapshot: true
 }
 
 export async function getBackupSettings(): Promise<BackupSettings> {
@@ -855,10 +852,7 @@ export async function getBackupSettings(): Promise<BackupSettings> {
       : DEFAULT_BACKUP_SETTINGS.validate_before_restore,
     auto_safety_snapshot: typeof settings.auto_safety_snapshot === 'boolean'
       ? settings.auto_safety_snapshot
-      : DEFAULT_BACKUP_SETTINGS.auto_safety_snapshot,
-    default_excluded_tables: Array.isArray(settings.default_excluded_tables)
-      ? (settings.default_excluded_tables as unknown[]).filter((t): t is string => typeof t === 'string')
-      : DEFAULT_BACKUP_SETTINGS.default_excluded_tables
+      : DEFAULT_BACKUP_SETTINGS.auto_safety_snapshot
   }
 }
 

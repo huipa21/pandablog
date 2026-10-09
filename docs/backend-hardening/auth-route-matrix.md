@@ -10,7 +10,7 @@ Patterns include every static/dynamic handler in the named directory, including 
 |---|---|
 | `/api/admin/settings/**` (general, media, versioning, logging, analytics, security/webhook test) | superadmin |
 | `/api/admin/site/visibility` GET/POST | superadmin |
-| `/api/admin/backups/**` (settings, status, tables, create/list/detail/delete/import/restore/download) | superadmin; maintenance ownership/recovery remains REV-2.* |
+| `/api/admin/backups/**` (settings, status, create/list/detail/delete/import/restore, unified GET/HEAD download, legacy full raw GETs) | current superadmin; strict full-only admission, origin/CSRF on mutations, bounded streams/read leases; destructive restore recovery unchanged. Partial table-list route removed; see backup-simplification progress |
 | `/api/admin/themes/**` | superadmin |
 | `/api/admin/logs/**` (static list/stats/retention/cleanup and dynamic type/detail/export/bulk/purge) | superadmin |
 | `/api/admin/analytics/**` | superadmin |

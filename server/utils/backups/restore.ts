@@ -1,15 +1,17 @@
+import { createError } from 'h3'
 import { mkdir, open, rm, rename, lstat } from 'node:fs/promises'
 import * as path from 'node:path'
 import { BACKUPS_ROOT } from './config'
 import { backupIdPart, getBackup, listBackups, replaceBackupRecords, updateBackupRecord, wipeDatabase } from './registry'
 import type { BackupRecord } from './config'
 import { acquireJob, releaseJob, updateJobProgress, jobStore, syncDirectory, type JobOwner } from './jobMutex'
-import { exportSurrealDbToFile, importSurrealDb, sha256File } from './surrealHttp'
-import { consolidateDumps, validateDumpByStaging, verifySnapshot, type SnapshotProfile } from './validate'
+import { exportSurrealDbToFile, importSurrealDb } from './surrealHttp'
+import { validateDumpByStaging, verifySnapshot, type SnapshotProfile } from './validate'
 import { collectOriginalPaths, extractMediaTar } from './tarStream'
 import { verifyBackupMediaCatalog, assertSameMediaFilesystem } from './media-validation'
 import { BACKUP_LIMITS, checkDisk, expandDump, regularFile } from './streams'
-import { resolveBackupChain } from './chain'
+import { assertSupportedFull, supportedFull } from './contracts'
+import { verifyFullComponents, verifyReadyBundle } from './snapshot'
 import { getBackupSettings, getMediaSettings, initializeRuntimeSettings, initializeAnalyticsSettings, initializeSecuritySettings } from '../settings'
 import { reloadLoggingSettings } from '../logging'
 import { closeRootClient, connectRootClient, provisionAppDatabaseUser, queryDb, recycleRuntimeConnection } from '../db'
@@ -24,6 +26,7 @@ import { writeBarrier } from '../maintenance'
 export async function startRestoreJob(id: string): Promise<string> {
   const record = await getBackup(id)
   if (!record || record.status !== 'ready') throw createError({ statusCode: 409, message: 'Backup snapshot is missing or not ready' })
+  if (!supportedFull(record)) throw createError({statusCode: 409, message: 'Unsupported legacy backup; preserved for offline recovery'})
   const owner = await acquireJob({id, kind: 'restore', startedAt: new Date().toISOString()})
   let token: string, begun = false
   try {
@@ -70,26 +73,17 @@ async function repairRuntimeAndSessions() {
   } finally {await closeRootClient(db)}
   await recycleRuntimeConnection()
 }
-async function stageArchives(chain: BackupRecord[], directory: string, mediaStage: string) {
-  for (const record of chain) {
-    const root = path.join(BACKUPS_ROOT, backupIdPart(record.id))
-    if (!(await lstat(root)).isDirectory()) throw new Error('Unsafe backup directory')
-    const db = path.join(root, 'db.surql.gz'), media = path.join(root, 'media.tar.gz')
-    await regularFile(db, BACKUP_LIMITS.compressedBytes); await regularFile(media, BACKUP_LIMITS.mediaBytes)
-    if (!record.manifest_sha256_db || !record.manifest_sha256_media || await sha256File(db) !== record.manifest_sha256_db || await sha256File(media) !== record.manifest_sha256_media) throw new Error('Backup archive checksums are missing or mismatched')
-    await extractMediaTar(media, mediaStage)
-    await collectOriginalPaths(mediaStage) // cumulative stage count/bytes, not per-archive only
-  }
-  const own = chain[chain.length - 1]!
-  const ownDump = path.join(directory, 'own.surql')
-  await expandDump(path.join(BACKUPS_ROOT, backupIdPart(own.id), 'db.surql.gz'), ownDump)
-  if (own.type !== 'partial') return ownDump
-  const base = chain[0]!
-  if (own.parent && backupIdPart(own.parent) !== backupIdPart(base.id) || !own.included_tables) throw new Error('Unsupported partial ancestry/selection')
-  const baseDump = path.join(directory, 'base.surql'), merged = path.join(directory, 'merged.surql')
-  await expandDump(path.join(BACKUPS_ROOT, backupIdPart(base.id), 'db.surql.gz'), baseDump)
-  await consolidateDumps(baseDump, ownDump, own.included_tables, merged)
-  return merged
+async function stageArchives(record: BackupRecord, directory: string, mediaStage: string) {
+  const root = path.join(BACKUPS_ROOT, backupIdPart(record.id))
+  const files = await verifyFullComponents(record, root)
+  if (record.bundle_filename || record.format_version !== undefined) await verifyReadyBundle(record, root)
+  const count = await extractMediaTar(files.media, mediaStage)
+  const originals = await collectOriginalPaths(mediaStage)
+  const hashes = originals.map(rel => path.basename(rel).split('.')[0]!)
+  if (count !== record.media_file_count || JSON.stringify([...hashes].sort()) !== JSON.stringify([...record.included_hashes].sort())) throw new Error('Backup media count/catalog mismatch')
+  const dump = path.join(directory, 'own.surql')
+  await expandDump(files.db, dump)
+  return dump
 }
 
 /** Cutover is not a DB+FS transaction: each boundary is journaled before work.
@@ -101,7 +95,7 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
   const oldUploads = path.join(directory, 'old-uploads'), oldVariants = path.join(directory, 'old-variants')
   let destructive = false, movedUploads = false, movedVariants = false, publishedUploads = false, publishedVariants = false
   let safety: SnapshotProfile | undefined
-  let finished = false
+  let finished = false, ownsStage = false
   let savedBackups: BackupRecord[] = []
   const deadlineAt = Date.now() + 30 * 60_000
   const phase = async (name: string, percent: number, extra: Parameters<typeof jobStore.transition>[1] = {}) => {
@@ -110,15 +104,15 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
     await jobStore.transition(owner, {phase: name, ...extra})
   }
   try {
-    await mkdir(directory, {mode: 0o700})
+    assertSupportedFull(record)
+    await mkdir(directory, {mode: 0o700}); ownsStage = true
     await mkdir(mediaStage, {mode: 0o700})
     await phase('preparing', 3, {artifacts: {directory, safetySql, oldUploads, oldVariants, mediaStage, uploads, variants}})
     const settings = await getBackupSettings()
     if (!settings.auto_safety_snapshot) throw new Error('Automatic restore requires a verified safety snapshot; offline operator recovery mode is required')
     savedBackups = await listBackups() // never catch to an empty history
-    const chain = resolveBackupChain(record.id, savedBackups)
     await checkDisk(directory, BACKUP_LIMITS.sqlBytes * 3)
-    const dump = await stageArchives(chain, directory, mediaStage)
+    const dump = await stageArchives(record, directory, mediaStage)
     await phase('db-validate', 18)
     // Always validate; a legacy setting cannot authorize unchecked cutover.
     const expected = await validateDumpByStaging(dump, stage => verifyBackupMediaCatalog(stage, mediaStage))
@@ -193,7 +187,7 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
     if (destructive) writeBarrier.reopen(owner)
     else writeBarrier.abortPreparation(owner)
     await releaseJob(owner)
-    await rm(directory, {recursive: true, force: true}).catch(() => {})
+    if (ownsStage) await rm(directory, {recursive: true, force: true}).catch(() => {})
   }
 }
 

@@ -27,27 +27,19 @@
           {{ t('admin.backups.importBackup') }}
         </UButton>
         <UButton
-          icon="i-lucide-plus"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          :disabled="!!activeJob"
-          @click="openCreateDialog('incremental')"
-        >
-          {{ t('admin.backups.createIncremental') }}
-        </UButton>
-        <UButton
           icon="i-lucide-database"
           size="sm"
           :disabled="!!activeJob"
-          @click="openCreateDialog('full')"
+          @click="createDialogOpen = true"
         >
-          {{ t('admin.backups.createFull') }}
+          {{ t('admin.backups.createBackup') }}
         </UButton>
       </div>
     </header>
 
     <UAlert v-if="loadError" color="error" icon="i-lucide-circle-alert" :title="t('admin.backups.loadFailed')" />
+
+    <UAlert v-if="retentionHeld" color="warning" :description="t('admin.backups.retentionHeld')" />
 
     <!-- Active job banner -->
     <div
@@ -93,11 +85,8 @@
           <div class="grid gap-1">
             <!-- Badges -->
             <div class="flex flex-wrap items-center gap-2">
-              <span
-                class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                :class="typeBadgeClass(snap.type)"
-              >
-                {{ typeLabel(snap.type) }}
+              <span v-if="!snap.supported" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                {{ t('admin.backups.unsupportedLegacy') }} ({{ snap.type ?? '?' }})
               </span>
               <span
                 class="rounded-full px-2 py-0.5 text-xs font-semibold"
@@ -113,7 +102,8 @@
               <span>{{ t('admin.backups.dbSize') }}: {{ formatBytes(snap.db_size_bytes) }}</span>
               <span>{{ t('admin.backups.mediaSize') }}: {{ formatBytes(snap.media_size_bytes) }}</span>
               <span>{{ t('admin.backups.fileCount', { count: snap.media_file_count }) }}</span>
-              <span v-if="snap.parent">{{ t('admin.backups.parent') }}: <span class="font-mono">{{ snap.parent }}</span></span>
+              <span v-if="snap.bundle_size_bytes">{{ t('admin.backups.downloadSize') }}: {{ formatBytes(snap.bundle_size_bytes) }}</span>
+              <span v-else-if="snap.supported && snap.status === 'ready'">{{ t('admin.backups.packagingNeeded') }}</span>
             </div>
             <p v-if="snap.note" class="text-xs text-[var(--pb-text-muted)]">{{ snap.note }}</p>
             <p v-if="snap.error" class="text-xs text-rose-600">{{ snap.error }}</p>
@@ -121,22 +111,16 @@
 
           <!-- Actions -->
           <div v-if="snap.status === 'ready'" class="flex flex-wrap items-center gap-2">
-            <!-- Download split button -->
-            <UDropdownMenu
-              :items="downloadItems(snap)"
-              :content="{ align: 'end' }"
-            >
-              <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-download" trailing-icon="i-lucide-chevron-down">
-                {{ t('admin.backups.download') }}
-              </UButton>
-            </UDropdownMenu>
+            <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-download" :disabled="!snap.supported || !!downloadingId" :loading="downloadingId === snap.id" @click="downloadBackup(snap)">
+              {{ t('admin.backups.download') }}
+            </UButton>
 
             <UButton
               size="xs"
               color="warning"
               variant="soft"
               icon="i-lucide-rotate-ccw"
-              :disabled="!!activeJob"
+              :disabled="!!activeJob || !snap.supported"
               @click="openRestoreDialog(snap.id)"
             >
               {{ t('admin.backups.restore') }}
@@ -146,7 +130,8 @@
               color="error"
               variant="soft"
               icon="i-lucide-trash-2"
-              @click="openDeleteDialog(snap.id, snap.descendant_count ?? 0)"
+              :disabled="!!activeJob || retentionHeld"
+              @click="openDeleteDialog(snap.id)"
             >
               {{ t('admin.backups.delete') }}
             </UButton>
@@ -159,8 +144,8 @@
               color="error"
               variant="soft"
               icon="i-lucide-trash-2"
-              :disabled="!!activeJob"
-              @click="openDeleteDialog(snap.id, snap.descendant_count ?? 0)"
+              :disabled="!!activeJob || retentionHeld"
+              @click="openDeleteDialog(snap.id)"
             >
               {{ t('admin.backups.delete') }}
             </UButton>
@@ -172,7 +157,6 @@
     <!-- Dialogs -->
     <BackupCreateDialog
       :open="createDialogOpen"
-      :snapshots="snapshots"
       @update:open="createDialogOpen = $event"
       @created="onCreated"
     />
@@ -187,7 +171,6 @@
     <BackupDeleteDialog
       :open="deleteDialogOpen"
       :snapshot-id="activeDeleteId"
-      :descendant-count="activeDeleteDescendants"
       @update:open="deleteDialogOpen = $event"
       @deleted="onDeleted"
     />
@@ -226,18 +209,22 @@ const { t } = useI18n()
 const toast = useToast()
 
 // ---- Data fetching ----
+const requestFetch = useRequestFetch()
+type ListedBackup = BackupRecord & {supported: boolean, retention_held: boolean}
 const { data: snapshotsData, pending, error: loadError, refresh: refreshSnapshots } = await useAsyncData(
   'admin-backups-list',
-  () => $fetch<Array<BackupRecord & { descendant_count: number }>>('/api/admin/backups')
+  () => requestFetch<ListedBackup[]>('/api/admin/backups')
 )
 
 const snapshots = computed(() => snapshotsData.value ?? [])
+const retentionHeld = computed(() => snapshots.value.some(snapshot => snapshot.retention_held))
+const downloadingId = ref('')
 
 // ---- Status polling (capability only authorizes this job's status) ----
 const restoreStatusToken = ref('')
 const { data: statusData, refresh: refreshStatus } = await useAsyncData(
   'admin-backups-status',
-  () => $fetch<{ activeJob: ActiveJobStatus | null, maintenance: boolean, recovery_required: boolean, jobs_blocked_until: number | null, restore: {state: string} | null }>('/api/admin/backups/status', {
+  () => requestFetch<{ activeJob: ActiveJobStatus | null, maintenance: boolean, recovery_required: boolean, jobs_blocked_until: number | null, restore: {state: string} | null }>('/api/admin/backups/status', {
     headers: restoreStatusToken.value ? {'X-PandaBlog-Restore-Status': restoreStatusToken.value} : undefined,
     timeout: 10_000,
   })
@@ -285,28 +272,20 @@ onMounted(() => {
 
 // ---- Dialog state ----
 const createDialogOpen = ref(false)
-const createInitialType = ref<'full' | 'incremental'>('full')
 const restoreDialogOpen = ref(false)
 const activeRestoreId = ref('')
 const deleteDialogOpen = ref(false)
 const activeDeleteId = ref('')
-const activeDeleteDescendants = ref(0)
 const importDialogOpen = ref(false)
 const settingsDialogOpen = ref(false)
-
-function openCreateDialog(type: 'full' | 'incremental') {
-  createInitialType.value = type
-  createDialogOpen.value = true
-}
 
 function openRestoreDialog(id: string) {
   activeRestoreId.value = id
   restoreDialogOpen.value = true
 }
 
-function openDeleteDialog(id: string, descendants: number) {
+function openDeleteDialog(id: string) {
   activeDeleteId.value = id
-  activeDeleteDescendants.value = descendants
   deleteDialogOpen.value = true
 }
 
@@ -383,7 +362,7 @@ function jobKindLabel(kind: string): string {
     create: t('admin.backups.kindCreate'),
     restore: t('admin.backups.kindRestore'),
     import: t('admin.backups.kindImport'),
-    consolidate: t('admin.backups.kindConsolidate'),
+    package: t('admin.backups.kindPackage'),
     delete: t('admin.backups.kindDelete'),
   }[kind] ?? kind
 }
@@ -394,63 +373,30 @@ function progressPhaseLabel(phase: string): string {
     'db-export': t('admin.backups.progressDbExport'),
     'media-collect': t('admin.backups.progressMediaCollect'),
     'media-pack': t('admin.backups.progressMediaPack'),
+    'bundle-pack': t('admin.backups.progressBundlePack'),
     'finalize': t('admin.backups.progressFinalize'),
     'db-wipe': t('admin.backups.progressDbWipe'),
     'db-restore': t('admin.backups.progressDbRestore'),
     'media-restore': t('admin.backups.progressMediaRestore'),
     'safety-snapshot': t('admin.backups.progressSafetySnapshot'),
     'db-validate': t('admin.backups.progressDbValidate'),
-    'db-consolidate': t('admin.backups.progressDbConsolidate'),
     'db-verify': t('admin.backups.progressDbVerify'),
     'rollback': t('admin.backups.progressRollback'),
   }[phase] ?? phase
 }
 
-function typeLabel(type: string): string {
-  return {
-    full: t('admin.backups.typeFull'),
-    incremental: t('admin.backups.typeIncremental'),
-    partial: t('admin.backups.typePartial'),
-  }[type] ?? type
-}
-
-function typeBadgeClass(type: string): string {
-  return {
-    full: 'bg-blue-100 text-blue-800',
-    incremental: 'bg-teal-100 text-teal-800',
-    partial: 'bg-violet-100 text-violet-800',
-  }[type] ?? 'bg-stone-100 text-stone-700'
-}
-
-function downloadItems(snap: BackupRecord & { descendant_count?: number }) {
-  const id = snap.id
-  return [
-    [
-      {
-        label: t('admin.backups.downloadDb'),
-        icon: 'i-lucide-file-archive',
-        onSelect() { window.open(`/api/admin/backups/${id}/download/db`, '_blank') },
-      },
-      {
-        label: t('admin.backups.downloadMedia'),
-        icon: 'i-lucide-image',
-        onSelect() { window.open(`/api/admin/backups/${id}/download/media`, '_blank') },
-      },
-      ...(snap.type === 'incremental'
-        ? [{
-            label: t('admin.backups.downloadMediaConsolidated'),
-            icon: 'i-lucide-layers',
-            onSelect() { window.open(`/api/admin/backups/${id}/download/media?consolidate=1`, '_blank') },
-          }]
-        : []),
-      ...(snap.type === 'partial'
-        ? [{
-            label: t('admin.backups.downloadDbConsolidated'),
-            icon: 'i-lucide-layers',
-            onSelect() { window.open(`/api/admin/backups/${id}/download/db?consolidated=1`, '_blank') },
-          }]
-        : []),
-    ],
-  ]
+async function downloadBackup(snap: ListedBackup) {
+  if (!snap.supported || downloadingId.value) return
+  downloadingId.value = snap.id
+  const url = `/api/admin/backups/${encodeURIComponent(snap.id)}/download`
+  try {
+    // HEAD packages/admit-checks first; downloads stay browser-streamed,
+    // without allocating a multi-GiB Blob in application memory.
+    await $fetch.raw(url, {method: 'HEAD', timeout: 300_000})
+    const link = document.createElement('a'); link.href = url; link.download = ''; link.click()
+    await refreshSnapshots()
+  } catch (err: any) {
+    toast.add({title: t('admin.backups.downloadFailed'), description: err?.data?.message ?? t('admin.backups.downloadRetry'), color: 'error'})
+  } finally {downloadingId.value = ''}
 }
 </script>

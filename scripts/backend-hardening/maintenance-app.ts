@@ -51,13 +51,18 @@ async function main() {
     const listing = await exec('git', ['ls-files', '--cached', '-z'], {cwd: source, env: fixtureEnvironment(), maxBuffer: 4 * 1024 * 1024})
     // Only tracked source plus this assignment's explicitly approved new code.
     // Never sweep arbitrary untracked config, accounts or deployment storage.
-    const files = [...new Set([...listing.stdout.split('\0').filter(Boolean), 'server/utils/dev-handoff.ts', 'tests/helpers/maintenance-realm.ts', 'tests/unit/maintenance-simplification.test.ts', 'scripts/backend-hardening/maintenance-app.ts', 'scripts/backend-hardening/maintenance-browser.ts'])]
+    const files = [...new Set([...listing.stdout.split('\0').filter(Boolean), 'server/utils/dev-handoff.ts', 'tests/helpers/maintenance-realm.ts', 'tests/unit/maintenance-simplification.test.ts', 'scripts/backend-hardening/maintenance-app.ts', 'scripts/backend-hardening/maintenance-browser.ts',
+      'server/utils/backups/contracts.ts', 'server/utils/backups/manifest.ts', 'server/utils/backups/bundle.ts', 'server/utils/backups/snapshotReads.ts', 'server/utils/backups/snapshot.ts', 'server/utils/backups/package.ts', 'server/utils/backups/publication.ts',
+      'server/api/admin/backups/[id]/download.get.ts', 'server/api/admin/backups/[id]/download.head.ts'])]
     if (files.length > 20_000) throw new Error('Source-copy file budget exceeded')
     for (const file of files) {
       if (interrupted) throw new Error('Owned fixture interrupted')
       if (/(^|\/)(?:\.env(?:\.|$)|storage\/|app-storage\/)/.test(file) || /^(?:\.git(?:\/|$)|public\/uploads\/|node_modules\/|\.nuxt\/|\.output\/|\.data\/|test-results\/)/.test(file) || file === 'pandablog.modules.json' || file.endsWith('.pem')) continue
       if (file.split('/').some(part => part === '..')) throw new Error('Unsafe source path')
       const from = join(source, file), to = join(storage.root, file)
+      // These tracked files are deliberately retired by the full-only task.
+      // Do not silently skip other missing/unrecognized source files.
+      if (['server/utils/backups/chain.ts', 'server/api/admin/backups/tables.get.ts'].includes(file)) continue
       const stat = await lstat(from)
       if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Source-copy requires regular tracked files')
       await mkdir(dirname(to), {recursive: true}); await copyFile(from, to)
@@ -110,7 +115,7 @@ async function main() {
       const labels: BrowserFixtureInput['labels'] = {}
       for (const locale of ['en', 'zh-CN']) {
         const value = JSON.parse(await readFile(join(storage.root, `i18n/locales/${locale}.json`), 'utf8'))
-        labels[locale] = {dashboard: value.admin.nav.dashboard, hold: value.admin.backups.jobsQuiescing.split('{until}')[0]}
+        labels[locale] = {dashboard: value.admin.nav.dashboard, hold: value.admin.backups.jobsQuiescing.split('{until}')[0], createBackup: value.admin.backups.createBackup, importBackup: value.admin.backups.importBackup, settings: value.admin.backups.settings, noBackups: value.admin.backups.noBackups, loadFailed: value.admin.backups.loadFailed}
       }
       const input = {base, password, profile, labels}
       if (windowsNode && windowsModule) {

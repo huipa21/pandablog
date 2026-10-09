@@ -20,13 +20,18 @@ export function surrealHttpBase(wsUrl: string): string {
 
 export interface BackupRecord {
   id: string
-  type: 'full' | 'incremental' | 'partial'
+  /** Raw legacy type stays visible; absent/unknown never becomes full. */
+  type: string | null
+  format_version?: number
+  bundle_filename?: string
+  bundle_size_bytes?: number
+  bundle_sha256?: string
   status: 'creating' | 'ready' | 'failed' | 'restoring'
   note: string | null
   parent: string | null
   chain_root: string | null
   included_hashes: string[]
-  /** For partial backups: the subset captured. null = full snapshot (with configured exclusions). */
+  /** Preserved legacy selection. Any selection is unsupported, including []. */
   included_tables: string[] | null
   db_size_bytes: number
   media_size_bytes: number

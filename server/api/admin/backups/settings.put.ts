@@ -6,8 +6,7 @@ const bodySchema = z.object({
   max_backups: z.number().int().min(0).max(1000).optional(),
   validate_before_restore: z.boolean().optional(),
   auto_safety_snapshot: z.boolean().optional(),
-  default_excluded_tables: z.array(z.string()).optional(),
-})
+}).strict()
 
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)

@@ -24,7 +24,12 @@ describe('backup multipart write settlement', () => {
     expect(await readFile(files.mediaTarGzPath, 'utf8')).toBe('media')
     expect(files.manifestBuffer?.toString()).toBe('manifest')
   }))
-  it.each([['db', 'db', 'media'], ['db', 'media', 'media'], ['db', 'media', 'manifest', 'manifest'], ['db', 'media', 'unknown']].map(names => ({names})))('rejects duplicate/excess/unknown parts $names and settles writers before cleanup', ({names}) => owned(async root => {
+  it('accepts exactly one bundle part without trusting its MIME/filename', () => owned(async root => {
+    const files = await receiveBackupUpload(multipart(['backup']), root)
+    expect(await readFile(files.backupGzPath!, 'utf8')).toBe('backup')
+    expect((await readdir(root))).toEqual(['backup.tar.gz'])
+  }))
+  it.each([['backup', 'backup'], ['backup', 'db'], ['db', 'backup'], ['backup', 'manifest'], ['db', 'db', 'media'], ['db', 'media', 'media'], ['db', 'media', 'manifest', 'manifest'], ['db', 'media', 'unknown']].map(names => ({names})))('rejects duplicate/excess/unknown parts $names and settles writers before cleanup', ({names}) => owned(async root => {
     await expect(receiveBackupUpload(multipart(names), root)).rejects.toMatchObject({statusCode: 400})
     await rm(root, {recursive: true})
     await new Promise(resolve => setTimeout(resolve, 10))

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { open } from 'node:fs/promises'
-import { exportSurrealDbToFile, importSurrealDb, runSqlHttp } from './surrealHttp'
+import { importSurrealDb, runSqlHttp } from './surrealHttp'
 import { BACKUP_LIMITS, regularFile } from './streams'
 
 /** Compatibility preflight, NOT a sandbox for administrator-controlled SQL. */
@@ -51,29 +51,5 @@ export async function validateDumpByStaging(source: string, inspect?: (database:
     const profile = await snapshotProfile(stage)
     await inspect?.(stage)
     return profile
-  } finally {await runSqlHttp(`REMOVE DATABASE IF EXISTS ${quote(stage)};`)}
-}
-
-/** Selected tables REPLACE base tables, including records deleted since base. */
-export async function consolidateDumps(base: string, partial: string, selected: string[], target: string): Promise<void> {
-  if (!Array.isArray(selected) || selected.length > 200 || new Set(selected).size !== selected.length) throw new Error('Invalid partial table selection')
-  await preflight(base)
-  if (selected.length) await preflight(partial)
-  const identifiers = selected.map(quote)
-  const stage = `__pb_consolidate_${randomBytes(12).toString('hex')}`
-  try {
-    await runSqlHttp(`DEFINE DATABASE ${quote(stage)};`)
-    await importSurrealDb(base, stage)
-    const baseProfile = await snapshotProfile(stage)
-    if (identifiers.length) {
-      await runSqlHttp(identifiers.map(t => `REMOVE TABLE IF EXISTS ${t};`).join('\n'), stage)
-      await importSurrealDb(partial, stage)
-    }
-    // Empty selection deliberately leaves all base tables unchanged.
-    const mergedProfile = await snapshotProfile(stage)
-    for (const table of new Set([...Object.keys(baseProfile), ...Object.keys(mergedProfile)])) {
-      if (!selected.includes(table) && JSON.stringify(baseProfile[table]) !== JSON.stringify(mergedProfile[table])) throw new Error('Partial snapshot changed a nonselected table or related graph')
-    }
-    await exportSurrealDbToFile(target, undefined, stage)
   } finally {await runSqlHttp(`REMOVE DATABASE IF EXISTS ${quote(stage)};`)}
 }

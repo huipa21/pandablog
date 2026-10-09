@@ -1,19 +1,10 @@
 import { requireSuperadmin } from '../../../utils/auth'
-import { listBackups, getDirectDescendants } from '../../../utils/backups/registry'
+import { listBackups } from '../../../utils/backups/registry'
+import { supportedFull } from '../../../utils/backups/contracts'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   await requireSuperadmin(event)
   const snapshots = await listBackups()
-
-  // Attach descendant_count for UI (chain visualization)
-  const counts = new Map<string, number>()
-  for (const s of snapshots) {
-    const desc = await getDirectDescendants(s.id).catch(() => [])
-    counts.set(s.id, desc.length)
-  }
-
-  return snapshots.map((s) => ({
-    ...s,
-    descendant_count: counts.get(s.id) ?? 0,
-  }))
+  const retentionHeld = snapshots.some(record => !supportedFull(record))
+  return snapshots.map(record => ({...record, supported: supportedFull(record), retention_held: retentionHeld}))
 })

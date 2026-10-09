@@ -4,7 +4,7 @@ Tasks: **MS-01, MS-03–06**. Approved target; [progress](../progress.md) record
 
 ## 1. Job exclusion is not application ownership
 
-Serialize backup creation, restore, import/registration, consolidation, deletion/pruning and password-reset CLI operations according to existing contention/resource contracts. A ready immutable archive download need not be a heavy job unless its current path consolidates or mutates state.
+Serialize backup creation, restore, import/registration, legacy-full packaging, deletion/pruning and password-reset CLI operations according to existing contention/resource contracts. The [full-only backup amendment](../../backup-simplification/specs/00-architecture.md) retires consolidation/chain producers, not their bounded recovery evidence or the protections below. A ready immutable archive download need not be a heavy job unless its current path consolidates or mutates state.
 
 - Reserve in process synchronously before first await; fail fast on incompatible contention. Do not queue a restore behind a request lease that the restore is draining.
 - Tokens/generations identify jobs, not a persistent ordinary app lifetime. Old release cannot remove a successor or claim false success.

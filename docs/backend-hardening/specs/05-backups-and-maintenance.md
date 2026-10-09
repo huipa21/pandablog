@@ -2,6 +2,8 @@
 
 > **Approved maintenance boundary amendment:** [jobs and restore spec](../../maintenance-simplification/specs/02-jobs-and-restore.md) now requires no persistent app writer, safe automatic handling of verified pre-destructive interruption/terminal state, and durable recovery for destructive/ambiguous restore only. Job serialization, full foreground/background drain, streams/validation, paired rollback and auth/cache refresh below remain applicable. The working tree implements that boundary; current evidence and remaining production/module/fault gates are in maintenance progress.
 
+> **Full-only amendment:** the [backup simplification contract](../../backup-simplification/specs/00-architecture.md) supersedes active mode/chain/consolidation requirements below. Their producers are retired, not their recovery evidence. Streaming, mandatory verification, paired rollback and maintenance boundaries remain. [Backup progress](../../backup-simplification/progress.md) records actual execution and outstanding release gates; historical outcomes below are not new acceptance.
+
 Tasks: **REV-2.2, REV-2.3, REV-2.4**. Findings: F-07, F-11, F-16, F-24.
 
 ## 1. Baseline and non-negotiable behavior

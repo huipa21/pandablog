@@ -4,11 +4,11 @@ import { randomBytes } from 'node:crypto'
 import { startFixture, fixtureRss } from '../../scripts/backend-hardening/fixture'
 import { writeSqlFixture } from '../../scripts/backend-hardening/generate'
 import { exportSurrealDbToFile, importSurrealDb, runSqlHttp } from '../../server/utils/backups/surrealHttp'
-import { consolidateDumps, validateDumpByStaging, verifySnapshot } from '../../server/utils/backups/validate'
+import { validateDumpByStaging, verifySnapshot } from '../../server/utils/backups/validate'
 
 const enabled = process.env.PB_BACKEND_FIXTURE === '1'
 describe.skipIf(!enabled)('actual application streaming HTTP and replacement semantics', () => {
-  it('selected-table deletion stays deleted; nonselected base rows survive; [] selects nothing', async () => {
+  it('a standalone full export preserves deleted rows and graph integrity without consolidation', async () => {
     const fixture = await startFixture({enabled: process.env.PB_BACKEND_FIXTURE, binary: process.env.PB_BACKEND_SURREAL_BIN ?? ''})
     const db = new Surreal()
     vi.stubGlobal('useRuntimeConfig', () => ({surrealUrl: `${fixture.endpoint}/rpc`, surrealRoot: fixture.username, surrealRootPassword: fixture.password, surrealNamespace: fixture.namespace, surrealDatabase: fixture.database}))
@@ -17,35 +17,30 @@ describe.skipIf(!enabled)('actual application streaming HTTP and replacement sem
       await db.signin({username: fixture.username, password: fixture.password})
       await db.use({namespace: fixture.namespace, database: fixture.database})
       await db.query("DEFINE TABLE selected SCHEMALESS; DEFINE TABLE kept SCHEMALESS; CREATE selected:deleted SET title = 'base'; CREATE selected:retained SET title = 'base'; CREATE kept:retained SET title = 'base';")
-      const base = fixture.storage.path('base.surql'), partial = fixture.storage.path('partial.surql'), merged = fixture.storage.path('merged.surql'), empty = fixture.storage.path('empty.surql'), unchanged = fixture.storage.path('unchanged.surql')
-      await exportSurrealDbToFile(base)
-      await db.query("DELETE selected:deleted; UPDATE selected:retained SET title = 'partial'; UPDATE kept:retained SET title = 'later-but-not-selected';")
-      await exportSurrealDbToFile(partial, {tables: ['selected']})
-      await consolidateDumps(base, partial, ['selected'], merged)
-      const expected = await validateDumpByStaging(merged)
+      await db.query("DELETE selected:deleted; UPDATE selected:retained SET title = 'snapshot'; DEFINE TABLE graph_edge TYPE RELATION IN selected OUT kept; RELATE selected:retained->graph_edge->kept:retained;")
+      const snapshot = fixture.storage.path('full.surql')
+      await exportSurrealDbToFile(snapshot)
+      const expected = await validateDumpByStaging(snapshot)
       expect(expected.selected?.count).toBe(1)
       expect(expected.kept?.sample).toContain('base')
-      expect(expected.selected?.sample).toContain('partial')
+      expect(expected.selected?.sample).toContain('snapshot')
       expect(expected.selected?.sample).not.toContain('deleted')
+      expect(expected.graph_edge?.count).toBe(1)
       const target = `__pb_roundtrip_${randomBytes(12).toString('hex')}`
       await runSqlHttp(`DEFINE DATABASE ${target};`)
-      await importSurrealDb(merged, target)
+      await importSurrealDb(snapshot, target)
       await verifySnapshot(expected, target)
       await runSqlHttp(`REMOVE DATABASE ${target};`)
+      // A full assertion still cannot bypass independent graph validation.
+      await db.query('DELETE selected:retained; RELATE selected:missing->graph_edge->kept:retained;')
+      const dangling = fixture.storage.path('dangling.surql')
+      await exportSurrealDbToFile(dangling)
+      await expect(validateDumpByStaging(dangling)).rejects.toThrow(/dangling/)
+      // Explicit table selection remains a lower-level export transport contract,
+      // not a supported backup mode: [] must never unexpectedly export all.
+      const empty = fixture.storage.path('empty.surql')
       await exportSurrealDbToFile(empty, {tables: []})
-      await consolidateDumps(base, empty, [], unchanged)
-      expect((await validateDumpByStaging(unchanged)).selected?.count).toBe(2)
-      // Omitting related graph tables is rejected instead of resurrecting or
-      // silently deleting references. This executes record::exists on real rows.
-      await db.query('DEFINE TABLE graph_edge TYPE RELATION IN selected OUT kept; RELATE selected:retained->graph_edge->kept:retained;')
-      const graphBase = fixture.storage.path('graph-base.surql'), graphPartial = fixture.storage.path('graph-partial.surql')
-      await exportSurrealDbToFile(graphBase)
-      await db.query('DELETE graph_edge; DELETE selected:retained;')
-      await exportSurrealDbToFile(graphPartial, {tables: ['selected']})
-      await expect(consolidateDumps(graphBase, graphPartial, ['selected'], fixture.storage.path('must-not-publish.surql'))).rejects.toThrow()
-      await exportSurrealDbToFile(fixture.storage.path('graph-complete.surql'), {tables: ['selected', 'graph_edge']})
-      await consolidateDumps(graphBase, fixture.storage.path('graph-complete.surql'), ['selected', 'graph_edge'], fixture.storage.path('graph-merged.surql'))
-      expect((await validateDumpByStaging(fixture.storage.path('graph-merged.surql'))).graph_edge?.count).toBe(0)
+      await expect(validateDumpByStaging(empty)).rejects.toThrow()
       process.stdout.write(JSON.stringify({evidence: 'REV-2.3-and-2.4-real-HTTP-replacement-not-production', node: process.version, sdk: '2.0.3', surreal: (await db.version()).version}) + '\n')
     } finally {vi.unstubAllGlobals(); await db.close(); await fixture.stop()}
   }, 90_000)

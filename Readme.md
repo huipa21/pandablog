@@ -413,22 +413,33 @@ is stored under `storage/backups/<id>/`:
 
 ```text
 db.surql.gz     Gzipped SurrealDB export (full database)
-media.tar.gz    Gzipped tar of media originals (full or incremental set)
-manifest.json   SHA-256 hashes + metadata for integrity verification
+media.tar.gz    Gzipped tar of all media originals (valid empty tar if none)
+manifest.json   Versioned full manifest with component sizes and SHA-256 hashes
+backup.tar.gz   Portable download containing exactly the three files above
 ```
 
-- **Full** — entire database plus all current media files.
-- **Incremental** — a fresh full database dump plus only media files added since the parent
-  snapshot. Incrementals form a chain; restore walks the chain oldest-first to reconstruct the
-  full media set.
-- **Restore is replace-only** — the database is wiped and reimported, variants are cleared, then
-  each chain ancestor's media is extracted (idempotent by hash filename). Image variants are
-  regenerated in the background afterward.
-- **Export / Import** — download a snapshot's archives and import them on another instance to
-  register a new restorable snapshot. An optional `manifest.json` enables integrity verification.
+- **Create backup** — a fresh full DB export plus all current media originals; optional note only.
+- **Download / Import** — one `pandablog-<id>.tar.gz` file. Import validates and registers a new
+  snapshot; it does **not** replace live data. Only import administrator-trusted SQL: staging is
+  not a hostile-input sandbox. Preserve configuration, encryption keys and access logs separately.
+- **Restore is replace-only** — staging validation and a verified paired DB/media safety
+  generation remain mandatory. Service stays fenced through schema/session/cache repair and
+  historical-month variant rebuilding. A destructive/ambiguous interruption preserves safety
+  evidence and requires offline recovery; a normal backup job failure does not fence startup.
+- **Legacy compatibility** — existing full components stay usable and are packaged once on
+  first download without a live DB export or modifying their original bytes. Old split full
+  downloads/imports remain backend adapters; consolidation parameters are rejected. Old
+  incremental/partial/unknown snapshots are preserved but unsupported for automatic restore
+  and download. Recover them only on an approved isolated copy with a compatible release.
+- **Retention** — default 10 ready full snapshots; 0 disables count pruning. Any unsupported
+  legacy history suspends automatic pruning and normal deletion, protecting possible bases.
+  Active downloads protect their snapshots. The independent 128-record history limit remains.
 
-> Backups are manual (no scheduling) and have no automatic retention policy — delete old
-> snapshots from the UI. Only one backup job runs at a time per server process.
+Backups are manual (no scheduling); heavy backup jobs are serialized. Components plus the
+prebuilt bundle use approximately twice the compressed snapshot space. Check headroom and
+proxy limits; see [backup operations](docs/backup-simplification/operations.md) and
+[implementation evidence / remaining release gates](docs/backup-simplification/progress.md).
+Code implementation is not deployment approval.
 
 ---
 

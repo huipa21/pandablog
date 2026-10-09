@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream/promises'
 import { createGunzip, createGzip } from 'node:zlib'
 
 // Conservative finite budgets, not a promise of arbitrary-size DB imports.
-export const BACKUP_LIMITS = Object.freeze({ sqlBytes: 128 * 1024 * 1024, compressedBytes: 256 * 1024 * 1024, mediaBytes: 2 * 1024 * 1024 * 1024, mediaEntries: 20_000, manifestBytes: 4 * 1024 * 1024, chainDepth: 64, reserveBytes: 512 * 1024 * 1024, deadlineMs: 300_000 })
+export const BACKUP_LIMITS = Object.freeze({ sqlBytes: 128 * 1024 * 1024, compressedBytes: 256 * 1024 * 1024, mediaBytes: 2 * 1024 * 1024 * 1024, mediaEntries: 20_000, manifestBytes: 4 * 1024 * 1024, reserveBytes: 512 * 1024 * 1024, deadlineMs: 300_000 })
 
 export function byteLimit(max: number, directory?: string) {
   if (!Number.isSafeInteger(max) || max < 1) throw new Error('Invalid stream byte limit')

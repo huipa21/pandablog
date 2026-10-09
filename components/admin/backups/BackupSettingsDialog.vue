@@ -21,23 +21,9 @@
             <p class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.backups.settingsDialog.maxBackupsHint') }}</p>
           </div>
 
-          <!-- Validate before restore -->
-          <div class="mt-4 flex items-start justify-between gap-3">
-            <div>
-              <span class="block text-sm font-medium text-[var(--pb-text)]">{{ t('admin.backups.settingsDialog.validateBeforeRestore') }}</span>
-              <span class="mt-0.5 block text-xs text-[var(--pb-text-muted)]">{{ t('admin.backups.settingsDialog.validateBeforeRestoreHint') }}</span>
-            </div>
-            <USwitch v-model="form.validate_before_restore" />
-          </div>
-
-          <!-- Auto safety snapshot -->
-          <div class="mt-4 flex items-start justify-between gap-3">
-            <div>
-              <span class="block text-sm font-medium text-[var(--pb-text)]">{{ t('admin.backups.settingsDialog.autoSafetySnapshot') }}</span>
-              <span class="mt-0.5 block text-xs text-[var(--pb-text-muted)]">{{ t('admin.backups.settingsDialog.autoSafetySnapshotHint') }}</span>
-            </div>
-            <USwitch v-model="form.auto_safety_snapshot" />
-          </div>
+          <p class="mt-4 text-sm text-[var(--pb-text-muted)]">{{ t('admin.backups.settingsDialog.protections') }}</p>
+          <UAlert v-if="!form.auto_safety_snapshot" color="warning" class="mt-4" :description="t('admin.backups.settingsDialog.safetyDisabled')" />
+          <UButton v-if="!form.auto_safety_snapshot" class="mt-2" :disabled="saving" @click="enableSafety">{{ t('admin.backups.settingsDialog.enableSafety') }}</UButton>
 
           <UAlert v-if="error" color="error" class="mt-4" :description="error" />
         </template>
@@ -60,7 +46,6 @@ interface BackupSettings {
   max_backups: number
   validate_before_restore: boolean
   auto_safety_snapshot: boolean
-  default_excluded_tables: string[]
 }
 
 const props = defineProps<{
@@ -78,7 +63,6 @@ const form = reactive<BackupSettings>({
   max_backups: 10,
   validate_before_restore: true,
   auto_safety_snapshot: true,
-  default_excluded_tables: [],
 })
 
 const loading = ref(false)
@@ -105,7 +89,18 @@ async function load() {
   }
 }
 
+async function enableSafety() {
+  if (saving.value) return
+  saving.value = true; error.value = null
+  try {
+    await $fetch('/api/admin/backups/settings', {method: 'PUT', body: {auto_safety_snapshot: true}})
+    form.auto_safety_snapshot = true
+  } catch (err: any) {error.value = err?.data?.message ?? t('admin.backups.settingsDialog.saveFailed')}
+  finally {saving.value = false}
+}
+
 async function save() {
+  if (saving.value) return
   saving.value = true
   error.value = null
   try {
@@ -113,9 +108,6 @@ async function save() {
       method: 'PUT',
       body: {
         max_backups: form.max_backups,
-        validate_before_restore: form.validate_before_restore,
-        auto_safety_snapshot: form.auto_safety_snapshot,
-        default_excluded_tables: form.default_excluded_tables,
       },
     })
     emit('saved')

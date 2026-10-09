@@ -7,6 +7,7 @@ import { createError } from 'h3'
 import Busboy from 'busboy'
 import { BACKUP_LIMITS, byteLimit, checkDisk } from './streams'
 import type { ExternalBackupFiles } from './importExternal'
+import { BUNDLE_LIMITS } from './bundle'
 
 /** Every part/write is settled before this promise rejects. Caller can then
  * remove the stage without writers recreating/truncating it afterwards. */
@@ -14,7 +15,7 @@ export async function receiveBackupUpload(request: IncomingMessage, directory: s
   if (!Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > BACKUP_LIMITS.deadlineMs) throw new Error('Invalid backup upload deadline')
   const files: ExternalBackupFiles = {dbGzPath: join(directory, 'db.surql.gz'), mediaTarGzPath: join(directory, 'media.tar.gz')}
   const seen = new Set<string>(), active = new Set<Readable>(), writes: Promise<void>[] = []
-  const parser = Busboy({headers: request.headers, limits: {files: 3, fields: 0, parts: 4, fileSize: BACKUP_LIMITS.mediaBytes, headerPairs: 32}})
+  const parser = Busboy({headers: request.headers, limits: {files: 3, fields: 0, parts: 4, fileSize: BUNDLE_LIMITS.encodedBytes, headerPairs: 32}})
   let failure: Error | undefined
   const fail = (error: Error) => {
     if (failure) return
@@ -30,10 +31,11 @@ export async function receiveBackupUpload(request: IncomingMessage, directory: s
   const done = new Promise<void>((resolve) => {parser.once('close', resolve); parser.once('error', error => {failure ??= error instanceof Error ? error : new Error('Backup parser failed')})})
   parser.on('file', (name, stream) => {
     stream.on('error', () => {})
-    if (!['db', 'media', 'manifest'].includes(name) || seen.has(name)) {stream.resume(); invalid(); return}
+    if (!['backup', 'db', 'media', 'manifest'].includes(name) || seen.has(name) || (name === 'backup' && seen.size > 0) || (name !== 'backup' && seen.has('backup'))) {stream.resume(); invalid(); return}
     seen.add(name); active.add(stream)
+    if (name === 'backup') files.backupGzPath = join(directory, 'backup.tar.gz')
     stream.once('limit', () => fail(createError({statusCode: 413, message: 'Backup file exceeds byte limit'})))
-    const cap = name === 'db' ? BACKUP_LIMITS.compressedBytes : name === 'manifest' ? BACKUP_LIMITS.manifestBytes : BACKUP_LIMITS.mediaBytes
+    const cap = name === 'backup' ? BUNDLE_LIMITS.encodedBytes : name === 'db' ? BACKUP_LIMITS.compressedBytes : name === 'manifest' ? BACKUP_LIMITS.manifestBytes : BACKUP_LIMITS.mediaBytes
     let checking = 0
     const meter = new Transform({transform(chunk: Buffer, _encoding, callback) {
       checking += chunk.length
@@ -45,7 +47,7 @@ export async function receiveBackupUpload(request: IncomingMessage, directory: s
       const pumping = pipeline(stream, limited)
       void pumping.catch(() => {})
       try {for await (const chunk of limited) chunks.push(Buffer.from(chunk)); await pumping; files.manifestBuffer = Buffer.concat(chunks)} finally {limited.destroy(); await pumping.catch(() => {})}
-    })() : pipeline(stream, byteLimit(cap), meter, createWriteStream(name === 'db' ? files.dbGzPath : files.mediaTarGzPath, {flags: 'wx', mode: 0o600}))
+    })() : pipeline(stream, byteLimit(cap), meter, createWriteStream(name === 'backup' ? files.backupGzPath! : name === 'db' ? files.dbGzPath : files.mediaTarGzPath, {flags: 'wx', mode: 0o600}))
     writes.push(task.catch(error => {fail(createError({statusCode: 413, message: error instanceof Error ? error.message : 'Backup upload failed'}))}).finally(() => {active.delete(stream)}))
   })
   for (const name of ['filesLimit', 'fieldsLimit', 'partsLimit'] as const) parser.once(name, invalid)
@@ -57,7 +59,7 @@ export async function receiveBackupUpload(request: IncomingMessage, directory: s
     await done
     await Promise.allSettled(writes)
     if (failure) throw failure
-    if (!seen.has('db') || !seen.has('media')) throw createError({statusCode: 400, message: 'Both db and media backup files are required'})
+    if (!seen.has('backup') && (!seen.has('db') || !seen.has('media'))) throw createError({statusCode: 400, message: 'Both db and media backup files are required'})
     return files
   } finally {
     clearTimeout(timer); request.off('aborted', abort); request.off('error', abort)

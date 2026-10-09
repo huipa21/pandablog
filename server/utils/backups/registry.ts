@@ -1,27 +1,37 @@
 import { RecordId } from 'surrealdb'
-import { rm } from 'node:fs/promises'
+import { lstat, opendir, rm, rmdir } from 'node:fs/promises'
 import * as path from 'node:path'
 import { closeRootClient, connectRootClient, queryDb, useDb } from '../db'
 import { firstRow, queryRows } from '../surrealResult'
 import type { BackupRecord } from './config'
 import { BACKUPS_ROOT } from './config'
+import { supportedFull } from './contracts'
+import { reserveSnapshotDeletion, snapshotHasReaders } from './snapshotReads'
+// Raw pre-wipe rows are private, never returned as API diagnostics. Preserve
+// unknown legacy fields/types byte-for-value during history reconciliation.
+const historyRows = new WeakMap<BackupRecord, Record<string, unknown>>()
+const historyIds = new WeakMap<BackupRecord, RecordId>()
 export function normalizeBackupRecord(raw: Record<string, unknown>): BackupRecord {
   const id = String((raw.id as any)?.id ?? raw.id ?? '')
-  return {
+  const record: BackupRecord = {
     id: id.startsWith('backups:') ? id : `backups:${id}`,
-    type: raw.type === 'incremental' ? 'incremental' : raw.type === 'partial' ? 'partial' : 'full',
+    type: typeof raw.type === 'string' ? raw.type : null,
+    ...(raw.format_version != null ? {format_version: typeof raw.format_version === 'number' ? raw.format_version : Number.NaN} : {}),
+    ...(raw.bundle_filename != null ? {bundle_filename: String(raw.bundle_filename)} : {}),
+    ...(raw.bundle_size_bytes != null ? {bundle_size_bytes: typeof raw.bundle_size_bytes === 'number' ? raw.bundle_size_bytes : Number.NaN} : {}),
+    ...(raw.bundle_sha256 != null ? {bundle_sha256: String(raw.bundle_sha256)} : {}),
     status: (['creating', 'ready', 'failed', 'restoring'] as const).includes(raw.status as any)
       ? (raw.status as BackupRecord['status'])
       : 'failed',
     note: raw.note ? String(raw.note) : null,
-    parent: raw.parent ? String(raw.parent) : null,
-    chain_root: raw.chain_root ? String(raw.chain_root) : null,
+    parent: raw.parent == null ? null : String(raw.parent),
+    chain_root: raw.chain_root == null ? null : String(raw.chain_root),
     included_hashes: Array.isArray(raw.included_hashes)
       ? (raw.included_hashes as unknown[]).filter((v): v is string => typeof v === 'string')
       : [],
     included_tables: Array.isArray(raw.included_tables)
       ? (raw.included_tables as unknown[]).filter((v): v is string => typeof v === 'string')
-      : null,
+      : raw.included_tables == null ? null : [],
     db_size_bytes: Number(raw.db_size_bytes ?? 0),
     media_size_bytes: Number(raw.media_size_bytes ?? 0),
     media_file_count: Number(raw.media_file_count ?? 0),
@@ -31,6 +41,10 @@ export function normalizeBackupRecord(raw: Record<string, unknown>): BackupRecor
     completed_at: raw.completed_at ? String(raw.completed_at) : null,
     error: raw.error ? String(raw.error) : null,
   }
+  const {id: _id, ...content} = raw
+  historyRows.set(record, content)
+  if (raw.id instanceof RecordId) historyIds.set(record, raw.id)
+  return record
 }
 
 export function backupIdPart(id: string): string {
@@ -73,7 +87,7 @@ export async function getBackup(id: string): Promise<BackupRecord | null> {
 
 export async function createBackupRecord(data: {
   id: string
-  type: 'full' | 'incremental' | 'partial'
+  type: 'full'
   note: string | null
   parent: string | null
   chain_root: string | null
@@ -156,69 +170,6 @@ export async function deleteBackupRecord(id: string): Promise<void> {
     { table: 'backups', id: safeId },
     { label: 'delete backup record' }
   )
-}
-
-/**
- * Returns the set of all media hashes that are known to be in the snapshot chain
- * rooted at (or including) the given snapshot ID's ancestors.
- * This is used to compute which media files are "new" for an incremental.
- */
-export async function chainHashUnion(id: string): Promise<Set<string>> {
-  const visited = new Set<string>()
-  const hashes = new Set<string>()
-  let currentId: string | null = id
-
-  while (currentId) {
-    const key = backupIdPart(currentId)
-    if (visited.has(key) || visited.size >= 64) throw new Error('Backup ancestry cycle or depth limit')
-    visited.add(key)
-
-    const record = await getBackup(key)
-    if (!record || record.status !== 'ready') throw new Error('Backup parent missing or not ready')
-
-    for (const h of record.included_hashes) {
-      hashes.add(h)
-      if (hashes.size > 20_000) throw new Error('Backup media manifest budget exceeded')
-    }
-
-    currentId = record.parent
-  }
-
-  return hashes
-}
-
-/**
- * Walks down descendants of `id` to find any backups that reference it as parent.
- */
-export async function getDirectDescendants(id: string): Promise<BackupRecord[]> {
-  const db = await useDb()
-  const res = await queryDb(
-    db,
-    'SELECT * FROM backups WHERE parent = $parent;',
-    { parent: id },
-    { label: 'get backup descendants' }
-  )
-  return queryRows<Record<string, unknown>>(res).map(normalizeBackupRecord)
-}
-
-/**
- * Returns the names of all user-defined tables in the current database.
- */
-export async function listDatabaseTables(): Promise<string[]> {
-  const db = await useDb()
-  const info = await queryDb<unknown[]>(db, 'INFO FOR DB;', undefined, {
-    label: 'info for db (list tables)',
-    timeoutMs: 20_000,
-  })
-  const entry = (Array.isArray(info) ? info[0] : info) as Record<string, unknown> | null
-  const root = (entry && typeof entry === 'object' && 'result' in entry
-    ? (entry as { result?: unknown }).result
-    : entry) as Record<string, unknown> | null
-  const tables = root?.tables
-  if (tables && typeof tables === 'object') {
-    return Object.keys(tables).sort()
-  }
-  return []
 }
 
 /**
@@ -309,10 +260,16 @@ export async function replaceBackupRecords(records: BackupRecord[]): Promise<voi
 
   if (records.length > 128 || Buffer.byteLength(JSON.stringify(records)) > 16 * 1024 * 1024) throw new Error('Backup history budget exceeded')
   const statements: string[] = ['BEGIN TRANSACTION;', 'DELETE backups WHERE id NOT IN $savedIds;']
-  const params: Record<string, unknown> = {savedIds: records.map(record => new RecordId('backups', backupIdPart(record.id)))}
+  const params: Record<string, unknown> = {savedIds: records.map(record => historyIds.get(record) ?? new RecordId('backups', backupIdPart(record.id)))}
 
   records.forEach((rec, i) => {
-    params[`id_${i}`] = backupIdPart(rec.id)
+    params[`id_${i}`] = historyIds.get(rec)?.id ?? backupIdPart(rec.id)
+    const raw = historyRows.get(rec)
+    if (raw) {
+      params[`raw_${i}`] = raw
+      statements.push(`UPSERT type::record('backups', $id_${i}) CONTENT $raw_${i};`)
+      return
+    }
     params[`type_${i}`] = rec.type
     params[`status_${i}`] = rec.status
     params[`note_${i}`] = rec.note
@@ -330,6 +287,10 @@ export async function replaceBackupRecords(records: BackupRecord[]): Promise<voi
     params[`created_${i}`] = toBackupDate(rec.created_at) ?? new Date()
     params[`completed_${i}`] = toBackupDate(rec.completed_at)
     params[`error_${i}`] = rec.error
+    params[`format_${i}`] = rec.format_version ?? null
+    params[`bundlefile_${i}`] = rec.bundle_filename ?? null
+    params[`bundlesize_${i}`] = rec.bundle_size_bytes ?? null
+    params[`bundlesha_${i}`] = rec.bundle_sha256 ?? null
 
     const completedExpr = params[`completed_${i}`] ? `$completed_${i}` : 'NONE'
 
@@ -348,7 +309,11 @@ export async function replaceBackupRecords(records: BackupRecord[]): Promise<voi
       manifest_sha256_media: $smedia_${i} ?? NONE,
       created_at: $created_${i},
       completed_at: ${completedExpr},
-      error: $error_${i} ?? NONE
+      error: $error_${i} ?? NONE,
+      format_version: $format_${i} ?? NONE,
+      bundle_filename: $bundlefile_${i} ?? NONE,
+      bundle_size_bytes: $bundlesize_${i} ?? NONE,
+      bundle_sha256: $bundlesha_${i} ?? NONE
     };`)
   })
 
@@ -359,55 +324,36 @@ export async function replaceBackupRecords(records: BackupRecord[]): Promise<voi
   })
 }
 
-/** Removes a snapshot's on-disk directory (db dump, media tar, manifest). */
+/** Called under job serialization; reader reservation covers the actual unlink. */
 export async function deleteSnapshotFiles(id: string): Promise<void> {
-  const dir = path.join(BACKUPS_ROOT, backupIdPart(id))
-  await rm(dir, { recursive: true, force: true }).catch(() => {})
+  const release = reserveSnapshotDeletion(id)
+  try {
+    const dir = path.join(BACKUPS_ROOT, backupIdPart(id))
+    let info
+    try {info = await lstat(dir)} catch (error) {if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error}
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Unsafe backup deletion source')
+    const files: string[] = [], allowed = new Set(['db.surql.gz', 'media.tar.gz', 'manifest.json', 'backup.tar.gz'])
+    for await (const entry of await opendir(dir)) {
+      if (!allowed.has(entry.name) || !entry.isFile() || files.length >= 4) throw new Error('Unknown backup artifacts preserved; offline reconciliation required')
+      const file = path.join(dir, entry.name)
+      if (!(await lstat(file)).isFile()) throw new Error('Unsafe backup deletion artifact')
+      files.push(file)
+    }
+    for (const file of files) await rm(file)
+    await rmdir(dir)
+  } finally {release()}
 }
 
-/**
- * Enforces a count-based retention policy: keeps the `max` most-recent READY
- * snapshots and deletes the rest (records + on-disk files).
- *
- * Snapshots that are ancestors (direct parent / chain root) of a kept snapshot
- * are preserved regardless of age, so partial/incremental chains stay
- * restorable. Non-ready snapshots (creating/restoring) are never pruned.
- *
- * Returns the list of pruned snapshot ids.
- */
+/** Legacy evidence suspends pruning without walking or rewriting ancestry. */
 export async function pruneBackups(max: number): Promise<string[]> {
   if (!Number.isFinite(max) || max <= 0) return []
 
   const all = await listBackups()
-  const ready = all.filter((b) => b.status === 'ready')
-
-  // Newest-first (listBackups already orders by created_at DESC).
-  const keep = new Set<string>()
-  const kept: BackupRecord[] = []
-  for (const rec of ready) {
-    if (kept.length < max) {
-      kept.push(rec)
-      keep.add(backupIdPart(rec.id))
-    }
-  }
-
-  // Preserve ancestors of kept snapshots so chains remain restorable.
-  const byId = new Map(all.map((b) => [backupIdPart(b.id), b]))
-  for (const rec of kept) {
-    let parent = rec.parent ? backupIdPart(rec.parent) : null
-    const guard = new Set<string>()
-    while (parent && !guard.has(parent)) {
-      guard.add(parent)
-      keep.add(parent)
-      parent = byId.get(parent)?.parent ? backupIdPart(byId.get(parent)!.parent!) : null
-    }
-    if (rec.chain_root) keep.add(backupIdPart(rec.chain_root))
-  }
-
+  if (all.some(record => !supportedFull(record))) return []
+  const ready = all.filter(record => record.status === 'ready')
   const pruned: string[] = []
-  for (const rec of ready) {
-    const idPart = backupIdPart(rec.id)
-    if (keep.has(idPart)) continue
+  for (const rec of ready.slice(Math.floor(max))) {
+    if (snapshotHasReaders(rec.id)) continue
     await deleteSnapshotFiles(rec.id)
     await deleteBackupRecord(rec.id)
     pruned.push(rec.id)
