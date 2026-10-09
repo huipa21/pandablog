@@ -11,7 +11,7 @@ export const GATES = [
   { id: 'db-security-faults', stage: 'local', tier: 'integration', requirement: 'Real stable 3.2.x combined regressions; scoped runtime and separate ROOT maintenance' },
   { id: 'module-builds', stage: 'local', tier: 'integration', requirement: 'Full/minimal/touched-disabled module builds and production Nitro smoke' },
   { id: 'linux-filesystem', stage: 'local', tier: 'rehearsal', requirement: 'Linux symlink/hardlink/fsync/rename/permissions/disk-full cases' },
-  { id: 'browser-proxy', stage: 'local', tier: 'integration', requirement: 'Real Nitro/browser/proxy privacy/CSRF/IPX/SSR isolation, en and zh-CN' },
+  { id: 'browser-proxy', stage: 'local', tier: 'integration', requirement: 'Real Nitro/browser/proxy privacy/CSRF/SSR isolation and absence of legacy IPX transforms, en and zh-CN' },
   { id: 'crash-recovery', stage: 'local', tier: 'rehearsal', requirement: 'Ordinary forced restart without app receipts; destructive restore DB/media/publication/checkpoint crash matrix and recovery artifacts' },
   { id: 'mixed-load', stage: 'local', tier: 'rehearsal', requirement: 'Constrained mixed-load RSS/native/DB/disk/queues and predeclared HTTP latency targets' },
   { id: 'operations-handoff', stage: 'predeploy', tier: 'operator', requirement: 'Final defaults/env/migrations/recovery/findings and existing logging gates reviewed' },

@@ -14,7 +14,7 @@ Hash-addressed originals, three WebP variants, optional perceptual deduplication
 - Restricted media, authenticated-only/site-private media and downloads use `Cache-Control: private, no-store`; append `Vary: Cookie` (and existing hotlink-related headers) without overwriting prior values.
 - For public originals/variants, **do not promise year-long immutable caching while visibility is mutable at a stable URL**. Initially use a revalidating/no-store policy unless an actual versioned URL plus revocation-aware proxy policy is implemented. Document that already distributed public bytes cannot be recalled.
 - A public-to-private transition must invalidate application caches and provide operator instructions to purge existing CDN/proxy entries. New headers cannot retroactively evict old responses.
-- Audit Nuxt image/IPX use: no public transformed-image route may cache or fetch restricted sources with privileged ambient credentials.
+- Nuxt Image/IPX is removed; rendering uses authorized original URLs and Sharp-generated variants. Verify the production bundle has no IPX transform handler, and legacy transform URLs cannot fetch restricted sources or bypass site visibility. Purge historical proxy/CDN transform entries when deploying.
 
 Acceptance: owner fetch of a private original and thumbnail followed by an anonymous/shared-cache fetch cannot return the bytes; the same holds after visibility/site-mode changes. Test actual response headers and a proxy/cache fixture, not only helper booleans.
 

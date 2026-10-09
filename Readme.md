@@ -618,16 +618,11 @@ A production-ready `Dockerfile` and Compose setup are included.
 
    See [docs/versioning-and-cli.md](docs/versioning-and-cli.md) for details.
 
-   The default base image is `node:22-bookworm-slim` for native-module compatibility. To
-   experiment with a smaller image, build from Alpine:
+   Both build and runtime stages always use `node:22-alpine`; other base images are not
+   supported. Native dependencies (`sharp` and `argon2`) are installed for Alpine's musl ABI.
 
-   ```bash
-   npm run container:build -- --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine
-   ```
-
-   Only promote the Alpine image after smoke-testing login, image upload/variant generation,
-   backups, and public post rendering — native modules such as `sharp` and `argon2` are compiled
-   for the selected base image.
+   Before promoting a new image, smoke-test login, image upload/variant generation,
+   backups, recovery tools, and public post rendering.
 
 3. **Configure runtime env.** Nuxt runtime configuration uses `NUXT_`-prefixed variables;
    `NODE_OPTIONS`, `LOG_CONSOLE`, and `LOG_FORMAT` use their plain names. Copy the template

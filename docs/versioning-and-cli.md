@@ -230,6 +230,7 @@ The fixed hostname does not let the app take over a stale lock. On boot, `startW
 
 ## 5. Building the Image (Docker / Podman)
 
+Both Dockerfile stages always use `node:22-alpine`; alternate base images are not supported.
 Because `.git` is ignored in `.dockerignore`, container builds must receive `APP_VERSION` as a build argument.
 
 ### Automated Build (Recommended)
@@ -247,8 +248,8 @@ npm run podman:build
 
 Pass extra flags after `--`:
 ```bash
-# Build with custom Alpine image
-npm run podman:build -- --build-arg NODE_IMAGE=node:22-alpine -t pandablog:alpine
+# Custom tag using Podman (the base is always Alpine)
+npm run podman:build -- -t pandablog:custom
 
 # Custom registry tag
 npm run container:build -- -t ghcr.io/myorg/pandablog:latest

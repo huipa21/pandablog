@@ -16,7 +16,8 @@
  *   npm run docker:build
  *   npm run podman:build
  *   npm run container:build -- -t myregistry/pandablog:custom
- *   npm run container:build -- --build-arg NODE_IMAGE=node:22-alpine
+ *
+ * The Dockerfile always uses node:22-alpine for both build and runtime.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process'

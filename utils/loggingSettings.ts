@@ -5,7 +5,6 @@ export const DEFAULT_LOGGING_EXCLUDED_PATHS = [
   '/api/admin/logs',
   '/api/health',
   '/api/analytics/track',
-  '/_ipx',
   '/__nuxt_error',
   '/_i18n'
 ] as const

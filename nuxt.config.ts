@@ -41,7 +41,6 @@ export default defineNuxtConfig({
   modules: [
     '@nuxt/fonts',
     '@nuxt/ui',
-    '@nuxt/image',
     '@nuxt/icon',
     '@pinia/nuxt',
     '@nuxtjs/i18n',
@@ -129,7 +128,6 @@ export default defineNuxtConfig({
   },
   routeRules: {
     '/': { cache: { maxAge: 60, swr: true, staleMaxAge: 120, varies: ['cookie'] } },
-    '/_ipx/**': { headers: { 'cache-control': 'private, no-store', vary: 'Cookie' } },
     '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } }
   },

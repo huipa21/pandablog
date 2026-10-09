@@ -33,7 +33,7 @@ vi.mock('../../server/utils/media-archives', async original => ({...await origin
 afterEach(() => vi.unstubAllGlobals())
 
 describe('real H3 media + shared-cache fixture (owned bytes only)', () => {
-  it('private originals/variants/site mode/IPX and archive owner/policy cannot leak through shared cache', async () => {
+  it('private originals/variants/site mode, removed IPX routes, and archive owner/policy cannot leak through shared cache', async () => {
     const owned = await createOwnedStorage()
     state.root = owned.path('sources'); await mkdir(state.root)
     await writeFile(join(state.root, 'original.txt'), 'private original fixture bytes')
@@ -50,13 +50,12 @@ describe('real H3 media + shared-cache fixture (owned bytes only)', () => {
     const {default: createArchive} = await import('../../server/api/media/download.post')
     const {default: getArchive} = await import('../../server/api/media/download/[filename].get')
     const {default: siteGuard} = await import('../../server/middleware/site-visibility')
-    const {default: ipxGuard} = await import('../../server/middleware/ipx-media')
     const router = createRouter()
     router.get('/media/:id', defineEventHandler(event => serveOriginalMedia(event, getRouterParam(event, 'id')!)))
     router.get('/api/media/variant/:id', defineEventHandler(event => serveMediaVariant(event, getRouterParam(event, 'id')!, 'thumbnail')))
     router.post('/api/media/download', createArchive)
     router.get('/api/media/download/:filename', getArchive)
-    const app = createApp(); app.use(defineEventHandler(event => {setResponseHeader(event, 'Vary', 'Origin')})); app.use(ipxGuard); app.use(siteGuard); app.use(router)
+    const app = createApp(); app.use(defineEventHandler(event => {setResponseHeader(event, 'Vary', 'Origin')})); app.use(siteGuard); app.use(router)
     const server = createServer(toNodeListener(app))
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const base = `http://127.0.0.1:${(server.address() as {port: number}).port}`
@@ -88,9 +87,21 @@ describe('real H3 media + shared-cache fixture (owned bytes only)', () => {
       state.site = 'private'
       expect((await proxy(`/media/${second}`)).status).toBe(302)
       expect((await proxy(`/api/media/variant/${hash}`)).status).toBe(401)
+      // Legacy transform URLs are not a private-site routing exemption anymore.
+      const legacyIpxPaths = [
+        `/_ipx/_/media/${hash}`,
+        `/_ipx/_/https%3A%2F%2Fexample.com%2Fapi%2Fmedia%2Ffile%2F${hash}`,
+        '/_ipx/w_100/favicon.ico'
+      ]
+      for (const path of legacyIpxPaths) {
+        expect((await proxy(path)).status).toBe(302)
+        expect((await proxy(path, 'fixture')).status).toBe(404)
+      }
       state.site = 'public'
-      expect((await fetch(`${base}/_ipx/_/media/${hash}`)).status).toBe(404)
-      expect((await fetch(`${base}/_ipx/_/https%3A%2F%2Fexample.com%2Fapi%2Fmedia%2Ffile%2F${hash}`)).status).toBe(404)
+      for (const path of legacyIpxPaths) {
+        expect((await proxy(path)).status).toBe(404)
+        expect((await proxy(path, 'fixture')).status).toBe(404)
+      }
       const make = (user: string) => fetch(`${base}/api/media/download`, {method: 'POST', headers: {cookie: `actor=${user}`, 'content-type': 'application/json'}, body: JSON.stringify({hashes: [hash, second]})})
       expect((await make('other')).status).toBe(404)
       const created = await make('fixture'); expect(created.status).toBe(200)

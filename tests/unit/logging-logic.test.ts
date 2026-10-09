@@ -173,13 +173,13 @@ describe('logging logic', () => {
 
   it.each([
     '/_nuxt/chunk.js', '/favicon.ico', '/api/admin/logs/access', '/api/health?db=1',
-    '/api/analytics/track', '/_ipx/w_100/media/image', '/__nuxt_error?statusCode=500',
+    '/api/analytics/track', '/__nuxt_error?statusCode=500',
     '/_i18n/hash/en/messages.json'
   ])('excludes low-value paths by default (%s)', (path) => {
     expect(shouldRecordAccessLog(path, 200, baseSettings(), 0)).toBe(false)
   })
 
-  it.each(['/posts/hello', '/api/posts', '/api/site/bootstrap', '/robots.txt', '/sitemap.xml'])('keeps visitor/API and nonexistent utility routes observable (%s)', (path) => {
+  it.each(['/posts/hello', '/api/posts', '/api/site/bootstrap', '/robots.txt', '/sitemap.xml', '/_ipx/w_100/media/image'])('keeps visitor/API and nonexistent utility routes observable (%s)', (path) => {
     expect(shouldRecordAccessLog(path, 200, baseSettings(), 0)).toBe(true)
   })
 

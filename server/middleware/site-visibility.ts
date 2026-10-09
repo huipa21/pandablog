@@ -11,7 +11,6 @@ const ALWAYS_ALLOWED_PREFIXES = [
   '/api/theme/css',
   '/_nuxt',
   '/__nuxt',
-  '/_ipx',
   '/_i18n',
   '/api/_nuxt'
 ]

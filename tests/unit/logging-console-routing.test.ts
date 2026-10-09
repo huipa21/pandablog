@@ -117,7 +117,7 @@ describe('public logging console routing', () => {
     vi.stubEnv('LOG_CONSOLE', 'all')
     const logging = await load()
     for (const path of [
-      '/api/analytics/track', '/_ipx/w_100/media/image', '/__nuxt_error?statusCode=500',
+      '/api/analytics/track', '/__nuxt_error?statusCode=500',
       '/_i18n/hash/en/messages.json'
     ]) {
       expect(logging.shouldExcludePath(path)).toBe(true)
@@ -129,6 +129,16 @@ describe('public logging console routing', () => {
     // Keep real API requests observable, including ones without IP/user agent.
     logging.logAccess({ ...access, path: '/api/posts', ip: undefined, user_agent: undefined })
     expect(stdout).toHaveBeenCalledTimes(1)
+    expect(mocks.appendAccessLog).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs legacy IPX requests by default now that the transform route is removed', async () => {
+    vi.stubEnv('LOG_CONSOLE', 'all')
+    const logging = await load()
+    const path = '/_ipx/w_100/media/image'
+    expect(logging.shouldExcludePath(path)).toBe(false)
+    logging.logAccess({ ...access, path, status_code: 404 })
+    expect(lines(stdout)[0]).toMatchObject({ kind: 'access_log', path, status: 404 })
     expect(mocks.appendAccessLog).toHaveBeenCalledTimes(1)
   })
 

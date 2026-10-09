@@ -1,23 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
-# Default to Debian slim for native-module compatibility. For a smaller image
-# experiment, build with: --build-arg NODE_IMAGE=node:22-alpine
-ARG NODE_IMAGE=node:22-bookworm-slim
+# Alpine is the only supported base; both stages use the same musl ABI.
 
 # ---------- Stage 1: build ----------
-FROM ${NODE_IMAGE} AS builder
+FROM node:22-alpine AS builder
 
 # Build deps for native modules (sharp, argon2)
-RUN if command -v apt-get >/dev/null 2>&1; then \
-            apt-get update \
-            && apt-get install -y --no-install-recommends \
-                    python3 make g++ pkg-config libc6-dev ca-certificates \
-            && rm -rf /var/lib/apt/lists/*; \
-        elif command -v apk >/dev/null 2>&1; then \
-            apk add --no-cache python3 make g++ pkgconf ca-certificates; \
-        else \
-            echo "Unsupported base image: missing apt-get/apk" >&2; exit 1; \
-        fi
+RUN apk add --no-cache python3 make g++ pkgconf ca-certificates
 
 WORKDIR /app
 
@@ -101,7 +90,7 @@ for (const theme of BUNDLED) { const keep = themesEnabled && bundled[theme] !== 
 
 
 # ---------- Stage 2: runtime ----------
-FROM ${NODE_IMAGE} AS runtime
+FROM node:22-alpine AS runtime
 
 # ARGs do not cross build stages; re-declare for the image labels below.
 ARG APP_VERSION
@@ -117,21 +106,9 @@ LABEL org.opencontainers.image.title="PandaBlog" \
       org.opencontainers.image.created="${APP_COMMIT_DATE}"
 
 # Runtime libs needed by sharp / argon2 native bindings
-RUN if command -v apt-get >/dev/null 2>&1; then \
-            apt-get update \
-            && apt-get install -y --no-install-recommends ca-certificates tini \
-            && rm -rf /var/lib/apt/lists/* \
-            && groupadd --system --gid 1001 nodejs \
-            && useradd  --system --uid 1001 --gid nodejs nuxt; \
-        elif command -v apk >/dev/null 2>&1; then \
-            apk add --no-cache ca-certificates tini libstdc++ \
-            && addgroup -S -g 1001 nodejs \
-            && adduser -S -D -H -u 1001 -G nodejs nuxt \
-            && mkdir -p /usr/bin \
-            && ln -sf /sbin/tini /usr/bin/tini; \
-        else \
-            echo "Unsupported base image: missing apt-get/apk" >&2; exit 1; \
-        fi
+RUN apk add --no-cache ca-certificates tini libstdc++ \
+ && addgroup -S -g 1001 nodejs \
+ && adduser -S -D -H -u 1001 -G nodejs nuxt
 
 WORKDIR /app
 
@@ -165,5 +142,5 @@ ENV NODE_ENV=production \
 
 EXPOSE 3000
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", ".output/server/index.mjs"]

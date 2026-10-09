@@ -32,7 +32,7 @@ The review baseline is in [findings](../findings.md). A passing test suite befor
 | MFA/setup | parallel same/different backup codes, TOTP replay/drift, inactive/revoked pending state, competing enrollment/setup, lost response after commit, CSRF form/text/plain |
 | Rate/KDF | atomic limit-one burst, high-cardinality unknown targets, untouched TTL expiry, actual chosen store, queue overflow/cancellation/shutdown/native RSS |
 | SSRF | mapped IPv4/hex IPv6/link-local ranges, mixed DNS answers, rebinding, redirect-to-private, valid HTTPS SNI, response disposal and slow-drip overall timeout |
-| Media privacy | private original/variant cache, site-private/public transition, missing projection fields, private ZIP selection, cross-user ready ZIP access, IPX/transforms |
+| Media privacy | private original/variant cache, site-private/public transition, missing projection fields, private ZIP selection, cross-user ready ZIP access, absence of legacy IPX transforms |
 | Media resources | streaming multipart caps, absent Content-Length, parts/fields/deadline, decoder pixel bomb, concurrent image jobs, abort/disk-full/temp quota |
 | Media races | identical upload winner/loser, pHash privacy, reference versus cleanup claim, crash during publish/delete, old-month variant regeneration |
 | DB lifecycle | connect/signin/use fail, late connect, stale keepalive, concurrent reconnect, dedicated ROOT, ambiguous write retry, timeout execution, close/drain |

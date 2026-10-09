@@ -34,12 +34,12 @@ New `defaultLoggingSettings().excluded_paths`:
   '/_nuxt', '/favicon', '/api/admin/logs',
   '/api/health',          // healthcheck (LOG-1.5)
   '/api/analytics/track', // already recorded by analytics module
-  '/_ipx',                // image transforms, if used
-  '/robots.txt', '/sitemap', '/__nuxt_error'
+  '/__nuxt_error',        // Nuxt error rendering
+  '/_i18n'                // locale assets
 ]
 ```
 
-Before finalizing, check every entry against routes that actually exist (`server/`, `public/`, nuxt modules), and remove entries for routes that don't exist.
+Check every entry against routes that actually exist (`server/`, `public/`, nuxt modules), and remove entries for routes that don't exist. Nuxt Image/IPX is removed, so `/_ipx` is no longer a default exclusion. Preserve legacy or admin-configured exclusions already stored in the database; reset uses the current defaults.
 
 **One-time merge migration.** Existing installs have `excluded_paths` stored in `app_settings`, so changing the defaults has no effect for them. Add the marker migration `__logging_excluded_paths_v2` in `db-init.ts`. It loads the stored logging settings, **adds** (set-union, keeping order) the new default entries, persists, and sets the marker. It must never remove entries the admin added. It runs in the boot phase, which is cheap (a single row).
 

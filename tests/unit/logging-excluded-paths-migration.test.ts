@@ -91,9 +91,10 @@ describe('excluded-path defaults and reset', () => {
     const second = logging.defaultLoggingSettings()
     expect(first.excluded_paths).toEqual([
       '/_nuxt', '/favicon', '/api/admin/logs', '/api/health',
-      '/api/analytics/track', '/_ipx', '/__nuxt_error', '/_i18n'
+      '/api/analytics/track', '/__nuxt_error', '/_i18n'
     ])
     expect(first.excluded_paths).toEqual([...DEFAULT_LOGGING_EXCLUDED_PATHS])
+    expect(first.excluded_paths).not.toContain('/_ipx')
     expect(first.excluded_paths).not.toBe(second.excluded_paths)
     first.excluded_paths.push('/custom')
     expect(second.excluded_paths).not.toContain('/custom')
@@ -113,7 +114,7 @@ describe('excluded-path defaults and reset', () => {
 })
 
 describe('boot-time excluded-path migration', () => {
-  it('merges on the scoped boot connection, preserves other settings, and loads the merged cache', async () => {
+  it('merges on the scoped boot connection, preserves legacy IPX/custom settings, and loads the merged cache', async () => {
     const original = {
       enabled: false, access_log_enabled: false, console_output: true, sampling_rate: 0.25,
       retention_access_days: 7, future_setting: { keep: true },
