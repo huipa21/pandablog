@@ -247,7 +247,10 @@ const activeJob = computed(() => statusData.value?.activeJob ?? null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let polling = false
 
+// Polling is browser-only: this immediate watcher also runs during SSR setup,
+// where timers are not allowed (and would never be cleared on the server).
 watch(activeJob, (job) => {
+  if (!import.meta.client) return
   if (job && !pollTimer) {
     pollTimer = setInterval(async () => {
       if (polling) return

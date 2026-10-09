@@ -189,11 +189,21 @@ export function mediaNormalizeFolderId(value: string) {
 export async function mediaInitializeLegacyState(db: Surreal) {
   // Additive, conditional pages are themselves the checkpoint. A crash/reentry
   // never overwrites claims, references, ownership, paths or operator settings.
+  // Records created before newer SCHEMAFULL fields existed hold NONE there:
+  // DEFAULT applies only on CREATE, and UPDATE re-validates every field. Fill
+  // only missing values. reference_safe=false is deliberate: legacy reference
+  // completeness is never inferred, so such files are not orphan-deletable.
   for (let batch = 0; batch < 100; batch++) {
-    const rows = queryRows<{id: unknown}>(await queryDb(db, 'SELECT id FROM files WHERE storage_state = NONE LIMIT 100 TIMEOUT 5s;', {}, {label: 'media state migration page', retry: 'never'}))
+    const rows = queryRows<{id: unknown}>(await queryDb(db, `SELECT id FROM files WHERE storage_state = NONE OR reference_safe = NONE
+      OR reference_count = NONE OR referenced_by = NONE LIMIT 100 TIMEOUT 5s;`, {}, {label: 'media state migration page', retry: 'never'}))
     if (!rows.length) return
     if (rows.length > 100 || rows.some(row => !row.id)) throw new Error('Malformed media state migration page')
-    await queryDb(db, "UPDATE files SET storage_state = 'ready' WHERE id IN $ids AND storage_state = NONE RETURN NONE;", {ids: rows.map(row => row.id)}, {label: 'media state migration write', retry: 'never'})
+    await queryDb(db, `UPDATE files SET storage_state = storage_state ?? 'ready', reference_safe = reference_safe ?? false,
+      reference_count = reference_count ?? 0, referenced_by = referenced_by ?? [], is_image = is_image ?? false,
+      folders = folders ?? [], tags = tags ?? [], visibility = visibility ?? 'public',
+      uploaded_at = uploaded_at ?? time::now(), updated_at = updated_at ?? time::now()
+      WHERE id IN $ids AND (storage_state = NONE OR reference_safe = NONE OR reference_count = NONE OR referenced_by = NONE) RETURN NONE;`,
+    {ids: rows.map(row => row.id)}, {label: 'media state migration write', retry: 'never'})
   }
   throw new Error('Media state migration checkpoint budget reached; restart to resume')
 }
