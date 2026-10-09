@@ -1,0 +1,29 @@
+panda.zenseek.site {
+    import logs pandablog
+    import hardening
+    import compress
+
+    # Block private configuration probes at any path depth.
+    @privateFiles path_regexp privateFiles "(?i)(^|/)[.](env|git|aws|docker|claude|npmrc|s3cfg|boto)([./_~-]|$)"
+
+    # Block PHP files and common backup variants.
+    @phpFiles path_regexp phpFiles "(?i)[.]php($|[/._~-])"
+
+    handle @privateFiles {
+        respond "Not found" 404
+    }
+
+    handle @phpFiles {
+        respond "Not found" 404
+    }
+
+    handle {
+        reverse_proxy pandablog-app:3000 {
+            header_up X-Real-IP {remote_host}
+
+            transport http {
+                read_timeout 86400s
+            }
+        }
+    }
+}

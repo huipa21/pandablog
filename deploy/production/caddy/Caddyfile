@@ -1,0 +1,50 @@
+{
+    # ACME / certificate contact.
+    email {$ACME_EMAIL}
+
+    # Drain in-flight requests on reload/stop.
+    grace_period 10s
+
+    # Caddy is the internet-facing edge. Do not configure trusted_proxies here
+    # unless a known proxy/load balancer is added in front of Caddy.
+}
+
+# Per-app access log. Usage: import logs app1
+(logs) {
+    log {
+        output file /var/log/caddy/{args[0]}.access.log {
+            roll_size     10MiB
+            roll_keep     5
+            roll_keep_for 720h
+        }
+        format json
+        level INFO
+    }
+}
+
+# Baseline response headers. Usage: import hardening
+(hardening) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        -Server
+    }
+}
+
+# Optional upstream headers. Usage inside reverse_proxy: import proxy_headers
+(proxy_headers) {
+    header_up Host      {host}
+    header_up X-Real-IP {remote_host}
+    # Caddy automatically sets X-Forwarded-For, X-Forwarded-Proto, and
+    # X-Forwarded-Host for reverse_proxy; do not set them again here.
+}
+
+# Compression. Usage: import compress
+(compress) {
+    encode zstd gzip
+}
+
+# One site file per hostname. Site files use the snippets defined above.
+import /etc/caddy/conf.d/*.caddy
