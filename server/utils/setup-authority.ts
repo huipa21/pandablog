@@ -6,7 +6,7 @@ import { createError } from 'h3'
 import { queryDb, type useDb } from './db'
 import { firstRow, queryRows, stringifyRecordId } from './surrealResult'
 import { newAuthEpoch } from './users'
-import { getActiveJob } from './backups/jobMutex'
+import { getActiveJob, inspectRestoreState } from './backups/jobMutex'
 
 type Database = Awaited<ReturnType<typeof useDb>>
 interface Receipt {version: 1, state: 'reserved' | 'closed', claim: string, epoch: string}
@@ -59,10 +59,11 @@ export class SetupAuthority {
   }
   async assertNoMaintenance() {
     if (getActiveJob()?.kind === 'restore') throw this.unavailable('Setup is unavailable during maintenance')
-    try {
-      await lstat(this.restoreLock)
-      throw this.unavailable('Setup is unavailable while a maintenance lock requires recovery')
-    } catch (error) {if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error}
+    // Ordinary abandoned job ownership must not become a startup latch through
+    // the required setup-authority boot probe. The monotonic setup receipt is
+    // independent and unchanged; only actual/ambiguous restore fences this lane.
+    const state = await inspectRestoreState(dirname(this.restoreLock))
+    if (state.recovery || (state.journal?.state === 'running' && !state.journal.destructive)) throw this.unavailable('Setup is unavailable during interrupted restore')
   }
   private async evidence(db: Database): Promise<{initialized: boolean, ownerReady: boolean}> {
     try {

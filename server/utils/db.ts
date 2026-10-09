@@ -141,6 +141,11 @@ async function admittedHandshake(root: boolean, generation?: number): Promise<Su
 
 export async function useDb(): Promise<Surreal> {
   if (stopped) throw createError({ statusCode: 503, message: 'Database is shutting down' })
+  // Refuse before installing a shared promise/backoff. A pre-ready diagnostic
+  // or detached caller must not poison the private boot flight with its own
+  // admission rejection. Existing admitted work and private owners still pass.
+  const admitted = writeBarrier.acquire()
+  admitted()
   if (client) return client
   if (connectionPromise) return connectionPromise
   if (Date.now() < nextConnectAt) throw lastConnectError ?? new Error('Database reconnect backoff')

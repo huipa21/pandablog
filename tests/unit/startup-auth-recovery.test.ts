@@ -12,6 +12,7 @@ interface Fault {
 }
 
 async function load(fault: Fault, bootstrap = true) {
+  Reflect.deleteProperty(globalThis, Symbol.for('pandablog.maintenance.barrier'))
   vi.resetModules()
   const instances: {query: ReturnType<typeof vi.fn>, close: ReturnType<typeof vi.fn>}[] = []
   vi.doMock('surrealdb', () => ({Surreal: class {
@@ -44,12 +45,9 @@ async function boot(root: string, fault: Fault = {remaining: 0}, bootstrap = tru
   const preserve = vi.fn(() => store.markUncertain())
   await fixture.coordinator.start({
     validate: () => {},
-    acquireWriter: async () => {const owned = await store.startWriter(); fixture.barrier.seedUncertainty(store.uncertaintyUntil()); return owned},
-    preserveFailure: preserve,
-    isPreMutationFailure: fixture.db.isPreMutationInitializationFailure,
+    checkRestore: async () => {const safe = await store.initializeRestoreState(); fixture.barrier.seedUncertainty(store.uncertaintyUntil()); return safe},
     connectivityFailures: fixture.db.databaseConnectivityFailureCount,
     resetDatabase: fixture.db.recycleRuntimeConnection,
-    releaseWriter: async () => {if (!await store.stopWriter()) throw new Error('Writer release failed')},
     dispose: async () => {await fixture.db.shutdownDb(); if (fixture.db.databaseDiagnostics().ownedClients) throw new Error('Incomplete database disposal')}
   })
   const initializing = fixture.coordinator.initialize(async () => {
@@ -69,7 +67,7 @@ describe('startup coordinator: DB outages self-heal; data failures stay fenced (
       expect(run.coordinator.status().failure).toBeUndefined()
       expect(run.preserve).not.toHaveBeenCalled()
       expect(await exists(join(root, '.uncertain-writes.json'))).toBe(false)
-      expect(await exists(join(root, '.writer.lock'))).toBe(true)
+      expect(await exists(join(root, '.writer.lock'))).toBe(false)
       await run.coordinator.stop()
       expect(await exists(join(root, '.writer.lock'))).toBe(false)
     } finally {await rm(root, {recursive: true, force: true})}
@@ -86,7 +84,7 @@ describe('startup coordinator: DB outages self-heal; data failures stay fenced (
       expect(await run.initializing).toBe(false)
       expect(run.preserve).not.toHaveBeenCalled()
       expect(await exists(join(root, '.writer.lock'))).toBe(false)
-      expect(await new JobStore(root).startWriter()).toBe(true)
+      expect(await new JobStore(root).initializeRestoreState()).toBe(true)
     } finally {await rm(root, {recursive: true, force: true})}
   })
 
@@ -125,16 +123,20 @@ describe('startup coordinator: DB outages self-heal; data failures stay fenced (
     } finally {await rm(root, {recursive: true, force: true})}
   })
 
-  it('a non-connectivity initialization failure still fences and preserves recovery authority', async () => {
+  it('a non-connectivity initialization failure stays unready without persistent ordinary recovery', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pb-data-failure-'))
     try {
       const run = await boot(root, {remaining: 0}, true, async () => {throw new Error('Unsupported or missing media storage layout marker')})
       expect(await run.initializing).toBe(false)
       expect(run.coordinator.status().state).toBe('failed')
-      expect(run.coordinator.guidance().recoveryRequired).toBe(true)
-      expect(run.preserve).toHaveBeenCalledOnce()
+      expect(run.coordinator.guidance().recoveryRequired).toBe(false)
+      expect(run.preserve).not.toHaveBeenCalled()
       await run.coordinator.stop()
-      expect(await exists(join(root, '.writer.lock'))).toBe(true)
+      expect(await exists(join(root, '.writer.lock'))).toBe(false)
+      expect(await exists(join(root, '.uncertain-writes.json'))).toBe(false)
+      const next = await boot(root)
+      expect(await next.initializing).toBe(true)
+      await next.coordinator.stop()
     } finally {await rm(root, {recursive: true, force: true})}
   })
 

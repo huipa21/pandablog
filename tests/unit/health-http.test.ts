@@ -92,7 +92,7 @@ describe('health HTTP/middleware integration', () => {
     expect(response.status).toBe(503)
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(await response.json()).toEqual({ ok: false, db: 'down' })
-    expect(mocks.useDb).toHaveBeenCalledTimes(1)
+    expect(mocks.useDb).not.toHaveBeenCalled() // fenced diagnostics never allocate
     expect(mocks.logAccess).not.toHaveBeenCalled()
     expect(mocks.isAuthenticated).not.toHaveBeenCalled()
   })

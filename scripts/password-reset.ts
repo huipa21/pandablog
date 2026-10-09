@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import { parseEnv } from 'node:util'
 import { Surreal } from 'surrealdb'
 import { JobStore } from '../server/utils/backups/jobMutex'
+import { UNCERTAIN_WRITE_QUIESCENCE_MS } from '../server/utils/maintenance'
 import { databaseIdentifier, scopedCredentials } from '../server/utils/startup-config'
 import { resetPassword, resetUsername, validateResetPassword } from './password-reset/operation'
 import { PasswordResetError, readHiddenPassword } from './password-reset/prompt'
@@ -60,7 +61,7 @@ async function main() {
   validateResetPassword(password, confirmation)
 
   // Share the app's persisted job mutex: never overlap backup/restore/import.
-  const store = new JobStore(resolve('storage/backups'))
+  const store = new JobStore(resolve('storage/backups'), 0, UNCERTAIN_WRITE_QUIESCENCE_MS)
   let owner
   try {
     owner = await store.acquire({id: randomBytes(24).toString('hex'), kind: 'password-reset', startedAt: new Date().toISOString()})
@@ -83,7 +84,7 @@ async function main() {
       try { await store.markUncertain() }
       catch {
         releaseAllowed = false
-        failure = new PasswordResetError('Could not persist uncertain-write safety state. Maintenance lock preserved; run panda recover for guidance.')
+        failure = new PasswordResetError('Could not persist uncertain-write safety state. Job ownership preserved; later jobs must wait for abandoned-job quiescence or an offline job-only remedy. Ordinary site restart is unaffected.')
       }
     }
   } finally {
@@ -93,7 +94,7 @@ async function main() {
     // If uncertainty persistence failed, retain ownership for offline review.
     if (releaseAllowed) {
       try { await store.release(owner) }
-      catch { failure = new PasswordResetError('Could not release maintenance ownership. Run panda recover for guidance; the password may already have changed.') }
+      catch { failure = new PasswordResetError('Could not release job ownership; the password may already have changed. Ordinary site restart is unaffected; inspect jobs with panda recover.') }
     }
   }
   if (failure) throw failure

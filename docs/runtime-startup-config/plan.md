@@ -1,5 +1,7 @@
 # Runtime startup and environment configuration: change plan
 
+> **Approved maintenance simplification follow-up:** [maintenance-simplification/plan.md](../maintenance-simplification/plan.md) now governs the next single-instance lifecycle refactor. It supersedes persistent app-writer ownership and ordinary-crash expert recovery requirements here, not canonical environment/scoped identity/security contracts. Implementation is pending; historical tasks/evidence below remain unchanged. Delegate the full task using its [handoff](../maintenance-simplification/handoff.md).
+
 **Status: RSC-01–03 core implementation and local regressions exist; final acceptance is incomplete.** Read [progress.md](./progress.md) first. [operations.md](./operations.md) describes the implemented contract and remaining build/release gates. No configured application startup, deployment or operator storage recovery has been performed.
 
 This package records the investigation of recurring maintenance ownership errors, ROOT runtime fallback, inconsistent environment names, and the footer attribution flag. It supplements [backend hardening](../backend-hardening/plan.md); it does not erase historical test results or authorize deployment.

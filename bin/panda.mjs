@@ -457,13 +457,10 @@ const HELP = {
 `,
 
   recover: `
-  panda recover — offline startup-recovery assistant
+  panda recover — read-only restore inspection
 
   Usage
     panda recover                 Read-only inspection (the normal use)
-    panda recover --archive-reviewed-startup \\
-      --app-stopped --database-quiescent --data-consistent
-                                  Expert-only archival of reviewed records
     panda recover --help          Show this message
 
   What it does
@@ -474,73 +471,37 @@ const HELP = {
     tokens or record contents. Plain inspection changes nothing.
 
   When to use it
-    /api/ready reports guidance action "run-recovery-assistant", or the boot
-    log says the service "remains fenced; run panda recover for guidance".
-    You do NOT need it when:
-      - the database is unreachable: the app retries by itself and opens
-        when the database answers (/api/ready: state "initializing");
-      - configuration is invalid or sign-in was rejected before any write:
-        fix .env, then recreate the container (docker compose up -d app).
-
-  Run it with the app stopped
-    docker compose stop app
-    docker compose run --rm app panda recover
-  Inside a running container (docker exec) only inspection is meaningful:
-  a live writer is reported as "writer-active" and is never archived.
+    /api/ready reports "run-recovery-assistant" for destructive or ambiguous
+    interrupted restore. Ordinary crash/container replacement never needs
+    writer archival. Configuration or migration failures need correction and
+    normal restart; database outages retry automatically.
 
   Inspection results
-    clear                     No persisted recovery blocker. Check /api/ready
-                              and the logs for a configuration error.
-    writer-active             The recorded writer process is running. This is
-                              normal; no recovery action is indicated.
-    review-required           Startup-only receipts (for example a writer lock
-                              left by a killed process: SIGKILL, OOM, power
-                              loss) need evidence this tool cannot establish.
-                              Expert-reviewed archival is available.
-    manual-recovery-required  Restore journals/artifacts, maintenance jobs,
-                              writer ownership from another host, or corrupt
-                              records. Nothing is changed; follow the offline
-                              recovery runbook.
+    clear                     No destructive restore blocker. Retired writer
+                              receipts, job ownership and finite uncertainty
+                              holds are informational, not startup recovery.
+    manual-recovery-required  Destructive or ambiguous restore evidence.
+                              Preserve journal and paired safety/media data;
+                              arrange offline administrator recovery.
+    Verified terminal journals do not block restart. Trustworthy interrupted
+    pre-destructive preparation is automatically aborted by app preflight.
 
-  Expert-only archival
-    Moves only the reviewed .writer.lock (and any .uncertain-writes.json)
-    into storage/.recovery-archive/startup-<timestamp>/ with a review
-    record. No database, media or setup data is modified, nothing is
-    deleted. It requires ALL three flags. They are your assertions, not
-    checks the tool can perform; never pass a flag for a fact you have not
-    established:
-      --app-stopped          no PandaBlog process uses this storage/database
-      --database-quiescent   no operation from the old process can still
-                             execute on the database
-      --data-consistent      database and media were independently verified
-                             consistent, and a backup is preserved
-    A dead PID alone does not prove the database stopped executing the old
-    process's queries. Restore journals/artifacts, live, remote, corrupt or
-    unrecognized ownership are always refused. There is no force option and
-    no public unfence endpoint.
-
-    Container note: the writer lock records the container hostname. The
-    production compose file sets a fixed "hostname: pandablog-app", so a
-    one-off 'docker compose run' container matches the app container's
-    hostname. Without it, a lock written by the app is reported as
-    "another host" and archival is refused. PID numbering restarts in every
-    container, so a recorded PID that now belongs to this tool is reported
-    as not running here. That is NOT evidence the app is stopped: a one-off
-    container cannot see the app container's processes. Always run
-    'docker compose stop app' first.
-
-    After archival: start exactly one PandaBlog instance and verify
-      docker exec pandablog-app panda health --url http://127.0.0.1:3000/api/ready
+  Job bounds
+    A new app process delays backup-family jobs for ten minutes to allow old
+    database execution to settle. Normal readiness/traffic is not delayed.
+    Configure DB query/transaction timeouts below ten minutes. Recognized dead
+    local nonrestore jobs can be reclaimed; unknown/remote/partial ownership
+    restricts jobs only. Stop all app/CLI jobs and preserve the exact job record
+    before a narrow operator job-only removal; never steal a live owner by TTL.
 
   Options
-    --archive-reviewed-startup   Archive reviewed startup-only receipts
-    --app-stopped                Assertion: the app is stopped
-    --database-quiescent         Assertion: the database is quiescent
-    --data-consistent            Assertion: data is verified consistent
-  Any other option is rejected.
+    --help                    Show this message
+    Old --archive-reviewed-startup and assertion flags are rejected without
+    filesystem changes. Inspection exits 0 (including reported restore
+    blockers); invalid invocation/unsafe paths exit 1. There is no force option,
+    DB rollback command, automatic safety import or public unfence endpoint.
 
-  Runbook: docs/runtime-startup-config/operations.md (Local recovery assistant)
-           docs/backend-hardening/operations.md (Offline recovery)
+  Runbook: docs/maintenance-simplification/operations.md
 `
 }
 

@@ -70,6 +70,13 @@ describe('journaled restore consistency and failure boundaries (synthetic work, 
     expect(mocks.wipeDatabase).not.toHaveBeenCalled()
     expect(mocks.transition).toHaveBeenLastCalledWith(owner, expect.objectContaining({state: 'aborted'}))
   })
+  it('pre-destructive metadata failure cannot become expert recovery', async () => {
+    mocks.validateDumpByStaging.mockRejectedValueOnce(new Error('preflight failure'))
+    mocks.updateBackupRecord.mockRejectedValueOnce(new Error('ordinary uncertain metadata write'))
+    expect((await run()).closed).toBe(false)
+    expect(mocks.wipeDatabase).not.toHaveBeenCalled()
+    expect(mocks.transition).toHaveBeenLastCalledWith(owner, expect.objectContaining({state: 'aborted', destructive: false}))
+  })
   it('requires safety even when the legacy operator setting disabled it', async () => {
     mocks.getBackupSettings.mockResolvedValue({auto_safety_snapshot: false})
     await run()

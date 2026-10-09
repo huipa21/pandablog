@@ -9,6 +9,7 @@ import argon2 from 'argon2'
 import type { Surreal } from 'surrealdb'
 import { describe, expect, it, vi } from 'vitest'
 import { JobStore } from '../../server/utils/backups/jobMutex'
+import { fixtureEnvironment } from '../../scripts/backend-hardening/fixture'
 import { resetPassword, resetUsername, validateResetPassword } from '../../scripts/password-reset/operation'
 import { readHiddenPassword } from '../../scripts/password-reset/prompt'
 
@@ -129,7 +130,7 @@ describe('hidden password prompts', () => {
 describe('panda password-reset CLI and maintenance ownership', () => {
   it('documents the command without accessing secrets or the DB', async () => {
     for (const args of [['help', 'password-reset'], ['password-reset', '--help']]) {
-      const {stdout} = await exec(process.execPath, [cli, ...args])
+      const {stdout} = await exec(process.execPath, [cli, ...args], {env: fixtureEnvironment(), timeout: 10_000})
       expect(stdout).toContain('panda password-reset <username>')
       expect(stdout).toContain('8–200 characters')
       expect(stdout).toContain('ROOT credentials are never used')
@@ -138,9 +139,9 @@ describe('panda password-reset CLI and maintenance ownership', () => {
 
   it('rejects missing usernames, password arguments and non-interactive use', async () => {
     for (const args of [[], ['alice', secret], ['alice']]) {
-      await expect(exec(process.execPath, [cli, 'password-reset', ...args])).rejects.toMatchObject({code: 1, stderr: expect.stringMatching(/Usage:|interactive terminal/)})
+      await expect(exec(process.execPath, [cli, 'password-reset', ...args], {env: fixtureEnvironment(), timeout: 10_000})).rejects.toMatchObject({code: 1, stderr: expect.stringMatching(/Usage:|interactive terminal/)})
     }
-  })
+  }, 20_000)
 
   it('serializes reset and app maintenance jobs using the same persisted mutex', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pb-password-reset-'))

@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events'
+import { randomBytes } from 'node:crypto'
+import argon2 from 'argon2'
+import { resetPassword } from '../../scripts/password-reset/operation'
 import { readFile } from 'node:fs/promises'
 import { createError, getCookie, setCookie, deleteCookie } from 'h3'
 import { Surreal } from 'surrealdb'
@@ -27,6 +30,30 @@ vi.mock('../../server/utils/db', () => ({
 }))
 
 describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real current-account security SQL', () => {
+  it('password reset uses scoped existing-user-only SQL, rotates epoch and preserves role/active/MFA', async () => {
+    const fixture = await startFixture({enabled: process.env.PB_BACKEND_FIXTURE, binary: process.env.PB_BACKEND_SURREAL_BIN ?? ''})
+    const root = new Surreal(), scoped = new Surreal(), password = randomBytes(24).toString('hex'), credential = randomBytes(24).toString('hex')
+    try {
+      await root.connect(`${fixture.endpoint.replace('http:', 'ws:')}/rpc`, {reconnect: {enabled: false}})
+      await root.signin({username: fixture.username, password: fixture.password})
+      await root.use({namespace: fixture.namespace, database: fixture.database})
+      const raw = await readFile('server/utils/schema.surql', 'utf8')
+      await root.query(raw.slice(raw.indexOf('DEFINE TABLE OVERWRITE users'), raw.indexOf('-- ============ POST (')))
+      await root.query(`DEFINE USER fixture_reset ON DATABASE PASSWORD '${credential}' ROLES EDITOR;`)
+      await root.query("CREATE users:fixture CONTENT {username: 'fixture', password_hash: 'synthetic-old', role: 'viewer', active: false, auth_epoch: $epoch, totp_enabled: true, totp_secret: 'fixture-sealed'};", {epoch: 'a'.repeat(48)})
+      await scoped.connect(`${fixture.endpoint.replace('http:', 'ws:')}/rpc`, {reconnect: {enabled: false}})
+      await scoped.signin({namespace: fixture.namespace, database: fixture.database, username: 'fixture_reset', password: credential})
+      await scoped.use({namespace: fixture.namespace, database: fixture.database})
+      await resetPassword(scoped, 'fixture', password, password)
+      const row = (await scoped.query<[Array<{password_hash: string, auth_epoch: string, role: string, active: boolean, totp_enabled: boolean, totp_secret: string}>]>('SELECT * FROM users:fixture;'))[0]![0]!
+      expect(await argon2.verify(row.password_hash, password)).toBe(true)
+      expect(row.auth_epoch).not.toBe('a'.repeat(48))
+      expect(row).toMatchObject({role: 'viewer', active: false, totp_enabled: true, totp_secret: 'fixture-sealed'})
+      await expect(resetPassword(scoped, 'unknown', password, password)).rejects.toMatchObject({uncertain: false})
+      expect((await scoped.query<[Array<{count: number}>]>('SELECT count() AS count FROM users GROUP ALL;'))[0]![0]!.count).toBe(1)
+      console.info(JSON.stringify({evidence: 'owned-scoped-reset-SQL-not-interactive-container', node: process.version, surreal: (await root.version()).version}))
+    } finally {await scoped.close(); await root.close(); await fixture.stop()}
+  }, 90_000)
   it('migrates idempotently after interruption; all security writers rotate; stale profile/device cannot restore epochs; recreate is fresh', async () => {
     const fixture = await startFixture({enabled: process.env.PB_BACKEND_FIXTURE, binary: process.env.PB_BACKEND_SURREAL_BIN ?? ''})
     const db = new Surreal()

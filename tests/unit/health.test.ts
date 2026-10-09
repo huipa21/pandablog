@@ -42,6 +42,17 @@ describe('lightweight health handler', () => {
     expect(mocks.useDb).not.toHaveBeenCalled()
   })
 
+  it('keeps liveness available but never allocates a shared DB flight while boot/restore is fenced', async () => {
+    const {writeBarrier} = await import('../../server/utils/maintenance')
+    const owner = {}
+    await writeBarrier.close(owner)
+    expect(await (await handler())(event)).toEqual({ok: true, uptime_s: 123})
+    mocks.getQuery.mockReturnValue({db: '1'})
+    expect(await (await handler())(event)).toEqual({ok: false, db: 'down'})
+    expect(mocks.useDb).not.toHaveBeenCalled()
+    expect(mocks.queryDb).not.toHaveBeenCalled()
+    writeBarrier.reopen(owner)
+  })
   it('pings only when requested, with a two-second query timeout and no reconnect retry', async () => {
     vi.useFakeTimers()
     mocks.getQuery.mockReturnValue({ db: '1' })

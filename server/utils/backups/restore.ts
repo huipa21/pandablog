@@ -25,27 +25,18 @@ export async function startRestoreJob(id: string): Promise<string> {
   const record = await getBackup(id)
   if (!record || record.status !== 'ready') throw createError({ statusCode: 409, message: 'Backup snapshot is missing or not ready' })
   const owner = await acquireJob({id, kind: 'restore', startedAt: new Date().toISOString()})
-  let token: string, drained = false
+  let token: string, begun = false
   try {
     token = await jobStore.beginRestore(owner)
+    begun = true
     await writeBarrier.close(owner) // synchronous close, then bounded drain
-    drained = true
     await writeBarrier.runOwner(owner, () => updateBackupRecord(id, {status: 'restoring'}))
   } catch (error) {
-    try {
-      // Before the drain nothing destructive happened: an uncertainty that blocked
-      // close() simply aborts this admission (restore can be retried later).
-      if (jobStore.recoveryRequired() || (drained && (writeBarrier.status().uncertainWrites || writeBarrier.status().active))) throw new Error('Restore admission needs offline recovery')
-      await jobStore.transition(owner, {state: 'aborted', phase: 'preparing'})
-      if (writeBarrier.status().closed) {
-        if (!drained && writeBarrier.status().active) writeBarrier.cancelDrain(owner)
-        else writeBarrier.reopen(owner)
-      }
-      await releaseJob(owner)
-    } catch {
-      await jobStore.transition(owner, {state: 'recovery-required', error: 'Restore admission or writer quiescence could not be verified'}).catch(() => {})
-      writeBarrier.recoverFence()
-    }
+    // Nothing here replaces live DB/media. Failed drain or metadata response
+    // is job-only uncertainty, not destructive restore or expert startup recovery.
+    if (begun) await jobStore.transition(owner, {state: 'aborted', phase: 'preparing', destructive: false}).catch(() => {})
+    if (begun && writeBarrier.status().closed && !writeBarrier.status().recoveryRequired) writeBarrier.abortPreparation(owner)
+    await releaseJob(owner).catch(() => {console.warn('[restore] preparation ownership could not be released; jobs remain unavailable')})
     throw error
   }
   void writeBarrier.runOwner(owner, () => runRestoreWork(owner, record)).catch(() => {writeBarrier.recoverFence()})
@@ -138,8 +129,8 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
     await assertSameMediaFilesystem(directory, uploads, variants)
     safety = await validateDumpByStaging(safetySql, stage => verifyBackupMediaCatalog(stage, uploads))
     await collectOriginalPaths(uploads) // refuse unsafe current layout too
+    destructive = true // publication failure may already have renamed durable intent
     await phase('db-wipe', 34, {destructive: true})
-    destructive = true
     await wipeDatabase()
     await phase('db-restore', 42)
     await importSurrealDb(dump)
@@ -166,7 +157,7 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
       if (destructive) {
         // Disposing a socket/fetch is NOT proof of execution cancellation. A
         // transport/deadline-ambiguous cutover stays fenced for offline recovery.
-        if (writeBarrier.status().uncertainWrites || (error as {data?: {uncertain?: boolean}, uncertain?: boolean}).data?.uncertain || (error as {uncertain?: boolean}).uncertain || !safety || writeBarrier.status().active) throw new Error('Cutover execution is uncertain; automatic rollback is unsafe')
+        if (jobStore.recoveryRequired() || writeBarrier.status().uncertainWrites || (error as {data?: {uncertain?: boolean}, uncertain?: boolean}).data?.uncertain || (error as {uncertain?: boolean}).uncertain || !safety || writeBarrier.status().active) throw new Error('Cutover execution is uncertain; automatic rollback is unsafe')
         await phase('rollback', 50)
         await wipeDatabase()
         await importSurrealDb(safetySql)
@@ -182,18 +173,25 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
         await updateBackupRecord(record.id, {status: 'ready', error: `${message} — verified rollback completed`})
         await jobStore.transition(owner, {phase: 'rollback', state: 'rolled-back', error: message})
       } else {
-        await updateBackupRecord(record.id, {status: 'ready', error: message})
-        await jobStore.transition(owner, {state: 'aborted', error: message})
+        await updateBackupRecord(record.id, {status: 'ready', error: message}).catch(() => {})
+        await jobStore.transition(owner, {state: 'aborted', destructive: false, error: message})
       }
       finished = true
     } catch (rollbackError) {
-      await jobStore.transition(owner, {state: 'recovery-required', error: `${message}; rollback/recovery: ${String(rollbackError).slice(0, 1000)}`}).catch(() => {})
-      writeBarrier.recoverFence()
+      if (destructive) {
+        await jobStore.transition(owner, {state: 'recovery-required', error: `${message}; rollback/recovery: ${String(rollbackError).slice(0, 1000)}`}).catch(() => {})
+        writeBarrier.recoverFence()
+      } else {
+        // Failed pre-destructive journal I/O restricts jobs, not normal traffic.
+        writeBarrier.abortPreparation(owner)
+        console.warn('[restore] preparation abort could not be recorded; preserve staging and retry initialization normally')
+      }
     }
   }
   if (finished) {
     // Journal durability first, fence release second, artifact cleanup last.
-    writeBarrier.reopen(owner)
+    if (destructive) writeBarrier.reopen(owner)
+    else writeBarrier.abortPreparation(owner)
     await releaseJob(owner)
     await rm(directory, {recursive: true, force: true}).catch(() => {})
   }

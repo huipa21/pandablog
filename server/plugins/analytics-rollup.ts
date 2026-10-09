@@ -10,7 +10,7 @@ export default defineNitroPlugin((nitro) => {
   let running: Promise<void> | undefined, lastCompletedDate = '', stopped = false
   const abort = new AbortController()
   const run = () => {
-    const now = new Date(), date = now.toISOString().slice(0, 10)
+    const now = new Date(), date = `${writeBarrier.cacheGeneration()}:${now.toISOString().slice(0, 10)}`
     if (stopped || running || !analyticsReady() || writeBarrier.status().closed || lastCompletedDate === date) return
     running = writeBarrier.run(async () => {
       try {

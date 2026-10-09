@@ -199,6 +199,7 @@
     />
 
     <UAlert v-if="statusData?.recovery_required" color="error" :description="t('admin.backups.restoreRecoveryRequired')" />
+    <UAlert v-else-if="statusData?.jobs_blocked_until && statusData.jobs_blocked_until > Date.now()" color="warning" :description="t('admin.backups.jobsQuiescing', { until: formatDateTime(new Date(statusData.jobs_blocked_until).toISOString()) })" />
 
     <BackupSettingsDialog
       :open="settingsDialogOpen"
@@ -236,7 +237,7 @@ const snapshots = computed(() => snapshotsData.value ?? [])
 const restoreStatusToken = ref('')
 const { data: statusData, refresh: refreshStatus } = await useAsyncData(
   'admin-backups-status',
-  () => $fetch<{ activeJob: ActiveJobStatus | null, maintenance: boolean, recovery_required: boolean, restore: {state: string} | null }>('/api/admin/backups/status', {
+  () => $fetch<{ activeJob: ActiveJobStatus | null, maintenance: boolean, recovery_required: boolean, jobs_blocked_until: number | null, restore: {state: string} | null }>('/api/admin/backups/status', {
     headers: restoreStatusToken.value ? {'X-PandaBlog-Restore-Status': restoreStatusToken.value} : undefined,
     timeout: 10_000,
   })
@@ -249,12 +250,13 @@ let polling = false
 
 // Polling is browser-only: this immediate watcher also runs during SSR setup,
 // where timers are not allowed (and would never be cleared on the server).
-watch(activeJob, (job) => {
+watch([activeJob, () => statusData.value?.jobs_blocked_until], ([job, hold]) => {
   if (!import.meta.client) return
-  if (job && !pollTimer) {
+  if ((job || (hold && hold > Date.now())) && !pollTimer) {
     pollTimer = setInterval(async () => {
       if (polling) return
       polling = true
+      const hadJob = Boolean(activeJob.value)
       try {
         await refreshStatus()
         if (statusData.value?.recovery_required) return
@@ -263,9 +265,9 @@ watch(activeJob, (job) => {
             toast.add({title: t('admin.backups.restoreReauthenticate'), color: 'warning'})
             await refreshNuxtData(['public-auth-session', 'admin-layout-session'])
             await navigateTo('/login')
-          } else await refreshSnapshots()
+          } else if (hadJob) await refreshSnapshots()
         }
-        if (!activeJob.value) {clearInterval(pollTimer!); pollTimer = null}
+        if (!activeJob.value && !(statusData.value?.jobs_blocked_until && statusData.value.jobs_blocked_until > Date.now())) {clearInterval(pollTimer!); pollTimer = null}
       } finally {polling = false}
     }, 1000)
   }

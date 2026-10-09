@@ -1,5 +1,7 @@
 # Spec 00: Backend hardening architecture
 
+> **Approved lifecycle amendment:** [maintenance simplification architecture](../../maintenance-simplification/specs/00-architecture.md) replaces application lifetime writer enforcement and ordinary-crash persistence with deployment-guaranteed single instance, lightweight readiness and restore-scoped coordination. Existing auth/privacy/resource/data-preservation invariants remain. The working tree implements the new lifecycle; exact verification and remaining gates are in maintenance progress, without rewriting historical REV evidence.
+
 Applies to **every REV task**. Status: **proposed target; application unchanged**.
 
 ## 1. Scope and source of truth
@@ -38,7 +40,7 @@ restore -> exclusive owner + durable journal
 failure after destructive phase -> rollback or remain fenced + operator recovery
 ```
 
-The initial supported deployment remains **one Nitro process / one app writer** with persistent local storage and an external DB. Do not introduce Redis, a distributed queue or a broad connection pool as an incidental fix. If multi-worker correctness cannot be provided, enforce/document single-writer startup rather than claiming cross-host safety.
+The initial supported deployment remains **one Nitro process / one app writer** with persistent local storage and an external DB. Do not introduce Redis, a distributed queue or a broad connection pool as an incidental fix. Single-instance exclusion is a stop/remove-before-create deployment guarantee, not lifetime disk ownership; no production multi-worker/cross-host safety is claimed.
 
 ## 4. Resource contracts
 

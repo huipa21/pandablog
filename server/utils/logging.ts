@@ -554,9 +554,9 @@ function asUpdatedAt(value: unknown) {
 }
 
 function fireAndForgetDbWrite(task: () => Promise<void>) {
-  if (Date.now() < dbWritesBlockedUntil) {
-    return
-  }
+  // Best-effort ordinary logging must not inherit the private AsyncLocalStorage
+  // authority of boot/restore and open scoped DB work before readiness.
+  if (writeBarrier.status().closed || Date.now() < dbWritesBlockedUntil) return
 
   return writeBarrier.run(task, true).catch((error) => {
     dbWritesBlockedUntil = Date.now() + CIRCUIT_BREAKER_MS

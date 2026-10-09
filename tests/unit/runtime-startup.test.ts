@@ -2,7 +2,7 @@ import { createApp, defineEventHandler, toNodeListener } from 'h3'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const jobs = vi.hoisted(() => ({startWriter: vi.fn(), stopWriter: vi.fn(), markUncertain: vi.fn(), uncertaintyUntil: vi.fn(), initializeRuntimeDatabase: vi.fn()}))
+const jobs = vi.hoisted(() => ({initializeRestoreState: vi.fn(), markUncertain: vi.fn(), maintenanceHoldUntil: vi.fn(), initializeRuntimeDatabase: vi.fn()}))
 vi.mock('../../server/utils/backups/jobMutex', () => ({jobStore: jobs}))
 vi.mock('../../server/utils/db', () => ({shutdownDb: vi.fn(), databaseDiagnostics: () => ({ownedClients: 0}), isPreMutationInitializationFailure: () => false, databaseConnectivityFailureCount: () => 0, recycleRuntimeConnection: vi.fn(), initializeRuntimeDatabase: jobs.initializeRuntimeDatabase}))
 vi.mock('../../server/utils/startup-config', () => ({validateStartupConfig: vi.fn(), normalizePublicRuntimeConfig: vi.fn()}))
@@ -15,10 +15,9 @@ afterEach(() => {vi.unstubAllGlobals(); vi.restoreAllMocks()})
 
 async function load(ownership: Promise<boolean> | (() => Promise<boolean>)) {
   vi.resetModules(); vi.resetAllMocks()
-  jobs.startWriter.mockImplementation(() => typeof ownership === 'function' ? ownership() : ownership)
+  jobs.initializeRestoreState.mockImplementation(() => typeof ownership === 'function' ? ownership() : ownership)
   vi.stubGlobal('defineNitroPlugin', (plugin: unknown) => plugin)
   jobs.markUncertain.mockResolvedValue(undefined)
-  jobs.stopWriter.mockResolvedValue(true)
   const hooks: Record<string, () => Promise<void>> = {}
   const app = createApp()
   app.use(defineEventHandler(() => ({ordinary: true})))
@@ -48,7 +47,7 @@ describe('non-awaiting Nitro startup plugin lifecycle', () => {
       await hooks.close!()
       await new Promise<void>(resolve => server.close(() => resolve()))
     }
-    expect(jobs.stopWriter).not.toHaveBeenCalled()
+    expect(jobs.markUncertain).not.toHaveBeenCalled()
   })
   it('actual db-init plugin cannot allocate privileged clients while ownership is pending or refused', async () => {
     const pending = deferred<boolean>()
@@ -73,6 +72,6 @@ describe('non-awaiting Nitro startup plugin lifecycle', () => {
     expect(barrier.status().closed).toBe(true)
     expect(boot).not.toHaveBeenCalled()
     await hooks.close!()
-    expect(jobs.stopWriter).not.toHaveBeenCalled()
+    expect(jobs.markUncertain).not.toHaveBeenCalled()
   })
 })

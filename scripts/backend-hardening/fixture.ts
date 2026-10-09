@@ -126,7 +126,7 @@ export async function startFixture(options: { enabled: string | undefined, binar
     const password = randomBytes(32).toString('hex')
     assertFixtureTarget(endpoint, namespace, database)
     // No persistent app path, root defaults, containers or external endpoint inputs.
-    child = spawn(binary, ['start', '--bind', `127.0.0.1:${port}`, '--user', username, '--pass', password, '--log', 'error', 'memory'], { cwd: storage.root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+    child = spawn(binary, ['start', '--bind', `127.0.0.1:${port}`, '--user', username, '--pass', password, '--query-timeout', '30s', '--transaction-timeout', '30s', '--log', 'error', 'memory'], { cwd: storage.root, env, stdio: ['ignore', 'pipe', 'pipe'] })
     child.on('error', error => { spawnError = error })
     exited = new Promise<void>(resolve => { child!.once('close', () => resolve()) })
     // Drain pipes, but retain no potentially growing diagnostic log (or credentials).

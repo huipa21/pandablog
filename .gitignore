@@ -83,6 +83,7 @@ tests/unit/*
 !tests/unit/maintenance-barrier.test.ts
 !tests/unit/maintenance-http.test.ts
 !tests/unit/maintenance-crash.test.ts
+!tests/unit/maintenance-simplification.test.ts
 !tests/unit/backup-status.test.ts
 !tests/unit/backups/
 !tests/unit/backups/*.test.ts
@@ -140,6 +141,7 @@ tests/unit/*
 !tests/unit/backend-release-readiness.test.ts
 !tests/helpers/
 !tests/helpers/backend-hardening.ts
+!tests/helpers/maintenance-realm.ts
 !tests/integration/
 !tests/integration/backend-hardening.test.ts
 !tests/integration/media-storage-startup.test.ts

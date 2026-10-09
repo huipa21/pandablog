@@ -1,4 +1,5 @@
 import { privateMediaHeaders } from '../utils/media-cache'
+import { isMaintenanceDiagnosticRequest } from '../utils/maintenance-handler'
 import { getSiteVisibility } from '../utils/visibility'
 import { isAuthenticated } from '../utils/auth'
 
@@ -28,9 +29,10 @@ export default defineEventHandler(async (event) => {
   const originalUrl = event.node.req.url ?? requestUrl.pathname
   if (url.startsWith('/media/') || url.startsWith('/api/media/')) privateMediaHeaders(event)
 
-  // Status has its own exact job-capability/current-owner authorization and
-  // must remain DB-independent while restore has replaced runtime identity.
-  if (event.method === 'GET' && url === '/api/admin/backups/status') return
+  // Readiness/health/static diagnostics must never allocate a visibility DB
+  // client while boot is fenced (that rejected shared flight can poison boot).
+  // Status keeps its exact job-capability/current-owner authorization.
+  if (isMaintenanceDiagnosticRequest(event.method, url)) return
   if (ALWAYS_ALLOWED_EXACT.has(url)) return
 
   for (const prefix of ALWAYS_ALLOWED_PREFIXES) {

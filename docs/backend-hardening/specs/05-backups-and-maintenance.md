@@ -1,5 +1,7 @@
 # Spec 05: Streamed backups, exclusive maintenance and recoverable restore
 
+> **Approved maintenance boundary amendment:** [jobs and restore spec](../../maintenance-simplification/specs/02-jobs-and-restore.md) now requires no persistent app writer, safe automatic handling of verified pre-destructive interruption/terminal state, and durable recovery for destructive/ambiguous restore only. Job serialization, full foreground/background drain, streams/validation, paired rollback and auth/cache refresh below remain applicable. The working tree implements that boundary; current evidence and remaining production/module/fault gates are in maintenance progress.
+
 Tasks: **REV-2.2, REV-2.3, REV-2.4**. Findings: F-07, F-11, F-16, F-24.
 
 ## 1. Baseline and non-negotiable behavior

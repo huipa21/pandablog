@@ -257,8 +257,8 @@ docker exec pandablog-app panda help recover     # same as: panda recover --help
 | `panda version [--json]` (also `--version`, `-v`) | Prints the build version. Source: `/app/version.json` (image), git via `scripts/version.mjs` (dev checkout), then `PANDABLOG_VERSION`. Fails rather than guessing. |
 | `panda info [--json]` | Version, commit, commit date, version source, Node.js/platform, `NODE_ENV`, listen host:port, app root, and each storage directory as writable / read-only / missing. Reads local files only. |
 | `panda health [--url <url>] [--timeout <s>] [--json]` | Probes the server over loopback (default `http://127.0.0.1:$PORT/api/health`, 5 s). Exit `0` for any non-5xx response, `1` for 5xx/refused/timeout. Use `--url …/api/ready` for readiness or `…/api/health?db=1` for a DB connectivity probe. |
-| `panda recover` | Offline startup-recovery assistant. Read-only inspection of `storage/backups` recovery records (writer lock, uncertain-writes marker, restore journal/artifacts). No `.env`, no DB, no SQL. Reports `clear`, `writer-active`, `review-required` or `manual-recovery-required`. |
-| `panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent` | **Expert-only.** Moves independently reviewed startup-only receipts into `storage/.recovery-archive/startup-*` with a review record. The three flags are operator assertions, not checks; restore journals/artifacts and live, remote or corrupt ownership are always refused. |
+| `panda recover` | Read-only restore inspection of `storage/backups`. No `.env`, DB, SQL or token output. Reports `clear` (including retired writer records, finite job holds and verified terminal/pre-destructive journals) or `manual-recovery-required` (actual/ambiguous destructive restore). |
+| Old startup archival/assertion flags | Retired: exit 1 before I/O, without filesystem changes. Ordinary restart needs no writer archival. |
 | `panda password-reset <username>` | Hidden password and confirmation prompts, then saves an Argon2id hash for an existing user and invalidates old sessions/trusted devices. Requires an interactive terminal and scoped DB credentials; preserves roles, account status and MFA. |
 | `panda help [command]` (also `--help`, `-h`, `panda <command> --help`) | Overview, or detailed help for one command. |
 
@@ -271,7 +271,7 @@ Exit codes: `0` success/healthy/inspection completed; `1` failure, unhealthy, re
 | How | `docker exec pandablog-app panda <cmd>` | `docker compose run --rm app panda <cmd>` | `node bin/panda.mjs <cmd>` or `npm run panda -- <cmd>` |
 | `version`, `info` | yes | yes | yes |
 | `health` | yes | no: nothing listens, always FAIL | yes, against a running dev server |
-| `recover` | inspection only (a live writer is `writer-active`) | yes, after `docker compose stop app` | yes (`npm run recover` still works) |
+| `recover` | read-only inspection | yes | yes (`npm run recover` still works) |
 | `password-reset` | yes, use `docker exec -it` | yes, with DB access | yes, loads app-root `.env` as fallback |
 
 `docker compose run` starts a one-off container from the same image with the same `.env`, user and
@@ -296,20 +296,18 @@ docker compose logs app --tail 100        # read the boot error first
 docker compose stop app                   # end the restart loop (restart: unless-stopped)
 docker compose run --rm app panda info    # build identity + storage writability
 docker compose run --rm app panda recover # read-only recovery inspection
-# fix .env (configuration errors only need correction + recreation), or follow the
-# recover guidance and, only after independent review, run the expert-only archival
+# correct config/named initialization errors and recreate normally; only actual
+# destructive/ambiguous restore needs offline administrator recovery
 docker compose up -d app
 docker exec pandablog-app panda health --url http://127.0.0.1:3000/api/ready
 ```
 
-> **Hostname and archival.** The writer lock records the container hostname, so
-> `deploy/production/docker-compose.yml` sets a fixed `hostname: pandablog-app`. That way a one-off
-> `docker compose run` container matches the app container and can archive a reviewed lock the app
-> left behind. Without it, the lock is reported as belonging to *another host* and archival is refused
-> (inspection still works). PID numbering restarts in every container, so a recorded PID that now
-> belongs to `panda` itself is reported as not running here. A one-off container cannot see the app
-> container's processes, so **always `docker compose stop app` before archival**, and run only one
-> app instance.
+> **Single-instance replacement.** Stop/remove the old app before creating its replacement;
+> no rolling overlap, multi-worker production or uncoordinated external DB writers. No application
+> writer receipt/hostname/PID cleanup is required for ordinary crash/restart. Retired writer records
+> remain unchanged. Backup-family/reset CLI jobs still serialize; unknown/remote/partial job records
+> may need an offline job-only remedy after stopping jobs and preserving the exact record. This
+> never requires expert DB-consistency assertions simply to start the site.
 
 See [docs/versioning-and-cli.md](docs/versioning-and-cli.md) for the version format, determinism
 guarantees, OCI labels, admin API and the full CLI reference.
@@ -548,22 +546,27 @@ database provisioning, although it has broad table/data privileges there. It doe
 process compromise while that process has access to ROOT secrets. Keeping a scoped query client
 is defense in depth, not a claim that ROOT secrets in the same process are inaccessible.
 
-Startup stays fenced until ownership and mandatory initialization complete. `/api/health`
-is liveness only; `/api/ready` returns 200 only when ready (503 during startup, failure,
-maintenance or shutdown). Invalid configuration and verified pre-mutation connection/sign-in
-failures need only correction and restart: after verified client cleanup, the app releases its
-own writer and creates no recovery marker. Partial initialization, uncertain writes and
-interrupted restores remain fenced. Existing legacy markers are never silently cleared.
-Browser requests show a static maintenance explanation instead of an error-rendering loop.
+Startup stays fenced until explicit preflight and mandatory initialization complete. `/api/health`
+is liveness; `/api/ready` is no-store 200 only when ready, otherwise sanitized 503. DB outages
+retry automatically. Ordinary config/migration/data errors keep that process unready; correct
+its named underlying problem and restart normally, without application-owner recovery. Browser
+requests show static maintenance guidance, not an error-rendering loop. Shutdown drains within
+10 seconds; forced ordinary exit/container replacement has no persistent startup latch.
 
-For recovery guidance, run `panda recover` (read-only; no database connection): in the image via
-`docker compose stop app && docker compose run --rm app panda recover`, or from a checkout via
-`npm run recover`. After independently verifying stopped app writers, database quiescence, consistent
-data and a preserved backup, an administrator can use the expert-only archival flags shown by
-`panda recover --help`. Normal inspection asks no technical verification questions and
-reports live ownership without recovery markers as normal, not a manual recovery problem. It refuses interrupted restores and unsafe ownership; there is
-no public unfence endpoint or automatic stale-writer takeover. See the
-[runtime startup operations](docs/runtime-startup-config/operations.md) for prerequisites.
+New app processes delay backup-family jobs for **ten minutes**, not normal readiness/traffic,
+to allow old DB execution to settle after a crash without a marker. Observed abandoned job/reset
+owners receive a finite exact-generation hold before takeover. Configure the separately managed
+SurrealDB query/transaction timeouts below ten minutes; caller deadlines/socket closure are not
+server cancellation. Recent/invalid uncertain-write markers impose finite job-only holds; expired
+informational files remain unchanged rather than risking removal of a newer CLI publication.
+
+Trustworthy interrupted pre-destructive restore preparation is automatically aborted; verified
+terminal journals do not block restart. Only destructive/ambiguous restore remains an offline
+administrator-recovery case: preserve its journal and paired safety/media artifacts. `panda recover`
+is read-only; old startup-archival flags are rejected. Independent setup/logging/media receipts
+remain protected. No public unfence or automatic safety import exists. See the
+[maintenance runbook](docs/maintenance-simplification/operations.md) and
+[exact local evidence/remaining gates](docs/maintenance-simplification/progress.md).
 Compose environment changes require container recreation, not merely restart.
 
 ### Two-factor authentication

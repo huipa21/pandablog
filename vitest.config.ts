@@ -13,6 +13,7 @@ export default defineConfig({
     }
   },
   test: {
+    setupFiles: ['tests/helpers/maintenance-realm.ts'],
     include: ['tests/unit/**/*.test.ts'],
     exclude: ['tests/e2e/**', 'node_modules/**', '.nuxt/**']
   }

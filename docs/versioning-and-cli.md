@@ -111,7 +111,7 @@ npm run recover                               # = panda recover
 | `panda info` | Output version, commit hash, commit date, Node.js version, platform, listen host/port, and storage mount writability |
 | `panda health` | Send an HTTP probe to `http://127.0.0.1:$PORT/api/health`. Exits `0` for healthy (`< 500`), `1` on error/timeout |
 | `panda recover` | Read-only offline recovery inspection of `storage/backups` (no `.env`, no DB). See [Recovery](#recovery-panda-recover) |
-| `panda recover --archive-reviewed-startup --app-stopped --database-quiescent --data-consistent` | Expert-only archival of independently reviewed startup-only receipts |
+| Old `panda recover --archive-reviewed-startup` / assertion flags | Retired; exit 1 without filesystem changes. Ordinary restart needs no writer archival. |
 | `panda password-reset <username>` | Hidden password/confirmation prompts, then updates the existing user's Argon2id hash and invalidates sessions/trusted devices. Requires an interactive terminal and DB access. |
 | `panda help [command]` (or `-h`, `--help`) | Show the CLI overview, or detailed help for one command |
 
@@ -176,6 +176,24 @@ The Dockerfile bundles `scripts/password-reset.ts` separately to `.output/server
 
 ### Recovery (`panda recover`)
 
+> **Current working-tree CLI:** restore-oriented read-only inspection; exact evidence and outstanding build/release gates are in [maintenance progress](maintenance-simplification/progress.md). Old images retain the historical CLI. Rebuild and complete acceptance before deployment; never delete restore/domain receipts to make an upgrade start.
+
+`panda recover` neither loads `.env` nor contacts DB/Nitro/SQL; inspection changes nothing and never prints owner/status tokens. Development (`tsx`) and bundled (`recover.cjs`) paths match. Use `/api/ready` to distinguish initialization/config/DB problems from actual restore recovery.
+
+| Result | Current meaning |
+|---|---|
+| `clear` | No destructive restore blocker. Retired writer/guard objects, nonrestore jobs, finite uncertainty, trustworthy pre-destructive and verified terminal journals are informational. |
+| `manual-recovery-required` | Destructive/ambiguous restore, contradictory paths/terminal state, unmatched swap artifacts or legacy restore-kind file evidence. Preserve paired safety/journal/media; follow the [restore runbook](maintenance-simplification/operations.md#6-actual-interrupted-destructive-restore). |
+
+`writer-active` and `review-required` are retired; their ordinary writer-only cases map to `clear`. `canArchiveReviewedStartup` remains in the report but is always false. Plain inspection exits **0**, including a reported restore blocker; invalid invocation/unsafe paths exit **1**. All old `--archive-reviewed-startup`, `--app-stopped`, `--database-quiescent`, `--data-consistent` flags are refused before I/O, regardless of supplied assertions.
+
+No fixed hostname or PID interpretation is needed for ordinary restart. Keep one app instance, stop/remove before replacement. Backup/reset job exclusion still refuses live/PID-reused/remote ownership; recognized dead-local owners can be reclaimed after a finite hold. Unknown/partial/remote nonrestore records restrict jobs only. A narrow operator job-only remedy requires stopping all app/CLI jobs and preserving the exact record, not certifying DB consistency to clear an application owner.
+
+New app processes delay backup-family jobs for ten minutes to cover execution after a crash before uncertainty persistence. An observed abandoned job/reset gets an exact-generation ten-minute hold before takeover. Configure separate DB query/transaction timeouts below this bound. Recent/invalid uncertainty is job-only; expiry is automatic and the informational file remains unchanged to avoid deleting a newer CLI publication. Normal boot/traffic remains available. Password reset still uses scoped credentials, hidden input, existing-user-only update/new epoch and no ambiguous-write replay.
+
+<details>
+<summary>Historical startup-archival CLI (old images only; superseded)</summary>
+
 The offline startup-recovery assistant (source: `scripts/recover.ts` + `scripts/recovery/assistant.ts`) is bundled at image build time to `/app/bin/recover.cjs`; `panda recover` runs it as a child process with `/app` as the working directory and exits with its exit code. In a dev checkout `panda recover` runs `scripts/recover.ts` through the installed `tsx` loader.
 
 Use it when `/api/ready` reports guidance `run-recovery-assistant` or the boot log says the service "remains fenced; run panda recover for guidance". It is **not** needed for an unreachable database (the app retries and opens by itself) or for invalid configuration / rejected pre-mutation sign-in (fix `.env`, recreate the container).
@@ -205,6 +223,8 @@ All three assertion flags are required and are operator assertions, not checks. 
 PID numbering restarts in every container, so the one-off `panda` process usually gets the PID the app's server had. The assistant therefore never treats its own PID or its parent's PID as the recorded writer. Instead it reports "the recorded writer PID now belongs to this recovery tool" and continues to `review-required`. Neither this nor a dead PID proves anything about other containers: a one-off container cannot see the app container's processes. The app **must** be stopped (`docker compose stop app`) before archival, and only one app instance may use a storage/DB target.
 
 The fixed hostname does not let the app take over a stale lock. On boot, `startWriter` never reclaims an existing `.writer.lock`: a same-host lock is refused (`owner-offline-review` / `owner-live-same-process`), just as a different-host lock is (`owner-remote`).
+
+</details>
 
 ---
 

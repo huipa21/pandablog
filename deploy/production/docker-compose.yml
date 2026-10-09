@@ -7,18 +7,12 @@ services:
     user: "1000:1000"
     pull_policy: never
     container_name: pandablog-app
-    # Fixed hostname. The writer lock (storage/backups/.writer.lock) records the
-    # hostname of the process that owns it. Without this, every recreated
-    # container and every one-off `docker compose run --rm app panda recover`
-    # gets a random hostname, so a lock left by the app is reported as
-    # "another host" and reviewed archival is refused. A one-off container
-    # cannot see the app container's processes, so ALWAYS `docker compose stop
-    # app` before running `panda recover` this way. Run one app instance only.
-    hostname: pandablog-app
+    # Deployment guarantees ONE app instance: stop/remove before replacement,
+    # never rolling overlap. Ordinary restart needs no writer receipt/hostname.
     restart: unless-stopped
-    # Allow the app to drain HTTP (NITRO_SHUTDOWN_TIMEOUT=15s) and then close the
-    # DB and release its writer lock (<=10s). If Docker kills it first, the stale
-    # writer lock requires the offline recovery assistant on the next start.
+    # Allow HTTP/DB drain and actual restore checkpoints (Nitro 15s, coordinator
+    # 10s). Forced ordinary exit restarts normally; unresolved destructive restore
+    # preserves its journal and paired safety/media state for offline recovery.
     stop_grace_period: 45s
     logging:
       driver: json-file

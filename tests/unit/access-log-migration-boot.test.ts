@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   reloadLoggingSettings: vi.fn(), getLoggingSettings: vi.fn(), defaultLoggingSettings: vi.fn(), writeConsoleEntry: vi.fn()
 }))
 // Component tests isolate boot migrations; actual lifecycle is covered separately.
-vi.mock('../../server/utils/startup', () => ({startup: {initialize: async (work: () => Promise<void>) => {await work(); return true}}}))
+vi.mock('../../server/utils/startup', () => ({startup: {status: () => ({ready: true}), initialize: async (work: () => Promise<void>) => {await work(); return true}}}))
 vi.mock('../../server/utils/setup-authority', () => ({setupAuthority: () => ({status: async () => ({completed: true})})}))
 // This logging fixture deliberately isolates unrelated media boot recovery.
 vi.mock('../../server/utils/mediaLibrary', () => ({mediaRecoverInterruptedObjects: vi.fn(), mediaInitializeLegacyState: vi.fn()}))

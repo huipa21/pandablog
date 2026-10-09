@@ -1,5 +1,7 @@
 # Phase 5: integration evidence and release handoff
 
+> **Approved lifecycle refactor:** [maintenance simplification](../maintenance-simplification/plan.md) makes single-instance exclusion a deployment guarantee and distinguishes ordinary automatic crash restart from destructive-restore recovery. Its MS-05/06 tasks reconcile affected checker/handoff wording without waiving unrelated release prerequisites or fabricating evidence. The working tree implements the lifecycle; checker requirement wording is reconciled, but no evidence manifest/gate is fabricated or waived. See maintenance progress for exact local results and remaining blockers.
+
 **Status: preparatory tooling only; REV-5.1/5.2 are blocked by Phase 4. No release approval.**
 Read [progress](./progress.md), [plan](./plan.md#phase-5-integration-and-release-handoff),
 [spec 09](./specs/09-verification.md) and the [draft operations runbook](./operations.md).
@@ -54,14 +56,14 @@ useful component evidence, not fresh combined/candidate acceptance.
 | `module-builds` | Local real integration / implementer | Full-feature, minimal single-author, touched-module-disabled builds and production Nitro smoke; analytics/logs/backups/MFA/multi-user/graph combinations |
 | `linux-filesystem` | Isolated rehearsal / implementer | Linux symlink/hard-link/inode/fsync/rename/permissions/disk-full/mount cases; Windows skips do not pass |
 | `browser-proxy` | Local real integration / implementer | Guarded real Nitro, actual proxy/shared-cache, browser en/zh-CN, current/stale cookies, CSRF, originals/variants/ZIP/IPX, visibility transitions, personalized SSR and query duplication |
-| `crash-recovery` | Isolated rehearsal / implementer | Death at DB/journal/fsync/rename/publication/checkpoint boundaries; durable owner/artifact generation, client read/write policy, restart/rollback/fence, stale-worker safety and cleanup |
+| `crash-recovery` | Isolated rehearsal / implementer | Ordinary forced replacement restarts without app receipts; destructive restore DB/journal/fsync/rename/publication/checkpoint death preserves paired evidence and fences. Domain generations, client policy, verified rollback, stale-worker safety and cleanup remain required |
 | `mixed-load` | Isolated rehearsal / implementer | Explicit CPU/app/DB/disk limits, predeclared distributions and latency targets, repeated increasing cardinality, health/status latency, RSS/native/DB/disk/queues/sockets and HTTP p50/p95/p99 |
 | `operations-handoff` | Operator review | Final exact env/defaults, compatibility limits, migration/session invalidation/recovery/rollback, finding dispositions and all applicable logging gates |
 | `copy-rehearsal` | Operator | Explicitly approved isolated production copy, separate DB/media/log mounts, blocked live-source writes and approved retention effects |
 | `backup-rollback` | Operator | Independently verified consistent DB/media/log/config backups, image/schema/credential compatibility, owner/MFA recovery and rollback rehearsal |
-| `mounts-budgets` | Operator | Actual persistent paths, UID/GID, journal/setup/writer/access receipts, hard links/rename, disk headroom and measured resource envelope |
+| `mounts-budgets` | Operator | Actual persistent paths, UID/GID, restore journal/job/setup/access/media receipts, hard links/rename, disk headroom and measured resource envelope (no application-owner receipt) |
 | `proxy-cache-purge` | Operator | Purge existing public-media CDN/proxy/IPX entries and test actual deployed boundaries, or explicit time-limited risk acceptance |
-| `single-writer` | Operator | Stop old writers; one Nitro process and no external writer; no incompatible rolling overlap |
+| `single-writer` | Operator | Deployment guarantees one app instance; stop/remove-before-create replacement, no rolling overlap or uncoordinated external writers; reset CLI participates in job serialization |
 | `cutover-authorization` | Operator | Named, timestamped explicit authorization for candidate/image/config/deployment; cannot be risk-waived |
 | `deployed-security` | Operator | Owner login, old-session rejection, roles/privacy/CSRF/proxy, health versus readiness, sample upload/ZIP/jobs/status and approved staging restore |
 | `overnight` | Operator | Actual 24-hour/UTC rollover/overnight schedules, checkpoints/retention/queue warnings/resource observations; rollback remains available |

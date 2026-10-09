@@ -30,6 +30,14 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real full restore worke
       // Static schema copy is test source, never configured storage or .env.
       await mkdir(join(fixture.storage.root, 'server/utils'), {recursive: true})
       await writeFile(join(fixture.storage.root, 'server/utils/schema.surql'), schema)
+      // Inject an already-quiescent owned worker store. The production new-
+      // process hold is independently tested with deterministic clocks; this
+      // fixture owns a freshly started DB with no predecessor execution.
+      vi.doMock('../../server/utils/backups/jobMutex', async importOriginal => {
+        const original = await importOriginal<typeof import('../../server/utils/backups/jobMutex')>()
+        const store = new original.JobStore(join(fixture.storage.root, 'storage/backups'))
+        return {...original, jobStore: store, acquireJob: store.acquire.bind(store), releaseJob: store.release.bind(store), getActiveJob: store.getActiveJob.bind(store), updateJobProgress: store.progress.bind(store)}
+      })
       dbModule = await import('../../server/utils/db')
       const {startBackupJob} = await import('../../server/utils/backups/create')
       const {startRestoreJob} = await import('../../server/utils/backups/restore')
@@ -106,6 +114,7 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real full restore worke
       process.stdout.write(JSON.stringify({evidence: 'REV-2.4-actual-worker-owned-DB-FS-not-Nitro-production', kind, state: jobStore.getJournal()?.state, node: process.version, sdk: '2.0.3', surreal: (await root.version()).version}) + '\n')
     } finally {
       faults.refresh = false
+      vi.doUnmock('../../server/utils/backups/jobMutex')
       if (dbModule) {await dbModule.closeRootClient(root); await dbModule.shutdownDb()}
       cwd.mockRestore(); vi.unstubAllGlobals(); await fixture.stop()
     }

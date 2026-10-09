@@ -1,6 +1,15 @@
-# Spec 01: Fail-closed startup, writer ownership and shutdown
+# Spec 01: Fail-closed startup and shutdown (amended)
+
+> **Narrow supersession:** [maintenance simplification architecture](../../maintenance-simplification/specs/00-architecture.md) and [lightweight startup spec](../../maintenance-simplification/specs/01-startup-and-readiness.md) supersede lifetime writer ownership, stale-writer refusal and ordinary-startup expert archival in this spec. Explicit readiness, handled Nitro startup, safe shutdown and actual destructive-restore protection remain required. The working-tree refactor is implemented; evidence and remaining gates are in maintenance progress. The old contract below is historical, not an instruction to recreate ownership.
 
 Tasks: RSC-01, RSC-04 in [plan](../plan.md). **Implementation contract; consult [progress](../progress.md) for completed evidence and remaining acceptance gates.**
+
+## Current contract
+
+The authoritative lifecycle is [maintenance spec 01](../../maintenance-simplification/specs/01-startup-and-readiness.md): synchronous Nitro gating/close hooks, one explicit boot flight, DB outage retry/no replay, required resumable initialization before readiness, bounded ten-second shutdown, ordinary automatic restart, and no persistent app owner. Actual destructive/ambiguous restore remains conservative. Generation-safe dev drain is process-local; job serialization and independent setup/media/logging receipts survive. Environment/identity specs in this package remain unchanged.
+
+<details>
+<summary>Historical RSC writer-ownership acceptance contract (superseded)</summary>
 
 ## 1. Problem and invariants
 
@@ -69,3 +78,5 @@ The implementer must choose/document a deterministic failed-startup policy: fenc
 - Existing restore status capability, lease/drain, stale release and crash tests remain passing.
 
 Use generated targets, owned temp roots, supported Node 22 and actual Nitro processes. Tests must not launch the configured application or reuse its `storage/` or `.env`. Report Windows versus Linux persistence evidence separately.
+
+</details>

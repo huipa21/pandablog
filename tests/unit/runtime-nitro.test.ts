@@ -1,10 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { readFile, writeFile, stat } from 'node:fs/promises'
+import { readFile, writeFile, stat, mkdir } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { resolve, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createNitro, build, type NitroConfig } from 'nitropack'
 import { describe, expect, it } from 'vitest'
+import { JobStore } from '../../server/utils/backups/jobMutex'
 import { createOwnedStorage, fixtureEnvironment, type OwnedStorage } from '../../scripts/backend-hardening/fixture'
 
 async function port() {
@@ -63,7 +64,7 @@ function start() {
   worker.on('message', msg => {if(msg.event === 'listen') process.send({port: msg.address.port}); if(msg.event === 'exit') void worker.terminate().then(() => {workers.delete(worker); if(!workers.size) process.exit(0)})});
   worker.on('error', () => process.exit(1));
 }
-process.on('message', msg => {if(msg === 'reload') {current.postMessage({event:'shutdown'}); start()} if(msg === 'stop') for(const worker of workers) worker.postMessage({event:'shutdown'})});
+process.on('message', msg => {if(msg === 'reload') {current.postMessage({event:'shutdown'}); start()} if(msg === 'force') void current.terminate().then(() => {workers.delete(current); start()}); if(msg === 'stop') for(const worker of workers) worker.postMessage({event:'shutdown'})});
 start();`)
   const child = spawn(process.execPath, [output.path('dev-driver.mjs'), entry], {cwd: storage.root, env: {
     ...fixtureEnvironment(), NODE_ENV: 'development', NUXT_SURREAL_URL: 'ws://127.0.0.1:1/rpc', NUXT_SURREAL_NAMESPACE: 'fixture', NUXT_SURREAL_DATABASE: 'fixture',
@@ -76,7 +77,7 @@ start();`)
   for (const pipe of [child.stdout!, child.stderr!]) pipe.on('data', bytes => {diagnostics = (diagnostics + bytes.toString()).slice(-8192)})
   const exited = new Promise<void>(yes => child.once('close', () => yes()))
   return {
-    reload: () => child.send('reload'), diagnostics: () => diagnostics,
+    reload: () => child.send('reload'), force: () => child.send('force'), diagnostics: () => diagnostics,
     async listening() {
       const deadline = Date.now() + 10_000
       while (!ports.length && Date.now() < deadline && child.exitCode === null) await delay(20)
@@ -144,14 +145,8 @@ export default defineNitroPlugin(nitro => {
       await expect.poll(async () => (await first.get('/api/ready')).status, {timeout: 5000}).toBe(200)
       expect(await (await first.get('/')).json()).toMatchObject({ordinary: true, footer: false, canonicalEndpoint: true, canonicalOrigin: true})
       expect((await first.get('/local')).status).toBe(200)
-      const contender = await launch(entry, storage)
-      children.push(contender)
-      expect((await contender.get('/api/ready')).status).toBe(503)
-      expect((await contender.get('/')).status).toBe(503)
-      expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('1')
-      await contender.stop()
-      expect(await exists(lock)).toBe(true)
-      await first.stop()
+      expect(await exists(lock)).toBe(false)
+      await first.stop(true) // ordinary ready-process crash; no writer cleanup
       expect(await exists(lock)).toBe(false)
       const second = await launch(entry, storage, {NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY: 'yes', NUXT_PUBLIC_APP_SPONSOR: 'false'})
       children.push(second)
@@ -179,28 +174,43 @@ export default defineNitroPlugin(nitro => {
       // its writer, retries automatically and tells clients to wait.
       await expect.poll(async () => (await (await preMutation.get('/api/ready')).json()).guidance?.action, {timeout: 5000}).toBe('wait')
       expect((await (await preMutation.get('/api/ready')).json()).guidance?.recoveryRequired).toBe(false)
-      expect(await exists(lock)).toBe(true)
+      expect(await exists(lock)).toBe(false)
       expect(await exists(join(storage.root, 'storage/backups/.uncertain-writes.json'))).toBe(false)
       expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('3')
-      await preMutation.stop()
+      await preMutation.stop(true) // forced death during actual initialization retry
       expect(await exists(lock)).toBe(false) // clean shutdown during an outage needs no recovery
       const failing = await launch(entry, storage, {PB_BOOT_FAIL: '1'})
       children.push(failing)
-      await expect.poll(() => exists(join(storage.root, 'storage/backups/.uncertain-writes.json')), {timeout: 5000}).toBe(true)
+      await expect.poll(async () => (await (await failing.get('/api/ready')).json()).state, {timeout: 5000}).toBe('failed')
+      expect(await exists(join(storage.root, 'storage/backups/.uncertain-writes.json'))).toBe(false)
       expect((await failing.get('/api/ready')).status).toBe(503)
       expect((await failing.get('/')).status).toBe(503)
       await failing.stop()
-      expect(await exists(lock)).toBe(true)
+      expect(await exists(lock)).toBe(false)
       const recovering = await launch(entry, storage)
       children.push(recovering)
-      // A genuine (non-connectivity) boot failure retained its writer receipt:
-      // the next process still refuses it for offline review.
-      await expect.poll(async () => (await (await recovering.get('/api/ready')).json()).state, {timeout: 5000}).toBe('failed')
-      const recoveryReadiness = await recovering.get('/api/ready')
-      expect(recoveryReadiness.status).toBe(503)
-      expect(await recoveryReadiness.json()).toMatchObject({state: 'failed', ready: false, failure: {phase: 'ownership', category: 'owner-offline-review'}, guidance: {recoveryRequired: true}})
-      expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('4')
+      // Corrected required boot retries on the next process without receipts.
+      await expect.poll(async () => (await recovering.get('/api/ready')).status, {timeout: 5000}).toBe(200)
+      expect(await (await recovering.get('/api/ready')).json()).toMatchObject({state: 'ready', ready: true})
+      expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('5')
       await recovering.stop()
+      await mkdir(lock, {recursive: true})
+      await writeFile(join(lock, 'owner.json'), 'retired corrupt owner from different container')
+      const legacy = await launch(entry, storage)
+      children.push(legacy)
+      await expect.poll(async () => (await legacy.get('/api/ready')).status, {timeout: 5000}).toBe(200)
+      await legacy.stop()
+      expect(await readFile(join(lock, 'owner.json'), 'utf8')).toBe('retired corrupt owner from different container')
+      const restoreStore = new JobStore(join(storage.root, 'storage/backups'))
+      const restoreOwner = await restoreStore.acquire({id: 'interrupted', kind: 'restore', startedAt: new Date().toISOString()})
+      await restoreStore.beginRestore(restoreOwner)
+      await restoreStore.transition(restoreOwner, {phase: 'db-wipe', destructive: true})
+      const interrupted = await launch(entry, storage)
+      children.push(interrupted)
+      await expect.poll(async () => (await (await interrupted.get('/api/ready')).json()).state, {timeout: 5000}).toBe('recovery-required')
+      expect((await (await interrupted.get('/api/ready')).json()).guidance.recoveryRequired).toBe(true)
+      expect(await readFile(join(storage.root, 'boot-count'), 'utf8')).toBe('6')
+      await interrupted.stop()
       for (const child of children) {
         expect(child.diagnostics()).not.toMatch(/unhandledrejection|synthetic-app-sentinel|synthetic-root-sentinel|synthetic-session-sentinel/i)
       }
@@ -225,6 +235,10 @@ export default defineNitroPlugin(nitro => {
         await expect.poll(async () => (await fetch(`${secondURL}/api/ready`)).status, {timeout: 7000}).toBe(200)
         await held
         expect(await readFile(join(devStorage.root, 'boot-count'), 'utf8')).toBe('2')
+        dev.force()
+        const thirdURL = await dev.listening()
+        await expect.poll(async () => (await fetch(`${thirdURL}/api/ready`)).status, {timeout: 7000}).toBe(200)
+        expect(await readFile(join(devStorage.root, 'boot-count'), 'utf8')).toBe('3')
         expect(dev.diagnostics()).not.toMatch(/unhandledrejection|initialization failed|configuration or writer ownership failed/i)
       } finally {await dev.stop()}
       expect(await exists(join(devStorage.root, 'storage/backups/.writer.lock'))).toBe(false)

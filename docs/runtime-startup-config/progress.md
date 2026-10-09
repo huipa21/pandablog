@@ -1,5 +1,7 @@
 # Runtime startup and environment configuration: progress
 
+> **New approved work:** follow [maintenance simplification progress](../maintenance-simplification/progress.md) and its [full-task handoff](../maintenance-simplification/handoff.md) for removal of application-owner receipts and ordinary-crash recovery burden. The new package is the execution ledger for that refactor, not a claim of implementation. Existing RSC history/environment/identity evidence below is preserved.
+
 **Read first.** Tasks are in [plan.md](./plan.md), contracts in [specs](./specs/01-startup-ownership.md), and operator guidance in [operations.md](./operations.md).
 
 ## 1. Current state

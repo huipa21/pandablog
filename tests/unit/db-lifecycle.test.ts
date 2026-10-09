@@ -27,6 +27,18 @@ async function load(fail?: 'connect' | 'signin' | 'use', connection?: Promise<vo
 describe('owned database lifecycle', () => {
   afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.doUnmock('surrealdb') })
 
+  it('refused pre-ready callers do not poison the private boot connection flight or backoff', async () => {
+    vi.useFakeTimers()
+    const db = await load()
+    const {writeBarrier} = await import('../../server/utils/maintenance')
+    const owner = {}
+    await writeBarrier.close(owner)
+    await expect(db.useDb()).rejects.toMatchObject({data: {kind: 'maintenance-fenced'}})
+    expect(db.instances).toHaveLength(0)
+    expect(await writeBarrier.runOwner(owner, () => db.useDb())).toBe(db.instances[0])
+    writeBarrier.reopen(owner)
+    await db.shutdownDb()
+  })
   it.each(['connect', 'signin', 'use'] as const)('closes failed %s clients and bounds reconnect storms', async fail => {
     vi.useFakeTimers()
     const { useDb, connectRootClient, instances } = await load(fail)

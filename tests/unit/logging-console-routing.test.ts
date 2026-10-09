@@ -44,6 +44,19 @@ function lines(spy: typeof stdout): Array<Record<string, any>> {
 }
 
 describe('public logging console routing', () => {
+  it('does not inherit private boot/restore authority for detached ordinary DB logging', async () => {
+    const logging = await load()
+    const {writeBarrier} = await import('../../server/utils/maintenance')
+    const owner = {}
+    await writeBarrier.close(owner)
+    await writeBarrier.runOwner(owner, async () => {
+      logging.logActivity(activity)
+      logging.logError(new Error('fixture boot diagnostic'))
+      await logging.flushPendingErrorGroups()
+      await Promise.resolve(); await Promise.resolve()
+      expect(mocks.queryDb).not.toHaveBeenCalled()
+    })
+  })
   it('defaults to one error line on stderr, with stack and request id', async () => {
     const logging = await load()
     const err = new TypeError('oops')

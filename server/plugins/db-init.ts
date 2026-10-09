@@ -58,7 +58,7 @@ const DEFAULT_MEDIA_SETTINGS = {
 
 export default defineNitroPlugin(() => {
   return startup.initialize(initializeDatabase).then(ready => {
-    if (!ready) return
+    if (!ready || !startup.status().ready) return
     if (__PB_MODULE_ANALYTICS__) markAnalyticsReady()
     void runDeferredBackfillsViaPool()
   })
@@ -82,7 +82,7 @@ async function initializeDatabase() {
   // Optional ROOT bootstrap creates only namespace/database/scoped user and
   // closes before this returns. ALL schemas and boot migrations use EDITOR.
   // Without ROOT, authenticate directly as the already-provisioned user.
-  const db = await initializeRuntimeDatabase()
+  const db = await bootStep('database-initialization', initializeRuntimeDatabase)
 
   await bootStep('legacy-app-settings', () => migrateLegacyAppSettingsTable(db))
   await bootStep('media-layout-preflight', () => assertMediaStorageCompatible(db))
@@ -126,8 +126,10 @@ async function initializeDatabase() {
 
 async function runDeferredBackfillsViaPool() {
   try {
-    const db = await useDb()
-    await writeBarrier.run(() => runDeferredBackfills(db), true)
+    await writeBarrier.run(async () => {
+      const db = await useDb()
+      await runDeferredBackfills(db)
+    }, true)
   } catch (error) {
     console.warn('[db-init] deferred backfills could not start', {statusCode: (error as {statusCode?: number})?.statusCode})
   }

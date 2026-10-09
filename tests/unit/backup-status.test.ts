@@ -25,7 +25,7 @@ describe('exact job-scoped restore status on real H3', () => {
     try {
       const owner = await store.acquire({id: 'owned-restore', kind: 'restore', startedAt: new Date().toISOString()})
       const token = await store.beginRestore(owner)
-      await store.transition(owner, {destructive: true, artifacts: {safety: join(root, 'sensitive-safety.surql')}})
+      await store.transition(owner, {phase: 'db-wipe', destructive: true, artifacts: {safetySql: join(root, `.restore-${owner.token}/safety.surql`)}})
       await current.barrier.close(owner)
       const app = createApp()
       app.use((await import('../../server/middleware/restore-maintenance')).default)
@@ -42,7 +42,7 @@ describe('exact job-scoped restore status on real H3', () => {
       const text = await allowed.text()
       expect(text).not.toContain(owner.token); expect(text).not.toContain(root); expect(text).not.toContain(token)
       expect(current.auth).not.toHaveBeenCalled(); expect(current.visibility).not.toHaveBeenCalled()
-      await store.transition(owner, {state: 'committed'})
+      await store.transition(owner, {state: 'committed', phase: 'finalize'})
       current.barrier.reopen(owner); await store.release(owner)
       const next = await store.acquire({id: 'unrelated-create', kind: 'create', startedAt: new Date().toISOString()})
       const finished = await fetch(base, {headers: {'X-PandaBlog-Restore-Status': token}})

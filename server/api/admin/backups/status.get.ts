@@ -14,7 +14,8 @@ export default defineEventHandler(async (event) => {
   const active = capability && current?.token !== journal?.owner.token ? null : current
   // Never serialize owner tokens, artifact paths, hashes or raw recovery errors.
   return {activeJob: active ? {id: active.id, kind: active.kind, startedAt: active.startedAt, progress: active.progress} : null,
-    maintenance: writeBarrier.status().closed, recovery_required: writeBarrier.status().recoveryRequired || (writeBarrier.status().closed && jobStore.recoveryRequired()),
-    restore_blocked: jobStore.recoveryRequired() || writeBarrier.status().uncertainWrites > 0,
+    maintenance: writeBarrier.status().closed, recovery_required: jobStore.recoveryRequired() || Boolean(journal?.destructive && writeBarrier.status().recoveryRequired),
+    restore_blocked: jobStore.recoveryRequired() || writeBarrier.status().uncertainWrites > 0 || jobStore.maintenanceHoldUntil() > Date.now(),
+    jobs_blocked_until: Math.max(jobStore.maintenanceHoldUntil(), writeBarrier.status().uncertainUntil ?? 0) || null,
     restore: journal ? {id: journal.owner.id, phase: journal.phase, state: journal.state, updatedAt: journal.updatedAt} : null}
 })

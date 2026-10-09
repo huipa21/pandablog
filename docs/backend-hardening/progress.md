@@ -1,5 +1,7 @@
 # Backend review corrections: progress
 
+> **Separate approved refactor:** [maintenance simplification progress](../maintenance-simplification/progress.md) tracks replacement of application-wide writer/crash recovery with lightweight readiness and restore-scoped maintenance. The user guarantees stop-before-start single-container deployment. No implementation/release pass is implied; historical REV evidence and unrelated unfinished tasks below remain intact.
+
 > Read this first in every session. Tasks are in [plan.md](./plan.md), requirements in [specs](./specs/00-architecture.md), and baseline evidence in [findings.md](./findings.md).
 > Update this file after every task: status, evidence, decisions, remaining gates and session log. Do not rewrite the plan to track progress.
 

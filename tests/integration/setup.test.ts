@@ -5,7 +5,7 @@ import { startFixture } from '../../scripts/backend-hardening/fixture'
 import { createSetupOwner, SetupAuthority } from '../../server/utils/setup-authority'
 const owned = vi.hoisted(() => ({db: null as Surreal | null}))
 vi.mock('../../server/utils/db', () => ({useDb: async () => owned.db, queryDb: (db: Surreal, sql: string, params?: Record<string, unknown>) => db.query(sql, params)}))
-vi.mock('../../server/utils/backups/jobMutex', () => ({getActiveJob: () => null}))
+vi.mock('../../server/utils/backups/jobMutex', async importOriginal => ({...await importOriginal(), getActiveJob: () => null}))
 
 describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real atomic bootstrap and durable authority', () => {
   it('two DB claimants cannot overwrite winner; lost response/empty restore/legacy evidence never reopen bootstrap', async () => {

@@ -12,7 +12,7 @@ interface Scope { live: boolean, owner?: object, background: boolean }
 export const UNCERTAIN_WRITE_QUIESCENCE_MS = 10 * 60_000
 interface BarrierOptions { ignoreUncertainty?: boolean }
 
-/** One application writer. Leases cover operations, not only individual SQL. */
+/** In-memory readiness/restore drain. Leases span actual operation settlement. */
 export class WriteBarrier {
   private context = new AsyncLocalStorage<Scope>()
   private active = 0
@@ -23,6 +23,10 @@ export class WriteBarrier {
   private readonly cachePrefix = randomBytes(16).toString('hex')
   cacheGeneration() {return `${this.cachePrefix}:${this.generation}`}
   private exclusiveStarted = false
+  private exclusiveFlights = 0
+  private stopping = false
+  exclusiveWorkPending() {return this.exclusiveFlights > 0}
+  stopAdmission() {this.stopping = true}
   private uncertainCount = 0
   private uncertainUntil = 0
   private persistUncertain?: () => Promise<void>
@@ -58,7 +62,7 @@ export class WriteBarrier {
     try { return await this.context.run(scope, work) } finally { scope.live = false; release() }
   }
   async close(owner: object, deadlineMs = 15_000, options: BarrierOptions = {}): Promise<void> {
-    if (!options.ignoreUncertainty && this.pendingUncertainWrites()) throw new Error('Writer quiescence is uncertain; offline database recovery is required before restore')
+    if (!options.ignoreUncertainty && this.pendingUncertainWrites()) throw new Error('Database execution is uncertain; retry restore after the finite quiescence hold')
     if (this.closed && this.owner !== owner) throw createError({statusCode: 409, message: 'Maintenance already owned or recovery required'})
     if (!this.closed) this.exclusiveStarted = false
     this.closed = true
@@ -70,19 +74,35 @@ export class WriteBarrier {
     })
   }
   async runOwner<T>(owner: object, work: () => Promise<T>, options: BarrierOptions = {}): Promise<T> {
-    if (!this.closed || this.owner !== owner || this.active || (!options.ignoreUncertainty && this.pendingUncertainWrites())) throw new Error('Invalid exclusive maintenance owner, undrained or uncertain writers')
+    if (!this.closed || this.owner !== owner || this.active || this.exclusiveFlights || (!options.ignoreUncertainty && this.pendingUncertainWrites())) throw new Error('Invalid exclusive maintenance owner, undrained or uncertain writers')
     this.exclusiveStarted = true
     const scope: Scope = {live: true, owner, background: true}
-    try {return await this.context.run(scope, work)} finally {scope.live = false}
+    this.exclusiveFlights++
+    try {return await this.context.run(scope, work)} finally {scope.live = false; this.exclusiveFlights--}
+  }
+  /** Preparation never replaced live data. Reopen ordinary service even if
+   * an isolated staging/metadata call still awaits settlement; its lease stays
+   * charged and a later restore still must drain it. Private owner required. */
+  abortPreparation(owner: object) {
+    if (!this.closed || this.owner !== owner) throw new Error('Invalid preparation owner')
+    if (this.stopping) return
+    this.closed = false; this.owner = undefined; this.generation++
   }
   cancelDrain(owner: object) {
     if (!this.closed || this.owner !== owner || this.exclusiveStarted) throw new Error('Cannot cancel an entered exclusive phase')
+    if (this.stopping) return
     this.closed = false; this.owner = undefined
   }
   reopen(owner: object) {
     if (!this.closed || this.owner !== owner || this.active) throw new Error('Cannot reopen unverified maintenance')
+    if (this.stopping) return
     this.closed = false; this.owner = undefined; this.generation++
   }
   recoverFence() { this.closed = true; this.owner = undefined; this.generation++ }
 }
-export const writeBarrier = new WriteBarrier()
+// Nuxt evaluates server utilities in BOTH its SSR bundle and Nitro chunks.
+// They must share admission/leases/cache epochs within the same Worker realm.
+// This is process-local memory only; workers/processes never share disk owners.
+const barrierKey = Symbol.for('pandablog.maintenance.barrier')
+const realm = globalThis as typeof globalThis & {[barrierKey]?: WriteBarrier}
+export const writeBarrier = realm[barrierKey] ??= new WriteBarrier()

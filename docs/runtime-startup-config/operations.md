@@ -1,6 +1,22 @@
 # Runtime startup and environment configuration: operations
 
+> **Current lifecycle amendment:** the [maintenance runbook](../maintenance-simplification/operations.md) replaces writer-only expert recovery. The working tree has no application writer receipt; exact local evidence and remaining build/operator gates are in [maintenance progress](../maintenance-simplification/progress.md). Old images retain their old behavior; this is not deployment authorization. Environment/identity guidance below is unchanged.
+
 **Implementation exists in the working tree; full-app build/release acceptance is not complete.** See [progress.md](./progress.md). No deployment, credential cutover or recovery is authorized by this patch. Preserve the [backend recovery runbook](../backend-hardening/operations.md#offline-recovery-no-public-unfence-endpoint).
+
+## Current startup and recovery
+
+- Synchronous outer Nitro protection and close registration; one private boot flight validates config, classifies actual restore, performs required scoped initialization, then opens ordinary admission. No `.writer.lock` or application publication guard is created/read/released.
+- `/api/health` is liveness. `/api/ready` is no-store 200 only when initialized/admission open; otherwise sanitized 503 with `Retry-After: 15`. Ordinary config/data/migration failure stays unready in that process, with `fix-config-and-restart` and `recoveryRequired:false`; correction and normal restart rerun resumable initialization without receipt clearing. DB connectivity/sign-in outages retry automatically (2s doubling to 60s); no ROOT downgrade or user password reset.
+- Ordinary crash/OOM/forced container replacement restarts normally. Retired writer/guard objects remain untouched, including corrupt, unreadable, symlinked, remote and reused-PID records. Single-instance exclusion is deployment-owned: stop/remove before replacement; no rolling app overlap.
+- Shutdown is bounded at **10 seconds**; late boot cannot publish readiness. Nitro's 15s shutdown and Compose's 45s grace remain useful. No ordinary failure/unclean-close receipt exists. Dev Workers use process-local bounded drain messages, not persistent PID/hostname ownership.
+- Backup-family jobs and reset CLI remain serialized. A new app has a ten-minute job-only execution hold; observed abandoned app/CLI jobs get a finite exact-generation hold before takeover. DB query/transaction server timeouts must be below ten minutes. Unknown/remote/partial nonrestore records may require an offline **job-only** remedy after stopping all jobs and preserving exact metadata, never DB-consistency assertions just to start the site.
+- Uncertain write markers impose finite job-only holds, never ordinary readiness/shutdown fences. Expired records remain informational (not unlinked across a possible concurrent CLI publication).
+- Trustworthy pre-destructive restore preparation is durably aborted at preflight, with bounded owned staging cleanup. Verified terminal journals do not block. Only destructive/ambiguous restore requires offline administrator recovery; preserve journal, paired DB/media safety and swap artifacts. Independent setup/access-log/media receipts retain their domain protections.
+- `panda recover` is read-only restore inspection (`clear` or `manual-recovery-required`), without env/DB/SQL/token output. Old startup archival/assertion flags are rejected before I/O. No force-unfence, automatic safety import or public recovery endpoint exists. See [CLI reference](../versioning-and-cli.md#recovery-panda-recover).
+
+<details>
+<summary>Historical RSC lifecycle instructions (superseded; NOT current operations)</summary>
 
 ## 1. Startup and diagnostics
 
@@ -84,6 +100,8 @@ Archival uses the application's exclusive publication guard, rechecks unchanged 
 It refuses live/unprobeable/remote/nonempty-corrupt ownership, mismatched generations, unfamiliar uncertainty records, existing guards/jobs and **any** restore journal or `.restore-*` artifacts. It does not offer force deletion, automated SQL rollback or migration retries. If refused, preserve the evidence and use the offline restore runbook with the DB operator.
 
 After successful archival, correct the configuration, start exactly one app instance and verify `/api/ready` returns 200. A partial archival failure is not permission to remove the remaining records; preserve the archive and rerun inspection.
+
+</details>
 
 ## 3. Environment loading and canonical names
 
