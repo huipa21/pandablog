@@ -125,7 +125,7 @@
               </div>
             </div>
 
-            <div v-if="relatedPostsEnabled" class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
+            <div class="rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-4">
               <div class="flex items-center justify-between gap-3">
                 <h4 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.editor.postSettings.relatedPosts') }}</h4>
                 <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" @click="relatedPickerOpen = true">{{ t('admin.common.add') }}</UButton>
@@ -183,7 +183,6 @@
 
   <MediaPicker :open="coverPickerOpen" :dismissible="false" return-value="url" type-filter="image" @update:open="coverPickerOpen = $event" @select="onCoverPicked" />
   <RelatedPostPicker
-    v-if="relatedPostsEnabled"
     :open="relatedPickerOpen"
     :current-post-id="currentPostId"
     :current-slug="form.slug"
@@ -216,7 +215,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { resolveMediaUrl, toPublicMediaVariantUrl } = useMediaUrl()
-const relatedPostsEnabled = __PB_BLOCK_RELATED_POST__
 const coverPickerOpen = ref(false)
 const relatedPickerOpen = ref(false)
 const showContentImages = ref(false)
@@ -265,7 +263,7 @@ function selectContentImage(src: string) {
 }
 
 function addRelatedPost(post: RelatedPostSummary & { target?: string, label?: string }) {
-  if (!relatedPostsEnabled || isCurrentPost(post) || hasRelatedPost(post)) {
+  if (isCurrentPost(post) || hasRelatedPost(post)) {
     return
   }
 

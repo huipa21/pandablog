@@ -3,6 +3,7 @@ import { queryDb, useDb } from '../../../utils/db'
 import { addUndirectedLinkEdge, graphDegreeMap, graphRecordId, graphRecordIdPart, graphVisibilityFilterForEvent, isSyntheticGraphCategory, isSyntheticGraphTag } from '../../../utils/graph'
 import { normalizeGraphPostRow, selectVisibleGraphPostsByIds, toGraphPostNode } from '../../../utils/graphQuery'
 import { queryRows } from '../../../utils/surrealResult'
+import { assertPublicFeatureEnabled } from '../../../utils/publicFeatures'
 
 interface RelationRow {
   in?: unknown
@@ -18,9 +19,7 @@ interface TaxonomyRow {
 const LOCAL_POST_LIMIT = 200
 
 export default defineEventHandler(async (event): Promise<GraphPostResponse> => {
-  if (!__PB_MODULE_GRAPH_VIEW__) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
-  }
+  await assertPublicFeatureEnabled('graph_view_enabled')
 
   const slug = (getRouterParam(event, 'slug') ?? '').trim()
   if (!slug) {

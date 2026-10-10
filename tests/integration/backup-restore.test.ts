@@ -24,7 +24,7 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real full restore worke
     let root: Awaited<ReturnType<NonNullable<typeof dbModule>['connectRootClient']>> | undefined
     const cwd = vi.spyOn(process, 'cwd').mockReturnValue(fixture.storage.root)
     try {
-      for (const [name, value] of Object.entries({__PB_MODULE_LOGS__: true, __PB_MODULE_ANALYTICS__: true, __PB_MODULE_BACKUPS__: true, useStorage: () => ({clear: async () => {}}), createError: (options: {message: string}) => Object.assign(new Error(options.message), options)})) vi.stubGlobal(name, value)
+      for (const [name, value] of Object.entries({useStorage: () => ({clear: async () => {}}), createError: (options: {message: string}) => Object.assign(new Error(options.message), options)})) vi.stubGlobal(name, value)
       const config = {surrealUrl: `${fixture.endpoint.replace('http:', 'ws:')}/rpc`, surrealRoot: fixture.username, surrealRootPassword: fixture.password, surrealNamespace: fixture.namespace, surrealDatabase: fixture.database, surrealAppUser: 'fixture_app', surrealAppPassword: 'owned-generated-scope-password', public: {}}
       vi.stubGlobal('useRuntimeConfig', () => config)
       // Static schema copy is test source, never configured storage or .env.

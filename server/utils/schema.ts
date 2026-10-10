@@ -5,27 +5,12 @@ import { queryDb, type useDb } from './db'
 
 export const SCHEMA_HASH_KEY = '__schema_hash'
 
-export function stripModuleSchemaSections(schema: string, enabledModules: Record<string, boolean>): string {
-  let result = schema
-  for (const [moduleName, enabled] of Object.entries(enabledModules)) {
-    if (!enabled) {
-      result = result.replace(new RegExp(`-- #module ${moduleName} start\\r?\\n[\\s\\S]*?-- #module ${moduleName} end\\r?\\n?`, 'g'), '')
-    }
-  }
-  return result
-}
-
 export async function loadSchema(): Promise<{ schema: string, hash: string }> {
-  const raw = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
-  const schema = stripModuleSchemaSections(raw, {
-    logs: __PB_MODULE_LOGS__,
-    analytics: __PB_MODULE_ANALYTICS__,
-    backups: __PB_MODULE_BACKUPS__
-  })
+  const schema = await readFile(resolve(process.cwd(), 'server/utils/schema.surql'), 'utf8')
   return { schema, hash: createHash('sha256').update(schema).digest('hex') }
 }
 
-/** Apply the current, module-filtered schema using a privileged connection. */
+/** Apply the current schema using a privileged connection. */
 export async function applySchema(db: Awaited<ReturnType<typeof useDb>>, schema?: string, options: {preserveData?: boolean} = {}): Promise<void> {
   let sql = schema ?? (await loadSchema()).schema
   // Restore synchronizes our reviewed static definitions without running

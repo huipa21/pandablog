@@ -91,9 +91,6 @@ export function dispatchSecurityAlert(
   event: SecurityAlertEvent,
   details: SecurityAlertDetails
 ): void {
-  if (!__PB_MODULE_SECURITY_ALERTS__) {
-    return
-  }
   const settings = getSecuritySettings()
   if (!settings.security_alerts_enabled || !settings.security_alert_webhook_url) {
     return

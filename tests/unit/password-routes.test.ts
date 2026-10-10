@@ -3,7 +3,6 @@ import { createApp, createError, defineEventHandler, getRequestIP, readBody, set
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ verify: vi.fn(async () => true), mfa: false, pending: vi.fn() }))
-vi.mock('../../utils/moduleFlags', () => ({getRuntimeModuleConfig: () => ({}), resolveModuleFlags: () => ({multiUser: true})}))
 vi.mock('../../server/utils/activity', () => ({recordActivity: vi.fn()}))
 vi.mock('../../server/utils/notify/security-alert', () => ({dispatchSecurityAlert: vi.fn(), alertDetailsFromEvent: vi.fn()}))
 vi.mock('../../server/utils/settings', () => ({getRuntimeFlags: () => ({trust_proxy_headers: true}), isSetupCompleted: async () => true, getSecuritySettings: () => ({})}))
@@ -14,7 +13,7 @@ vi.mock('../../server/utils/mfa/trusted-devices', () => ({findMatchingTrustedDev
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 async function withRoute(run: (base: string) => Promise<void>) {
-  for (const [name, value] of Object.entries({defineEventHandler, createError, getRequestIP, readBody, setResponseHeader, setUserSession: async () => {}, replaceUserSession: async () => {}, __PB_MODULE_MFA__: true})) vi.stubGlobal(name, value)
+  for (const [name, value] of Object.entries({defineEventHandler, createError, getRequestIP, readBody, setResponseHeader, setUserSession: async () => {}, replaceUserSession: async () => {}})) vi.stubGlobal(name, value)
   const { default: login } = await import('../../server/api/auth/login.post')
   const app = createApp()
   app.use('/api/auth/login', login)

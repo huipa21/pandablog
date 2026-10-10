@@ -4,7 +4,7 @@ export interface BrowserFixtureInput {
   base: string
   password: string
   profile: string
-  labels: Record<string, {dashboard: string, hold: string, createBackup: string, importBackup: string, settings: string, noBackups: string, loadFailed: string, logsTitle: string, logsSettings: string, logStorage: string}>
+  labels: Record<string, {publicFeatures: string, dashboard: string, hold: string, createBackup: string, importBackup: string, settings: string, noBackups: string, loadFailed: string, logsTitle: string, logsSettings: string, logStorage: string}>
 }
 /** Self-contained so an explicit Windows Node/browser can exercise an owned
  * WSL loopback app without installing global Linux shared libraries. */
@@ -23,7 +23,7 @@ export async function browserSmoke(driver: typeof chromium, input: BrowserFixtur
         if (!settings.ok() || (await settings.json()).settings?.admin_locale !== locale) throw new Error(`Owned admin locale update failed (HTTP ${settings.status()})`)
         await page.goto(`${input.base}/admin`, {waitUntil: 'networkidle', timeout: 45_000})
         if (!await page.getByRole('link', {name: input.labels[locale]!.dashboard, exact: true}).first().isVisible()) throw new Error('Owned localized admin navigation failed')
-        if (input.profile !== 'minimal' && input.profile !== 'no-backups') {
+        { // formerly profile-gated; every build now has every feature
           await page.goto(`${input.base}/admin/backups`, {waitUntil: 'networkidle', timeout: 45_000})
           if ((await page.request.get(`${input.base}/api/admin/backups/status`)).status() !== 200) throw new Error('Owned authenticated backup status failed')
           const status = await page.request.get(input.base + '/api/admin/backups/status')
@@ -60,7 +60,7 @@ export async function browserSmoke(driver: typeof chromium, input: BrowserFixtur
           if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)) throw new Error('Backup page overflows mobile width')
           await page.setViewportSize({width: 1280, height: 800})
         }
-        if (!['minimal', 'no-observers'].includes(input.profile)) {
+        { // formerly profile-gated; every build now has every feature
           let fetchedAccess = false
           page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/admin/logs/access')) fetchedAccess = true })
           await page.goto(`${input.base}/admin/dashboard/logs`, {waitUntil: 'networkidle', timeout: 45_000})
@@ -83,6 +83,28 @@ export async function browserSmoke(driver: typeof chromium, input: BrowserFixtur
           }
           if ((await page.request.put(`${input.base}/api/admin/settings/logging`, {headers: {Origin: input.base}, data: {retention_access_days: 7}})).status() !== 400) throw new Error('Retired settings PUT was accepted')
           if (fetchedAccess) throw new Error('Dashboard/settings still fetch retired access APIs')
+        }
+        // Runtime public features replaced build-time module flags.
+        await page.goto(`${input.base}/admin/settings/general`, {waitUntil: 'networkidle', timeout: 45_000})
+        if (!await page.getByRole('heading', {name: input.labels[locale]!.publicFeatures, exact: true}).isVisible()) throw new Error('Public features settings did not render')
+        if (locale === 'en') {
+          const featureRoutes = ['/api/graph/overview', '/api/posts/publish-frequency', '/graph']
+          const setFeatures = async (enabled: boolean) => {
+            const saved = await page.request.post(`${input.base}/api/admin/settings`, {headers: {Origin: input.base}, data: {graph_view_enabled: enabled, publish_heatmap_enabled: enabled}})
+            const values = saved.ok() ? (await saved.json()).settings : null
+            if (values?.graph_view_enabled !== enabled || values?.publish_heatmap_enabled !== enabled) throw new Error(`Public feature settings did not persist (HTTP ${saved.status()})`)
+          }
+          const anonymous = await browser.newContext()
+          try {
+            await setFeatures(false)
+            for (const route of featureRoutes) {
+              if ((await anonymous.request.get(input.base + route)).status() !== 404) throw new Error(`Disabled public feature still served ${route}`)
+            }
+            await setFeatures(true)
+            for (const route of featureRoutes) {
+              if ((await anonymous.request.get(input.base + route)).status() !== 200) throw new Error(`Enabled public feature failed ${route}`)
+            }
+          } finally {await anonymous.close()}
         }
         await page.goto(input.base, {waitUntil: 'networkidle', timeout: 45_000})
       } finally {await context.close()}

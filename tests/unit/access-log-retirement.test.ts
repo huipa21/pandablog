@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createError } from 'h3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { normalizePandablogModules, DEFAULT_PANDABLOG_MODULES, getPandablogModuleDefines } from '../../build/pandablog-modules'
 
 const db = vi.hoisted(() => ({ useDb: vi.fn(), queryDb: vi.fn(), queryDbRecord: vi.fn() }))
 vi.mock('../../server/utils/db', () => db)
@@ -12,8 +11,7 @@ beforeEach(() => {
   vi.resetModules()
   vi.resetAllMocks()
   vi.stubGlobal('createError', createError)
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   vi.stubEnv('LOG_CONSOLE', 'off')
   db.useDb.mockResolvedValue({})
   db.queryDb.mockResolvedValue([])
@@ -27,14 +25,6 @@ afterEach(async () => {
 
 const retired = ['access_log_enabled', 'retention_access_days', 'excluded_paths', 'excluded_status_codes', 'sampling_rate']
 describe('access-log retirement', () => {
-  it.each([true, false])('accepts legacy manifest accessLogs=%s without an active switch or define', value => {
-    const modules = structuredClone(DEFAULT_PANDABLOG_MODULES)
-    Object.assign(modules.logs, { accessLogs: value })
-    const manifest = normalizePandablogModules({ version: 1, modules })
-    expect(manifest.modules.logs).not.toHaveProperty('accessLogs')
-    expect(getPandablogModuleDefines(manifest)).not.toHaveProperty('__PB_MODULE_LOGS_ACCESS__')
-  })
-
   it('normalizes saved legacy keys without rewriting them at boot, and rejects retired PUT keys', async () => {
     const legacy = { enabled: true, activity_log_enabled: true, retention_access_days: 3650, sampling_rate: 0.1, excluded_paths: ['/custom'] }
     db.queryDb.mockResolvedValue([[{ value: legacy }]])

@@ -1,6 +1,7 @@
 import { queryDb, useDb } from '../../utils/db'
 import { queryRows } from '../../utils/surrealResult'
 import { isAdminAuthenticated } from '../../utils/auth'
+import { assertPublicFeatureEnabled } from '../../utils/publicFeatures'
 
 interface PublishFrequencyEntry {
   slug: string
@@ -13,9 +14,7 @@ interface PublishFrequencyResponse {
 }
 
 export default defineEventHandler(async (event): Promise<PublishFrequencyResponse> => {
-  if (!__PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
-  }
+  await assertPublicFeatureEnabled('publish_heatmap_enabled')
 
   const isAdmin = await isAdminAuthenticated(event)
   const visibilityFilter = isAdmin

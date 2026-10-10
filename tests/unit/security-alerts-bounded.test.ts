@@ -11,7 +11,6 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('webhook admission (no outgoing requests)', () => {
   it('caps active work, drops storms without retained payloads, clips payload and releases failures', async () => {
-    vi.stubGlobal('__PB_MODULE_SECURITY_ALERTS__', true)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const releases: Array<(value: unknown) => void> = []
     state.send.mockImplementation(() => new Promise(resolve => releases.push(resolve)))
@@ -31,10 +30,14 @@ describe('webhook admission (no outgoing requests)', () => {
     expect(securityAlertDiagnostics().active).toBe(0)
     expect(console.warn).toHaveBeenCalledWith('[security-alert] webhook delivery failed')
   })
-  it('disabled module never starts transport', () => {
-    vi.stubGlobal('__PB_MODULE_SECURITY_ALERTS__', false)
-    state.send.mockClear()
-    dispatchSecurityAlert('login.failed', {})
-    expect(state.send).not.toHaveBeenCalled()
+  it('runtime-disabled alerts never start transport', () => {
+    state.enabled = false
+    try {
+      state.send.mockClear()
+      dispatchSecurityAlert('login.failed', {})
+      expect(state.send).not.toHaveBeenCalled()
+    } finally {
+      state.enabled = true
+    }
   })
 })

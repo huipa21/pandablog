@@ -13,7 +13,8 @@ import { JobStore } from '../../server/utils/backups/jobMutex'
 import { browserSmoke, type BrowserFixtureInput } from './maintenance-browser'
 
 const exec = promisify(execFile)
-const profiles = new Set(['full', 'minimal', 'no-backups', 'no-observers', 'activity-only', 'errors-only', 'no-analytics'])
+// Feature flags were retired: one build contains every feature.
+const profiles = new Set(['full'])
 // Explicitly retired source, not a generic missing-file escape hatch.
 const retiredSources = new Set([
   'server/utils/backups/chain.ts', 'server/api/admin/backups/tables.get.ts',
@@ -21,6 +22,9 @@ const retiredSources = new Set([
   'server/utils/access-log-store.ts', 'server/utils/access-log-reader.ts', 'server/utils/access-log-migration.ts', 'server/utils/bounded-log-value.ts',
   'server/api/admin/logs/access.get.ts', 'server/api/admin/logs/access/[id].get.ts', 'server/api/admin/logs/access/export.get.ts', 'server/api/admin/logs/access/hourly.get.ts',
   'pages/admin/dashboard/logs/access.vue', 'pages/admin/logs/access.vue', 'utils/loggingAccessUi.ts', 'utils/loggingChart.ts', 'utils/loggingSettings.ts',
+  'modules/feature-flags.ts', 'build/pandablog-modules.ts', 'types/pandablog-modules.ts', 'types/pandablog-modules.schema.json', 'types/module-flags.d.ts',
+  'utils/moduleFlags.ts', 'composables/useModuleFlags.ts', 'scripts/configure-modules.ts', 'scripts/configure/index.html', 'scripts/print-modules.ts',
+  'pandablog.modules.json.example', 'components/admin/editor/DisabledDialogueBlockNodeView.vue',
   ...['access-log-bounds', 'access-log-maintenance', 'access-log-migration-boot', 'access-log-migration', 'access-log-purge', 'access-log-reader', 'access-log-store-plugin', 'access-log-store', 'logging-access-ui', 'logging-chart', 'logging-excluded-paths-migration', 'logging-file-api', 'logging-file-ui'].map(name => `tests/unit/${name}.test.ts`)
 ])
 async function port() {
@@ -36,7 +40,7 @@ async function main() {
   const skipBrowser = args.includes('--skip-browser')
   const windowsNode = args.find(arg => arg.startsWith('--browser-windows-node='))?.slice(23)
   const windowsModule = args.find(arg => arg.startsWith('--browser-windows-module='))?.slice(25)
-  if (!args.includes('--fixture') || !profile || !profiles.has(profile) || !['build', 'dev'].includes(mode ?? '') || !binary || args.length !== 4 + Number(skipBrowser) + Number(Boolean(windowsNode)) + Number(Boolean(windowsModule)) || Boolean(windowsNode) !== Boolean(windowsModule) || (skipBrowser && windowsNode)) throw new Error('Use --fixture --profile=full|minimal|no-backups|no-observers|activity-only|errors-only|no-analytics --mode=build|dev --surreal-bin=/absolute/binary [--skip-browser | --browser-windows-node=/mnt/c/.../node.exe --browser-windows-module=C:/.../node_modules/playwright-core/index.mjs]')
+  if (!args.includes('--fixture') || !profile || !profiles.has(profile) || !['build', 'dev'].includes(mode ?? '') || !binary || args.length !== 4 + Number(skipBrowser) + Number(Boolean(windowsNode)) + Number(Boolean(windowsModule)) || Boolean(windowsNode) !== Boolean(windowsModule) || (skipBrowser && windowsNode)) throw new Error('Use --fixture --profile=full --mode=build|dev --surreal-bin=/absolute/binary [--skip-browser | --browser-windows-node=/mnt/c/.../node.exe --browser-windows-module=C:/.../node_modules/playwright-core/index.mjs]')
   if (windowsNode && (process.platform !== 'linux' || !/^\/mnt\/[a-z]\/.*\/node\.exe$/.test(windowsNode) || !/^[A-Za-z]:[/\\].*[/\\]node_modules[/\\]playwright-core[/\\]index\.mjs$/.test(windowsModule!) || /[#?]/.test(windowsModule!))) throw new Error('Explicit Windows browser bridge paths are invalid')
   assertRuntime()
   const source = resolve('.'), storage = await createOwnedStorage()
@@ -66,7 +70,9 @@ async function main() {
       'server/utils/backups/contracts.ts', 'server/utils/backups/manifest.ts', 'server/utils/backups/bundle.ts', 'server/utils/backups/snapshotReads.ts', 'server/utils/backups/snapshot.ts', 'server/utils/backups/package.ts', 'server/utils/backups/publication.ts',
       'server/api/admin/backups/[id]/download.get.ts', 'server/api/admin/backups/[id]/download.head.ts',
       'server/utils/request-id.ts', 'server/middleware/request-id.ts', 'server/plugins/request-id.ts', 'scripts/backend-hardening/access-proxy.ts',
-      'tests/unit/request-id.test.ts', 'tests/unit/access-log-retirement.test.ts', 'tests/unit/access-log-retirement-http.test.ts'])]
+      'tests/unit/request-id.test.ts', 'tests/unit/access-log-retirement.test.ts', 'tests/unit/access-log-retirement-http.test.ts',
+      'server/utils/publicFeatures.ts', 'build/legacy-module-manifest.ts', 'modules/legacy-module-manifest.ts',
+      'tests/unit/feature-flags-retired.test.ts', 'tests/unit/legacy-module-manifest.test.ts', 'tests/unit/public-features-settings.test.ts'])]
     if (files.length > 20_000) throw new Error('Source-copy file budget exceeded')
     for (const file of files) {
       if (interrupted) throw new Error('Owned fixture interrupted')
@@ -80,15 +86,6 @@ async function main() {
       await mkdir(dirname(to), {recursive: true}); await copyFile(from, to)
     }
     await symlink(join(source, 'node_modules'), storage.path('node_modules'), process.platform === 'win32' ? 'junction' : 'dir')
-    const modules: Record<string, unknown> = {}
-    for (const name of ['editor', 'logs', 'analytics', 'users', 'themes', 'mfa', 'securityAlerts', 'backups', 'graphView', 'publishActivityHeatmap', 'postVersioning']) modules[name] = {enabled: profile !== 'minimal'}
-    modules.users = {enabled: profile !== 'minimal', multiUser: profile !== 'minimal'}
-    if (profile === 'no-backups') modules.backups = {enabled: false}
-    if (profile === 'no-observers') {modules.logs = {enabled: false}; modules.analytics = {enabled: false}}
-    if (profile === 'activity-only') modules.logs = {enabled: true, activityLogs: true, errorLogs: false, accessLogs: true}
-    if (profile === 'errors-only') modules.logs = {enabled: true, activityLogs: false, errorLogs: true, accessLogs: false}
-    if (profile === 'no-analytics') modules.analytics = {enabled: false}
-    await writeFile(storage.path('pandablog.modules.json'), JSON.stringify({version: 1, modules}))
     if (mode === 'dev') await writeFile(join(storage.root, 'server/api/ms-owned-probe.get.ts'), "export default defineEventHandler(() => ({generation: 1}));")
     await writeFile(join(storage.root, 'server/api/al-owned-error.get.ts'), "export default defineEventHandler(() => {throw createError({statusCode: 500, message: 'owned-request-correlation'})});")
     db = await startFixture({enabled: '1', binary})
@@ -140,7 +137,7 @@ async function main() {
         bytes += info.size
         if (info.size > 64 * 1024 * 1024 || bytes > 256 * 1024 * 1024) throw new Error('Owned build scan byte budget exceeded')
         const code = await readFile(from, 'utf8')
-        if (/appendAccessLog|queryAccessLogs|migrateAccessLogs|__PB_MODULE_LOGS_ACCESS__/.test(code)) throw new Error('Retired access engine remains in emitted server code')
+        if (/appendAccessLog|queryAccessLogs|migrateAccessLogs|__PB_(?:MODULE|BLOCK)_/.test(code)) throw new Error('Retired access engine or feature-flag constant remains in emitted server code')
       }
       console.info(JSON.stringify({evidence: 'owned-emitted-server-access-retirement', profile, files: emitted.length, bytes, passed: true}))
     }
@@ -174,7 +171,7 @@ async function main() {
     const failed = await get('/api/al-owned-error')
     const failedId = failed.headers.get('x-request-id')
     if (failed.status !== 500 || !failedId) throw new Error('Actual app error lost request correlation')
-    if (!['minimal', 'no-observers', 'activity-only'].includes(profile)) {
+    { // formerly profile-gated; every build now has every feature
       let correlated = false
       for (let attempt = 0; attempt < 50; attempt++) {
         const rows = (await coldDb!.query('SELECT request_id FROM error_logs WHERE request_id = $id;', {id: failedId}))[0] as unknown[]
@@ -190,7 +187,7 @@ async function main() {
       const labels: BrowserFixtureInput['labels'] = {}
       for (const locale of ['en', 'zh-CN']) {
         const value = JSON.parse(await readFile(join(storage.root, `i18n/locales/${locale}.json`), 'utf8'))
-        labels[locale] = {dashboard: value.admin.nav.dashboard, hold: value.admin.backups.jobsQuiescing.split('{until}')[0], createBackup: value.admin.backups.createBackup, importBackup: value.admin.backups.importBackup, settings: value.admin.backups.settings, noBackups: value.admin.backups.noBackups, loadFailed: value.admin.backups.loadFailed, logsTitle: value.admin.logs.title, logsSettings: value.admin.logs.settings.title, logStorage: value.admin.logs.storage}
+        labels[locale] = {publicFeatures: value.admin.settings.general.publicFeaturesTitle, dashboard: value.admin.nav.dashboard, hold: value.admin.backups.jobsQuiescing.split('{until}')[0], createBackup: value.admin.backups.createBackup, importBackup: value.admin.backups.importBackup, settings: value.admin.backups.settings, noBackups: value.admin.backups.noBackups, loadFailed: value.admin.backups.loadFailed, logsTitle: value.admin.logs.title, logsSettings: value.admin.logs.settings.title, logStorage: value.admin.logs.storage}
       }
       const input = {base, password, profile, labels}
       if (windowsNode && windowsModule) {

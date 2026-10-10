@@ -244,8 +244,7 @@ describe('retention runner', () => {
     vi.resetModules()
     vi.useFakeTimers()
     vi.setSystemTime(now)
-    vi.stubGlobal('__PB_MODULE_LOGS__', true)
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
     logger.initializeLoggingSettings.mockResolvedValue(runnerSettings())
     logger.getLoggingSettings.mockReturnValue(runnerSettings())
     groupRetention.retainErrorGroups.mockResolvedValue({ groups: 0, occurrences: 0 })
@@ -320,25 +319,6 @@ describe('retention runner', () => {
     expect(mocks.queryDb).toHaveBeenCalledTimes(1)
   })
 
-  it.each([
-    ['activityLogs', 'activity_logs'], ['errorLogs', 'error_logs']
-  ] as const)('skips the stream disabled by module flag %s', async (flag, table) => {
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { [flag]: false } } } }))
-    const { runLogRetention } = await import('../../server/utils/log-retention')
-    await runLogRetention()
-    expect(mocks.queryDb.mock.calls.map(call => call[2].table)).not.toContain(table)
-    expect(mocks.queryDb).toHaveBeenCalledTimes(1)
-  })
-
-  it.each(['build', 'runtime'])('is a no-op before settings/DB access when %s logging is disabled', async (mode) => {
-    if (mode === 'build') vi.stubGlobal('__PB_MODULE_LOGS__', false)
-    else vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { enabled: false } } } }))
-    const { runLogRetention } = await import('../../server/utils/log-retention')
-    expect((await runLogRetention()).errors).toEqual([])
-    expect(logger.initializeLoggingSettings).not.toHaveBeenCalled()
-    expect(mocks.queryDb).not.toHaveBeenCalled()
-  })
-
   it('continues the other streams after one fails and reports/audits the error', async () => {
     mocks.queryDb.mockRejectedValueOnce(new Error('DB unavailable')).mockResolvedValueOnce(batchResult(3))
     const { runLogRetention } = await import('../../server/utils/log-retention')
@@ -349,22 +329,13 @@ describe('retention runner', () => {
     expect(logger.warn).toHaveBeenCalledWith('[logging] retention completed with errors', { errors: report.errors, deleted: report.deleted })
   })
 
-  it('reports settings initialization failures without deleting and warns even when activity is off', async () => {
+  it('reports settings initialization failures without deleting, then audits and warns', async () => {
     logger.initializeLoggingSettings.mockRejectedValue(new Error('settings unavailable'))
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { activityLogs: false } } } }))
     const { runLogRetention } = await import('../../server/utils/log-retention')
     expect((await runLogRetention()).errors).toEqual(['settings: settings unavailable'])
     expect(mocks.queryDb).not.toHaveBeenCalled()
-    expect(logger.logActivity).not.toHaveBeenCalled()
+    expect(logger.logActivity).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not emit an activity entry when the activity module is disabled', async () => {
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { activityLogs: false } } } }))
-    mocks.queryDb.mockResolvedValue(batchResult(1))
-    const { runLogRetention } = await import('../../server/utils/log-retention')
-    await runLogRetention()
-    expect(logger.logActivity).not.toHaveBeenCalled()
   })
 
   it('shares the exact in-flight promise and permits a new run after completion', async () => {

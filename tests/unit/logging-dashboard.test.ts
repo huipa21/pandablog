@@ -16,13 +16,12 @@ new Function('require', 'exports', code)((id: string) => {
   throw new Error(`Unexpected dashboard import: ${id}`)
 }, exports)
 const Dashboard = exports.default
-let errorEnabled: boolean, fetcher: ReturnType<typeof vi.fn>, onRefresh: () => void, linkTargets: unknown[]
+let fetcher: ReturnType<typeof vi.fn>, onRefresh: () => void, linkTargets: unknown[]
 const refreshers = new Map<string, ReturnType<typeof vi.fn>>()
 beforeEach(() => {
-  linkTargets = []; errorEnabled = true; refreshers.clear()
+  linkTargets = []; refreshers.clear()
   fetcher = vi.fn(async (url: string) => url.endsWith('/stats') ? { activity: { count: 5 }, errors: { unread_groups: 7 }, db_estimate_bytes: 2 * 1024 * 1024 } : { rows: [] })
   vi.stubGlobal('definePageMeta', vi.fn()); vi.stubGlobal('computed', vue.computed)
-  vi.stubGlobal('useModuleFlags', () => ({ activityLogs: true, errorLogs: errorEnabled }))
   vi.stubGlobal('useSessionFetch', () => fetcher)
   vi.stubGlobal('useAsyncData', async (key: string, handler: () => Promise<unknown>) => {
     const data = vue.ref<unknown>(null), error = vue.ref<unknown>(null)
@@ -71,11 +70,10 @@ describe('DB-only logging dashboard SFC', () => {
     expect([...refreshers.values()].every(refresh => refresh.mock.calls.length === 1)).toBe(true)
     expect(fetcher.mock.calls.every(([url]) => !url.includes('/access'))).toBe(true)
   })
-  it('keeps the overview/activity available without the error module', async () => {
-    errorEnabled = false
-    const html = await render()
+  it('always links both log overviews and loads recent error groups (no build-time module switch)', async () => {
+    await render()
     expect(linkTargets).toContain('/admin/dashboard/logs/activity')
-    expect(html).not.toContain('Recent errors')
-    expect(fetcher.mock.calls.some(([url]) => url.includes('error-groups'))).toBe(false)
+    expect(linkTargets).toContain('/admin/dashboard/logs/errors')
+    expect(fetcher.mock.calls.some(([url]) => url.includes('error-groups'))).toBe(true)
   })
 })

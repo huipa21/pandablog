@@ -1,7 +1,6 @@
 import { queryDb, useDb } from './db'
 import { firstRow } from './surrealResult'
 import { retainErrorGroups } from './error-groups'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import type { RetentionReport } from '~/types/logging'
 
 export const LOG_RETENTION_SCHEDULE = '17 3 * * *'
@@ -42,19 +41,6 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
     deleted: { activity: 0, errors: 0 },
     errors: []
   }
-  const complete = () => {
-    report.finished_at = new Date().toISOString()
-    report.duration_ms = Math.max(0, Date.now() - started)
-    lastReport = copyReport(report)
-    return report
-  }
-  if (!__PB_MODULE_LOGS__) {
-    return complete()
-  }
-  const flags = resolveModuleFlags(getRuntimeModuleConfig())
-  if (!flags.logs) {
-    return complete()
-  }
   // logging.ts imports the deletion helpers; defer this import to avoid an
   // eager settings/logger dependency cycle when those helpers are loaded.
   const { initializeLoggingSettings, getLoggingSettings, logActivity, warn } = await import('./logging')
@@ -63,8 +49,8 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
     const settings = { ...getLoggingSettings() }
     if (settings.enabled) {
       const streams = [
-        { key: 'activity', table: 'activity_logs', enabled: flags.activityLogs && settings.activity_log_enabled, days: settings.retention_activity_days },
-        { key: 'errors', table: 'error_logs', enabled: flags.errorLogs && settings.error_log_enabled, days: settings.retention_error_days }
+        { key: 'activity', table: 'activity_logs', enabled: settings.activity_log_enabled, days: settings.retention_activity_days },
+        { key: 'errors', table: 'error_logs', enabled: settings.error_log_enabled, days: settings.retention_error_days }
       ] as const
       for (const stream of streams) {
         if (!stream.enabled) continue
@@ -74,7 +60,7 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
           report.errors.push(`${stream.key}: ${describeFailure(error)}`)
         }
       }
-      if (flags.errorLogs && settings.error_log_enabled) {
+      if (settings.error_log_enabled) {
         try {
           const trimmed = await retainErrorGroups(new Date(cutoffTime - settings.retention_error_days * 86_400_000), settings.error_occurrences_per_group)
           report.deleted.error_groups = trimmed.groups
@@ -90,7 +76,7 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
   report.finished_at = new Date().toISOString()
   report.duration_ms = Math.max(0, Date.now() - started)
   const total = Object.values(report.deleted).reduce((sum, count) => sum + (count ?? 0), 0)
-  if (flags.activityLogs && (total > 0 || report.errors.length)) {
+  if (total > 0 || report.errors.length) {
     try {
       logActivity({ action: 'system.log_retention', resource_type: 'logging', metadata: { ...report }, description: `Scheduled log retention removed ${total} rows` })
     } catch (error) {

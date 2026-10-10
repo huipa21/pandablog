@@ -3,15 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getMfaPending, resolveMfaActor } from '../../server/utils/mfa/session'
 import { getSessionUser, requireUser, isAdminAuthenticated } from '../../server/utils/auth'
 
-const state = vi.hoisted(() => ({ cookie: true, multi: true, account: null as Record<string, unknown> | null, find: vi.fn(), session: {} as Record<string, unknown> }))
+const state = vi.hoisted(() => ({ cookie: true, account: null as Record<string, unknown> | null, find: vi.fn(), session: {} as Record<string, unknown> }))
 vi.mock('../../server/utils/users', () => ({ findAuthAccountById: state.find }))
 vi.mock('../../server/utils/settings', () => ({isSetupCompleted: async () => true}))
 vi.mock('../../server/utils/session-cookie', () => ({hasAuthSessionCookie: () => state.cookie}))
-vi.mock('../../utils/moduleFlags', () => ({getRuntimeModuleConfig: () => ({}), resolveModuleFlags: () => ({multiUser: state.multi})}))
 const epoch = 'a'.repeat(48)
 const event = () => ({context: {}} as never)
 beforeEach(() => {
-  state.cookie = true; state.multi = true
+  state.cookie = true
   state.account = {id: 'users:fixture', username: 'fixture', role: 'author', active: true, auth_epoch: epoch}
   state.session = {user: {id: 'users:fixture', username: 'forged-display', role: 'superadmin'}, secure: {authEpoch: epoch}}
   state.find.mockReset().mockImplementation(async () => state.account)
@@ -39,9 +38,8 @@ describe('current identity and owner authorization', () => {
     expect(await getSessionUser(event())).toBeNull()
     await expect(requireUser(event())).rejects.toMatchObject({statusCode: 401})
   })
-  it('single-user mode accepts only designated owner without promoting roles', async () => {
-    state.multi = false
-    expect(await getSessionUser(event())).toBeNull()
+  it('every active account resolves with its own role; admin tier is role-based only', async () => {
+    expect(await getSessionUser(event())).toMatchObject({id: 'users:fixture', role: 'author'})
     expect(await isAdminAuthenticated(event())).toBe(false)
     state.session.user = {id: 'users:admin'}
     state.account = {...state.account, id: 'users:admin', username: 'admin', role: 'superadmin'}

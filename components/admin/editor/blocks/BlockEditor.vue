@@ -246,7 +246,6 @@ import { AccordionBlockNode, AccordionPaneNode } from '~/extensions/accordionBlo
 import { DialogueBlockNode, DialogueLineNode } from '~/extensions/dialogueBlock'
 import DialogueBlockNodeView from '~/components/admin/editor/DialogueBlockNodeView.vue'
 import DialogueLineNodeView from '~/components/admin/editor/DialogueLineNodeView.vue'
-import DisabledDialogueBlockNodeView from '~/components/admin/editor/DisabledDialogueBlockNodeView.vue'
 import DiffBlockNodeView from '~/components/admin/editor/DiffBlockNodeView.vue'
 import CustomHtmlNodeView from '~/components/admin/editor/CustomHtmlNodeView.vue'
 import VideoEmbedNodeView from '~/components/admin/editor/VideoEmbedNodeView.vue'
@@ -295,8 +294,6 @@ const emit = defineEmits<{
 }>()
 
 async function loadCodeBlockExtensions(): Promise<Extensions> {
-  if (!__PB_BLOCK_CODE_BLOCK__) return []
-
   const [latexLanguage, lowlightModule, codeBlockModule, nodeViewModule] = await Promise.all([
     import('highlight.js/lib/languages/latex'),
     import('lowlight'),
@@ -319,8 +316,6 @@ async function loadCodeBlockExtensions(): Promise<Extensions> {
 }
 
 async function loadMermaidExtensions(): Promise<Extensions> {
-  if (!__PB_BLOCK_MERMAID__) return []
-
   const [mermaidModule, nodeViewModule] = await Promise.all([
     import('~/extensions/mermaid'),
     import('~/components/admin/editor/MermaidNodeView.vue')
@@ -336,8 +331,6 @@ async function loadMermaidExtensions(): Promise<Extensions> {
 }
 
 async function loadBlockMathExtensions(): Promise<Extensions> {
-  if (!__PB_BLOCK_BLOCK_MATH__) return []
-
   const [mathModule, nodeViewModule] = await Promise.all([
     import('~/extensions/blockMath'),
     import('~/components/admin/editor/MathNodeView.vue')
@@ -353,8 +346,6 @@ async function loadBlockMathExtensions(): Promise<Extensions> {
 }
 
 async function loadInlineMathExtensions(): Promise<Extensions> {
-  if (!__PB_BLOCK_INLINE_MATH__) return []
-
   const [mathModule, nodeViewModule] = await Promise.all([
     import('~/extensions/inlineMath'),
     import('~/components/admin/editor/MathNodeView.vue')
@@ -370,8 +361,6 @@ async function loadInlineMathExtensions(): Promise<Extensions> {
 }
 
 async function loadAnnotationExtensions(): Promise<Extensions> {
-  if (!__PB_BLOCK_ANNOTATION_BLOCK__) return []
-
   const [rubyModule, annotationModule, rubyEditModule, rubyNodeViewModule, annotationNodeViewModule] = await Promise.all([
     import('~/extensions/rubyUnit'),
     import('~/extensions/annotationBlock'),
@@ -524,108 +513,71 @@ const editor = useEditor({
     Color,
     HighlightEnhanced,
     FontFamily,
-    ...(__PB_BLOCK_HORIZONTAL_RULE__ ? [SeparatorNode] : []),
+    SeparatorNode,
     Dropcursor.configure({ color: 'var(--pb-primary)', width: 2 }),
     ...codeBlockExtensions,
-    ...(__PB_BLOCK_DIFF_BLOCK__
-      ? [DiffBlockNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(DiffBlockNodeView)
-          }
-        })]
-      : []),
-    ...(__PB_BLOCK_CUSTOM_HTML__
-      ? [CustomHtmlNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(CustomHtmlNodeView)
-          }
-        })]
-      : []),
-    ...(__PB_BLOCK_VIDEO_EMBED__
-      ? [VideoEmbedNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(VideoEmbedNodeView)
-          }
-        })]
-      : []),
-    ...(__PB_BLOCK_IMAGE__
-      ? [ImageBlockNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(ImageBlockNodeView)
-          }
-        })]
-      : []),
-    ...(__PB_BLOCK_MEDIA_TEXT__
-      ? [MediaTextNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(MediaTextNodeView)
-          }
-        })]
-      : []),
-    ...(__PB_BLOCK_FILES_BLOCK__
-      ? [FilesBlockNode.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(FilesBlockNodeView)
-          }
-        })]
-      : []),
-    ...(__PB_BLOCK_COLUMNS_BLOCK__
-      ? [
-          ColumnsBlockNode.extend({
-            addNodeView() {
-              return VueNodeViewRenderer(ColumnsBlockNodeView)
-            }
-          }),
-          ColumnItemNode.extend({
-            addNodeView() {
-              return VueNodeViewRenderer(ColumnItemNodeView)
-            }
-          })
-        ]
-      : []),
-    ...(__PB_BLOCK_TABS_BLOCK__
-      ? [
-          TabsBlockNode.extend({
-            addNodeView() {
-              return VueNodeViewRenderer(TabsBlockNodeView)
-            }
-          }),
-          TabPanelNode.extend({
-            addNodeView() {
-              return VueNodeViewRenderer(TabPanelNodeView)
-            }
-          })
-        ]
-      : []),
-    ...(__PB_BLOCK_ACCORDION_BLOCK__
-      ? [
-          AccordionBlockNode.extend({
-            addNodeView() {
-              return VueNodeViewRenderer(AccordionBlockNodeView)
-            }
-          }),
-          AccordionPaneNode.extend({
-            addNodeView() {
-              return VueNodeViewRenderer(AccordionPaneNodeView)
-            }
-          })
-        ]
-      : []),
-    ...(__PB_BLOCK_DIALOGUE_BLOCK__
-      ? [
-          DialogueBlockNode.configure({ characterNames: [t('admin.editor.dialogue.characterA'), t('admin.editor.dialogue.characterB')] }).extend({ addNodeView() { return VueNodeViewRenderer(DialogueBlockNodeView) } }),
-          DialogueLineNode.extend({ addNodeView() { return VueNodeViewRenderer(DialogueLineNodeView) } })
-        ]
-      : [
-          // Keep the schema when disabled: opening/saving a post must not erase dialogue JSON.
-          DialogueBlockNode.extend({
-            addCommands() { return {} },
-            addKeyboardShortcuts() { return {} },
-            addProseMirrorPlugins() { return [] },
-            addNodeView() { return VueNodeViewRenderer(DisabledDialogueBlockNodeView) }
-          }),
-          DialogueLineNode.extend({ addKeyboardShortcuts() { return {} }, addInputRules() { return [] } })
-        ]),
+    DiffBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(DiffBlockNodeView)
+      }
+    }),
+    CustomHtmlNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(CustomHtmlNodeView)
+      }
+    }),
+    VideoEmbedNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(VideoEmbedNodeView)
+      }
+    }),
+    ImageBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(ImageBlockNodeView)
+      }
+    }),
+    MediaTextNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(MediaTextNodeView)
+      }
+    }),
+    FilesBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(FilesBlockNodeView)
+      }
+    }),
+    ColumnsBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(ColumnsBlockNodeView)
+      }
+    }),
+    ColumnItemNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(ColumnItemNodeView)
+      }
+    }),
+    TabsBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(TabsBlockNodeView)
+      }
+    }),
+    TabPanelNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(TabPanelNodeView)
+      }
+    }),
+    AccordionBlockNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(AccordionBlockNodeView)
+      }
+    }),
+    AccordionPaneNode.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(AccordionPaneNodeView)
+      }
+    }),
+    DialogueBlockNode.configure({ characterNames: [t('admin.editor.dialogue.characterA'), t('admin.editor.dialogue.characterB')] }).extend({ addNodeView() { return VueNodeViewRenderer(DialogueBlockNodeView) } }),
+    DialogueLineNode.extend({ addNodeView() { return VueNodeViewRenderer(DialogueLineNodeView) } }),
     LinkEnhanced.configure({
       autolink: true,
       linkOnPaste: true,
@@ -656,31 +608,25 @@ const editor = useEditor({
     TextAlign.configure({
       types: ['heading', 'paragraph']
     }),
-    ...(__PB_BLOCK_TABLE__
-      ? [
-          Table.configure({
-            resizable: true
-          }),
-          TableRow,
-          TableHeader,
-          TableCell
-        ]
-      : []),
+    Table.configure({
+      resizable: true
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
     ...mermaidExtensions,
     ...blockMathExtensions,
     BlockReorderCommands,
-    ...(__PB_BLOCK_BLOCKQUOTE__
-      ? [BlockquoteEnhanced.extend({
-          addNodeView() {
-            return VueNodeViewRenderer(QuoteBlockNodeView)
-          }
-        })]
-      : []),
+    BlockquoteEnhanced.extend({
+      addNodeView() {
+        return VueNodeViewRenderer(QuoteBlockNodeView)
+      }
+    }),
     Subscript,
     Superscript,
-    ...(__PB_BLOCK_FOOTNOTES_BLOCK__ ? [Footnote] : []),
+    Footnote,
     ListItemEnhanced,
-    ...(__PB_BLOCK_FOOTNOTES_BLOCK__ ? [FootnotesBlockNode] : []),
+    FootnotesBlockNode,
     ...annotationExtensions,
     ...inlineMathExtensions
   ],
@@ -1233,7 +1179,7 @@ function runTransform(target: string) {
   if (!ed) return
   const chain = ed.chain().focus()
   switch (target) {
-    case 'dialogueBlock': if (__PB_BLOCK_DIALOGUE_BLOCK__) chain.convertParagraphsToDialogue().run(); break
+    case 'dialogueBlock': chain.convertParagraphsToDialogue().run(); break
     case 'paragraph': chain.setParagraph().run(); break
     case 'heading-1': chain.setHeading({ level: 1 }).run(); break
     case 'heading-2': chain.setHeading({ level: 2 }).run(); break

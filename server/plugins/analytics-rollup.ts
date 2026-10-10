@@ -3,10 +3,8 @@ import { cleanupAnalyticsRetention, rollupCompletedAnalyticsDays, shutdownAnalyt
 import { shutdownAnalyticsTracking } from '../utils/analytics/session'
 import { analyticsReady } from '../utils/analytics/lifecycle'
 import { ensureAnalyticsGeoDir } from '../utils/analytics/geo'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 export default defineNitroPlugin((nitro) => {
-  if (!__PB_MODULE_ANALYTICS__ || !resolveModuleFlags(getRuntimeModuleConfig()).analytics) return
   let running: Promise<void> | undefined, lastCompletedDate = '', stopped = false
   const abort = new AbortController()
   const run = () => {

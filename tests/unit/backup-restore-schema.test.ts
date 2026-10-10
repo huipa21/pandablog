@@ -43,8 +43,6 @@ beforeEach(() => {
   mocks.validateDumpByStaging.mockResolvedValue({post: {count: 1, sample: 'synthetic'}})
   mocks.queryDb.mockImplementation(async (_db, sql: string) => sql.includes('FROM users:admin') ? [[{id: 'users:admin'}]] : [[]])
   vi.stubGlobal('useStorage', () => ({clear: mocks.clear}))
-  vi.stubGlobal('__PB_MODULE_ANALYTICS__', true)
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
 })
 afterEach(() => vi.unstubAllGlobals())
 async function run() {

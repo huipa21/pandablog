@@ -15,7 +15,7 @@ beforeEach(async () => {
   vi.resetModules()
   vi.resetAllMocks()
   for (const [name, value] of Object.entries({ createError, defineEventHandler, getRequestURL, getRouterParams, readBody })) vi.stubGlobal(name, value)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   mocks.requireSuperadmin.mockResolvedValue({ role: 'superadmin' })
   mocks.purgeLogType.mockResolvedValue(7)
   const app = createApp()

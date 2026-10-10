@@ -38,7 +38,7 @@
         </button>
       </form>
 
-      <form v-else-if="mfaModuleEnabled && step === 'mfa'" class="login-form" @submit.prevent="verifyMfa">
+      <form v-else-if="step === 'mfa'" class="login-form" @submit.prevent="verifyMfa">
         <p class="login-hint">{{ t('public.login.mfa.prompt') }}</p>
 
         <label class="login-field">
@@ -70,7 +70,7 @@
         </button>
       </form>
 
-      <form v-else-if="mfaModuleEnabled && step === 'enroll'" class="login-form" @submit.prevent="activateEnroll">
+      <form v-else-if="step === 'enroll'" class="login-form" @submit.prevent="activateEnroll">
         <p class="login-hint">{{ t('public.login.mfa.enrollPrompt') }}</p>
 
         <img v-if="enrollQr" :src="enrollQr" :alt="t('public.login.mfa.qrAlt')" class="login-qr">
@@ -108,7 +108,7 @@
         </button>
       </form>
 
-      <div v-else-if="mfaModuleEnabled && step === 'enroll-codes'" class="login-form">
+      <div v-else-if="step === 'enroll-codes'" class="login-form">
         <p class="login-hint">{{ t('public.login.mfa.codesPrompt') }}</p>
         <ul class="login-codes">
           <li v-for="code in backupCodes" :key="code"><code>{{ code }}</code></li>
@@ -139,7 +139,6 @@ const username = ref('')
 const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
-const mfaModuleEnabled = __PB_MODULE_MFA__
 
 type LoginStep = 'credentials' | 'mfa' | 'enroll' | 'enroll-codes'
 const step = ref<LoginStep>('credentials')
@@ -180,12 +179,12 @@ async function login() {
       }
     })
 
-    if (mfaModuleEnabled && response.mfa_required) {
+    if (response.mfa_required) {
       mfaCode.value = ''
       step.value = 'mfa'
       return
     }
-    if (mfaModuleEnabled && response.mfa_enrollment_required) {
+    if (response.mfa_enrollment_required) {
       await startEnrollment()
       return
     }

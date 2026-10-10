@@ -116,8 +116,7 @@ export default defineNuxtConfig({
     public: {
       footerShowPoweredBy: parseEnvironmentBoolean(resolveEnvironment(
         'NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY', localEnv, process.env, 'false'
-      )),
-      modules: {}
+      ))
     }
   },
   nitro: {

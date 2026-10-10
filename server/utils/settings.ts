@@ -38,7 +38,9 @@ export const PUBLIC_SETTING_KEYS = [
   'footer_links',
   'footer_social',
   'footer_filings',
-  'footer_show_powered_by'
+  'footer_show_powered_by',
+  'graph_view_enabled',
+  'publish_heatmap_enabled'
 ] as const
 
 export const RUNTIME_SETTING_KEYS = [
@@ -176,6 +178,8 @@ export interface PublicSiteSettings {
   footer_social: SettingsLink[]
   footer_filings: SettingsLink[]
   footer_show_powered_by: boolean
+  graph_view_enabled: boolean
+  publish_heatmap_enabled: boolean
 }
 
 const publicSettingKeySet = new Set<string>(PUBLIC_SETTING_KEYS)
@@ -331,6 +335,12 @@ export function filterAdminSettings(values: Record<string, unknown>) {
 
   if (ADMIN_POST_DISPLAY_MODE_KEY in filtered) {
     filtered[ADMIN_POST_DISPLAY_MODE_KEY] = normalizeAdminPostDisplayMode(filtered[ADMIN_POST_DISPLAY_MODE_KEY])
+  }
+
+  for (const key of ['graph_view_enabled', 'publish_heatmap_enabled'] as const) {
+    if (key in filtered) {
+      filtered[key] = booleanValue(filtered[key], true)
+    }
   }
 
   if ('analytics_enabled' in filtered) {
@@ -617,7 +627,9 @@ export function normalizePublicSettings(values: Record<string, unknown>): Public
     footer_links: linksValue(values.footer_links),
     footer_social: linksValue(values.footer_social),
     footer_filings: linksValue(values.footer_filings),
-    footer_show_powered_by: booleanValue(values.footer_show_powered_by, true)
+    footer_show_powered_by: booleanValue(values.footer_show_powered_by, true),
+    graph_view_enabled: booleanValue(values.graph_view_enabled, true),
+    publish_heatmap_enabled: booleanValue(values.publish_heatmap_enabled, true)
   }
 }
 

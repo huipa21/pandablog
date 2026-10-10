@@ -52,8 +52,6 @@ describe('non-awaiting Nitro startup plugin lifecycle', () => {
   it('actual db-init plugin cannot allocate privileged clients while ownership is pending or refused', async () => {
     const pending = deferred<boolean>()
     const {hooks} = await load(pending.promise)
-    vi.stubGlobal('__PB_MODULE_LOGS__', false)
-    vi.stubGlobal('__PB_MODULE_ANALYTICS__', false)
     const {default: initialize} = await import('../../server/plugins/db-init')
     const flight = initialize({} as never)
     expect(jobs.initializeRuntimeDatabase).not.toHaveBeenCalled()

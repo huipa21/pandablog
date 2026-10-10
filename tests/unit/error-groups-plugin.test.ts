@@ -5,8 +5,7 @@ vi.mock('../../server/utils/error-group-write', () => mocks)
 beforeEach(() => {
   vi.resetModules(); vi.resetAllMocks()
   vi.stubGlobal('defineNitroPlugin', (handler: unknown) => handler)
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
 })
 afterEach(() => vi.unstubAllGlobals())
 describe('error group shutdown plugin', () => {
@@ -19,13 +18,5 @@ describe('error group shutdown plugin', () => {
     expect(mocks.flushPendingErrorGroups).toHaveBeenCalledOnce()
     expect(mocks.waitForErrorGroupWrites).toHaveBeenCalledOnce()
     expect(mocks.flushPendingErrorGroups.mock.invocationCallOrder[0]).toBeLessThan(mocks.waitForErrorGroupWrites.mock.invocationCallOrder[0]!)
-  })
-  it.each(['build', 'logs', 'errors'])('is a no-op with %s disabled', async mode => {
-    if (mode === 'build') vi.stubGlobal('__PB_MODULE_LOGS__', false)
-    else vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: mode === 'logs' ? { enabled: false } : { errorLogs: false } } } }))
-    const hooks = { hook: vi.fn() }
-    const { default: plugin } = await import('../../server/plugins/error-groups')
-    plugin({ hooks } as any)
-    expect(hooks.hook).not.toHaveBeenCalled()
   })
 })

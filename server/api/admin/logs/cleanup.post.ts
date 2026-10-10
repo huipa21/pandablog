@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { requireSuperadmin } from '../../../utils/auth'
 import { runManualLogCleanup } from '../../../utils/logging'
-import { assertLogTypeEnabled } from '../../../utils/logging-admin'
 
 const cleanupSchema = z.discriminatedUnion('mode', [
   z.object({
@@ -25,7 +24,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: parsed.error.issues[0]?.message ?? 'Invalid cleanup payload' })
   }
 
-  assertLogTypeEnabled(parsed.data.type)
   const result = await runManualLogCleanup(parsed.data)
   return { ok: true, result }
 })

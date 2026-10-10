@@ -22,7 +22,7 @@ managing media, and configuring your site — all backed by SurrealDB.
 - [First-run setup](#first-run-setup)
 - [Available scripts](#available-scripts)
 - [Versioning & the `panda` CLI](#versioning--the-panda-cli)
-- [Optional features (modules)](#optional-features-modules)
+- [Optional features](#optional-features)
 - [Content blocks](#content-blocks)
 - [Media library](#media-library)
 - [Backups](#backups)
@@ -222,8 +222,6 @@ argon2id and stored in SurrealDB. You can change it later from **Admin → Setti
 | `npm run format` | Format the codebase with Prettier |
 | `npm run test:unit` | Run unit tests (Vitest) |
 | `npm run test:e2e` | Run end-to-end tests (Playwright) |
-| `npm run configure` | Interactively select optional modules |
-| `npm run modules:print` | Print the normalized module manifest |
 | `npm run hash-password` | Generate an argon2 password hash |
 | `npm run version:print` | Print the build version for the current commit |
 | `npm run container:build` | Build container image (auto-detects Docker / Podman) |
@@ -314,50 +312,26 @@ guarantees, OCI labels, admin API and the full CLI reference.
 
 ---
 
-## Optional features (modules)
+## Optional features
 
-PandaBlog can compile optional features in or out via
-[pandablog.modules.json](pandablog.modules.json). Edit the manifest directly, or run the
-interactive configurator:
+Every feature is included in every build. Optional behavior is controlled at runtime by a
+superadmin, without rebuilding:
 
-```bash
-npm run configure
-```
+| Feature | Where to control it | Default |
+| --- | --- | --- |
+| Analytics collection | Settings → Analytics | Off |
+| GeoIP for analytics | Place `dbip-city-lite.mmdb` at `NUXT_GEOIP_DB_PATH` | Off until the file exists |
+| Security alerts | Settings → Security | Off |
+| Require MFA for admins | Settings → Security | Off |
+| Activity / error logging and retention | Dashboard → Logs → Settings | On |
+| Knowledge graph (widget and `/graph`) | Settings → General → Public features | On |
+| Publishing heatmap | Settings → General → Public features | On |
+| Post version history limit | Settings → Versioning | 20 snapshots |
 
-To print the normalized manifest (useful for CI or deployment checks):
-
-```bash
-npm run modules:print
-```
-
-Available modules:
-
-| Module | What it controls |
-| --- | --- |
-| `editor` | The admin editor and individual content block types |
-| `logs` | Access, activity, and error logging surfaces |
-| `analytics` | Pageview/session analytics and optional GeoIP lookups |
-| `users` | Multi-user roles and user management |
-| `themes` | Theme management and bundled non-default themes (the default theme always remains) |
-| `mfa` | TOTP setup, challenge, and optional admin MFA enforcement |
-| `securityAlerts` | Security alerting surfaces |
-| `backups` | Backup/restore APIs, admin UI, and storage |
-| `graphView` | Public relationship graph widgets and projection APIs |
-| `publishActivityHeatmap` | The public publish-activity heatmap and its endpoint |
-| `postVersioning` | Post history, diff/restore, and historical block snapshots |
-
-**How it works:** at startup, [modules/feature-flags.ts](modules/feature-flags.ts) reads the
-manifest, exposes the normalized settings via runtime config, and injects build constants.
-Disabled modules are excluded from the build where the app has a clean boundary, and the
-SurrealDB schema is module-aware — disabled `logs`, `analytics`, and `backups` modules don't
-create their optional tables on a fresh install.
-
-> Module selections are baked in at **build time**. When deploying with Docker, update the
-> manifest **before** building the image; runtime environment variables cannot turn modules on
-> or off afterward.
-
-> When `mfa.enabled` is `false`, MFA is bypassed at login (password-only). This avoids lockouts
-> but lowers authentication strength — only disable it when that trade-off is intentional.
+All editor blocks are always available, and **every block type always renders** on public
+pages. The former build-time manifest (`pandablog.modules.json`) and `npm run configure` were
+removed; a leftover manifest only produces a build warning. See
+[docs/feature-flags-simplification/operations.md](docs/feature-flags-simplification/operations.md).
 
 ---
 
@@ -599,10 +573,7 @@ otherwise from `NUXT_SESSION_PASSWORD`.
 
 A production-ready `Dockerfile` and Compose setup are included.
 
-1. **Select modules** in [pandablog.modules.json](pandablog.modules.json) (they are baked in at
-   build time).
-
-2. **Build the image** from the project root:
+1. **Build the image** from the project root:
 
    ```bash
    # Auto-detects Docker or Podman
@@ -624,7 +595,7 @@ A production-ready `Dockerfile` and Compose setup are included.
    Before promoting a new image, smoke-test login, image upload/variant generation,
    backups, recovery tools, and public post rendering.
 
-3. **Configure runtime env.** Nuxt runtime configuration uses `NUXT_`-prefixed variables;
+2. **Configure runtime env.** Nuxt runtime configuration uses `NUXT_`-prefixed variables;
    `NODE_OPTIONS`, `LOG_CONSOLE`, and `LOG_FORMAT` use their plain names. Copy the template
    and fill in real values:
 
@@ -632,7 +603,7 @@ A production-ready `Dockerfile` and Compose setup are included.
    cp deploy/production/.env.example deploy/production/.env
    ```
 
-4. **Run** with the provided Compose file:
+3. **Run** with the provided Compose file:
 
    ```bash
    docker compose -f deploy/production/docker-compose.yml up -d
@@ -757,7 +728,6 @@ suites use independent owned fixture credentials, never the development E2E acco
 ```text
 app.vue, app.config.ts             App root and runtime app config
 nuxt.config.ts                     Nuxt configuration and runtime config
-pandablog.modules.json             Optional-module manifest
 assets/css/main.css                Global Tailwind and content styles
 components/admin/                   Admin UI: editor, media, settings
 components/admin/editor/            Tiptap Vue node views (editor side)
@@ -778,6 +748,7 @@ themes/                            Bundled and uploaded themes
 bin/panda.mjs                      Operator CLI shipped in the container
 scripts/version.mjs                Build version generator (date + commit)
 modules/build-version.ts           Injects the version into runtimeConfig
+modules/legacy-module-manifest.ts  Warns about a leftover pandablog.modules.json
 i18n/locales/                      UI translations (en, zh-CN)
 tests/unit, tests/e2e              Unit and end-to-end tests
 deploy/production/                 Production Dockerfile env, Compose, nginx
@@ -790,7 +761,7 @@ deploy/production/                 Production Dockerfile env, Compose, nginx
 ### Runtime flow
 
 1. Nuxt starts and [server/plugins/db-init.ts](server/plugins/db-init.ts) connects to SurrealDB.
-2. The schema in [server/utils/schema.surql](server/utils/schema.surql) is applied (module-aware),
+2. The schema in [server/utils/schema.surql](server/utils/schema.surql) is applied,
    followed by any data migrations.
 3. Public pages call cached Nitro endpoints; admin pages call protected endpoints under
    `server/api/admin`.

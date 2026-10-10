@@ -2,13 +2,13 @@
   <NuxtLayout name="default">
     <template #sidebar>
       <BlogOwnerBio />
-      <BlogGraphOverviewWidget v-if="graphEnabled" />
+      <BlogGraphOverviewWidget v-if="graphViewEnabled" />
       <BlogTagCloud />
       <BlogCategoryList />
     </template>
 
     <section class="grid min-w-0 gap-10 md:gap-12">
-      <BlogPublishFrequencyHeatmap v-if="heatmapEnabled" class="order-1" />
+      <BlogPublishFrequencyHeatmap v-if="publishHeatmapEnabled" class="order-1" />
 
       <section id="posts" class="order-2 grid min-w-0 gap-6">
         <header class="md:hidden">
@@ -69,9 +69,7 @@ interface PostsResponse {
 type PostViewMode = 'grid' | 'list'
 
 const { t } = useI18n()
-const { siteName } = useSiteSettings()
-const graphEnabled = __PB_MODULE_GRAPH_VIEW__
-const heatmapEnabled = __PB_MODULE_PUBLISH_ACTIVITY_HEATMAP__
+const { siteName, graphViewEnabled, publishHeatmapEnabled } = useSiteSettings()
 const { viewMode, isMobileViewport, gridColumns } = usePostViewMode()
 const page = ref(1)
 const loadMoreTrigger = ref<HTMLElement | null>(null)

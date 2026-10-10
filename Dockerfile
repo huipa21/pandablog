@@ -82,13 +82,6 @@ writeFileSync('/app/runtime/version.json', JSON.stringify({ \
   dirty: /\.dirty\$/.test(version) \
 }, null, 2) + '\n')"
 
-RUN node -e "const { readFileSync, rmSync } = require('node:fs'); \
-const BUNDLED = ['tesla', 'clay', 'notion', 'hexagon']; \
-let themesEnabled = true; let bundled = {}; \
-try { const manifest = JSON.parse(readFileSync('/app/pandablog.modules.json', 'utf8')); themesEnabled = manifest.modules?.themes?.enabled !== false; bundled = manifest.modules?.themes?.bundled || {}; } catch {} \
-for (const theme of BUNDLED) { const keep = themesEnabled && bundled[theme] !== false; if (!keep) rmSync('/app/runtime/themes/' + theme, { recursive: true, force: true }); }"
-
-
 # ---------- Stage 2: runtime ----------
 FROM node:22-alpine AS runtime
 

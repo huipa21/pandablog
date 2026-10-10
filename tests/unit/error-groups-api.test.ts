@@ -15,7 +15,7 @@ const fp = '0123456789abcdef'
 beforeEach(async () => {
   vi.clearAllMocks()
   for (const [name, value] of Object.entries({ createError, defineEventHandler, getQuery, getRouterParam, getRouterParams, readBody })) vi.stubGlobal(name, value)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   mocks.requireSuperadmin.mockResolvedValue({ role: 'superadmin' })
   mocks.listErrorGroups.mockResolvedValue({ rows: [{ fingerprint: fp }], total: 1 })
   mocks.readErrorGroup.mockResolvedValue({ group: { fingerprint: fp }, occurrences: [] })
@@ -74,11 +74,7 @@ describe('error groups real H3 routing with mocked auth/storage', () => {
     expect(mocks.readErrorGroup).not.toHaveBeenCalled()
     expect(mocks.bulkErrorGroups).not.toHaveBeenCalled()
   })
-  it('honors disabled error modules and returns 404 for missing groups', async () => {
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { errorLogs: false } } } }))
-    expect((await fetch(`${base}/api/admin/logs/error-groups`)).status).toBe(404)
-    expect((await bulk({ action: 'delete', ids: [fp] })).status).toBe(404)
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  it('returns 404 for missing groups', async () => {
     mocks.readErrorGroup.mockResolvedValue(null)
     expect((await fetch(`${base}/api/admin/logs/error-groups/${fp}`)).status).toBe(404)
   })

@@ -171,6 +171,31 @@
 
         <section class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
           <div>
+            <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.publicFeaturesTitle') }}</h2>
+            <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.publicFeaturesDescription') }}</p>
+          </div>
+
+          <fieldset class="grid gap-3">
+            <label class="flex cursor-pointer items-center justify-between gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 text-sm">
+              <span class="grid gap-1">
+                <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.graphView') }}</span>
+                <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.general.graphViewHelp') }}</span>
+              </span>
+              <USwitch v-model="form.graph_view_enabled" />
+            </label>
+
+            <label class="flex cursor-pointer items-center justify-between gap-4 rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)] p-3 text-sm">
+              <span class="grid gap-1">
+                <span class="font-medium text-[var(--pb-text)]">{{ t('admin.settings.general.publishHeatmap') }}</span>
+                <span class="text-xs text-[var(--pb-text-muted)]">{{ t('admin.settings.general.publishHeatmapHelp') }}</span>
+              </span>
+              <USwitch v-model="form.publish_heatmap_enabled" />
+            </label>
+          </fieldset>
+        </section>
+
+        <section class="grid gap-5 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-5 shadow-[var(--pb-shadow-sm)]">
+          <div>
             <h2 class="text-xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.general.visibilityTitle') }}</h2>
             <p class="mt-1 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.general.visibilityDescription') }}</p>
           </div>
@@ -276,6 +301,8 @@ interface GeneralSettingsForm {
   footer_social: FooterLink[]
   footer_filings: FilingLink[]
   admin_post_display_mode: PostDisplayMode
+  graph_view_enabled: boolean
+  publish_heatmap_enabled: boolean
   mode: SiteVisibility
 }
 
@@ -316,6 +343,8 @@ const form = reactive<GeneralSettingsForm>({
   footer_social: [],
   footer_filings: [],
   admin_post_display_mode: 'slug',
+  graph_view_enabled: true,
+  publish_heatmap_enabled: true,
   mode: 'public'
 })
 const mediaPickerOpen = ref(false)
@@ -342,6 +371,8 @@ watch(data, (value) => {
   form.footer_social = linksValue(settings.footer_social)
   form.footer_filings = filingsValue(settings.footer_filings)
   form.admin_post_display_mode = postDisplayModeValue(settings.admin_post_display_mode)
+  form.graph_view_enabled = settings.graph_view_enabled !== false
+  form.publish_heatmap_enabled = settings.publish_heatmap_enabled !== false
   form.mode = value?.mode === 'private' ? 'private' : 'public'
   initialMode.value = form.mode
 }, { immediate: true })
@@ -392,7 +423,9 @@ async function save() {
         url: filing.url,
         icon: iconValueForFiling(filing)
       }))),
-      admin_post_display_mode: form.admin_post_display_mode
+      admin_post_display_mode: form.admin_post_display_mode,
+      graph_view_enabled: form.graph_view_enabled,
+      publish_heatmap_enabled: form.publish_heatmap_enabled
     }
     const [settingsResponse, visibilityResponse] = await Promise.all([
       $fetch<{ settings: Record<string, unknown> }>('/api/admin/settings', {

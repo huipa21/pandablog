@@ -719,8 +719,7 @@
         "clearAvatar": "Clear avatar",
         "deleteCharacter": "Delete character",
         "deleteCharacterConfirm": "Lines become narration. Delete this character?",
-        "cancel": "Cancel",
-        "disabled": "Disabled content block: dialogueBlock"
+        "cancel": "Cancel"
       },
       "backToPosts": "Posts",
       "noTitle": "No title",
@@ -1707,6 +1706,12 @@
         "privateDescription": "Only logged-in admins can browse. Anonymous visitors are sent to login.",
         "adminDisplayTitle": "Admin post display",
         "adminDisplayDescription": "Choose how posts are labeled in admin navigation.",
+        "publicFeaturesTitle": "Public features",
+        "publicFeaturesDescription": "Choose which optional widgets visitors can see. Changes may take up to two minutes to appear on cached pages.",
+        "graphView": "Knowledge graph",
+        "graphViewHelp": "Show the graph widget on the home page and posts, and enable the /graph page.",
+        "publishHeatmap": "Publishing heatmap",
+        "publishHeatmapHelp": "Show the publishing activity heatmap on the home page.",
         "displayPostSlug": "Show slug",
         "displayPostSlugDescription": "Use the readable post slug in the editor breadcrumb.",
         "displayPostId": "Show post ID",

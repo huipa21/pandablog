@@ -12,8 +12,7 @@ beforeEach(() => {
   vi.resetModules()
   vi.resetAllMocks()
   vi.useFakeTimers()
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   vi.stubGlobal('defineNitroPlugin', (plugin: unknown) => plugin)
   mocks.resolveCron.mockResolvedValue({ validate: mocks.validate, schedule: mocks.schedule })
   mocks.validate.mockReturnValue(true)
@@ -77,14 +76,6 @@ describe('retention scheduler', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
     expect(mocks.destroy).toHaveBeenCalledTimes(1)
     expect(mocks.runLogRetention).not.toHaveBeenCalled()
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it.each(['build', 'runtime'])('does not load cron or create timers when %s logs are disabled', async (mode) => {
-    if (mode === 'build') vi.stubGlobal('__PB_MODULE_LOGS__', false)
-    else vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { enabled: false } } } }))
-    expect(await install()).not.toHaveBeenCalled()
-    expect(mocks.resolveCron).not.toHaveBeenCalled()
     expect(vi.getTimerCount()).toBe(0)
   })
 

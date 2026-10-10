@@ -11,7 +11,7 @@ let server: Server | undefined, base: string
 beforeEach(async () => {
   vi.resetModules(); vi.resetAllMocks()
   for (const [key, value] of Object.entries({ createError, defineEventHandler, getQuery, getRequestURL, getRouterParams, readBody, setHeader })) vi.stubGlobal(key, value)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   mocks.requireSuperadmin.mockResolvedValue({ role: 'superadmin' })
   const app = createApp(), router = createRouter()
   router.get('/api/admin/logs/:type/export', (await import('../../server/api/admin/logs/[type]/export.get')).default)

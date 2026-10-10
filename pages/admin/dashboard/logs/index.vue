@@ -14,11 +14,11 @@
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
 
     <div class="grid gap-4 md:grid-cols-3">
-      <NuxtLink v-if="moduleFlags.activityLogs" to="/admin/dashboard/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
+      <NuxtLink to="/admin/dashboard/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.activityLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? '—' }}</p>
       </NuxtLink>
-      <NuxtLink v-if="moduleFlags.errorLogs" to="/admin/dashboard/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
+      <NuxtLink to="/admin/dashboard/logs/errors" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.groups.unreadCount') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.errors.unread_groups ?? '—' }}</p>
       </NuxtLink>
@@ -28,7 +28,7 @@
       </div>
     </div>
 
-    <div v-if="moduleFlags.errorLogs" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+    <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.recentErrors') }}</h2>
         <UButton size="xs" variant="ghost" color="neutral" @click="refreshAll">{{ t('admin.logs.refresh') }}</UButton>
@@ -61,7 +61,6 @@ definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
 const sessionFetch = useSessionFetch()
-const moduleFlags = useModuleFlags()
 
 const { data: statsData, pending: statsPending, error, refresh: refreshStats } = await useAsyncData(
   'admin-log-stats',
@@ -69,7 +68,7 @@ const { data: statsData, pending: statsPending, error, refresh: refreshStats } =
 )
 const { data: errorData, pending: errorPending, refresh: refreshErrors } = await useAsyncData(
   'admin-log-errors-recent',
-  () => moduleFlags.errorLogs ? sessionFetch('/api/admin/logs/error-groups', { query: { status: 'unread', limit: 5, sort: 'last_seen' } }) : Promise.resolve({ rows: [] })
+  () => sessionFetch('/api/admin/logs/error-groups', { query: { status: 'unread', limit: 5, sort: 'last_seen' } })
 )
 
 const stats = computed(() => statsData.value as any)

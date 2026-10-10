@@ -8,7 +8,6 @@ import { applySettingsPatch, createErrorRateGuard, extractErrorContext, redactDe
 import { sanitizeLogContext, writeConsoleEntry } from './log-console'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
 import type { ActivityLogEntry, CleanupResult, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 const APP_SETTINGS_TABLE = 'app_settings'
 const LOGGING_SETTINGS_KEY = 'logging'
@@ -215,7 +214,6 @@ export function logActivity(entry: ActivityLogEntry) {
 }
 
 export function logError(err: unknown, context?: Record<string, unknown>) {
-  if (!__PB_MODULE_LOGS__ || !resolveModuleFlags(getRuntimeModuleConfig()).errorLogs) return
   const settings = settingsCache
   const statusCode = resolveErrorStatus(err, context?.status_code)
   // Only automatic Nitro capture is filtered. Explicit application logs remain visible.
@@ -296,7 +294,6 @@ export async function runManualLogCleanup(options: { type: LogCleanupType, mode:
 }
 
 export async function gatherLogStats() {
-  const flags = resolveModuleFlags(getRuntimeModuleConfig())
   const db = await useDb()
   const response = await queryDb(
     db,
@@ -323,8 +320,8 @@ export async function gatherLogStats() {
     },
     errors: {
       count: Number(errors?.total ?? 0),
-      groups: flags.errorLogs ? Number(firstRow<{ total?: number }>(response, 2)?.total ?? 0) : 0,
-      unread_groups: flags.errorLogs ? Number(firstRow<{ total?: number }>(response, 3)?.total ?? 0) : 0,
+      groups: Number(firstRow<{ total?: number }>(response, 2)?.total ?? 0),
+      unread_groups: Number(firstRow<{ total?: number }>(response, 3)?.total ?? 0),
       oldest: errors?.oldest ?? null,
       newest: errors?.newest ?? null
     },

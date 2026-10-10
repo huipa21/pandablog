@@ -3,14 +3,10 @@ import { resolveCron } from '../utils/cron'
 import type { CronTaskLike } from '../utils/cron'
 import { LOG_RETENTION_SCHEDULE, runLogRetention } from '../utils/log-retention'
 import { warn } from '../utils/logging'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 const BOOT_DELAY_MS = 5 * 60_000
 
 export default defineNitroPlugin(async (nitro) => {
-  if (!__PB_MODULE_LOGS__ || !resolveModuleFlags(getRuntimeModuleConfig()).logs) {
-    return
-  }
   let stopped = false
   const run = async () => {
     if (stopped) return

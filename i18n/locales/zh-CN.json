@@ -719,8 +719,7 @@
         "clearAvatar": "清除头像",
         "deleteCharacter": "删除角色",
         "deleteCharacterConfirm": "该角色的行将变为旁白。确认删除角色？",
-        "cancel": "取消",
-        "disabled": "已禁用的内容块：dialogueBlock"
+        "cancel": "取消"
       },
       "backToPosts": "文章",
       "noTitle": "无标题",
@@ -1694,6 +1693,12 @@
         "privateDescription": "只有已登录管理员可以浏览。匿名访客会被发送到登录页。",
         "adminDisplayTitle": "后台文章显示",
         "adminDisplayDescription": "选择后台导航中如何显示文章。",
+        "publicFeaturesTitle": "公开功能",
+        "publicFeaturesDescription": "选择访客可以看到哪些可选组件。已缓存的页面可能需要最多两分钟才会显示更改。",
+        "graphView": "知识图谱",
+        "graphViewHelp": "在首页和文章中显示图谱组件，并启用 /graph 页面。",
+        "publishHeatmap": "发布热力图",
+        "publishHeatmapHelp": "在首页显示发布活动热力图。",
         "displayPostSlug": "显示 Slug",
         "displayPostSlugDescription": "在编辑器面包屑中使用可读的文章 slug。",
         "displayPostId": "显示文章 ID",

@@ -17,7 +17,7 @@
           <UButton v-if="filtersActive" icon="i-lucide-filter-x" color="neutral" variant="soft" @click="clearFilters">
             {{ t('admin.posts.columnFilter.clearAll') }}
           </UButton>
-          <UButton v-if="postVersioningEnabled" icon="i-lucide-settings" to="/admin/settings/versioning" color="neutral" variant="soft">
+          <UButton icon="i-lucide-settings" to="/admin/settings/versioning" color="neutral" variant="soft">
             {{ t('admin.common.settings') }}
           </UButton>
           <UButton icon="i-lucide-plus" :loading="creating" @click="createPost">
@@ -484,7 +484,6 @@ import type { CategoryRecord, PostRecord, PostStatus, PostVisibility, TagRecord 
 
 definePageMeta({ layout: 'admin' })
 
-const postVersioningEnabled = __PB_MODULE_POST_VERSIONING__
 
 type BulkIntent = 'archive' | 'hard-delete' | 'mixed'
 type SortKey = 'updated' | 'published' | 'title' | 'status' | 'visibility' | 'length'

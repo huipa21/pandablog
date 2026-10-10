@@ -49,9 +49,9 @@ export async function startRestoreJob(id: string): Promise<string> {
 async function exists(file: string) {try {await lstat(file); return true} catch (error) {if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error}}
 async function refreshState() {
   await initializeRuntimeSettings(true)
-  if (__PB_MODULE_ANALYTICS__) await initializeAnalyticsSettings(true)
+  await initializeAnalyticsSettings(true)
   await initializeSecuritySettings(true)
-  if (__PB_MODULE_LOGS__) await reloadLoggingSettings()
+  await reloadLoggingSettings()
   await useStorage('cache').clear()
 }
 async function repairRuntimeAndSessions() {

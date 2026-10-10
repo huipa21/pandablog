@@ -3,6 +3,7 @@ import { queryDb, useDb } from '../../utils/db'
 import { addUndirectedLinkEdge, graphDegreeMap, graphRecordId, graphRecordIdPart, graphVisibilityFilterForEvent, isSyntheticGraphCategory } from '../../utils/graph'
 import { selectVisibleGraphPostsByIds, toGraphPostNode } from '../../utils/graphQuery'
 import { queryRows } from '../../utils/surrealResult'
+import { assertPublicFeatureEnabled } from '../../utils/publicFeatures'
 
 interface CategoryRow {
   id: unknown
@@ -19,9 +20,7 @@ const DEFAULT_LIMIT = 180
 const MAX_LIMIT = 240
 
 export default defineEventHandler(async (event): Promise<GraphClusterResponse> => {
-  if (!__PB_MODULE_GRAPH_VIEW__) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
-  }
+  await assertPublicFeatureEnabled('graph_view_enabled')
 
   const query = getQuery(event)
   const slug = typeof query.category === 'string' ? query.category.trim() : ''

@@ -1,5 +1,7 @@
 # Dialogue block: operations
 
+> **Superseded in part:** build-time block flags (`pandablog.modules.json`, `__PB_BLOCK_DIALOGUE_BLOCK__`) were removed by [feature-flags simplification](../feature-flags-simplification/plan.md); the dialogue block is always available and always renders.
+
 ## Enable / disable
 
 - Set `dialogueBlock` under `modules.editor.blocks` in `pandablog.modules.json` (default `true`). Use `npm run configure` or edit the manifest; a rebuild is required for the build-time define `__PB_BLOCK_DIALOGUE_BLOCK__`.

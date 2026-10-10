@@ -1,5 +1,7 @@
 # Dialogue block: architecture
 
+> **Superseded in part:** build-time block flags (`pandablog.modules.json`, `__PB_BLOCK_DIALOGUE_BLOCK__`) were removed by [feature-flags simplification](../../feature-flags-simplification/plan.md); the dialogue block is always available and always renders.
+
 ## 1. Problem
 
 Roleplay and scene dialogue is currently written as one paragraph per line (`Maya: ...`). It reads like an article, not a conversation. Speaker names are plain text, so they cannot be styled, renamed or recoloured consistently.

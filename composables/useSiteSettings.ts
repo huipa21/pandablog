@@ -25,6 +25,8 @@ export interface SiteSettings {
   footer_links: SiteSettingsLink[]
   footer_social: SiteSettingsLink[]
   footer_filings: SiteSettingsLink[]
+  graph_view_enabled: boolean
+  publish_heatmap_enabled: boolean
 }
 
 export function useSiteSettings() {
@@ -50,7 +52,9 @@ export function useSiteSettings() {
       footer_copyright: `© ${new Date().getFullYear()} ${siteTitle}. All rights reserved.`,
       footer_links: [],
       footer_social: [],
-      footer_filings: []
+      footer_filings: [],
+      graph_view_enabled: true,
+      publish_heatmap_enabled: true
     }
   })
 
@@ -79,7 +83,9 @@ export function useSiteSettings() {
       footer_copyright: textValue(remote.footer_copyright) || fallback.value.footer_copyright,
       footer_links: linksValue(remote.footer_links),
       footer_social: linksValue(remote.footer_social),
-      footer_filings: linksValue(remote.footer_filings)
+      footer_filings: linksValue(remote.footer_filings),
+      graph_view_enabled: booleanValue(remote.graph_view_enabled, fallback.value.graph_view_enabled),
+      publish_heatmap_enabled: booleanValue(remote.publish_heatmap_enabled, fallback.value.publish_heatmap_enabled)
     }
   })
 
@@ -107,7 +113,9 @@ export function useSiteSettings() {
     footerSocial: computed(() => settings.value.footer_social),
     footerFilings: computed(() => settings.value.footer_filings),
     footerShowPoweredBy: computed(() => runtimeConfig.public.footerShowPoweredBy === true),
-    hasFilingInfo: computed(() => settings.value.footer_filings.length > 0)
+    hasFilingInfo: computed(() => settings.value.footer_filings.length > 0),
+    graphViewEnabled: computed(() => settings.value.graph_view_enabled),
+    publishHeatmapEnabled: computed(() => settings.value.publish_heatmap_enabled)
   }
 }
 

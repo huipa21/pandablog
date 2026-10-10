@@ -5,7 +5,7 @@
         <BlogPostToc :content-json="post.content_json" />
         <BlogCategoryList />
         <BlogTagCloud />
-        <BlogKnowledgeGraph v-if="graphEnabled" :current-slug="post.slug" />
+        <BlogKnowledgeGraph v-if="graphViewEnabled" :current-slug="post.slug" />
         <BlogRelatedPosts :current-slug="post.slug" />
       </template>
       <template v-else>
@@ -50,7 +50,7 @@ definePageMeta({ layout: false })
 const route = useRoute()
 const { t } = useI18n()
 const slug = computed(() => String(route.params.slug))
-const graphEnabled = __PB_MODULE_GRAPH_VIEW__
+const { graphViewEnabled } = useSiteSettings()
 
 type PublicFetch = <T>(url: string) => Promise<T>
 

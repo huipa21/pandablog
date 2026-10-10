@@ -2,7 +2,6 @@ import { createError, type H3Event } from 'h3'
 import { isSetupCompleted } from './settings'
 import { hasAuthSessionCookie } from './session-cookie'
 import { findAuthAccountById, type SessionUser, type UserRole } from './users'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 export interface AdminUser { id: string, username: string, role: 'superadmin' | 'admin', display_name?: string | null }
 const identities = new WeakMap<H3Event, Promise<SessionUser | null>>()
@@ -13,9 +12,6 @@ export function getRequestAuthAccount(event: H3Event, id: string) {
   const value = findAuthAccountById(id).catch(() => {throw createError({statusCode: 503, message: 'Identity service unavailable'})})
   accounts.set(event, {id, value})
   return value
-}
-export function accountAllowedInModuleMode(user: Pick<SessionUser, 'id' | 'username'>): boolean {
-  return resolveModuleFlags(getRuntimeModuleConfig()).multiUser || (user.id === 'users:admin' && user.username === 'admin')
 }
 
 /** Cookie display fields NEVER authorize; positive identity is request-local. */
@@ -31,7 +27,7 @@ async function resolveCurrentIdentity(event: H3Event): Promise<SessionUser | nul
   const epoch = (session.secure as {authEpoch?: unknown} | undefined)?.authEpoch
   if (typeof id !== 'string' || !/^users:[a-z0-9._-]{3,64}$/.test(id) || typeof epoch !== 'string' || !/^[a-f0-9]{48}$/.test(epoch)) return null
   const account = await getRequestAuthAccount(event, id)
-  if (!account || account.active !== true || account.auth_epoch !== epoch || !accountAllowedInModuleMode(account)) return null
+  if (!account || account.active !== true || account.auth_epoch !== epoch) return null
   // Explicit DTO: epochs/credential/MFA fields never escape through user APIs.
   return { id: account.id, username: account.username, role: account.role,
     display_name: account.display_name, avatar: account.avatar, avatar_url: account.avatar_url }
@@ -57,5 +53,5 @@ export async function requireAuthenticatedUser(event: H3Event): Promise<SessionU
 export async function isAdminAuthenticated(event: H3Event): Promise<boolean> { return isAdminTier(await getSessionUser(event)) }
 export async function isAuthenticated(event: H3Event): Promise<boolean> { return Boolean(await getSessionUser(event)) }
 export function isAdminTier(user: SessionUser | null | undefined): user is SessionUser & {role: 'superadmin' | 'admin'} {
-  return Boolean(user && accountAllowedInModuleMode(user) && (user.role === 'superadmin' || user.role === 'admin'))
+  return Boolean(user && (user.role === 'superadmin' || user.role === 'admin'))
 }

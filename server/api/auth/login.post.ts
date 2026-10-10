@@ -1,5 +1,4 @@
 import { readBoundedJson } from '../../utils/bounded-json'
-import { accountAllowedInModuleMode } from '../../utils/auth'
 import { recordActivity } from '../../utils/activity'
 import { requestAbortSignal } from '../../utils/request-abort'
 import { reserveAuthAttempt } from '../../utils/rate-limit'
@@ -57,7 +56,7 @@ export default defineEventHandler(async (event) => {
   // ---- Verify credentials --------------------------------------------------
   const account = await findUserByUsername(username)
   const passwordOk = await verifyUserPassword(account, password, requestAbortSignal(event))
-  const isValid = Boolean(account?.active && /^[a-f0-9]{48}$/.test(account.auth_epoch) && accountAllowedInModuleMode(account) && passwordOk)
+  const isValid = Boolean(account?.active && /^[a-f0-9]{48}$/.test(account.auth_epoch) && passwordOk)
 
   if (!isValid) {
     recordActivity(event, {
@@ -83,50 +82,48 @@ export default defineEventHandler(async (event) => {
   // enforcement requires an admin-tier account to enrol. In both cases we hold
   // a short-lived pending state in the session cookie and DO NOT issue a full
   // `user` session until the second step completes.
-  if (__PB_MODULE_MFA__) {
-    const mfaState = await getUserMfaState(user.id)
-    if (mfaState?.enabled) {
-      const trustedDevice = await findMatchingTrustedDevice(event, user.id)
-      if (trustedDevice) {
-        const trustedContext = await resolveTrustedDeviceContext(event)
-        if (trustedDeviceContextMatches(trustedDevice, trustedContext)) {
-          await replaceUserSession(event, {
-            secure: {authEpoch: account!.auth_epoch, authenticatedAt: new Date().toISOString()},
-            user,
-            loggedInAt: new Date().toISOString()
-          })
-          try {
-            await refreshTrustedDevice(event, trustedDevice, trustedContext)
-          } catch (error) {
-            console.warn('[auth.login] trusted device refresh failed; login continues', error)
-          }
-          await touchUserLogin(user.id)
-
-          recordActivity(event, {
-            action: 'auth.login',
-            resource_type: 'session',
-            resource_id: user.id,
-            metadata: { username: user.username, role: user.role, mfa: true, trusted_device: true },
-            description: 'User signed in'
-          })
-          dispatchSecurityAlert('login.success', alertDetailsFromEvent(event, {
-            username: user.username,
-            reason: `Role: ${user.role} (MFA trusted device)`
-          }))
-
-          return { user }
+  const mfaState = await getUserMfaState(user.id)
+  if (mfaState?.enabled) {
+    const trustedDevice = await findMatchingTrustedDevice(event, user.id)
+    if (trustedDevice) {
+      const trustedContext = await resolveTrustedDeviceContext(event)
+      if (trustedDeviceContextMatches(trustedDevice, trustedContext)) {
+        await replaceUserSession(event, {
+          secure: {authEpoch: account!.auth_epoch, authenticatedAt: new Date().toISOString()},
+          user,
+          loggedInAt: new Date().toISOString()
+        })
+        try {
+          await refreshTrustedDevice(event, trustedDevice, trustedContext)
+        } catch (error) {
+          console.warn('[auth.login] trusted device refresh failed; login continues', error)
         }
+        await touchUserLogin(user.id)
+
+        recordActivity(event, {
+          action: 'auth.login',
+          resource_type: 'session',
+          resource_id: user.id,
+          metadata: { username: user.username, role: user.role, mfa: true, trusted_device: true },
+          description: 'User signed in'
+        })
+        dispatchSecurityAlert('login.success', alertDetailsFromEvent(event, {
+          username: user.username,
+          reason: `Role: ${user.role} (MFA trusted device)`
+        }))
+
+        return { user }
       }
-
-      await setMfaPending(event, user.id, 'verify', account!.auth_epoch)
-      return { mfa_required: true }
     }
 
-    const security = getSecuritySettings()
-    if (security.security_mfa_required_for_admins && MFA_ENFORCED_ROLES.includes(user.role)) {
-      await setMfaPending(event, user.id, 'enroll', account!.auth_epoch)
-      return { mfa_enrollment_required: true }
-    }
+    await setMfaPending(event, user.id, 'verify', account!.auth_epoch)
+    return { mfa_required: true }
+  }
+
+  const security = getSecuritySettings()
+  if (security.security_mfa_required_for_admins && MFA_ENFORCED_ROLES.includes(user.role)) {
+    await setMfaPending(event, user.id, 'enroll', account!.auth_epoch)
+    return { mfa_enrollment_required: true }
   }
 
   await replaceUserSession(event, {

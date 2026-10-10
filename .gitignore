@@ -167,6 +167,9 @@ tests/unit/*
 !tests/unit/trusted-devices.test.ts
 !tests/unit/current-identity-http.test.ts
 !tests/integration/current-identity.test.ts
+!tests/unit/feature-flags-retired.test.ts
+!tests/unit/legacy-module-manifest.test.ts
+!tests/unit/public-features-settings.test.ts
 !tests/fixtures/
 !tests/fixtures/outbound/
 !tests/fixtures/outbound/*.pem
@@ -179,8 +182,6 @@ test-results
 !.github/workflows/ci.yml
 tools/*
 scripts/*
-!scripts/configure-modules.ts
-!scripts/print-modules.ts
 !scripts/version.mjs
 !scripts/docker-build.mjs
 !scripts/backend-hardening/
@@ -191,6 +192,3 @@ scripts/*
 !scripts/password-reset/*.ts
 !scripts/recovery/
 !scripts/recovery/assistant.ts
-!scripts/configure/
-!scripts/configure/index.html
-!pandablog.modules.json.example

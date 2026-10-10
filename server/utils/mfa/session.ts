@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
 import type { SessionUser } from '../users'
-import { accountAllowedInModuleMode, getRequestAuthAccount, getSessionUser } from '../auth'
+import { getRequestAuthAccount, getSessionUser } from '../auth'
 
 // The pending MFA states live in the same sealed, httpOnly session cookie used
 // for authenticated sessions. They are short lived (5 minutes) and never grant
@@ -65,7 +65,7 @@ export async function getMfaPending(event: H3Event): Promise<MfaPendingState | n
   const epoch = session.secure?.authEpoch
   if (!pending || !epoch) return null
   const account = await getRequestAuthAccount(event, pending.userId)
-  if (!account?.active || account.auth_epoch !== epoch || !accountAllowedInModuleMode(account)) return null
+  if (!account?.active || account.auth_epoch !== epoch) return null
   return {...pending, authEpoch: epoch}
 }
 

@@ -74,8 +74,7 @@ describe.skipIf(!enabled)('isolated SurrealDB 3.2 error groups', () => {
 
   it('uses the real logError storm guard: 100 counts, only 20 samples, trailing timer/close flush', async () => {
     vi.stubEnv('LOG_CONSOLE', 'off')
-    vi.stubGlobal('__PB_MODULE_LOGS__', true)
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
     const { logError, flushPendingErrorGroups } = await import('../../server/utils/logging')
     const error = new Error('rate guard live error')
     const fingerprint = errorFingerprint({ name: error.name, message: error.message, stack: error.stack, path: '/api/storm', status: 500 })

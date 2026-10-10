@@ -7,8 +7,7 @@ vi.mock('../../server/utils/logging', () => ({ logError }))
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
-  vi.stubGlobal('useRuntimeConfig', vi.fn(() => ({ public: { modules: {} } })))
+  vi.stubGlobal('useRuntimeConfig', vi.fn(() => ({ public: {} })))
   vi.stubGlobal('defineNitroPlugin', (plugin: unknown) => plugin)
 })
 afterEach(() => {
@@ -60,18 +59,5 @@ describe('Nitro error hook', () => {
     const error = new Error('background failure')
     handler(hook)(error)
     expect(logError).toHaveBeenCalledWith(error, { request_id: null, path: null, method: null, status_code: 500, source: 'nitro.error_hook' })
-  })
-
-  it('does not register when the build-time logs flag is off', async () => {
-    vi.stubGlobal('__PB_MODULE_LOGS__', false)
-    expect(await install()).not.toHaveBeenCalled()
-    expect(useRuntimeConfig).not.toHaveBeenCalled()
-    expect(logError).not.toHaveBeenCalled()
-  })
-
-  it.each([{ enabled: false }, { errorLogs: false }])('does not register when runtime logs/errorLogs are disabled (%j)', async (logs) => {
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs } } }))
-    expect(await install()).not.toHaveBeenCalled()
-    expect(logError).not.toHaveBeenCalled()
   })
 })

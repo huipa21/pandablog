@@ -15,8 +15,7 @@ beforeEach(() => {
   vi.stubEnv('LOG_CONSOLE', 'errors')
   vi.stubEnv('LOG_FORMAT', 'json')
   vi.stubGlobal('createError', createError)
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   originalListeners = process.stderr.listeners('error')
   stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
@@ -173,14 +172,6 @@ describe('error group write routing', () => {
     expect(writes.at(-1)?.[2].count).toBe(80)
     expect(writes.at(-1)?.[1]).not.toContain('CREATE error_logs')
     vi.useRealTimers()
-  })
-
-  it('does not capture any sink with error modules disabled', async () => {
-    const logging = await load()
-    vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { errorLogs: false } } } }))
-    logging.logError(new Error('disabled'))
-    expect(stderr).not.toHaveBeenCalled()
-    expect(mocks.queryDb).not.toHaveBeenCalled()
   })
 
   it.each([1, 50, 500])('accepts occurrence cap %s and defaults legacy settings to 50', async cap => {

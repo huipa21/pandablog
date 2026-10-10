@@ -3,8 +3,7 @@ import { createServer } from 'node:http'
 import { createApp, createError, createRouter, defineEventHandler, getRouterParam, setResponseHeader, toNodeListener, useSession, type H3Event } from 'h3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({multi: true, unavailable: false, role: 'viewer', epoch: 'a'.repeat(48), active: true, id: 'users:fixture'}))
-vi.mock('../../utils/moduleFlags', () => ({getRuntimeModuleConfig: () => ({}), resolveModuleFlags: () => ({multiUser: state.multi})}))
+const state = vi.hoisted(() => ({unavailable: false, role: 'viewer', epoch: 'a'.repeat(48), active: true, id: 'users:fixture'}))
 vi.mock('../../server/utils/settings', () => ({isSetupCompleted: async () => true}))
 vi.mock('../../server/utils/users', () => ({
   findAuthAccountById: async () => {
@@ -21,7 +20,7 @@ describe('real H3 routes with copied encrypted cookies and current-state fixture
     const config = {name: 'nuxt-session', password: randomBytes(48).toString('hex')}
     const getSession = async (event: H3Event) => ({...(await useSession(event, config)).data})
     let fetchHook: (session: Record<string, unknown>, event: H3Event) => Promise<void> = async () => {}
-    for (const [name, value] of Object.entries({__PB_MODULE_MFA__: true, defineEventHandler, defineNitroPlugin: (fn: () => void) => fn, createError, getRouterParam, getUserSession: getSession, setResponseHeader,
+    for (const [name, value] of Object.entries({defineEventHandler, defineNitroPlugin: (fn: () => void) => fn, createError, getRouterParam, getUserSession: getSession, setResponseHeader,
       sessionHooks: {hook: (_name: string, hook: typeof fetchHook) => {fetchHook = hook}}})) vi.stubGlobal(name, value)
     const {default: devices} = await import('../../server/api/admin/auth/devices/list.get')
     const {default: userRead} = await import('../../server/api/admin/users/[id].get')
@@ -59,14 +58,12 @@ describe('real H3 routes with copied encrypted cookies and current-state fixture
       state.epoch = 'b'.repeat(48)
       expect((await (await get('/api/auth/session', cookie)).json()).loggedIn).toBe(false)
       expect((await get('/api/admin/auth/devices/list', cookie)).status).toBe(401)
-      state.epoch = 'a'.repeat(48); state.multi = false
-      expect((await get('/api/admin/auth/devices/list', cookie)).status).toBe(401)
-      state.multi = true; state.active = false
+      state.epoch = 'a'.repeat(48); state.active = false
       expect((await get('/api/admin/auth/devices/list', cookie)).status).toBe(401)
       state.active = true; state.unavailable = true
       expect((await get('/api/auth/session', cookie)).status).toBe(503)
       expect((await get('/api/_auth/session', cookie)).status).toBe(503)
       expect((await get('/api/admin/auth/devices/list', cookie)).status).toBe(503)
-    } finally {state.unavailable = false; state.multi = true; state.active = true; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()))}
+    } finally {state.unavailable = false; state.active = true; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()))}
   })
 })

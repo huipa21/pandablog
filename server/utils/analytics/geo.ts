@@ -3,7 +3,6 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import type { CityResponse, Reader } from 'maxmind'
 import type { AnalyticsGeo } from './types'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 type MaxmindModule = typeof import('maxmind')
 
@@ -45,10 +44,6 @@ export function analyticsGeoDbPath() {
  * empty. Surfaced in the admin analytics UI so the cause is visible.
  */
 export async function analyticsGeoDatabaseAvailable() {
-  if (!isGeoipEnabled()) {
-    return false
-  }
-
   return (await getGeoReader()) !== null
 }
 
@@ -58,10 +53,6 @@ export async function analyticsGeoDatabaseAvailable() {
  * before the operator has placed the .mmdb file there.
  */
 export async function ensureAnalyticsGeoDir() {
-  if (!isGeoipEnabled()) {
-    return
-  }
-
   try {
     await mkdir(dirname(analyticsGeoDbPath()), { recursive: true })
   } catch {
@@ -70,10 +61,6 @@ export async function ensureAnalyticsGeoDir() {
 }
 
 async function getGeoReader() {
-  if (!isGeoipEnabled()) {
-    return null
-  }
-
   if (!readerPromise) {
     readerPromise = openGeoReader()
   }
@@ -104,10 +91,6 @@ async function openGeoReader() {
 }
 
 async function loadMaxmind() {
-  if (!isGeoipEnabled()) {
-    return null
-  }
-
   if (!maxmindPromise) {
     maxmindPromise = import('maxmind')
   }
@@ -115,13 +98,6 @@ async function loadMaxmind() {
   return await maxmindPromise
 }
 
-function isGeoipEnabled() {
-  if (!__PB_MODULE_ANALYTICS_GEOIP__) {
-    return false
-  }
-
-  return resolveModuleFlags(getRuntimeModuleConfig()).geoip
-}
 
 function preferredName(names: { en?: string } | undefined) {
   if (!names) {

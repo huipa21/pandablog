@@ -46,8 +46,11 @@ import type { GraphClusterResponse, GraphNode, GraphOverviewResponse, GraphPostR
 
 definePageMeta({ layout: false })
 
-if (!__PB_MODULE_GRAPH_VIEW__) {
-  throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+// layout: false, so load the public bootstrap before reading the setting.
+await usePublicBootstrap()
+const { graphViewEnabled } = useSiteSettings()
+if (!graphViewEnabled.value) {
+  throw createError({ statusCode: 404, statusMessage: 'Not Found', fatal: true })
 }
 
 type PublicFetch = <T>(url: string, options?: Record<string, unknown>) => Promise<T>

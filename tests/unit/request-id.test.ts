@@ -25,7 +25,6 @@ afterEach(async () => {
 
 describe('request correlation without access logging', () => {
   it('ignores inbound IDs, is idempotent and repairs a stale cached response header', async () => {
-    vi.stubGlobal('__PB_MODULE_LOGS__', false)
     const base = await serve(defineEventHandler(event => {
       const first = ensureRequestId(event)
       setResponseHeader(event, 'x-request-id', 'stale-cache-value')

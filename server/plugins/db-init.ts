@@ -11,7 +11,6 @@ import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { initializeRuntimeDatabase, queryDb, useDb } from '../utils/db'
 import { reloadLoggingSettings } from '../utils/logging'
 import { runErrorGroupBackfill } from '../utils/error-group-backfill'
-import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { rebuildPostSearchTerms } from '../utils/searchTerms'
@@ -56,7 +55,7 @@ const DEFAULT_MEDIA_SETTINGS = {
 export default defineNitroPlugin(() => {
   return startup.initialize(initializeDatabase).then(ready => {
     if (!ready || !startup.status().ready) return
-    if (__PB_MODULE_ANALYTICS__) markAnalyticsReady()
+    markAnalyticsReady()
     void runDeferredBackfillsViaPool()
   })
 })
@@ -104,15 +103,11 @@ async function initializeDatabase() {
   await bootStep('default-admin-locale', () => ensureDefaultAdminLocale(db))
   await bootStep('default-admin-regional', () => ensureDefaultAdminRegionalSettings(db))
   await bootStep('runtime-settings', () => initializeRuntimeSettings(true))
-  if (__PB_MODULE_ANALYTICS__) {
-    await bootStep('analytics-settings', () => initializeAnalyticsSettings(true))
-  }
+  await bootStep('analytics-settings', () => initializeAnalyticsSettings(true))
   await bootStep('security-settings', () => initializeSecuritySettings(true))
   await bootStep('default-folder', () => ensureDefaultFolder(db))
-  if (__PB_MODULE_LOGS__) {
-    // Retired access files/tables/markers are cold history, never migrated or removed.
-    await bootStep('logging-settings-reload', () => reloadLoggingSettings())
-  }
+  // Retired access files/tables/markers are cold history, never migrated or removed.
+  await bootStep('logging-settings-reload', () => reloadLoggingSettings())
   // Optional marker-guarded backfills still start after readiness through the
   // scoped pool under ordinary leases, rather than blocking required boot.
 }
@@ -255,7 +250,7 @@ async function ensurePostVersionGraphMigration(db: Awaited<ReturnType<typeof use
       `UPSERT type::record('versions', $versionId) CONTENT { version: 'current', datetime: time::now(), diff: [], created_at: time::now() };
        RELATE (type::record('post', $postId)) -> has_version -> (type::record('versions', $versionId));
        UPDATE post SET has_versioning = $hasVersioning WHERE id = type::record('post', $postId) AND status = 'published';`,
-      { postId, versionId, hasVersioning: __PB_MODULE_POST_VERSIONING__ },
+      { postId, versionId, hasVersioning: true },
       { label: 'post current version migration create', timeoutMs: 10_000 }
     )
 
@@ -465,12 +460,10 @@ async function ensureDefaultFolder(db: Awaited<ReturnType<typeof useDb>>) {
 }
 
 async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
-  if (__PB_MODULE_LOGS__ && resolveModuleFlags(getRuntimeModuleConfig()).errorLogs) {
-    try {
-      await runErrorGroupBackfill(db)
-    } catch (error) {
-      console.warn('[db-init] error groups backfill failed; will retry next boot', error)
-    }
+  try {
+    await runErrorGroupBackfill(db)
+  } catch (error) {
+    console.warn('[db-init] error groups backfill failed; will retry next boot', error)
   }
   try {
     await repairTaxonomyEdges(db)

@@ -574,7 +574,7 @@ const transformItems = computed(() => [[
   { label: t('admin.editor.toolbar.quote'), icon: 'i-lucide-quote', onSelect: () => emit('transform', 'blockquote') },
   { label: t('admin.editor.toolbar.code'), icon: 'i-lucide-square-code', onSelect: () => emit('transform', 'codeBlock') },
   { label: t('admin.editor.toolbar.separator'), icon: 'i-lucide-minus', onSelect: () => emit('transform', 'horizontalRule') },
-  ...(__PB_BLOCK_DIALOGUE_BLOCK__ ? [{ label: t('admin.editor.dialogue.convert'), icon: 'i-lucide-message-square-quote', onSelect: () => emit('transform', 'dialogueBlock') }] : [])
+  { label: t('admin.editor.dialogue.convert'), icon: 'i-lucide-message-square-quote', onSelect: () => emit('transform', 'dialogueBlock') }
 ]])
 
 const alignIcon = computed(() => {

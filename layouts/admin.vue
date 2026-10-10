@@ -202,20 +202,10 @@ useHead(() => ({
   ]
 }))
 const sessionFetch = useSessionFetch()
-const moduleFlags = useModuleFlags()
-const analyticsModuleEnabled = moduleFlags.analytics
-const multiUserModeEnabled = moduleFlags.multiUser
-const userManagementEnabled = multiUserModeEnabled
 const { data: authSession } = await useAsyncData('admin-layout-session', () => sessionFetch<{ loggedIn: boolean, user: AdminSessionUser | null }>('/api/auth/session'), {
   default: () => ({ loggedIn: false, user: null })
 })
-const adminRole = computed<AdminRole | null>(() => {
-  if (!multiUserModeEnabled && authSession.value?.loggedIn) {
-    return 'superadmin'
-  }
-
-  return authSession.value?.user?.role ?? null
-})
+const adminRole = computed<AdminRole | null>(() => authSession.value?.user?.role ?? null)
 const isSuperadmin = computed(() => adminRole.value === 'superadmin')
 const defaultAdminSettings = () => ({ settings: { [ADMIN_COLOR_MODE_KEY]: DEFAULT_ADMIN_COLOR_MODE, [ADMIN_LOCALE_KEY]: DEFAULT_ADMIN_LOCALE, [ADMIN_POST_DISPLAY_MODE_KEY]: 'slug' } })
 const { data: adminSettings } = await useAsyncData('admin-layout-settings', () => {
@@ -340,7 +330,7 @@ const navSections = computed(() => {
     })
   }
 
-  if (userManagementEnabled && (adminRole.value === 'superadmin' || adminRole.value === 'admin')) {
+  if (adminRole.value === 'superadmin' || adminRole.value === 'admin') {
     sections.push({
       label: t('admin.nav.people'),
       items: [
@@ -353,15 +343,9 @@ const navSections = computed(() => {
     const settingsItems = [
       { to: '/admin/settings/general', label: t('admin.nav.general'), icon: 'i-lucide-sliders-horizontal' },
       { to: '/admin/settings/profile', label: t('admin.nav.profile'), icon: 'i-lucide-user' },
-      ...(moduleFlags.themes
-        ? [{ to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' }]
-        : []),
-      ...(analyticsModuleEnabled
-        ? [{ to: '/admin/settings/analytics', label: t('admin.nav.analyticsSettings'), icon: 'i-lucide-chart-no-axes-combined' }]
-        : []),
-      ...(moduleFlags.securityAlerts || moduleFlags.mfa
-        ? [{ to: '/admin/settings/security', label: t('admin.nav.security'), icon: 'i-lucide-shield-check' }]
-        : []),
+      { to: '/admin/settings/themes', label: t('admin.nav.themes'), icon: 'i-lucide-palette' },
+      { to: '/admin/settings/analytics', label: t('admin.nav.analyticsSettings'), icon: 'i-lucide-chart-no-axes-combined' },
+      { to: '/admin/settings/security', label: t('admin.nav.security'), icon: 'i-lucide-shield-check' },
       { to: '/admin/settings/system', label: t('admin.nav.system'), icon: 'i-lucide-monitor-cog' }
     ]
 
@@ -370,14 +354,12 @@ const navSections = computed(() => {
       items: settingsItems
     })
 
-    if (moduleFlags.backups) {
-      sections.push({
-        label: t('admin.nav.tools'),
-        items: [
-          { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' }
-        ]
-      })
-    }
+    sections.push({
+      label: t('admin.nav.tools'),
+      items: [
+        { to: '/admin/backups', label: t('admin.nav.backups'), icon: 'i-lucide-database-backup' }
+      ]
+    })
   }
 
   return sections

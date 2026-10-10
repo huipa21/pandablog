@@ -398,32 +398,7 @@ const blockDefinitions: BlockDefinition[] = [
   }
 ]
 
-const optionalBlockEnabled: Record<string, boolean> = {
-  accordionBlock: __PB_BLOCK_ACCORDION_BLOCK__,
-  annotationBlock: __PB_BLOCK_ANNOTATION_BLOCK__,
-  blockMath: __PB_BLOCK_BLOCK_MATH__,
-  blockquote: __PB_BLOCK_BLOCKQUOTE__,
-  codeBlock: __PB_BLOCK_CODE_BLOCK__,
-  columnsBlock: __PB_BLOCK_COLUMNS_BLOCK__,
-  customHtml: __PB_BLOCK_CUSTOM_HTML__,
-  diffBlock: __PB_BLOCK_DIFF_BLOCK__,
-  dialogueBlock: __PB_BLOCK_DIALOGUE_BLOCK__,
-  embed: __PB_BLOCK_VIDEO_EMBED__,
-  filesBlock: __PB_BLOCK_FILES_BLOCK__,
-  footnotesBlock: __PB_BLOCK_FOOTNOTES_BLOCK__,
-  horizontalRule: __PB_BLOCK_HORIZONTAL_RULE__,
-  image: __PB_BLOCK_IMAGE__,
-  mediaText: __PB_BLOCK_MEDIA_TEXT__,
-  mermaid: __PB_BLOCK_MERMAID__,
-  table: __PB_BLOCK_TABLE__,
-  tabsBlock: __PB_BLOCK_TABS_BLOCK__
-}
-
-function isBlockEnabled(blockName: string) {
-  return __PB_MODULE_EDITOR__ && (optionalBlockEnabled[blockName] ?? true)
-}
-
-const enabledBlockDefinitions = blockDefinitions.filter((block) => isBlockEnabled(block.name))
+const enabledBlockDefinitions = blockDefinitions
 const visibleBlockDefinitions = enabledBlockDefinitions.filter((block) => !block.hidden)
 
 const normalizedBlocks = visibleBlockDefinitions.map((block) => ({

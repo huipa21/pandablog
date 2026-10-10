@@ -5,7 +5,7 @@ vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/log-retention', () => mocks)
 beforeEach(() => {
   vi.resetModules(); vi.resetAllMocks()
-  vi.stubGlobal('createError', createError); vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('createError', createError); vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   vi.stubEnv('LOG_CONSOLE', 'off')
   mocks.useDb.mockResolvedValue({}); mocks.queryDb.mockResolvedValue([])
   mocks.deleteLogsOlderThan.mockResolvedValue(12); mocks.deleteLogsKeepLatest.mockResolvedValue(7); mocks.purgeLogTable.mockResolvedValue(19)

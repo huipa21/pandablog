@@ -8,8 +8,7 @@ let stdout: MockInstance<typeof process.stdout.write>
 let stderr: MockInstance<typeof process.stderr.write>
 beforeEach(() => {
   vi.resetModules(); vi.clearAllMocks()
-  vi.stubGlobal('__PB_MODULE_LOGS__', true)
-  vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: {} } }))
+  vi.stubGlobal('useRuntimeConfig', () => ({ public: {} }))
   vi.stubEnv('LOG_CONSOLE', 'errors'); vi.stubEnv('LOG_FORMAT', 'json')
   stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
   stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)

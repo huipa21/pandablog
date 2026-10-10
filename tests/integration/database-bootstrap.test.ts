@@ -9,7 +9,6 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real ROOT bootstrap the
       surrealRoot: fixture.username, surrealRootPassword: fixture.password, surrealAppUser: 'fixture_schema_editor', surrealAppPassword: 'fixture-quote"back\\secret',
       session: {password: 'synthetic-session-key-32-plus-characters'}, appOrigin: 'http://127.0.0.1:3000', public: {footerShowPoweredBy: false}}
     vi.stubGlobal('useRuntimeConfig', () => config)
-    for (const flag of ['__PB_MODULE_LOGS__', '__PB_MODULE_ANALYTICS__', '__PB_MODULE_BACKUPS__']) vi.stubGlobal(flag, true)
     const db = await import('../../server/utils/db')
     const {validateStartupConfig} = await import('../../server/utils/startup-config')
     const {applySchema, loadSchema} = await import('../../server/utils/schema')

@@ -467,7 +467,7 @@
         </div>
       </details>
 
-      <DialogueSettings v-if="blockName === 'dialogueBlock' && dialogueEnabled" :editor="editor" :attrs="attrs" :pos="selectedBlockNode?.pos ?? null" @update="updateAttrs" />
+      <DialogueSettings v-if="blockName === 'dialogueBlock'" :editor="editor" :attrs="attrs" :pos="selectedBlockNode?.pos ?? null" @update="updateAttrs" />
 
       <details v-if="blockName === 'accordionBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
         <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.accordion') }}</summary>
@@ -815,7 +815,6 @@ import { DEFAULT_SEPARATOR_COLOR, SEPARATOR_PALETTE, SEPARATOR_SELECTED_BORDER_C
 import type { JsonContent } from '~/types/content'
 import { DIFF_BLOCK_LANGUAGES, normalizeDiffLanguage } from '~/utils/diffBlock'
 
-const dialogueEnabled = __PB_BLOCK_DIALOGUE_BLOCK__
 const props = defineProps<{
   editor: Editor | null
 }>()
