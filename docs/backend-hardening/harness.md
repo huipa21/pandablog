@@ -4,8 +4,8 @@
 
 ## Runtime and commands
 
-- Node **22.22.0**, pinned in `.node-version`, checked by the live fixture and used by CI. Use a runtime manager or an official Node binary; ensure child processes also resolve this Node through `PATH`.
-- Stable SurrealDB **3.2.x** executable, supplied as an **absolute path**. The user authorized this target amendment on 2026-10-05; the reproducible CI/default artifact pin is **3.2.4**. No automatic download or version fallback in local commands. Other minors and prereleases are refused; exact builds are recorded. Rerun relevant acceptance on the deployment build.
+- Node **22.22.0**, pinned in `.node-version`, checked by the live fixture and referenced by the optional workflow template. Use a runtime manager or an official Node binary; ensure child processes also resolve this Node through `PATH`.
+- Stable SurrealDB **3.2.x** executable, supplied as an **absolute path**. The user authorized this target amendment on 2026-10-05; the reproducible workflow/default artifact pin is **3.2.4**. No automatic download or version fallback in local commands. Other minors and prereleases are refused; exact builds are recorded. Rerun relevant acceptance on the deployment build.
 - Installed SDK/Nuxt/Sharp versions are printed by live acceptance, not inferred from package ranges. At implementation: SDK 2.0.3, Nuxt 4.4.8, Sharp 0.34.5, Vitest 4.1.6, unstorage 1.17.5, Archiver 8.0.0.
 
 Default units do **not** connect to a DB:
@@ -28,16 +28,22 @@ npm run test:backend:integration -- --fixture --surreal-bin=/absolute/path/to/su
 
 No-argument execution, extra arguments, relative paths, wrong Node and wrong DB versions fail closed. `PB_ERROR_GROUPS_LIVE` no longer enables a fixed-port/static-password test. The runner enables only explicitly listed guarded integration suites (baseline, media startup preservation, current-identity/MFA SQL, media privacy projections, atomic setup/owned receipts, DB lifecycle/privileges, streaming replacement/scale, actual restore worker, Phase 3 scoped media SQL/claims/small-catalog fixture, and Phase 4 exact analytics/session/publication/checkpoint/restore-epoch/raw-retention SQL fixture) and the existing grouped-error live suite, using a sanitized child environment. The default unit suite still skips live DB work.
 
-CI's ordinary verification uses the same Node pin. The separate `workflow_dispatch` boolean `backend-fixture` deliberately opts into the exact 3.2.4 download and acceptance. That job fails, rather than substitutes a version, if the official release is unavailable. CI has **not** been executed locally. The previously ignored CI file referenced an ignored mutation e2e suite through Playwright configuration which loads `.env` and reuses an app server; that invocation is deliberately deferred until REV-5.1 provides an isolated Nitro/browser runner. It is **not** a browser pass.
+GitHub CI is **not currently used**; run the commands above locally and record actual
+results. The optional workflow template references the same Node pin and a manual
+`workflow_dispatch` / `backend-fixture` opt-in for the exact 3.2.4 download. If enabled,
+it fails rather than substitutes a version when the artifact is unavailable. Its presence
+is not evidence of execution. Legacy Playwright loads `.env` and can reuse an app server;
+a safe isolated Nitro/browser runner remains separate acceptance, not an inferred pass.
 
-## Phase 5 readiness report (preparatory; blocked)
+## Hardening project acceptance report (preparatory; blocked)
 
 See [release-handoff.md](./release-handoff.md) for the combined evidence matrix, remaining
-runner/environment gaps, read-only `npm run release:report` and fail-closed release checks.
-The new `backend-release-readiness.test.ts` tests the checker only; it is not evidence that
-any combined security/build/browser/Linux/scale/operator gate passed. CI prints pending
-readiness without treating report exit 0 as release approval. No test/deployment command is
-executed by the checker. Phase 4 prerequisites still block REV-5.1/5.2.
+runner/environment gaps, read-only `npm run hardening:acceptance:report` and fail-closed
+`hardening:acceptance:check*` commands. These are project acceptance tools, not permanent
+checks for every release, and are excluded from routine workflow verification.
+`backend-release-readiness.test.ts` tests the checker only; it is not evidence that any
+combined security/build/browser/Linux/scale/operator gate passed. No test/deployment command
+is executed by the checker. Phase 4 prerequisites still block REV-5.1/5.2.
 
 ## Safety and ownership
 

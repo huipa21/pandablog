@@ -136,6 +136,7 @@ tests/unit/*
 !tests/unit/backend-hardening-baseline.test.ts
 !tests/unit/backend-hardening-lifecycle.test.ts
 !tests/unit/backend-release-readiness.test.ts
+!tests/unit/build-version.test.ts
 !tests/helpers/
 !tests/helpers/backend-hardening.ts
 !tests/helpers/maintenance-realm.ts

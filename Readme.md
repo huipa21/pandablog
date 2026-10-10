@@ -241,7 +241,7 @@ argon2id and stored in SurrealDB. You can change it later from **Admin → Setti
 
 ## Versioning & the `panda` CLI
 
-PandaBlog uses a deterministic, date-based versioning scheme (`YYMMDD-N+g<sha>`, e.g. `260923-1+gedb176f`) and ships a single operator CLI, `panda`, inside the runtime image (`/usr/local/bin/panda` → `/app/bin/panda.mjs`). Only `password-reset` loads `.env` database configuration and connects directly to the database. No command prints credentials or owner tokens.
+PandaBlog uses a deterministic UTC commit-datetime + SHA identity (`YYYYMMDDTHHmmssZ-g<sha>`, e.g. `20261010T053130Z-g4c426999aa95`), supporting shallow checkouts without history counting, and ships a single operator CLI, `panda`, inside the runtime image (`/usr/local/bin/panda` → `/app/bin/panda.mjs`). Only `password-reset` loads `.env` database configuration and connects directly to the database. No command prints credentials or owner tokens.
 
 ```bash
 # Print version for the current commit
@@ -578,7 +578,9 @@ otherwise from `NUXT_SESSION_PASSWORD`.
 
 ## Deploying with Docker
 
-A production-ready `Dockerfile` and Compose setup are included.
+A `Dockerfile` and Compose setup are included. Before an upgrade, use the short
+[deployment checklist](docs/deployment-checklist.md) for local verification, backups,
+rollback and actual proxy checks. Pending project acceptance is not deployment approval.
 
 1. **Build the image** from the project root:
 
@@ -649,8 +651,11 @@ Backend hardening is **not release-approved**: Phase 4 prerequisites and combine
 acceptance remain incomplete. Read the [progress ledger](docs/backend-hardening/progress.md),
 [draft recovery/deployment runbook](docs/backend-hardening/operations.md), and
 [Phase 5 evidence matrix](docs/backend-hardening/release-handoff.md) before planning an upgrade.
-`npm run release:report` is read-only; `npm run release:check:local` and `npm run release:check`
-fail when required implementation/evidence is missing. They do not run tests or authorize deployment.
+`npm run hardening:acceptance:report` is read-only; `npm run hardening:acceptance:check:local`
+and `npm run hardening:acceptance:check` fail when required implementation/evidence is missing.
+These commands belong to this unfinished hardening project, not permanent machinery for every
+release. They do not run tests or authorize deployment. Retain them until acceptance is resolved;
+archival/retirement requires a separate decision and does not retire regression or fault tests.
 
 ### Container logging
 
@@ -702,6 +707,15 @@ headers and URI queries. Both edges' retention is operator-owned, not an app set
 ---
 
 ## Testing
+
+This project does **not currently use GitHub CI**. Run verification locally on the Node
+version pinned in `.node-version`: `npm run lint`, `npm run lint:css`,
+`npm run typecheck`, `npm run test:unit`, and `git diff --check`.
+The optional `.github/workflows/ci.yml` template is not evidence that these checks ran.
+Real DB acceptance remains an explicit guarded command; see the
+[backend harness](docs/backend-hardening/harness.md). Production build/module, browser/proxy,
+Linux filesystem and constrained-load acceptance must be recorded separately, not inferred
+from unit tests or the hardening evidence report.
 
 **Unit tests** (Vitest):
 

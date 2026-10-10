@@ -16,6 +16,10 @@
  *   npm run docker:build
  *   npm run podman:build
  *   npm run container:build -- -t myregistry/pandablog:custom
+ *   APP_VERSION=v1.0.0 npm run container:build
+ *
+ * APP_VERSION optionally supplies a tag-safe release label; Git metadata and
+ * clean-tree checks still apply. Waived dirty builds also mark the label `.dirty`.
  *
  * The Dockerfile always uses node:22-alpine for both build and runtime.
  */
@@ -67,6 +71,11 @@ try {
     stdio: ['ignore', 'pipe', 'pipe']
   })
   info = JSON.parse(raw)
+  const label = process.env.APP_VERSION?.trim()
+  if (label) info.version = `${label}${info.dirty && !label.endsWith('.dirty') ? '.dirty' : ''}`
+  if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$/.test(info.version)) {
+    throw new Error('APP_VERSION must be a valid container tag (1–128 letters, digits, underscores, dots or hyphens).')
+  }
 } catch (error) {
   process.stderr.write(String(error.stderr || error.message))
   process.stderr.write('\n[container:build] aborted — the image must be traceable to a commit.\n')
@@ -75,8 +84,8 @@ try {
 
 const hasTag = passthrough.some((arg) => arg === '-t' || arg === '--tag')
 
-// Image tags cannot contain '+', which the version uses before the SHA.
-const tag = info.version.replace('+', '_')
+// The generated datetime/SHA identity (or explicit label) is already tag-safe.
+const tag = info.version
 
 const args = [
   'build',

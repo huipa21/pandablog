@@ -270,7 +270,7 @@ const HELP = {
     panda <command> --help        Same as above
 
   Commands
-    version     Print the build version (YYMMDD-N+g<sha>)
+    version     Print the build version (UTC commit datetime + SHA)
     info        Build identity, runtime environment and storage writability
     health      Probe the local HTTP server; exit 0 healthy, 1 unhealthy
                 (default http://127.0.0.1:$PORT/api/health)
@@ -337,10 +337,11 @@ const HELP = {
     panda version [--json]
     panda --version | -v
 
-  Prints the deterministic build version, e.g. 260923-1+gedb176f:
-    260923     committer date of the commit (YYMMDD, UTC)
-    -1         1-based index of that commit among the day's commits
-    +gedb176f  abbreviated commit SHA
+  Prints the deterministic build version, e.g. 20261010T053130Z-g4c426999aa95:
+    20261010T053130Z  committer datetime (YYYYMMDDTHHmmssZ, UTC)
+    -g4c426999aa95    fixed 12-character commit SHA prefix
+  No history counting is needed; shallow checkouts are supported.
+  An explicitly supplied APP_VERSION release label is displayed verbatim.
   A ".dirty" suffix means the image was built from uncommitted changes
   (PANDA_ALLOW_DIRTY=1).
 

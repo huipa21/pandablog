@@ -1,4 +1,15 @@
-# Phase 5: integration evidence and release handoff
+# Backend-hardening project acceptance and handoff
+
+This checker is scoped to the unfinished backend-hardening project, **not a permanent
+gate for every release**. The former `release:*` package commands are now
+`hardening:acceptance:*`. Keep this tool and its historical evidence until acceptance
+is resolved; any archival/retirement is a separate decision. Regression and fault tests
+remain durable regardless of the reporting tool's lifecycle. For ordinary deployment
+safeguards use the [short deployment checklist](../deployment-checklist.md); it does not
+waive outstanding hardening or other project acceptance.
+
+GitHub CI is not currently used. The optional workflow template runs tests, not this
+project's evidence report. Verification must be executed and recorded locally.
 
 > **Approved lifecycle refactor:** [maintenance simplification](../maintenance-simplification/plan.md) makes single-instance exclusion a deployment guarantee and distinguishes ordinary automatic crash restart from destructive-restore recovery. Its MS-05/06 tasks reconcile affected checker/handoff wording without waiving unrelated release prerequisites or fabricating evidence. The working tree implements the lifecycle; checker requirement wording is reconciled, but no evidence manifest/gate is fabricated or waived. See maintenance progress for exact local results and remaining blockers.
 
@@ -25,14 +36,14 @@ setup/maintenance authority and access migration receipts.
 From the repository root, with dependencies installed:
 
 ```sh
-npm run release:report           # All stages; valid pending reports exit 0
-npm run release:check:local      # Prerequisites + all mandatory local evidence
-npm run release:check            # Local + REV-5.1/5.2 + pre-deploy operator evidence
-npm run release:check:postdeploy # Above + deployed and overnight evidence
+npm run hardening:acceptance:report           # All stages; pending reports exit 0
+npm run hardening:acceptance:check:local      # Prerequisites + mandatory local evidence
+npm run hardening:acceptance:check            # Local + REV-5.1/5.2 + predeploy evidence
+npm run hardening:acceptance:check:postdeploy # Above + deployed and overnight evidence
 ```
 
 Checks exit **1** on blocked/incomplete evidence; malformed input/Git/artifacts also exit 1.
-Report mode is inspection, **not** a CI release pass. Output is JSON, with the candidate
+Report mode is inspection, **not** a verification or release pass. Output is JSON, with the candidate
 Git HEAD, gate requirements/status/reasons and blockers. `productionApproval` is always
 false: even `ready: true` means only that recorded requirements are satisfied, not that
 the checker grants authority. A named operator must review the artifacts and approve cutover.
@@ -154,16 +165,16 @@ commits are stale. The checker does not create commits or change task statuses.
 ## 5. Operator handoff order
 
 1. Resolve/finish all Phase 4 work, rerun required tiers and reconcile open findings.
-2. On the committed candidate collect all seven local gates. `release:check:local` must pass;
+2. On the committed candidate collect all seven local gates. `hardening:acceptance:check:local` must pass;
    then record REV-5.1 completion in progress, never infer it from component tests.
 3. Finalize the [operations runbook](./operations.md), exact env/default/limit inventory,
    migration/session warning, paired recovery/downgrade and logging runbook amendments;
    record REV-5.2 only after its prerequisites and documentation review pass.
 4. Operator approves and rehearses an isolated production copy, verifies backup/mount/resource/
-   proxy/single-writer/rollback gates and explicitly authorizes cutover. `release:check` checks
+   proxy/single-writer/rollback gates and explicitly authorizes cutover. `hardening:acceptance:check` checks
    those records; it neither issues nor executes deployment permission.
 5. Record real deployed security/readiness and 24-hour/overnight evidence. Run
-   `release:check:postdeploy`; the operator may then supply REV-5.3 acceptance in progress.
+   `hardening:acceptance:check:postdeploy`; the operator may then supply REV-5.3 acceptance in progress.
    No production-copy permission or evidence has been supplied in this session.
 
 Retain the separate [logging release gates](../logging/progress.md#pending-manual-verification),

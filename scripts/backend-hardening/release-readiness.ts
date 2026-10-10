@@ -81,6 +81,7 @@ const prerequisites = [
 export interface ReleaseContext { revision: string, compatibleRevisions: string[], dirty: boolean }
 
 // Artifact existence/digests are checked by the CLI before calling this pure evaluator.
+// Scoped to backend-hardening project acceptance, not every future release.
 // A passed report is evidence bookkeeping, NOT automatic deployment authorization.
 export function evaluateRelease(tasks: Record<string, string>, evidence: Evidence, context: ReleaseContext, stage: Stage, now = Date.now()) {
   const blockers: string[] = []

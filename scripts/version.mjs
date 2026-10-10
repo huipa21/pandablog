@@ -2,27 +2,24 @@
 /**
  * PandaBlog build version generator.
  *
- * Emits a date-based, commit-pinned version string:
+ * Emits a commit-datetime + SHA identity, safe to use as an image tag:
  *
- *     YYMMDD-N+g<short-sha>          e.g. 260923-1+gedb176f
+ *     YYYYMMDDTHHmmssZ-g<short-sha>  e.g. 20261010T053130Z-g4c426999aa95
  *
- *   YYMMDD  committer date of the commit being built, in UTC
- *   N       1-based index of that commit among same-day commits reachable
- *           from it via --first-parent
- *   +g...   7-char abbreviated commit SHA
+ * The datetime is the commit's committer timestamp in UTC, not build time.
+ * The short SHA is a fixed 12-character prefix of the full commit SHA.
+ * No ancestor history or tags are needed; shallow checkouts work.
  *
  * DETERMINISM CONTRACT
  * --------------------
  * The same commit ALWAYS produces the same string, on any machine, any number
  * of times. Every component is a pure function of the commit object:
- *   - the date is stored inside the commit,
- *   - N counts only ancestors-or-self of that commit, so later commits landing
- *     on the same day can never renumber an older build,
- *   - the SHA is the identity itself.
+ *   - the timestamp is stored inside the commit,
+ *   - the SHA prefix is fixed-length, independent of other Git objects.
+ * This identifies source, not identical build artifacts; retain image digests.
  *
  * To keep that contract honest this script HARD-FAILS rather than guessing:
  *   - not a git repository      -> no trustworthy date/sha exists
- *   - shallow clone             -> N would be silently undercounted
  *   - dirty working tree        -> bytes on disk no longer match the SHA
  *
  * The dirty check can be waived with PANDA_ALLOW_DIRTY=1, which appends a
@@ -64,7 +61,7 @@ function assertGitAvailable(cwd) {
   } catch {
     throw new VersionError(
       'git executable not found.\n'
-      + 'The build version is derived from git history and cannot be invented.\n'
+      + 'The build version requires a git commit and cannot be invented.\n'
       + 'Install git, or build the Docker image with --build-arg APP_VERSION=<version>.'
     )
   }
@@ -80,20 +77,8 @@ function assertGitAvailable(cwd) {
   if (inside !== 'true') {
     throw new VersionError(
       'not inside a git work tree.\n'
-      + 'The build version is derived from git history and cannot be invented.\n'
+      + 'The build version requires a git commit and cannot be invented.\n'
       + 'Run from a git checkout, or pass APP_VERSION explicitly.'
-    )
-  }
-}
-
-function assertNotShallow(cwd) {
-  if (git(['rev-parse', '--is-shallow-repository'], cwd) === 'true') {
-    throw new VersionError(
-      'shallow clone detected.\n'
-      + 'Commit counting requires full history; a shallow clone silently\n'
-      + 'undercounts N and would emit a WRONG version for the same SHA.\n'
-      + 'Fix with:  git fetch --unshallow\n'
-      + 'In GitHub Actions set: actions/checkout@v4 with fetch-depth: 0'
     )
   }
 }
@@ -131,45 +116,35 @@ export function computeVersion(options = {}) {
   const commit = options.commit ?? 'HEAD'
 
   assertGitAvailable(cwd)
-  assertNotShallow(cwd)
   const dirty = checkWorkingTree(cwd)
 
-  const sha = git(['rev-parse', commit], cwd)
-  const shortSha = git(['rev-parse', '--short=7', commit], cwd)
-  const date = git(['show', '-s', '--date=format-local:%y%m%d', '--format=%cd', commit], cwd)
-  const committedAt = git(['show', '-s', '--date=iso-strict-local', '--format=%cd', commit], cwd)
-
-  if (!/^\d{6}$/.test(date)) {
-    throw new VersionError(`unexpected commit date format: ${date}`)
+  const sha = git(['rev-parse', '--verify', '--end-of-options', `${commit}^{commit}`], cwd)
+  const shortSha = sha.slice(0, 12)
+  const epoch = git(['show', '-s', '--format=%ct', sha], cwd)
+  const timestamp = new Date(Number(epoch) * 1000)
+  if (!/^\d+$/.test(epoch) || !Number.isFinite(timestamp.getTime())) {
+    throw new VersionError('unexpected commit timestamp')
   }
+  const committedAt = timestamp.toISOString().replace('.000Z', 'Z')
+  const datetime = committedAt.replace(/[-:]/g, '')
+  if (!/^\d{8}T\d{6}Z$/.test(datetime)) throw new VersionError('unsupported commit timestamp')
+  const date = datetime.slice(0, 8)
+  const version = `${datetime}-g${shortSha}${dirty ? '.dirty' : ''}`
 
-  // Count same-day commits along the first-parent chain ending at `commit`.
-  // Using --first-parent keeps merge commits from side branches out of the
-  // sequence; anchoring the walk at `commit` (not at HEAD or at a branch tip)
-  // is what makes N immutable for a given SHA.
-  const sameDay = git(
-    ['log', '--first-parent', '--format=%cd', '--date=format-local:%y%m%d', sha],
-    cwd
-  )
-    .split('\n')
-    .filter((line) => line === date).length
-
-  if (sameDay < 1) {
-    throw new VersionError(`could not locate commit ${shortSha} in its own history`)
-  }
-
-  const version = `${date}-${sameDay}+g${shortSha}${dirty ? '.dirty' : ''}`
-
-  return { version, date, sequence: sameDay, sha, shortSha, committedAt, dirty }
+  return { version, date, sha, shortSha, committedAt, dirty }
 }
 
 function main(argv) {
-  const commitFlag = argv.indexOf('--commit')
-  const commit = commitFlag !== -1 ? argv[commitFlag + 1] : undefined
-
   try {
+    let commit
+    let json = false
+    for (let i = 0; i < argv.length; i++) {
+      if (argv[i] === '--json' && !json) json = true
+      else if (argv[i] === '--commit' && commit === undefined && argv[i + 1] && !argv[i + 1].startsWith('-')) commit = argv[++i]
+      else throw new VersionError('Usage: node scripts/version.mjs [--json] [--commit <commit>]')
+    }
     const info = computeVersion({ commit })
-    process.stdout.write(argv.includes('--json') ? `${JSON.stringify(info, null, 2)}\n` : `${info.version}\n`)
+    process.stdout.write(json ? `${JSON.stringify(info, null, 2)}\n` : `${info.version}\n`)
   } catch (error) {
     if (error instanceof VersionError) {
       process.stderr.write(`\n[pandablog:version] ${error.message}\n\n`)

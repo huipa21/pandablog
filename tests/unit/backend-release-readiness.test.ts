@@ -28,8 +28,8 @@ function record(id: string) {
 }
 const manifest = () => ({ version: 1, records: GATES.map(gate => record(gate.id)) })
 
-// This is release-gate tooling acceptance, NOT evidence for the gates it evaluates.
-describe('release readiness fails closed', () => {
+// This is hardening-project tooling acceptance, NOT evidence for its gates.
+describe('hardening project acceptance fails closed', () => {
   it('does not equate partial Phase 4 or missing evidence with a release pass', () => {
     const result = evaluateRelease(tasks, parseEvidence({ version: 1, records: [] }), context, 'local')
     expect(result.ready).toBe(false)
@@ -120,10 +120,16 @@ describe('release readiness fails closed', () => {
     const value = JSON.parse(await readFile(join(root, 'docs/backend-hardening/release-evidence.json'), 'utf8'))
     expect(() => parseEvidence(value)).not.toThrow()
     const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-    expect(pkg.scripts['release:report']).toContain('--report --stage=postdeploy')
-    expect(pkg.scripts['release:check:local']).toContain('--check --stage=local')
-    expect(pkg.scripts['release:check']).toContain('--check --stage=predeploy')
-    expect(pkg.scripts['release:check:postdeploy']).toContain('--check --stage=postdeploy')
+    expect(pkg.scripts['hardening:acceptance:report']).toContain('--report --stage=postdeploy')
+    expect(pkg.scripts['hardening:acceptance:check:local']).toContain('--check --stage=local')
+    expect(pkg.scripts['hardening:acceptance:check']).toContain('--check --stage=predeploy')
+    expect(pkg.scripts['hardening:acceptance:check:postdeploy']).toContain('--check --stage=postdeploy')
+    expect(Object.keys(pkg.scripts).some(key => key.startsWith('release:'))).toBe(false)
+    const workflow = await readFile(join(root, '.github/workflows/ci.yml'), 'utf8')
+    expect(workflow).not.toContain('fetch-depth: 0')
+    expect(workflow).not.toMatch(/npm run (?:release:|hardening:acceptance:)/)
+    expect(workflow).toContain('npm run test:unit')
+    expect(workflow).toContain('npm run test:backend:integration')
   })
 
   it('reads bounded regular evidence files and checks digests without following links or reading configured data', async () => {

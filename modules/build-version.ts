@@ -21,9 +21,8 @@ import { defineNuxtModule } from '@nuxt/kit'
  * Note on dirty trees: this path deliberately does NOT block on uncommitted
  * changes, because it also runs for `nuxt dev` and `nuxt typecheck`, which you
  * run precisely while the tree is dirty. The strict gate lives in
- * scripts/docker-build.mjs, which is the only path that produces a shippable
- * artifact. Local builds are stamped `.dirty` so they can never be mistaken
- * for a release.
+ * scripts/docker-build.mjs for the standard container path. Local builds are
+ * stamped `.dirty`; manually supplied APP_VERSION values are operator labels.
  */
 export default defineNuxtModule({
   meta: {
@@ -51,7 +50,7 @@ function resolveVersion(rootDir: string): string {
     throw new Error(
       'Cannot determine the build version.\n'
       + `${detail}\n`
-      + 'Set APP_VERSION explicitly, or build from a complete git checkout.'
+      + 'Set APP_VERSION explicitly, or build from a git checkout (shallow is supported).'
     )
   }
 }

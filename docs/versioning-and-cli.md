@@ -1,6 +1,6 @@
 # Versioning & Container CLI (`panda`)
 
-PandaBlog uses a deterministic, date-based, commit-pinned versioning scheme and provides an operator CLI inside the container runtime.
+PandaBlog uses a deterministic, UTC commit-datetime + SHA build identity and provides an operator CLI inside the container runtime.
 
 ---
 
@@ -9,14 +9,16 @@ PandaBlog uses a deterministic, date-based, commit-pinned versioning scheme and 
 Builds are stamped with:
 
 ```text
-260923-1+gedb176f
-│      │ │
-│      │ └─ abbreviated 7-character commit SHA (+g...)
-│      └─── 1-based index of this commit among that day's commits
-└───────── committer date in YYMMDD format (pinned to UTC)
+20261010T053130Z-g4c426999aa95
+│               │
+│               └─ fixed 12-character prefix of the commit SHA
+└───────────────── committer datetime in UTC (YYYYMMDDTHHmmssZ)
 ```
 
-Example: `260923-1+gedb176f` represents the 1st commit on September 23, 2026, at commit `edb176f`.
+Example: `20261010T053130Z-g4c426999aa95` identifies commit `4c426999aa95…`,
+committed at 05:31:30 UTC on October 10, 2026. This is **not the build time** or
+an ordered release number; the SHA distinguishes commits with identical timestamps.
+The format is directly usable as a Docker/Podman tag. No history counting or tags are needed.
 
 ### Inspecting Versions locally
 
@@ -24,7 +26,7 @@ Example: `260923-1+gedb176f` represents the 1st commit on September 23, 2026, at
 # Print current commit's version
 npm run version:print
 
-# Machine-readable output with timestamp, sha, and sequence details
+# Machine-readable output with UTC timestamp, full SHA, short SHA and dirty status
 node scripts/version.mjs --json
 
 # Check what the version was for any past commit
@@ -39,17 +41,26 @@ node scripts/version.mjs --commit c2d6a6e
 
 | Component | Source | Why it's deterministic |
 |---|---|---|
-| Date (`260923`) | Committer date of the commit | UTC-pinned, baked into the git commit object |
-| Sequence (`-1`) | `git log --first-parent` | Counts only ancestors of this commit on that day; future commits cannot renumber past commits |
-| Hash (`+gedb176f`) | Git commit SHA | The immutable identity of the commit |
+| Datetime (`20261010T053130Z`) | Committer epoch seconds | Converted to UTC from the commit object, independent of local timezone |
+| Hash (`-g4c426999aa95`) | First 12 characters of the full commit SHA | Fixed-length prefix, unaffected by later commits or other objects |
+
+This identifies source, not byte-identical output: dependencies, base images and build
+inputs can differ. Record the full SHA and deployed **image digest** for exact rollback.
+Shallow checkouts produce the same identity as full checkouts for available commits.
 
 ### Hard Fail Guards
 
 `scripts/version.mjs` deliberately aborts rather than guessing or producing inaccurate version strings:
 
-1. **Not a git repository:** Aborts because no authentic commit/date history exists.
-2. **Shallow clone:** Aborts because `fetch-depth: 1` hides ancestor commits, causing sequence numbers to undercount. In CI (e.g. GitHub Actions), configure `fetch-depth: 0`.
-3. **Dirty working tree:** Aborts because uncommitted changes on disk do not match the commit hash. For local testing without committing, set `PANDA_ALLOW_DIRTY=1` to stamp `.dirty` on the version.
+1. **No Git repository or valid commit:** Aborts rather than inventing an identity.
+2. **Dirty working tree:** Aborts because uncommitted changes do not match the SHA. For
+   local testing, set `PANDA_ALLOW_DIRTY=1` to stamp `.dirty`. Nuxt development/typecheck
+   uses this marked local path automatically.
+
+The container wrapper always computes Git metadata and applies that clean-tree check,
+even when `APP_VERSION` supplies a release label. Manual Git-free builds may supply
+`APP_VERSION` explicitly; operators are responsible for matching it to the source and
+providing `APP_COMMIT`. An environment value is a label, not proof of provenance.
 
 ---
 
@@ -75,6 +86,11 @@ Git is not included inside the container (`.git` is excluded by `.dockerignore`)
 2. **OCI Labels:** `org.opencontainers.image.version`, `revision`, `created` (using the commit date) in image metadata.
 3. **Nuxt Private Runtime Config:** Injected into `runtimeConfig.appVersion` by `modules/build-version.ts`.
 4. **Admin UI:** Displayed in the **Settings → System** *Build* section via the protected `/api/admin/system/version` endpoint. (Not exposed on public unauthenticated endpoints to prevent version fingerprinting).
+
+The endpoint recognizes new identities and old date/sequence labels during transition.
+Its `sequence` is null for new builds; `date` uses YYYYMMDD (legacy labels retain YYMMDD).
+Explicit release labels are displayed verbatim with null parsed date/commit metadata.
+The CLI/image metadata still retains the full SHA when supplied by the wrapper.
 
 ---
 
@@ -107,7 +123,7 @@ npm run recover                               # = panda recover
 
 | Command | Description |
 |---|---|
-| `panda version` (or `-v`, `--version`) | Output the version string (e.g., `260923-1+gedb176f`) |
+| `panda version` (or `-v`, `--version`) | Output the version string (e.g., `20261010T053130Z-g4c426999aa95`) |
 | `panda info` | Output version, commit hash, commit date, Node.js version, platform, listen host/port, and storage mount writability |
 | `panda health` | Send an HTTP probe to `http://127.0.0.1:$PORT/api/health`. Exits `0` for healthy (`< 500`), `1` on error/timeout |
 | `panda recover` | Read-only offline recovery inspection of `storage/backups` (no `.env`, no DB). See [Recovery](#recovery-panda-recover) |
@@ -253,7 +269,15 @@ npm run podman:build -- -t pandablog:custom
 
 # Custom registry tag
 npm run container:build -- -t ghcr.io/myorg/pandablog:latest
+
+# Optional release label; full SHA and commit datetime are still recorded
+APP_VERSION=v1.0.0 npm run container:build
 ```
+
+The wrapper's optional `APP_VERSION` must be a valid container tag (1–128 characters;
+letters, digits, underscore, dot, hyphen). Explicit `-t` flags change image tags only,
+not embedded build identity. In PowerShell use `$env:APP_VERSION = 'v1.0.0'` before
+invoking the wrapper, and remove it afterward.
 
 ### Manual Build Command
 

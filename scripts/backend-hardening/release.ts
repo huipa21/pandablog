@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { fixtureEnvironment } from './fixture'
 import { evaluateRelease, parseEvidence, parseTaskStatuses, readEvidenceFile, type Stage } from './release-readiness'
 
+// Backend-hardening project acceptance only, not a permanent release gate.
+// Retain until acceptance is resolved; retirement requires a separate decision.
 // This is intentionally a read-only evidence checker, not a test/deploy launcher.
 const root = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 const args = process.argv.slice(2)
@@ -52,6 +54,6 @@ try {
   if (args[0] === '--check' && !result.ready) process.exitCode = 1
 } catch {
   // Do not echo unknown manifest bodies, Git diagnostics, env or credentials.
-  console.error('Release evidence validation failed: check the ledger, manifest, Git candidate and bounded regular-file artifacts. No tests or deployment were run.')
+  console.error('Hardening acceptance evidence validation failed: check the ledger, manifest, Git candidate and bounded regular-file artifacts. No tests or deployment were run.')
   process.exitCode = 1
 }
