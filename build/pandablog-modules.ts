@@ -39,7 +39,6 @@ export const DEFAULT_PANDABLOG_MODULES: PandablogModulesConfig = {
   },
   logs: {
     enabled: true,
-    accessLogs: true,
     activityLogs: true,
     errorLogs: true
   },
@@ -116,7 +115,6 @@ export function normalizePandablogModules(raw: Partial<PandablogModulesManifest>
       },
       logs: {
         enabled: logsEnabled,
-        accessLogs: logsEnabled && (modules.logs?.accessLogs ?? true),
         activityLogs: logsEnabled && (modules.logs?.activityLogs ?? true),
         errorLogs: logsEnabled && (modules.logs?.errorLogs ?? true)
       },
@@ -161,7 +159,6 @@ export function getPandablogModuleDefines(manifest: PandablogModulesManifest): R
   const defines: Record<string, string> = {
     __PB_MODULE_EDITOR__: asDefine(modules.editor.enabled),
     __PB_MODULE_LOGS__: asDefine(modules.logs.enabled),
-    __PB_MODULE_LOGS_ACCESS__: asDefine(modules.logs.accessLogs),
     __PB_MODULE_LOGS_ACTIVITY__: asDefine(modules.logs.activityLogs),
     __PB_MODULE_LOGS_ERROR__: asDefine(modules.logs.errorLogs),
     __PB_MODULE_ANALYTICS__: asDefine(modules.analytics.enabled),

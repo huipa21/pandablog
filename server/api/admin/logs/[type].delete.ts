@@ -5,8 +5,8 @@ import { purgeLogType } from '../../../utils/logging'
 export default defineEventHandler(async (event) => {
   await requireSuperadmin(event)
 
-  // H3 can select this DELETE handler through a static GET route (access,
-  // activity, errors) without retaining the dynamic route's params.
+  // H3 can select this DELETE handler through a static GET route without
+  // retaining params. Keep retired access in parsing only to reject it safely.
   const type = getRouterParams(event).type
     ?? /^\/api\/admin\/logs\/(access|activity|errors)\/?$/.exec(getRequestURL(event).pathname)?.[1]
   if (!type) {

@@ -4,7 +4,7 @@ export interface BrowserFixtureInput {
   base: string
   password: string
   profile: string
-  labels: Record<string, {dashboard: string, hold: string, createBackup: string, importBackup: string, settings: string, noBackups: string, loadFailed: string}>
+  labels: Record<string, {dashboard: string, hold: string, createBackup: string, importBackup: string, settings: string, noBackups: string, loadFailed: string, logsTitle: string, logsSettings: string, logStorage: string}>
 }
 /** Self-contained so an explicit Windows Node/browser can exercise an owned
  * WSL loopback app without installing global Linux shared libraries. */
@@ -18,9 +18,9 @@ export async function browserSmoke(driver: typeof chromium, input: BrowserFixtur
         await page.goto(`${input.base}/login`, {waitUntil: 'networkidle', timeout: 45_000})
         await page.locator('input[type=text]').fill('admin')
         await page.locator('input[type=password]').fill(input.password)
-        await Promise.all([page.waitForURL(/\/admin/, {timeout: 30_000}), page.locator('button[type=submit]').click()])
+        await Promise.all([page.waitForURL(url => url.pathname.startsWith('/admin'), {timeout: 30_000}), page.locator('button[type=submit]').click()])
         const settings = await page.request.post(`${input.base}/api/admin/settings`, {headers: {Origin: input.base}, data: {admin_locale: locale}})
-        if (!settings.ok() || (await settings.json()).settings?.admin_locale !== locale) throw new Error('Owned admin locale update failed')
+        if (!settings.ok() || (await settings.json()).settings?.admin_locale !== locale) throw new Error(`Owned admin locale update failed (HTTP ${settings.status()})`)
         await page.goto(`${input.base}/admin`, {waitUntil: 'networkidle', timeout: 45_000})
         if (!await page.getByRole('link', {name: input.labels[locale]!.dashboard, exact: true}).first().isVisible()) throw new Error('Owned localized admin navigation failed')
         if (input.profile !== 'minimal' && input.profile !== 'no-backups') {
@@ -59,6 +59,30 @@ export async function browserSmoke(driver: typeof chromium, input: BrowserFixtur
           await page.setViewportSize({width: 360, height: 780})
           if (await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2)) throw new Error('Backup page overflows mobile width')
           await page.setViewportSize({width: 1280, height: 800})
+        }
+        if (!['minimal', 'no-observers'].includes(input.profile)) {
+          let fetchedAccess = false
+          page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/admin/logs/access')) fetchedAccess = true })
+          await page.goto(`${input.base}/admin/dashboard/logs`, {waitUntil: 'networkidle', timeout: 45_000})
+          const labels = input.labels[locale]!
+          if (!await page.getByRole('heading', {name: labels.logsTitle, exact: true}).isVisible()
+            || !await page.getByText(labels.logStorage, {exact: true}).isVisible()
+            || await page.locator('a[href$="/logs/access"]').count()) throw new Error('DB-only log dashboard contract failed')
+          const stats = await page.request.get(`${input.base}/api/admin/logs/stats`)
+          const dto = await stats.json()
+          if (!stats.ok() || 'access' in dto || 'access_files_bytes' in dto) throw new Error('Stats still expose access history')
+          if ((await page.request.get(`${input.base}/api/admin/logs/access`)).status() !== 404
+            || (await page.request.get(`${input.base}/api/admin/logs/access/hourly`)).status() !== 404
+            || (await page.request.get(`${input.base}/api/admin/logs/access/export`)).status() !== 404) throw new Error('Retired access HTTP routes survived production build')
+          await page.goto(`${input.base}/admin/dashboard/logs/settings`, {waitUntil: 'networkidle', timeout: 45_000})
+          if (!await page.getByRole('heading', {name: labels.logsSettings, exact: true}).isVisible()) throw new Error('Remaining log settings did not render')
+          const settings = await page.request.get(`${input.base}/api/admin/settings/logging`)
+          const saved = (await settings.json()).settings
+          for (const key of ['access_log_enabled', 'retention_access_days', 'excluded_paths', 'excluded_status_codes', 'sampling_rate']) {
+            if (key in saved || await page.locator(`[name="${key}"]`).count()) throw new Error('Retired access settings remain')
+          }
+          if ((await page.request.put(`${input.base}/api/admin/settings/logging`, {headers: {Origin: input.base}, data: {retention_access_days: 7}})).status() !== 400) throw new Error('Retired settings PUT was accepted')
+          if (fetchedAccess) throw new Error('Dashboard/settings still fetch retired access APIs')
         }
         await page.goto(input.base, {waitUntil: 'networkidle', timeout: 45_000})
       } finally {await context.close()}

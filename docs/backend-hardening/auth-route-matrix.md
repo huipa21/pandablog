@@ -12,7 +12,7 @@ Patterns include every static/dynamic handler in the named directory, including 
 | `/api/admin/site/visibility` GET/POST | superadmin |
 | `/api/admin/backups/**` (settings, status, create/list/detail/delete/import/restore, unified GET/HEAD download, legacy full raw GETs) | current superadmin; strict full-only admission, origin/CSRF on mutations, bounded streams/read leases; destructive restore recovery unchanged. Partial table-list route removed; see backup-simplification progress |
 | `/api/admin/themes/**` | superadmin |
-| `/api/admin/logs/**` (static list/stats/retention/cleanup and dynamic type/detail/export/bulk/purge) | superadmin |
+| `/api/admin/logs/**` (activity/errors/groups, stats/retention/cleanup and dynamic detail/export/bulk/purge) | superadmin; retired access routes 404, access cleanup 400; no access-history I/O; see access-log-simplification progress |
 | `/api/admin/analytics/**` | superadmin |
 | `/api/admin/users/**` | admin tier; target-role/self/seed-owner restrictions in `user-management.ts` and handlers retained |
 | `/api/admin/system/version` | admin tier; existing non-secret build-version read policy retained |

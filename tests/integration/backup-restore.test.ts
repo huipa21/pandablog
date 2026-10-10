@@ -51,7 +51,14 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real full restore worke
       await dbModule.queryDb(root, `CREATE users:admin CONTENT {username: 'admin', password_hash: 'synthetic', role: 'superadmin', active: true, auth_epoch: $epoch};
         CREATE app_settings:layout CONTENT {key: '__media_storage_version', value: '2026-05-image-variants-v2'};
         CREATE app_settings:backup_options CONTENT {key: 'backups', value: {max_backups: 0, auto_safety_snapshot: true}};
-        CREATE fixture_marker:retained SET title = 'base'; CREATE fixture_marker:deleted SET title = 'base';`, {epoch})
+        CREATE fixture_marker:retained SET title = 'base'; CREATE fixture_marker:deleted SET title = 'base';
+        DEFINE TABLE access_logs SCHEMALESS;
+        CREATE access_logs:cold_history SET request_id = 'historical-request', message = 'snapshot-cold-history';
+        CREATE app_settings:legacy_access_marker CONTENT {key: '__access_logs_exported_v1', value: {dir: '/missing-old-mount', total: 17}};`, {epoch})
+      const coldMarker = await dbModule.queryDb(root, 'SELECT * FROM app_settings:legacy_access_marker;')
+      await mkdir(join(fixture.storage.root, 'storage/logs/access'), {recursive: true})
+      const coldFile = join(fixture.storage.root, 'storage/logs/access/.migration-v1.json')
+      await writeFile(coldFile, 'unfinished historical receipt; do not repair')
       const image = await sharp({create: {width: 16, height: 16, channels: 3, background: {r: 102, g: 153, b: 170}}}).png().toBuffer()
       const hash = createHash('sha256').update(image).digest('hex'), relative = `2020/01/${hash}.png`
       await mkdir(join(fixture.storage.root, 'storage/uploads/2020/01'), {recursive: true})
@@ -106,7 +113,7 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real full restore worke
       await dbModule.provisionAppDatabaseUser(root)
       await dbModule.recycleRuntimeConnection()
       await dbModule.useDb()
-      await dbModule.queryDb(root, "UPDATE fixture_marker:retained SET title = 'live-before-restore';")
+      await dbModule.queryDb(root, "UPDATE fixture_marker:retained SET title = 'live-before-restore'; UPDATE access_logs:cold_history SET message = 'live-cold-history';")
       const oldCacheGeneration = writeBarrier.cacheGeneration()
       faults.refresh = kind === 'rollback' // actual DB + actual FS rollback after media swap
       const token = await startRestoreJob(target)
@@ -119,6 +126,11 @@ describe.skipIf(process.env.PB_BACKEND_FIXTURE !== '1')('real full restore worke
       expect(jobStore.getJournal()?.state).toBe(kind === 'rollback' ? 'rolled-back' : 'committed')
       const rows = (await dbModule.queryDb(root, 'SELECT * FROM fixture_marker:retained;'))[0] as {title: string}[]
       expect(rows[0]?.title).toBe(kind === 'rollback' ? 'live-before-restore' : 'base')
+      const coldRows = (await dbModule.queryDb(root, 'SELECT * FROM access_logs:cold_history;'))[0] as {request_id: string, message: string}[]
+      expect(coldRows).toHaveLength(1)
+      expect(coldRows[0]).toMatchObject({request_id: 'historical-request', message: kind === 'rollback' ? 'live-cold-history' : 'snapshot-cold-history'})
+      expect(await dbModule.queryDb(root, 'SELECT * FROM app_settings:legacy_access_marker;')).toEqual(coldMarker)
+      expect(await readFile(coldFile, 'utf8')).toBe('unfinished historical receipt; do not repair')
       const account = (await dbModule.queryDb(root, 'SELECT auth_epoch FROM users:admin;'))[0] as {auth_epoch: string}[]
       expect(account[0]?.auth_epoch).not.toBe(epoch)
       const runtime = await dbModule.useDb()

@@ -8,7 +8,7 @@ vi.mock('../../server/utils/log-retention', () => ({ ...mocks, LOG_RETENTION_SCH
 const event = {} as H3Event
 const report: RetentionReport = {
   started_at: '2026-10-04T10:00:00.000Z', finished_at: '2026-10-04T10:00:01.000Z', duration_ms: 1000,
-  deleted: { access: 0, access_files: 12, activity: 1, errors: 2 }, errors: []
+  deleted: { activity: 1, errors: 2 }, errors: []
 }
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ describe('retention admin endpoints', () => {
   })
 
   it('returns per-stream errors rather than hiding a partial run behind a success summary', async () => {
-    const partial = { ...report, errors: ['access_files: disk unavailable'] }
+    const partial = { ...report, errors: ['activity: database unavailable'] }
     mocks.runLogRetention.mockResolvedValue(partial)
     const { default: post } = await import('../../server/api/admin/logs/retention/run.post')
     expect(await post(event)).toBe(partial)

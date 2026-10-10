@@ -116,7 +116,9 @@ export async function runRestoreWork(owner: JobOwner, record: BackupRecord): Pro
     await phase('db-validate', 18)
     // Always validate; a legacy setting cannot authorize unchecked cutover.
     const expected = await validateDumpByStaging(dump, stage => verifyBackupMediaCatalog(stage, mediaStage))
-    if ((expected.access_logs?.count ?? 0) > 0) throw new Error('Historical access_logs require the receipt-verified logging migration on an approved isolated copy before automatic restore')
+    // A surviving legacy access table is inert full-snapshot history. Preserve
+    // it through the same all-table validation/import/rollback as other tables;
+    // there are no access migrations or workers to activate after restoration.
     await phase('safety-snapshot', 26)
     await exportSurrealDbToFile(safetySql)
     await mkdir(uploads, {recursive: true}); await mkdir(variants, {recursive: true})

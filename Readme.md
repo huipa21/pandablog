@@ -49,7 +49,7 @@ managing media, and configuring your site — all backed by SurrealDB.
 - **Relationship graph** — explore posts by category, tag, and explicit post-to-post links.
 - **Post versioning** — automatic content snapshots with diff and restore.
 - **Analytics** — pageview/session metrics with optional city-level GeoIP lookups.
-- **Logging** — configurable access, activity, and error logs with export and retention tools.
+- **Logging** — configurable activity and grouped error logs with export and DB retention; HTTP access logs belong to the reverse proxy.
 - **Backups** — full and incremental snapshots of the database and media, with import/export.
 - **Themes** — uploadable, validated themes with light/dark design tokens.
 - **Multi-user roles** — superadmin, admin, author, and viewer roles.
@@ -504,7 +504,7 @@ Cloudflare). In production it emits HSTS and other security headers, and session
 
 The app derives each request's client IP from `X-Forwarded-For` when the `trust_proxy_headers`
 setting is enabled (default). This IP drives login rate limiting and lockout, public rate limits,
-password-unlock throttling, and access logs/geo lookups.
+password-unlock throttling and analytics GeoIP lookups. HTTP access logging is managed by the reverse proxy.
 
 > **Important:** only keep `trust_proxy_headers` enabled when a **trusted** reverse proxy sits in
 > front of the app and **overwrites** `X-Forwarded-For` with the real client IP. If the app is
@@ -676,24 +676,27 @@ fail when required implementation/evidence is missing. They do not run tests or 
 
 ### Container logging
 
-See the [logging operations runbook](docs/logging/operations.md) for access-file inspection,
-error triage, retention, backups, migration/rollback safeguards, and troubleshooting.
+See the [logging operations runbook](docs/logging/operations.md) for proxy access logs,
+request-ID correlation, error/activity retention and historical access-data preservation.
+The app no longer stores, queries, exports or expires HTTP access history. Existing files,
+buffers, receipts and surviving DB rows remain cold history; archive them separately before
+an approved cutover. See the [retirement runbook](docs/access-log-simplification/operations.md).
 
 The production env template sets `LOG_CONSOLE=errors` and `LOG_FORMAT=json`. These are
 read at process startup, without a `NUXT_` prefix:
 
 | Variable | Values and behavior | Default |
 |---|---|---|
-| `LOG_CONSOLE` | `off`: silence the logging subsystem; `errors`: errors/warnings to stderr; `all`: also access/activity to stdout (info/debug still respect log-level/debug settings) | `errors` |
+| `LOG_CONSOLE` | `off`: silence the logging subsystem; `errors`: errors/warnings to stderr; `all`: also activity/app entries to stdout (info/debug still respect log-level/debug settings) | `errors` |
 | `LOG_FORMAT` | `json`: one JSON object per line, with escaped stack newlines; `pretty`: human-readable output | `json` when `NODE_ENV=production`, otherwise `pretty` |
 
 The admin `console_output` toggle upgrades `errors` to `all` live, but cannot override `off`.
-Console output is independent of DB storage switches; access exclusions/sampling and the
-Nitro error-status threshold still apply. These controls do not silence unrelated `console.*`
+Console output is independent of DB storage switches; the Nitro error-status threshold
+still applies. There are no per-request access entries, even in `all` mode. These controls do not silence unrelated `console.*`
 calls outside the logging subsystem. Invalid env values fall back to the defaults with a warning.
 
 Compose uses Docker's `json-file` driver, rotating at **10 MB per file** and retaining **5 files**
-(about 50 MB per app container). This covers stdout/stderr only, not DB or `/app/storage` logs;
+(about 50 MB per app container). This covers stdout/stderr only, not DB, proxy logs or preserved access archives;
 oldest Docker logs are discarded on rotation. Recreate the app after changing the env file or
 logging options; `docker compose restart` alone does not apply them:
 
@@ -712,6 +715,11 @@ docker logs pandablog-app 2>&1 | grep -F '<request-id>'
 
 Replace `<request-id>` with the actual ID. For the direct `docker run` example, use the container
 name `pandablog` instead. The JSON error filter requires `LOG_FORMAT=json`.
+The application ignores inbound request IDs and sends its own `X-Request-Id` (except exact
+health probes). Match that response ID against proxy `app_request_id` and application error/activity logs.
+For nginx, include `deploy/production/nginx/access-log-format.conf` in `http` context before
+the vhost and configure persistent log rotation/reopen. Caddy's supplied snippet filters
+headers and URI queries. Both edges' retention is operator-owned, not an app setting.
 
 ---
 

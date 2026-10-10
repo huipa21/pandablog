@@ -5,12 +5,12 @@ import { assertLogTypeEnabled } from '../../../utils/logging-admin'
 
 const cleanupSchema = z.discriminatedUnion('mode', [
   z.object({
-    type: z.enum(['access', 'activity', 'errors']),
+    type: z.enum(['activity', 'errors']),
     mode: z.literal('older_than_days'),
     value: z.number().int().min(1).max(3650)
   }),
   z.object({
-    type: z.enum(['access', 'activity', 'errors']),
+    type: z.enum(['activity', 'errors']),
     mode: z.literal('keep_latest'),
     value: z.number().int().min(1).max(1_000_000)
   })

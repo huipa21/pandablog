@@ -124,7 +124,7 @@ export default defineNitroPlugin(nitro => {
         rootDir: output.root, srcDir: output.root, scanDirs: [], preset: 'node-server', compatibilityDate: '2026-05-17',
         buildDir: output.path('build'), output: {dir: output.path('output'), serverDir: join(output.root, 'output/server'), publicDir: join(output.root, 'output/public')},
         nodeModulesDirs: [resolve('node_modules')],
-        plugins: [join(source, 'server/plugins/00-maintenance.ts'), output.path('initialize.ts')].map(path => path.replaceAll('\\', '/')),
+        plugins: [join(source, 'server/plugins/00-maintenance.ts'), join(source, 'server/plugins/request-id.ts'), output.path('initialize.ts')].map(path => path.replaceAll('\\', '/')),
         handlers: [
           {route: '/api/health', handler: output.path('health.ts')},
           {route: '/api/ready', handler: join(source, 'server/api/ready.get.ts')},
@@ -141,8 +141,17 @@ export default defineNitroPlugin(nitro => {
       const lock = join(storage.root, 'storage/backups/.writer.lock')
       const first = await launch(entry, storage, {NUXT_PUBLIC_FOOTER_SHOW_POWERED_BY: 'off', NUXT_PUBLIC_APP_SPONSOR: 'true'})
       children.push(first)
-      for (const path of ['/', '/api/auth/setup', '/api/auth/login', '/local', '/api/posts']) expect((await first.get(path)).status).toBe(503)
+      for (const path of ['/', '/api/auth/setup', '/api/auth/login', '/local', '/api/posts']) {
+        const response = await first.get(path)
+        expect(response.status).toBe(503)
+        expect(response.headers.get('x-request-id')).toBeTruthy()
+      }
+      expect((await first.get('/api/health')).headers.get('x-request-id')).toBeNull()
       await expect.poll(async () => (await first.get('/api/ready')).status, {timeout: 5000}).toBe(200)
+      const responseIds = new Set<string | null>()
+      for (let i = 0; i < 3; i++) responseIds.add((await first.get('/')).headers.get('x-request-id'))
+      expect(responseIds.has(null)).toBe(false)
+      expect(responseIds.size).toBe(3) // real cached route headers must not replay correlation
       expect(await (await first.get('/')).json()).toMatchObject({ordinary: true, footer: false, canonicalEndpoint: true, canonicalOrigin: true})
       expect((await first.get('/local')).status).toBe(200)
       expect(await exists(lock)).toBe(false)

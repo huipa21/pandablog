@@ -1,12 +1,10 @@
 import { queryDb, useDb } from './db'
 import { firstRow } from './surrealResult'
 import { retainErrorGroups } from './error-groups'
-import { maintainAccessLogFiles } from './access-log-store'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 import type { RetentionReport } from '~/types/logging'
 
 export const LOG_RETENTION_SCHEDULE = '17 3 * * *'
-export const ACCESS_LOG_MAINTENANCE_SCHEDULE = '5 0 * * *'
 
 let running: Promise<RetentionReport> | null = null
 let lastReport: RetentionReport | null = null
@@ -41,7 +39,7 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
     started_at: new Date(started).toISOString(),
     finished_at: new Date(started).toISOString(),
     duration_ms: 0,
-    deleted: { access: 0, access_files: 0, activity: 0, errors: 0 },
+    deleted: { activity: 0, errors: 0 },
     errors: []
   }
   const complete = () => {
@@ -64,13 +62,6 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
     await initializeLoggingSettings()
     const settings = { ...getLoggingSettings() }
     if (settings.enabled) {
-      if (flags.accessLogs && settings.access_log_enabled) {
-        try {
-          report.deleted.access_files = (await maintainAccessLogFiles(now, settings.retention_access_days)).deleted
-        } catch (error) {
-          report.errors.push(`access_files: ${describeFailure(error)}`)
-        }
-      }
       const streams = [
         { key: 'activity', table: 'activity_logs', enabled: flags.activityLogs && settings.activity_log_enabled, days: settings.retention_activity_days },
         { key: 'errors', table: 'error_logs', enabled: flags.errorLogs && settings.error_log_enabled, days: settings.retention_error_days }
@@ -101,7 +92,7 @@ async function performLogRetention(now: Date): Promise<RetentionReport> {
   const total = Object.values(report.deleted).reduce((sum, count) => sum + (count ?? 0), 0)
   if (flags.activityLogs && (total > 0 || report.errors.length)) {
     try {
-      logActivity({ action: 'system.log_retention', resource_type: 'logging', metadata: { ...report }, description: `Scheduled log retention removed ${total} rows/files` })
+      logActivity({ action: 'system.log_retention', resource_type: 'logging', metadata: { ...report }, description: `Scheduled log retention removed ${total} rows` })
     } catch (error) {
       report.errors.push(`audit: ${describeFailure(error)}`)
     }

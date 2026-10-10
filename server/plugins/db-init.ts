@@ -9,11 +9,9 @@ import { applySchema, loadSchema, SCHEMA_HASH_KEY } from '../utils/schema'
 import { assertMediaStorageCompatible, ensureMediaStorageVersion } from '../utils/media-storage-migration'
 import { flattenBlockSearchText, flattenNodeText } from '../utils/blocks'
 import { initializeRuntimeDatabase, queryDb, useDb } from '../utils/db'
-import { defaultLoggingSettings, getLoggingSettings, reloadLoggingSettings } from '../utils/logging'
+import { reloadLoggingSettings } from '../utils/logging'
 import { runErrorGroupBackfill } from '../utils/error-group-backfill'
-import { removeMigratedAccessTable, runAccessLogMigration } from '../utils/access-log-migration'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
-import { mergeExcludedPaths } from '../utils/logging-logic'
 import { initializeAnalyticsSettings, initializeRuntimeSettings, initializeSecuritySettings } from '../utils/settings'
 import { firstRow, queryRows, stringifyRecordId } from '../utils/surrealResult'
 import { rebuildPostSearchTerms } from '../utils/searchTerms'
@@ -38,7 +36,6 @@ const POST_STATS_BACKFILL_KEY = '__post_stats_backfill_v2'
 const BLOCK_TEXT_REINDEX_KEY = '__block_text_reindex_v3'
 const SEARCH_TERMS_BUILD_KEY = '__search_terms_build_v1'
 const TAXONOMY_EDGE_REPAIR_KEY = '__taxonomy_edge_repair_v1'
-const LOGGING_EXCLUDED_PATHS_MIGRATION_KEY = '__logging_excluded_paths_v2'
 const APP_SETTINGS_TABLE = 'app_settings'
 const LEGACY_APP_SETTINGS_TABLE = `app_${'setting'}`
 const DEFAULT_MEDIA_SETTINGS = {
@@ -113,12 +110,8 @@ async function initializeDatabase() {
   await bootStep('security-settings', () => initializeSecuritySettings(true))
   await bootStep('default-folder', () => ensureDefaultFolder(db))
   if (__PB_MODULE_LOGS__) {
-    await bootStep('logging-excluded-paths-migration', () => ensureLoggingExcludedPathsMigration(db))
-    // Refresh settings after the owned migration merge.
+    // Retired access files/tables/markers are cold history, never migrated or removed.
     await bootStep('logging-settings-reload', () => reloadLoggingSettings())
-    if (resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
-      await bootStep('access-table-removal', () => removeMigratedAccessTable(db))
-    }
   }
   // Optional marker-guarded backfills still start after readiness through the
   // scoped pool under ordinary leases, rather than blocking required boot.
@@ -163,40 +156,6 @@ async function ensureDefaultMediaSettings(db: Awaited<ReturnType<typeof useDb>>)
   }
 
   await setAppSetting(db, 'media', DEFAULT_MEDIA_SETTINGS, 'media settings init')
-}
-
-async function ensureLoggingExcludedPathsMigration(db: Awaited<ReturnType<typeof useDb>>) {
-  const marker = await queryDb(
-    db,
-    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
-    { key: LOGGING_EXCLUDED_PATHS_MIGRATION_KEY },
-    { label: 'logging excluded paths migration marker check', timeoutMs: 5_000 }
-  )
-  if (firstRow(marker)) {
-    return
-  }
-
-  const response = await queryDb(
-    db,
-    'SELECT * FROM app_settings WHERE key = $key LIMIT 1;',
-    { key: 'logging' },
-    { label: 'logging excluded paths migration settings lookup', timeoutMs: 5_000 }
-  )
-  const value = firstRow<{ value?: unknown }>(response)?.value
-  const defaults = defaultLoggingSettings()
-  const settings = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : defaults
-  const storedPaths = Array.isArray(settings.excluded_paths)
-    ? settings.excluded_paths.filter((path): path is string => typeof path === 'string')
-    : []
-
-  await setAppSetting(db, 'logging', {
-    ...settings,
-    excluded_paths: mergeExcludedPaths(storedPaths, defaults.excluded_paths)
-  }, 'logging excluded paths migration settings')
-  // Only mark success after settings persist. A failed marker write can safely retry.
-  await setAppSetting(db, LOGGING_EXCLUDED_PATHS_MIGRATION_KEY, new Date().toISOString(), 'logging excluded paths migration marker')
 }
 
 async function ensureUserTableMigration(db: Awaited<ReturnType<typeof useDb>>) {
@@ -512,9 +471,6 @@ async function runDeferredBackfills(db: Awaited<ReturnType<typeof useDb>>) {
     } catch (error) {
       console.warn('[db-init] error groups backfill failed; will retry next boot', error)
     }
-  }
-  if (__PB_MODULE_LOGS__ && resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) {
-    await runAccessLogMigration(db, getLoggingSettings())
   }
   try {
     await repairTaxonomyEdges(db)

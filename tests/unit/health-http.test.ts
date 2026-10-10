@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   useDb: vi.fn(), queryDb: vi.fn(), getSiteVisibility: vi.fn(), isAuthenticated: vi.fn(), getActiveJob: vi.fn(),
-  logAccess: vi.fn(), buildRequestId: vi.fn(), getRuntimeFlags: vi.fn()
+  getRuntimeFlags: vi.fn()
 }))
 vi.mock('../../server/utils/db', () => mocks)
 vi.mock('../../server/utils/visibility', () => ({ getSiteVisibility: mocks.getSiteVisibility }))
@@ -16,10 +16,6 @@ vi.mock('../../server/utils/auth', () => ({ isAuthenticated: mocks.isAuthenticat
 vi.mock('../../server/utils/backups/jobMutex', () => ({ getActiveJob: mocks.getActiveJob }))
 vi.mock('../../server/utils/maintenance', () => ({writeBarrier: {status: () => ({closed: Boolean(mocks.getActiveJob())})}}))
 vi.mock('../../server/utils/settings', () => ({ getRuntimeFlags: mocks.getRuntimeFlags }))
-vi.mock('../../server/utils/logging', async () => {
-  const { isHealthCheckPath } = await import('../../server/utils/logging-logic')
-  return { logAccess: mocks.logAccess, buildRequestId: mocks.buildRequestId, shouldExcludePath: isHealthCheckPath }
-})
 
 const cliPath = fileURLToPath(new URL('../../bin/panda.mjs', import.meta.url))
 let server: Server
@@ -37,12 +33,11 @@ beforeEach(async () => {
   mocks.isAuthenticated.mockResolvedValue(false)
   mocks.getActiveJob.mockReturnValue({ kind: 'restore' })
   mocks.useDb.mockRejectedValue(new Error('DB unavailable'))
-  mocks.buildRequestId.mockReturnValue('request-fixture')
   mocks.getRuntimeFlags.mockReturnValue({ trust_proxy_headers: false })
   customStatus = 200
 
   const app = createApp()
-  app.use((await import('../../server/middleware/access-logging')).default)
+  app.use((await import('../../server/middleware/request-id')).default)
   app.use((await import('../../server/middleware/api-origin')).default)
   app.use((await import('../../server/middleware/restore-maintenance')).default)
   app.use((await import('../../server/middleware/site-visibility')).default)
@@ -83,8 +78,6 @@ describe('health HTTP/middleware integration', () => {
     expect(mocks.queryDb).not.toHaveBeenCalled()
     expect(mocks.getSiteVisibility).not.toHaveBeenCalled()
     expect(mocks.isAuthenticated).not.toHaveBeenCalled()
-    expect(mocks.buildRequestId).not.toHaveBeenCalled()
-    expect(mocks.logAccess).not.toHaveBeenCalled()
   })
 
   it('returns no-store 503 for an explicitly requested failing DB check, also without access logs', async () => {
@@ -93,7 +86,6 @@ describe('health HTTP/middleware integration', () => {
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(await response.json()).toEqual({ ok: false, db: 'down' })
     expect(mocks.useDb).not.toHaveBeenCalled() // fenced diagnostics never allocate
-    expect(mocks.logAccess).not.toHaveBeenCalled()
     expect(mocks.isAuthenticated).not.toHaveBeenCalled()
   })
 
@@ -121,7 +113,6 @@ describe('panda health CLI', () => {
     expect(result.stderr).toBe('')
     expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, url: `${base}/api/health`, status: 200 })
     expect(mocks.useDb).not.toHaveBeenCalled()
-    expect(mocks.logAccess).not.toHaveBeenCalled()
   })
 
   it('prefers NITRO_PORT over PORT', async () => {

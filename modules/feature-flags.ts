@@ -31,22 +31,11 @@ export default defineNuxtModule({
     if (!modules.logs.enabled) {
       ignore.add('server/api/admin/logs/**')
       ignore.add('server/api/admin/settings/logging/**')
-      ignore.add('server/middleware/access-logging.ts')
-      ignore.add('server/plugins/access-log-store.ts')
       ignore.add('server/plugins/logging-error-hook.ts')
       ignore.add('server/plugins/error-groups.ts')
       ignore.add('server/plugins/log-retention.ts')
       ignore.add('pages/admin/logs/**')
       ignore.add('pages/admin/dashboard/logs/**')
-    } else if (!modules.logs.accessLogs) {
-      ignore.add('server/middleware/access-logging.ts')
-      ignore.add('server/plugins/access-log-store.ts')
-    }
-
-    if (modules.logs.enabled && !modules.logs.accessLogs) {
-      ignore.add('server/api/admin/logs/access.get.ts')
-      ignore.add('pages/admin/logs/access.vue')
-      ignore.add('pages/admin/dashboard/logs/access.vue')
     }
 
     if (modules.logs.enabled && !modules.logs.activityLogs) {
@@ -60,10 +49,6 @@ export default defineNuxtModule({
       ignore.add('server/api/admin/logs/errors/**')
       ignore.add('pages/admin/logs/errors.vue')
       ignore.add('pages/admin/dashboard/logs/errors.vue')
-    }
-
-    if (modules.logs.enabled && (!modules.logs.accessLogs || !modules.logs.errorLogs)) {
-      ignore.add('pages/admin/dashboard/logs/index.vue')
     }
 
     if (!modules.analytics.enabled) {

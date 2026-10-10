@@ -13,11 +13,7 @@
 
     <UAlert v-if="error" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
 
-    <div class="grid gap-4 md:grid-cols-4">
-      <NuxtLink v-if="moduleFlags.accessLogs" to="/admin/dashboard/logs/access" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
-        <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.accessLogs') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.access.count ?? '—' }}</p>
-      </NuxtLink>
+    <div class="grid gap-4 md:grid-cols-3">
       <NuxtLink v-if="moduleFlags.activityLogs" to="/admin/dashboard/logs/activity" class="block rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)] transition hover:border-[var(--pb-selected-border)] hover:bg-[var(--pb-selected-bg)] focus-visible:outline-none focus-visible:shadow-[var(--pb-focus-ring)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.activityLogs') }}</p>
         <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats?.activity.count ?? '—' }}</p>
@@ -28,27 +24,11 @@
       </NuxtLink>
       <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
         <p class="text-xs uppercase tracking-wider text-[var(--pb-text-subtle)]">{{ t('admin.logs.storage') }}</p>
-        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats ? formatBytes((stats.db_estimate_bytes ?? 0) + (stats.access_files_bytes ?? 0)) : '—' }}</p>
-        <p v-if="stats" class="mt-1 text-xs text-[var(--pb-text-muted)]">{{ t('admin.logs.storageBreakdown', { db: formatBytes(stats?.db_estimate_bytes ?? 0), access: formatBytes(stats?.access_files_bytes ?? 0) }) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-[var(--pb-text)]">{{ stats ? formatBytes(stats.db_estimate_bytes ?? 0) : '—' }}</p>
       </div>
     </div>
 
-    <div v-if="moduleFlags.accessLogs" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]" :aria-busy="hourlyPending">
-      <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.requestsPerHour') }}</h2>
-      <USkeleton v-if="hourlyPending" class="mt-4 h-44" />
-      <UAlert v-else-if="hourlyError" class="mt-4" color="error" icon="i-lucide-circle-alert" :title="t('admin.logs.dashboardFailed')" />
-      <div v-else class="mt-4 flex h-44 items-end gap-1 rounded-[var(--pb-radius-card-inner)] bg-[var(--pb-surface-subtle)] px-2 py-3">
-        <div
-          v-for="point in hourlyPoints"
-          :key="point.hour"
-          class="flex-1 rounded-t bg-[var(--pb-selected-border)]/70"
-          :title="t('admin.logs.hourlyTooltip', { hour: point.label, count: point.count, errors: point.errors })"
-          :style="{ height: `${point.height}%` }"
-        />
-      </div>
-    </div>
-
-    <div class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
+    <div v-if="moduleFlags.errorLogs" class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-semibold text-[var(--pb-text)]">{{ t('admin.logs.recentErrors') }}</h2>
         <UButton size="xs" variant="ghost" color="neutral" @click="refreshAll">{{ t('admin.logs.refresh') }}</UButton>
@@ -77,9 +57,6 @@
 </template>
 
 <script setup lang="ts">
-import type { AccessHourlyBucket } from '~/types/logging'
-import { accessHourlyChartPoints } from '~/utils/loggingChart'
-
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
@@ -90,10 +67,6 @@ const { data: statsData, pending: statsPending, error, refresh: refreshStats } =
   'admin-log-stats',
   () => sessionFetch('/api/admin/logs/stats')
 )
-const { data: hourlyData, pending: hourlyPending, error: hourlyError, refresh: refreshHourly } = await useAsyncData(
-  'admin-log-access-hourly',
-  () => moduleFlags.accessLogs ? sessionFetch<AccessHourlyBucket[]>('/api/admin/logs/access/hourly') : Promise.resolve([])
-)
 const { data: errorData, pending: errorPending, refresh: refreshErrors } = await useAsyncData(
   'admin-log-errors-recent',
   () => moduleFlags.errorLogs ? sessionFetch('/api/admin/logs/error-groups', { query: { status: 'unread', limit: 5, sort: 'last_seen' } }) : Promise.resolve({ rows: [] })
@@ -103,11 +76,8 @@ const stats = computed(() => statsData.value as any)
 const recentErrors = computed(() => Array.isArray((errorData.value as any)?.rows) ? (errorData.value as any).rows : [])
 const pending = computed(() => statsPending.value || errorPending.value)
 
-const hourlyPoints = computed(() => accessHourlyChartPoints(hourlyData.value ?? []))
-
 function refreshAll() {
   refreshStats()
-  refreshHourly()
   refreshErrors()
 }
 

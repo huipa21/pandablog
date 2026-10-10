@@ -1,17 +1,13 @@
 import { writeBarrier } from './maintenance'
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { queryDb, queryDbRecord, useDb } from './db'
-import { appendAccessLog, maintainAccessLogFiles, purgeAccessLogFiles } from './access-log-store'
-import { accessStats, readAccessLogById } from './access-log-reader'
 import { deleteLogsKeepLatest, deleteLogsOlderThan, purgeLogTable } from './log-retention'
 import { errorFingerprint, normalizeRoute } from './error-fingerprint'
 import { writeErrorGroup } from './error-group-write'
-import { applySettingsPatch, createErrorRateGuard, extractErrorContext, isHealthCheckPath, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog } from './logging-logic'
+import { applySettingsPatch, createErrorRateGuard, extractErrorContext, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError } from './logging-logic'
 import { sanitizeLogContext, writeConsoleEntry } from './log-console'
 import { firstRow, queryRows, recordIdPart, stringifyRecordId } from './surrealResult'
-import type { AccessLogEntry, ActivityLogEntry, CleanupResult, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
-import { DEFAULT_LOGGING_EXCLUDED_PATHS } from '~/utils/loggingSettings'
+import type { ActivityLogEntry, CleanupResult, LogCleanupMode, LogCleanupType, LogLevel, LoggingSettings } from '~/types/logging'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
 const APP_SETTINGS_TABLE = 'app_settings'
@@ -54,20 +50,15 @@ const updateSchema = z.object({
   enabled: z.boolean().optional(),
   debug_enabled: z.boolean().optional(),
   debug_override_prod: z.boolean().optional(),
-  access_log_enabled: z.boolean().optional(),
   activity_log_enabled: z.boolean().optional(),
   error_log_enabled: z.boolean().optional(),
   error_log_min_status: z.number().int().min(400).max(599).optional(),
   error_occurrences_per_group: z.number().int().min(1).max(500).optional(),
   log_level: z.enum(['debug', 'info', 'warn', 'error']).optional(),
-  excluded_paths: z.array(z.string().min(1)).max(200).optional(),
-  excluded_status_codes: z.array(z.number().int().min(100).max(599)).max(200).optional(),
   redact_fields: z.array(z.string().min(1)).max(500).optional(),
-  retention_access_days: z.number().int().min(1).max(3650).optional(),
   retention_activity_days: z.number().int().min(1).max(3650).optional(),
   retention_error_days: z.number().int().min(1).max(3650).optional(),
   max_metadata_size_kb: z.number().int().min(1).max(1024).optional(),
-  sampling_rate: z.number().min(0).max(1).optional(),
   console_output: z.boolean().optional()
 }).strict()
 
@@ -76,20 +67,15 @@ export function defaultLoggingSettings(): LoggingSettings {
     enabled: true,
     debug_enabled: false,
     debug_override_prod: false,
-    access_log_enabled: true,
     activity_log_enabled: true,
     error_log_enabled: true,
     error_log_min_status: 500,
     error_occurrences_per_group: 50,
     log_level: 'info',
-    excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
-    excluded_status_codes: [],
     redact_fields: ['password', 'token', 'authorization', 'cookie'],
-    retention_access_days: 30,
     retention_activity_days: 365,
     retention_error_days: 90,
     max_metadata_size_kb: 50,
-    sampling_rate: 1,
     console_output: false,
     updated_at: new Date().toISOString()
   }
@@ -116,10 +102,6 @@ function shouldLogLevel(level: LogLevel) {
   return levelPriority[level] >= levelPriority[settingsCache.log_level]
 }
 
-export function shouldExcludePath(pathname: string) {
-  return isHealthCheckPath(pathname) || settingsCache.excluded_paths.some(prefix => pathname.startsWith(prefix))
-}
-
 export async function initializeLoggingSettings() {
   if (cacheInitialized) {
     return settingsCache
@@ -136,14 +118,15 @@ export async function initializeLoggingSettings() {
 
     const current = firstRow<Record<string, unknown>>(response)
     const value = current?.value
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      const defaults = defaultLoggingSettings()
-      applySettings(await persistLoggingSettings(defaults))
+    if (!current) {
+      applySettings(await persistLoggingSettings(defaultLoggingSettings()))
     } else {
-      applySettings(normalizeSettingsRecord({
-        ...(value as Record<string, unknown>),
-        updated_at: current.updated_at
-      }))
+      // Existing settings, including malformed legacy values, are read-only at
+      // boot. Only an explicit save/reset may replace them with the active DTO.
+      const saved = value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {}
+      applySettings(normalizeSettingsRecord({ ...saved, updated_at: current.updated_at }))
     }
   } catch (error) {
     settingsCache = defaultLoggingSettings()
@@ -176,10 +159,6 @@ export async function resetLoggingSettings() {
   return settingsCache
 }
 
-export function buildRequestId() {
-  return randomUUID()
-}
-
 export function debug(message: string, data?: Record<string, unknown>) {
   if (!isDebugEnabled() || !shouldLogLevel('debug')) {
     return
@@ -202,41 +181,6 @@ export function warn(message: string, data?: Record<string, unknown>) {
 
 export function error(message: string, data?: Record<string, unknown>) {
   writeConsoleEntry({ level: 'error', kind: 'app', msg: message, ctx: data }, settingsCache)
-}
-
-export function logAccess(entry: AccessLogEntry) {
-  if (!__PB_MODULE_LOGS__ || !resolveModuleFlags(getRuntimeModuleConfig()).accessLogs) return
-  const settings = settingsCache
-  // Filters and sampling apply to both sinks; enable switches control storage only.
-  if (!shouldRecordAccessLog(entry.path, entry.status_code, { ...settings, enabled: true, access_log_enabled: true })) {
-    return
-  }
-
-  const payload = {
-    ...entry,
-    timestamp: loggingTimestamp(entry.timestamp).toISOString(),
-    query_params: sanitizeAndTrim(entry.query_params ?? {}) as Record<string, unknown>
-  }
-  writeConsoleEntry({
-    ts: payload.timestamp,
-    level: 'info',
-    kind: 'access_log',
-    msg: `${entry.method} ${entry.path} ${entry.status_code}`,
-    request_id: entry.request_id,
-    method: entry.method,
-    path: entry.path,
-    status: entry.status_code,
-    duration_ms: entry.response_time_ms,
-    ip: entry.ip,
-    ua: entry.user_agent,
-    ctx: { query_params: entry.query_params, referrer: entry.referrer }
-  }, settings)
-  if (!settings.enabled || !settings.access_log_enabled) {
-    return
-  }
-  // Keep the full-field redaction semantics of the console sink before mapping
-  // to short file keys. New entries never enter the legacy DB buffer.
-  appendAccessLog(redactDeep(payload, settings.redact_fields) as AccessLogEntry)
 }
 
 export function logActivity(entry: ActivityLogEntry) {
@@ -327,14 +271,9 @@ export function logError(err: unknown, context?: Record<string, unknown>) {
 }
 
 export async function runManualLogCleanup(options: { type: LogCleanupType, mode: LogCleanupMode, value: number }) {
-  if (options.type === 'access' && options.mode === 'keep_latest') {
-    throw createError({ statusCode: 400, statusMessage: 'keep_latest is not supported for access log files; use older_than_days instead' })
-  }
-  const deleted = options.type === 'access'
-    ? (await maintainAccessLogFiles(new Date(), options.value)).deleted
-    : options.mode === 'older_than_days'
-      ? await deleteLogsOlderThan(typeToTable(options.type), new Date(Date.now() - options.value * 86_400_000))
-      : await deleteLogsKeepLatest(typeToTable(options.type), options.value)
+  const deleted = options.mode === 'older_than_days'
+    ? await deleteLogsOlderThan(typeToTable(options.type), new Date(Date.now() - options.value * 86_400_000))
+    : await deleteLogsKeepLatest(typeToTable(options.type), options.value)
 
   const result: CleanupResult = {
     type: options.type,
@@ -350,17 +289,14 @@ export async function runManualLogCleanup(options: { type: LogCleanupType, mode:
     metadata: {
       ...result
     },
-    description: `Manual log cleanup completed (${deleted} ${options.type === 'access' ? 'files' : 'rows'} deleted)`
+    description: `Manual log cleanup completed (${deleted} rows deleted)`
   })
 
   return result
 }
 
-export async function gatherLogStats(signal?: AbortSignal) {
+export async function gatherLogStats() {
   const flags = resolveModuleFlags(getRuntimeModuleConfig())
-  const access = flags.logs && flags.accessLogs
-    ? await accessStats(signal)
-    : { count: 0, oldest: null, newest: null, bytes: 0, files: 0 }
   const db = await useDb()
   const response = await queryDb(
     db,
@@ -380,7 +316,6 @@ export async function gatherLogStats(signal?: AbortSignal) {
     Number(firstRow<{ total?: number }>(response, 2)?.total ?? 0) * 1500
 
   return {
-    access,
     activity: {
       count: Number(activity?.total ?? 0),
       oldest: activity?.oldest ?? null,
@@ -393,20 +328,17 @@ export async function gatherLogStats(signal?: AbortSignal) {
       oldest: errors?.oldest ?? null,
       newest: errors?.newest ?? null
     },
-    db_estimate_bytes: estimate,
-    access_files_bytes: access.bytes
+    db_estimate_bytes: estimate
   }
 }
 
-export async function purgeLogType(type: 'access' | 'activity' | 'errors') {
-  if (type === 'access') return purgeAccessLogFiles()
+export async function purgeLogType(type: LogCleanupType) {
   const deleted = await purgeLogTable(typeToTable(type))
   if (type === 'errors') await purgeLogTable('error_groups')
   return deleted
 }
 
-export async function readLogById(type: 'access' | 'activity' | 'errors', id: string, signal?: AbortSignal) {
-  if (type === 'access') return signal ? readAccessLogById(id, signal) : readAccessLogById(id)
+export async function readLogById(type: LogCleanupType, id: string) {
   const table = typeToTable(type)
   const db = await useDb()
   return await queryDbRecord(db, table, id.includes(':') ? stringifyRecordId(id) : id, {
@@ -520,20 +452,15 @@ function normalizeSettingsRecord(record: Record<string, unknown>): LoggingSettin
     enabled: asBoolean(record.enabled, defaults.enabled),
     debug_enabled: asBoolean(record.debug_enabled, defaults.debug_enabled),
     debug_override_prod: asBoolean(record.debug_override_prod, defaults.debug_override_prod),
-    access_log_enabled: asBoolean(record.access_log_enabled, defaults.access_log_enabled),
     activity_log_enabled: asBoolean(record.activity_log_enabled, defaults.activity_log_enabled),
     error_log_enabled: asBoolean(record.error_log_enabled, defaults.error_log_enabled),
     error_log_min_status: asErrorLogMinStatus(record.error_log_min_status, defaults.error_log_min_status),
     error_occurrences_per_group: typeof record.error_occurrences_per_group === 'number' && Number.isInteger(record.error_occurrences_per_group) && record.error_occurrences_per_group >= 1 && record.error_occurrences_per_group <= 500 ? record.error_occurrences_per_group : defaults.error_occurrences_per_group,
     log_level: asLogLevel(record.log_level, defaults.log_level),
-    excluded_paths: asStringArray(record.excluded_paths, defaults.excluded_paths),
-    excluded_status_codes: asNumberArray(record.excluded_status_codes, defaults.excluded_status_codes),
     redact_fields: asStringArray(record.redact_fields, defaults.redact_fields),
-    retention_access_days: asPositiveInt(record.retention_access_days, defaults.retention_access_days),
     retention_activity_days: asPositiveInt(record.retention_activity_days, defaults.retention_activity_days),
     retention_error_days: asPositiveInt(record.retention_error_days, defaults.retention_error_days),
     max_metadata_size_kb: asPositiveInt(record.max_metadata_size_kb, defaults.max_metadata_size_kb),
-    sampling_rate: asSamplingRate(record.sampling_rate, defaults.sampling_rate),
     console_output: asBoolean(record.console_output, defaults.console_output),
     updated_at: asUpdatedAt(record.updated_at)
   }
@@ -616,12 +543,6 @@ function asStringArray(value: unknown, fallback: string[]) {
     : fallback
 }
 
-function asNumberArray(value: unknown, fallback: number[]) {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is number => typeof entry === 'number' && Number.isInteger(entry))
-    : fallback
-}
-
 function asErrorLogMinStatus(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isInteger(value) && value >= 400 && value <= 599 ? value : fallback
 }
@@ -634,18 +555,8 @@ function asPositiveInt(value: unknown, fallback: number) {
   return value
 }
 
-function asSamplingRate(value: unknown, fallback: number) {
-  if (typeof value !== 'number' || value < 0 || value > 1) {
-    return fallback
-  }
-
-  return value
-}
-
-function typeToTable(type: Exclude<LogCleanupType, 'access'>) {
-  if (type === 'activity') {
-    return 'activity_logs'
-  }
-
-  return 'error_logs'
+function typeToTable(type: LogCleanupType): 'activity_logs' | 'error_logs' {
+  if (type === 'activity') return 'activity_logs'
+  if (type === 'errors') return 'error_logs'
+  throw createError({ statusCode: 400, message: 'Invalid log type' })
 }

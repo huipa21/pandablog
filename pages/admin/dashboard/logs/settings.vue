@@ -69,21 +69,6 @@
             <template #hint>{{ t('admin.logs.settings.minimumLevelHint') }}</template>
           </UFormField>
 
-          <UFormField :label="t('admin.logs.settings.samplingRate')" name="sampling_rate">
-            <UInput v-model.number="form.sampling_rate" type="number" min="0" max="1" step="0.01" icon="i-lucide-percent" placeholder="1" />
-            <template #hint>{{ t('admin.logs.settings.samplingRateHint') }}</template>
-          </UFormField>
-
-          <UFormField :label="t('admin.logs.settings.excludedPaths')" name="excluded_paths">
-            <UTextarea v-model="excludedPathsText" :rows="4" placeholder="/_nuxt&#10;/favicon" />
-            <template #hint>{{ t('admin.logs.settings.excludedPathsHint') }}</template>
-          </UFormField>
-
-          <UFormField :label="t('admin.logs.settings.excludedStatusCodes')" name="excluded_status_codes">
-            <UTextarea v-model="excludedStatusCodesText" :rows="4" placeholder="204, 304" />
-            <template #hint>{{ t('admin.logs.settings.excludedStatusCodesHint') }}</template>
-          </UFormField>
-
           <UFormField :label="t('admin.logs.settings.redactedFields')" name="redact_fields" class="md:col-span-2">
             <UTextarea v-model="redactFieldsText" :rows="4" placeholder="password&#10;token&#10;authorization" />
             <template #hint>{{ t('admin.logs.settings.redactedFieldsHint') }}</template>
@@ -154,7 +139,7 @@
 
             <fieldset class="grid gap-3 md:grid-cols-2">
               <label
-                v-for="mode in cleanupModeOptions.filter(option => target.type !== 'access' || option.value !== 'keep_latest')"
+                v-for="mode in cleanupModeOptions"
                 :key="mode.value"
                 class="flex cursor-pointer items-start gap-3 rounded-[var(--pb-radius-card-inner)] border p-3"
                 :class="cleanupControls[target.type].mode === mode.value ? 'border-[var(--pb-selected-border)] bg-[var(--pb-selected-bg)]' : 'border-[var(--pb-divider)]'"
@@ -162,7 +147,7 @@
                 <input v-model="cleanupControls[target.type].mode" type="radio" :value="mode.value" class="mt-1">
                 <span class="grid gap-1">
                   <span class="font-medium text-[var(--pb-text)]">{{ mode.label }}</span>
-                  <span class="text-sm text-[var(--pb-text-muted)]">{{ target.type === 'access' ? t('admin.logs.settings.deleteAccessFilesDescription') : mode.description }}</span>
+                  <span class="text-sm text-[var(--pb-text-muted)]">{{ mode.description }}</span>
                 </span>
               </label>
             </fieldset>
@@ -208,16 +193,15 @@
 </template>
 
 <script setup lang="ts">
-import type { LogCleanupMode, LogCleanupType, LoggingSettings, RetentionReport } from '~/types/logging'
-import { DEFAULT_LOGGING_EXCLUDED_PATHS, parseExcludedStatusCodes } from '~/utils/loggingSettings'
+import type { CleanupResult, LogCleanupMode, LogCleanupType, LoggingSettings, RetentionReport } from '~/types/logging'
 
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
 
 type LoggingSettingsPayload = Omit<LoggingSettings, 'updated_at'>
-type ToggleKey = 'enabled' | 'console_output' | 'access_log_enabled' | 'activity_log_enabled' | 'error_log_enabled' | 'debug_enabled' | 'debug_override_prod'
-type RetentionKey = 'retention_access_days' | 'retention_activity_days' | 'retention_error_days'
+type ToggleKey = 'enabled' | 'console_output' | 'activity_log_enabled' | 'error_log_enabled' | 'debug_enabled' | 'debug_override_prod'
+type RetentionKey = 'retention_activity_days' | 'retention_error_days'
 
 const sessionFetch = useSessionFetch()
 const { data, error } = await useAsyncData('admin-logging-settings', () => sessionFetch<{ settings: LoggingSettings }>('/api/admin/settings/logging'))
@@ -228,8 +212,6 @@ const retentionReport = computed<RetentionReport | null>(() => retentionStatus.v
 const retentionDeleted = computed(() => Object.values(retentionReport.value?.deleted ?? {}).reduce((sum, count) => sum + (count ?? 0), 0))
 
 const form = reactive<LoggingSettings>(blankForm())
-const excludedPathsText = ref('')
-const excludedStatusCodesText = ref('')
 const redactFieldsText = ref('')
 const adminToast = useAdminToast()
 const originalSettings = ref<LoggingSettings>(blankForm())
@@ -252,7 +234,6 @@ const masterControls = computed<Array<{ key: ToggleKey, label: string, descripti
 ])
 
 const categoryControls = computed<Array<{ key: ToggleKey, label: string, description: string }>>(() => [
-  { key: 'access_log_enabled', label: t('admin.logs.accessLogs'), description: t('admin.logs.settings.accessLogsDescription') },
   { key: 'activity_log_enabled', label: t('admin.logs.activityLogs'), description: t('admin.logs.settings.activityLogsDescription') },
   { key: 'error_log_enabled', label: t('admin.logs.errorLogs'), description: t('admin.logs.settings.errorLogsDescription') },
   { key: 'debug_enabled', label: t('admin.logs.settings.debugLogs'), description: t('admin.logs.settings.debugLogsDescription') },
@@ -260,7 +241,6 @@ const categoryControls = computed<Array<{ key: ToggleKey, label: string, descrip
 ])
 
 const retentionControls = computed<Array<{ key: RetentionKey, label: string, description: string }>>(() => [
-  { key: 'retention_access_days', label: t('admin.logs.accessLogs'), description: t('admin.logs.settings.retentionAccessDescription', { days: form.retention_access_days }) },
   { key: 'retention_activity_days', label: t('admin.logs.activityLogs'), description: t('admin.logs.settings.retentionActivityDescription') },
   { key: 'retention_error_days', label: t('admin.logs.errorLogs'), description: t('admin.logs.settings.retentionErrorDescription') }
 ])
@@ -271,13 +251,11 @@ const cleanupModeOptions = computed<Array<{ value: LogCleanupMode, label: string
 ])
 
 const cleanupTargets = computed<Array<{ type: LogCleanupType, label: string, description: string, retentionKey: RetentionKey }>>(() => [
-  { type: 'access', label: t('admin.logs.accessLogs'), description: t('admin.logs.settings.cleanupAccessDescription'), retentionKey: 'retention_access_days' },
   { type: 'activity', label: t('admin.logs.activityLogs'), description: t('admin.logs.settings.cleanupActivityDescription'), retentionKey: 'retention_activity_days' },
   { type: 'errors', label: t('admin.logs.errorLogs'), description: t('admin.logs.settings.cleanupErrorDescription'), retentionKey: 'retention_error_days' }
 ])
 
 const cleanupControls = reactive<Record<LogCleanupType, { mode: LogCleanupMode, value: number }>>({
-  access: { mode: 'older_than_days', value: 30 },
   activity: { mode: 'older_than_days', value: 365 },
   errors: { mode: 'older_than_days', value: 90 }
 })
@@ -307,10 +285,6 @@ const cleanupDialogDescription = computed(() => {
     return ''
   }
 
-  if (cleanup.type === 'access') {
-    return t('admin.logs.settings.deleteAccessFilesConfirmation', { days: cleanup.value })
-  }
-
   return cleanup.mode === 'older_than_days'
     ? t('admin.logs.settings.deleteOldDescription', { label: cleanupTargetLabel(cleanup.type), days: cleanup.value })
     : t('admin.logs.settings.keepLatestDescriptionDialog', { label: cleanupTargetLabel(cleanup.type), count: cleanup.value })
@@ -321,12 +295,12 @@ async function save() {
   saving.value = true
 
   try {
-    const response = await $fetch('/api/admin/settings/logging', {
+    const response = await sessionFetch<{ settings: LoggingSettings }>('/api/admin/settings/logging', {
       method: 'PUT',
       body: toPayload()
     })
 
-    applySettings((response as any).settings)
+    applySettings(response.settings)
     adminToast.success(t('admin.logs.settings.saved'))
   } catch (err: any) {
     adminToast.error(err, t('admin.logs.settings.saveFailed'))
@@ -339,7 +313,7 @@ async function runRetention() {
   if (retentionRunning.value) return
   retentionRunning.value = true
   try {
-    const report = await $fetch('/api/admin/logs/retention/run', { method: 'POST' })
+    const report = await sessionFetch<RetentionReport>('/api/admin/logs/retention/run', { method: 'POST' })
     retentionStatus.value = { last: report, schedule: retentionStatus.value?.schedule ?? '17 3 * * *' }
     retentionLoadError.value = undefined
     if (report.errors.length) {
@@ -358,8 +332,8 @@ async function resetDefaults() {
   resetting.value = true
 
   try {
-    const response = await $fetch('/api/admin/settings/logging/reset', { method: 'POST' })
-    applySettings((response as any).settings)
+    const response = await sessionFetch<{ settings: LoggingSettings }>('/api/admin/settings/logging/reset', { method: 'POST' })
+    applySettings(response.settings)
     adminToast.success(t('admin.logs.settings.defaultsRestored'))
   } catch (err: any) {
     adminToast.error(err, t('admin.logs.settings.resetFailed'))
@@ -394,11 +368,11 @@ async function runCleanup() {
   cleanupLoadingType.value = cleanup.type
 
   try {
-    const response = await $fetch('/api/admin/logs/cleanup', {
+    const response = await sessionFetch<{ result: CleanupResult }>('/api/admin/logs/cleanup', {
       method: 'POST',
       body: cleanup
-    }) as any
-    showCleanupResult(cleanup, Number(response?.result?.deleted ?? 0))
+    })
+    showCleanupResult(cleanup, Number(response.result.deleted))
   } catch (err: any) {
     adminToast.error(err, t('admin.logs.settings.cleanupFailed'))
   } finally {
@@ -422,8 +396,6 @@ function applySettings(settings: Partial<LoggingSettings>) {
 }
 
 function syncTextFields(settings: Partial<LoggingSettings>) {
-  excludedPathsText.value = (settings.excluded_paths ?? []).join('\n')
-  excludedStatusCodesText.value = (settings.excluded_status_codes ?? []).join(', ')
   redactFieldsText.value = (settings.redact_fields ?? []).join('\n')
 }
 
@@ -440,20 +412,15 @@ function toPayload(): LoggingSettingsPayload {
     enabled: form.enabled,
     debug_enabled: form.debug_enabled,
     debug_override_prod: form.debug_override_prod,
-    access_log_enabled: form.access_log_enabled,
     activity_log_enabled: form.activity_log_enabled,
     error_log_enabled: form.error_log_enabled,
     error_log_min_status: Number(form.error_log_min_status),
     error_occurrences_per_group: Number(form.error_occurrences_per_group),
     log_level: form.log_level,
-    excluded_paths: excludedPathsText.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
-    excluded_status_codes: parseExcludedStatusCodes(excludedStatusCodesText.value),
     redact_fields: redactFieldsText.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean),
-    retention_access_days: Number(form.retention_access_days),
     retention_activity_days: Number(form.retention_activity_days),
     retention_error_days: Number(form.retention_error_days),
     max_metadata_size_kb: Number(form.max_metadata_size_kb),
-    sampling_rate: Number(form.sampling_rate),
     console_output: form.console_output
   }
 }
@@ -486,11 +453,6 @@ function showCleanupResult(cleanup: { type: LogCleanupType, mode: LogCleanupMode
     return
   }
 
-  if (cleanup.type === 'access') {
-    adminToast.success(t('admin.logs.settings.cleanupComplete'), t('admin.logs.settings.cleanupDeletedFiles', { deleted, days: cleanup.value }))
-    return
-  }
-
   if (cleanup.mode === 'older_than_days') {
     adminToast.success(t('admin.logs.settings.cleanupComplete'), t('admin.logs.settings.cleanupDeletedOlder', { deleted, label, date: cleanupCutoffDate(cleanup.value), days: cleanup.value }))
     return
@@ -508,20 +470,15 @@ function blankForm(): LoggingSettings {
     enabled: true,
     debug_enabled: false,
     debug_override_prod: false,
-    access_log_enabled: true,
     activity_log_enabled: true,
     error_log_enabled: true,
     error_log_min_status: 500,
     error_occurrences_per_group: 50,
     log_level: 'info',
-    excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
-    excluded_status_codes: [],
     redact_fields: [],
-    retention_access_days: 30,
     retention_activity_days: 365,
     retention_error_days: 90,
     max_metadata_size_kb: 50,
-    sampling_rate: 1,
     console_output: false,
     updated_at: ''
   }

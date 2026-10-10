@@ -63,7 +63,6 @@ tests/unit/*
 !tests/unit/analytics.test.ts
 !tests/unit/analytics-bounds.test.ts
 !tests/unit/analytics-track-http.test.ts
-!tests/unit/access-log-bounds.test.ts
 !tests/integration/analytics-phase4.test.ts
 !tests/unit/db-reconnect.test.ts
 !tests/unit/db-outage.test.ts
@@ -98,18 +97,10 @@ tests/unit/*
 !tests/unit/taxonomy.test.ts
 !tests/unit/log-console.test.ts
 !tests/unit/logging-console-routing.test.ts
-!tests/unit/access-log-migration.test.ts
-!tests/unit/access-log-migration-boot.test.ts
-!tests/unit/access-log-store.test.ts
-!tests/unit/access-log-maintenance.test.ts
-!tests/unit/access-log-reader.test.ts
-!tests/unit/access-log-purge.test.ts
-!tests/unit/logging-file-api.test.ts
-!tests/unit/logging-chart.test.ts
 !tests/unit/logging-dashboard.test.ts
-!tests/unit/logging-access-ui.test.ts
-!tests/unit/logging-file-ui.test.ts
-!tests/unit/access-log-store-plugin.test.ts
+!tests/unit/request-id.test.ts
+!tests/unit/access-log-retirement.test.ts
+!tests/unit/access-log-retirement-http.test.ts
 !tests/unit/logging-logic.test.ts
 !tests/unit/logging-error-capture.test.ts
 !tests/unit/logging-error-hook.test.ts
@@ -130,7 +121,6 @@ tests/unit/*
 !tests/unit/log-retention-api.test.ts
 !tests/unit/health.test.ts
 !tests/unit/health-http.test.ts
-!tests/unit/logging-excluded-paths-migration.test.ts
 !tests/unit/backup-create.test.ts
 !tests/unit/backup-restore-schema.test.ts
 !tests/unit/backup-settings.test.ts

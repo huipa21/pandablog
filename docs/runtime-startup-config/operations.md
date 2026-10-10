@@ -12,7 +12,7 @@
 - Shutdown is bounded at **10 seconds**; late boot cannot publish readiness. Nitro's 15s shutdown and Compose's 45s grace remain useful. No ordinary failure/unclean-close receipt exists. Dev Workers use process-local bounded drain messages, not persistent PID/hostname ownership.
 - Backup-family jobs and reset CLI remain serialized. A new app has a ten-minute job-only execution hold; observed abandoned app/CLI jobs get a finite exact-generation hold before takeover. DB query/transaction server timeouts must be below ten minutes. Unknown/remote/partial nonrestore records may require an offline **job-only** remedy after stopping all jobs and preserving exact metadata, never DB-consistency assertions just to start the site.
 - Uncertain write markers impose finite job-only holds, never ordinary readiness/shutdown fences. Expired records remain informational (not unlinked across a possible concurrent CLI publication).
-- Trustworthy pre-destructive restore preparation is durably aborted at preflight, with bounded owned staging cleanup. Verified terminal journals do not block. Only destructive/ambiguous restore requires offline administrator recovery; preserve journal, paired DB/media safety and swap artifacts. Independent setup/access-log/media receipts retain their domain protections.
+- Trustworthy pre-destructive restore preparation is durably aborted at preflight, with bounded owned staging cleanup. Verified terminal journals do not block. Only destructive/ambiguous restore requires offline administrator recovery; preserve journal, paired DB/media safety and swap artifacts. Independent setup/media receipts retain their domain protections. Retired access-log files/rows/receipts remain cold history and are not inspected, migrated or removed; see [logging operations](../logging/operations.md).
 - `panda recover` is read-only restore inspection (`clear` or `manual-recovery-required`), without env/DB/SQL/token output. Old startup archival/assertion flags are rejected before I/O. No force-unfence, automatic safety import or public recovery endpoint exists. See [CLI reference](../versioning-and-cli.md#recovery-panda-recover).
 
 <details>
@@ -147,7 +147,7 @@ Both runtime credentials are **required in every environment**, with no ROOT fal
 D-04 startup flow:
 
 1. First run: explicitly supply ROOT bootstrap credentials with the configured scoped pair. Owned boot creates namespace/database/scoped user only.
-2. Close and verify disposal of ROOT before scoped authentication. All table schemas, schema updates, required boot migrations and receipt-verified legacy access-table removal run as DATABASE EDITOR under private boot authority.
+2. Close and verify disposal of ROOT before scoped authentication. All table schemas, schema updates and remaining required boot migrations run as DATABASE EDITOR under private boot authority. Legacy access migration/table removal has been retired; its data/markers remain untouched.
 3. Keep ROOT configured when current backup/restore is required. Normal bootstrap uses `IF NOT EXISTS` for the user, preserving existing credentials/roles instead of reprovisioning on every start. Credential rotation is an explicit operation; merely changing a runtime password does not authorize automatic repair.
 4. ROOT-free ordinary boot remains supported for targets where privileged maintenance is not needed: remove the password and recreate the container. Scoped authentication failure never triggers a ROOT retry. Merely restarting a container does not apply changed `env_file` values.
 

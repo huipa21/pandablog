@@ -2,6 +2,8 @@
 
 Tasks: **REV-4.3, REV-4.4**. Findings: F-20, F-21, F-22.
 
+**Access-specific requirements superseded:** [access-log retirement](../../access-log-simplification/plan.md) removes the writer/reader/cache/export/purge/migration, rather than completing REV-4.3's query platform. Sections 1–3 and access-file bullets below describe the historical feature, not instructions to retain or reactivate it. Preserve existing history externally/inertly; see [current logging operations](../../logging/operations.md). Global error/activity admission and truthful DB deletion requirements remain outstanding; their gates are not waived.
+
 ## 1. Relationship to docs/logging
 
 Read [logging architecture](../../logging/specs/00-architecture.md), [file-store spec](../../logging/specs/05-access-log-files.md), [error groups](../../logging/specs/06-error-groups.md), and [progress decisions](../../logging/progress.md).

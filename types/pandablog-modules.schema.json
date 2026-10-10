@@ -28,10 +28,10 @@
         "logs": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "accessLogs", "activityLogs", "errorLogs"],
+          "required": ["enabled", "activityLogs", "errorLogs"],
           "properties": {
             "enabled": { "type": "boolean" },
-            "accessLogs": { "type": "boolean" },
+            "accessLogs": { "type": "boolean", "deprecated": true, "description": "Retired access logging flag; accepted as a no-op for old manifests." },
             "activityLogs": { "type": "boolean" },
             "errorLogs": { "type": "boolean" }
           }

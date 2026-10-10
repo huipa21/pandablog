@@ -1,6 +1,5 @@
 declare const __PB_MODULE_EDITOR__: boolean
 declare const __PB_MODULE_LOGS__: boolean
-declare const __PB_MODULE_LOGS_ACCESS__: boolean
 declare const __PB_MODULE_LOGS_ACTIVITY__: boolean
 declare const __PB_MODULE_LOGS_ERROR__: boolean
 declare const __PB_MODULE_ANALYTICS__: boolean

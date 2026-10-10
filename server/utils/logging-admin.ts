@@ -1,12 +1,9 @@
 import type { H3Event } from 'h3'
 import { queryDb, useDb } from './db'
-import { queryAccessLogs } from './access-log-reader'
-import { requestAbortSignal } from './request-abort'
-import type { AccessQuery } from './access-log-reader'
 import { firstRow, queryRows } from './surrealResult'
 import { getRuntimeModuleConfig, resolveModuleFlags } from '~/utils/moduleFlags'
 
-export type LogType = 'access' | 'activity' | 'errors'
+export type LogType = 'activity' | 'errors'
 
 export interface ListLogsResult {
   rows: Array<Record<string, unknown>>
@@ -14,7 +11,6 @@ export interface ListLogsResult {
   limit: number
   offset: number
   sort: 'newest' | 'oldest'
-  truncated?: boolean
 }
 
 interface ListLogsOptions {
@@ -30,7 +26,7 @@ interface LogListSpec {
   setTypeWhere: (query: Record<string, unknown>, where: string[], params: Record<string, unknown>) => void
 }
 
-const logListSpecs: Record<Exclude<LogType, 'access'>, LogListSpec> = {
+const logListSpecs: Record<LogType, LogListSpec> = {
   activity: {
     table: 'activity_logs',
     label: 'activity',
@@ -55,7 +51,10 @@ const logListSpecs: Record<Exclude<LogType, 'access'>, LogListSpec> = {
 }
 
 export function parseLogType(value: string): LogType {
-  if (value === 'access' || value === 'activity' || value === 'errors') {
+  if (value === 'access') {
+    throw createError({ statusCode: 404, message: 'Access logging has been retired; use reverse-proxy logs' })
+  }
+  if (value === 'activity' || value === 'errors') {
     assertLogTypeEnabled(value)
     return value
   }
@@ -113,9 +112,6 @@ export async function listLogs(event: H3Event, type: LogType, options: ListLogsO
   const sort = parseSort(query.sort)
   const orderBy = sort === 'oldest' ? 'ASC' : 'DESC'
   const includeTotal = options.includeTotal ?? query.total !== 'false'
-  if (type === 'access') {
-    return queryAccessLogs({...toAccessQuery(query, {limit, offset, sort, includeTotal}), signal: requestAbortSignal(event)})
-  }
   const spec = logListSpecs[type]
   const params: Record<string, unknown> = { limit, offset }
   const where: string[] = []
@@ -151,35 +147,6 @@ export async function listLogs(event: H3Event, type: LogType, options: ListLogsO
     offset,
     sort
   }
-}
-
-/** Preserve the existing permissive query parsing; absent/invalid dates use reader defaults. */
-export function toAccessQuery(query: Record<string, unknown>, pagination: Pick<AccessQuery, 'limit' | 'offset' | 'sort' | 'includeTotal'>): AccessQuery {
-  const integer = (value: unknown) => value !== undefined && Number.isInteger(Number(value)) ? Number(value) : undefined
-  const date = (value: unknown) => typeof value === 'string' && isValidDate(value) ? new Date(value) : undefined
-  const text = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : undefined
-  return {
-    ...pagination,
-    from: date(query.from),
-    to: date(query.to),
-    path: text(query.path),
-    method: text(query.method)?.toUpperCase(),
-    status: integer(query.status),
-    min_status: integer(query.min_status),
-    max_status: integer(query.max_status),
-    search: sanitizeSearchText(query.search) || undefined
-  }
-}
-
-export function* csvChunks(rows: Array<Record<string, unknown>>) {
-  if (!rows.length) return
-  const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row))))
-  yield columns.join(',')
-  for (const row of rows) yield `\n${columns.map(column => escapeCsvCell(row[column])).join(',')}`
-}
-
-export async function listAccessLogs(event: H3Event): Promise<ListLogsResult> {
-  return await listLogs(event, 'access')
 }
 
 export async function listActivityLogs(event: H3Event): Promise<ListLogsResult> {
@@ -243,7 +210,6 @@ function isLogTypeEnabled(type: LogType) {
     return false
   }
 
-  if (type === 'access') return moduleFlags.accessLogs
   if (type === 'activity') return moduleFlags.activityLogs
   return moduleFlags.errorLogs
 }

@@ -28,7 +28,6 @@
     },
     "logs": {
       "enabled": true,
-      "accessLogs": false,
       "activityLogs": true,
       "errorLogs": true
     },

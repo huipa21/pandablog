@@ -37,7 +37,7 @@ function purge(type: string, token = `PURGE_${type.toUpperCase()}`) {
 }
 
 describe('log purge HTTP routing', () => {
-  it.each(['access', 'activity', 'errors'])('preserves DELETE %s despite a static GET route with no dynamic params', async (type) => {
+  it.each(['activity', 'errors'])('preserves DELETE %s despite a static GET route with no dynamic params', async (type) => {
     const response = await purge(type)
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ ok: true, deleted: 7 })
@@ -46,6 +46,12 @@ describe('log purge HTTP routing', () => {
     // H3 caches the fallback handler on the static route. Subsequent calls must work too.
     expect((await purge(type)).status).toBe(200)
     expect(mocks.purgeLogType).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects retired access purge before reading confirmation or deleting', async () => {
+    const response = await purge('access')
+    expect(response.status).toBe(404)
+    expect(mocks.purgeLogType).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid confirmation token without deleting', async () => {

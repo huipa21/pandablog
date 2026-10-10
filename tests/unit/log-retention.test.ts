@@ -4,10 +4,9 @@ import { deleteLogsKeepLatest, deleteLogsOlderThan, purgeLogTable } from '../../
 import type { LogDeletionOptions, LogRetentionTable } from '../../server/utils/log-retention'
 import type { LoggingSettings } from '../../types/logging'
 
-const mocks = vi.hoisted(() => ({ db: {}, queryDb: vi.fn(), useDb: vi.fn(), maintainAccessLogFiles: vi.fn() }))
+const mocks = vi.hoisted(() => ({ db: {}, queryDb: vi.fn(), useDb: vi.fn() }))
 const logger = vi.hoisted(() => ({ initializeLoggingSettings: vi.fn(), getLoggingSettings: vi.fn(), logActivity: vi.fn(), warn: vi.fn() }))
 vi.mock('../../server/utils/db', () => mocks)
-vi.mock('../../server/utils/access-log-store', () => ({ maintainAccessLogFiles: mocks.maintainAccessLogFiles }))
 vi.mock('../../server/utils/logging', () => logger)
 const groupRetention = vi.hoisted(() => ({ retainErrorGroups: vi.fn() }))
 vi.mock('../../server/utils/error-groups', () => groupRetention)
@@ -232,10 +231,10 @@ describe('purgeLogTable', () => {
 function runnerSettings(): LoggingSettings {
   return {
     enabled: true, debug_enabled: false, debug_override_prod: false,
-    access_log_enabled: true, activity_log_enabled: true, error_log_enabled: true, error_log_min_status: 500, error_occurrences_per_group: 50,
-    log_level: 'info', excluded_paths: [], excluded_status_codes: [], redact_fields: [],
-    retention_access_days: 2, retention_activity_days: 3, retention_error_days: 4,
-    max_metadata_size_kb: 50, sampling_rate: 1, console_output: false
+    activity_log_enabled: true, error_log_enabled: true, error_log_min_status: 500, error_occurrences_per_group: 50,
+    log_level: 'info', redact_fields: [],
+    retention_activity_days: 3, retention_error_days: 4,
+    max_metadata_size_kb: 50, console_output: false
   }
 }
 
@@ -250,12 +249,10 @@ describe('retention runner', () => {
     logger.initializeLoggingSettings.mockResolvedValue(runnerSettings())
     logger.getLoggingSettings.mockReturnValue(runnerSettings())
     groupRetention.retainErrorGroups.mockResolvedValue({ groups: 0, occurrences: 0 })
-    mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 0, deleted: 0 })
     mocks.queryDb.mockResolvedValue(batchResult(0))
   })
 
-  it('maintains access files with saved settings, never deletes access DB rows, and audits non-empty runs', async () => {
-    mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 1, deleted: 1 })
+  it('retains DB logs with saved settings, never touches access history, and audits non-empty runs', async () => {
     mocks.queryDb.mockResolvedValueOnce(batchResult(2)).mockResolvedValueOnce(batchResult(3))
     const retention = await import('../../server/utils/log-retention')
     expect(retention.getLastRetentionReport()).toBeNull()
@@ -265,9 +262,8 @@ describe('retention runner', () => {
       { table: 'activity_logs', cutoff: new Date(now.getTime() - 3 * 86_400_000).toISOString(), batch: 2000 },
       { table: 'error_logs', cutoff: new Date(now.getTime() - 4 * 86_400_000).toISOString(), batch: 2000 }
     ])
-    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledExactlyOnceWith(now, 2)
-    expect(report).toEqual({ started_at: now.toISOString(), finished_at: now.toISOString(), duration_ms: 0, deleted: { access: 0, access_files: 1, activity: 2, errors: 3, error_groups: 0 }, errors: [] })
-    expect(logger.logActivity).toHaveBeenCalledExactlyOnceWith({ action: 'system.log_retention', resource_type: 'logging', metadata: report, description: 'Scheduled log retention removed 6 rows/files' })
+    expect(report).toEqual({ started_at: now.toISOString(), finished_at: now.toISOString(), duration_ms: 0, deleted: { activity: 2, errors: 3, error_groups: 0 }, errors: [] })
+    expect(logger.logActivity).toHaveBeenCalledExactlyOnceWith({ action: 'system.log_retention', resource_type: 'logging', metadata: report, description: 'Scheduled log retention removed 5 rows' })
     expect(logger.warn).not.toHaveBeenCalled()
     expect(retention.getLastRetentionReport()).toEqual(report)
   })
@@ -296,22 +292,14 @@ describe('retention runner', () => {
     const report = await runLogRetention(new Date('2025-01-01T00:00:00Z'))
     expect(report.duration_ms).toBe(10)
     expect(report.finished_at).toBe(new Date(now.getTime() + 10).toISOString())
-    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledWith(new Date('2025-01-01T00:00:00Z'), 2)
     expect(mocks.queryDb.mock.calls[0]?.[2].cutoff).toBe('2024-12-29T00:00:00.000Z')
   })
 
   it('does not audit empty successful runs', async () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
-    expect((await runLogRetention()).deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0, error_groups: 0 })
+    expect((await runLogRetention()).deleted).toEqual({ activity: 0, errors: 0, error_groups: 0 })
     expect(logger.logActivity).not.toHaveBeenCalled()
     expect(logger.warn).not.toHaveBeenCalled()
-  })
-
-  it('does not count compression as deletion or audit a compression-only pass', async () => {
-    mocks.maintainAccessLogFiles.mockResolvedValue({ compressed: 5, deleted: 0 })
-    const { runLogRetention } = await import('../../server/utils/log-retention')
-    expect((await runLogRetention()).deleted.access_files).toBe(0)
-    expect(logger.logActivity).not.toHaveBeenCalled()
   })
 
   it('skips every stream when the settings master switch is disabled', async () => {
@@ -319,30 +307,27 @@ describe('retention runner', () => {
     const { runLogRetention } = await import('../../server/utils/log-retention')
     await runLogRetention()
     expect(mocks.queryDb).not.toHaveBeenCalled()
-    expect(mocks.maintainAccessLogFiles).not.toHaveBeenCalled()
     expect(logger.logActivity).not.toHaveBeenCalled()
   })
 
   it.each([
-    ['access_log_enabled', 'access_logs'], ['activity_log_enabled', 'activity_logs'], ['error_log_enabled', 'error_logs']
+    ['activity_log_enabled', 'activity_logs'], ['error_log_enabled', 'error_logs']
   ] as const)('skips the stream disabled by setting %s', async (setting, table) => {
     logger.getLoggingSettings.mockReturnValue({ ...runnerSettings(), [setting]: false })
     const { runLogRetention } = await import('../../server/utils/log-retention')
     await runLogRetention()
     expect(mocks.queryDb.mock.calls.map(call => call[2].table)).not.toContain(table)
-    expect(mocks.queryDb).toHaveBeenCalledTimes(setting === 'access_log_enabled' ? 2 : 1)
-    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledTimes(setting === 'access_log_enabled' ? 0 : 1)
+    expect(mocks.queryDb).toHaveBeenCalledTimes(1)
   })
 
   it.each([
-    ['accessLogs', 'access_logs'], ['activityLogs', 'activity_logs'], ['errorLogs', 'error_logs']
+    ['activityLogs', 'activity_logs'], ['errorLogs', 'error_logs']
   ] as const)('skips the stream disabled by module flag %s', async (flag, table) => {
     vi.stubGlobal('useRuntimeConfig', () => ({ public: { modules: { logs: { [flag]: false } } } }))
     const { runLogRetention } = await import('../../server/utils/log-retention')
     await runLogRetention()
     expect(mocks.queryDb.mock.calls.map(call => call[2].table)).not.toContain(table)
-    expect(mocks.queryDb).toHaveBeenCalledTimes(flag === 'accessLogs' ? 2 : 1)
-    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledTimes(flag === 'accessLogs' ? 0 : 1)
+    expect(mocks.queryDb).toHaveBeenCalledTimes(1)
   })
 
   it.each(['build', 'runtime'])('is a no-op before settings/DB access when %s logging is disabled', async (mode) => {
@@ -358,19 +343,10 @@ describe('retention runner', () => {
     mocks.queryDb.mockRejectedValueOnce(new Error('DB unavailable')).mockResolvedValueOnce(batchResult(3))
     const { runLogRetention } = await import('../../server/utils/log-retention')
     const report = await runLogRetention()
-    expect(report.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 3, error_groups: 0 })
+    expect(report.deleted).toEqual({ activity: 0, errors: 3, error_groups: 0 })
     expect(report.errors).toEqual(['activity: DB unavailable'])
     expect(logger.logActivity).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledWith('[logging] retention completed with errors', { errors: report.errors, deleted: report.deleted })
-  })
-
-  it('reports file maintenance failures but cleans the DB streams', async () => {
-    mocks.maintainAccessLogFiles.mockRejectedValue(new Error('disk failed'))
-    const { runLogRetention } = await import('../../server/utils/log-retention')
-    const report = await runLogRetention()
-    expect(report.errors).toEqual(['access_files: disk failed'])
-    expect(mocks.queryDb.mock.calls.map(call => call[2].table)).toEqual(['activity_logs', 'error_logs'])
-    expect(logger.logActivity).toHaveBeenCalledTimes(1) // Errors alone warrant an audit.
   })
 
   it('reports settings initialization failures without deleting and warns even when activity is off', async () => {
@@ -401,13 +377,11 @@ describe('retention runner', () => {
     await vi.waitFor(() => expect(logger.initializeLoggingSettings).toHaveBeenCalledTimes(1))
     resolveSettings()
     expect(await first).toBe(await second)
-    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledExactlyOnceWith(now, 2)
     expect(mocks.queryDb).toHaveBeenCalledTimes(2)
     const third = runLogRetention(now)
     expect(third).not.toBe(first)
     await third
     expect(mocks.queryDb).toHaveBeenCalledTimes(4)
-    expect(mocks.maintainAccessLogFiles).toHaveBeenCalledTimes(2)
   })
 
   it('clears single-flight state after rejection and protects the cached report from mutation', async () => {
@@ -415,10 +389,10 @@ describe('retention runner', () => {
     await expect(retention.runLogRetention(new Date('invalid'))).rejects.toThrow('Invalid retention run date')
     const report = await retention.runLogRetention()
     const snapshot = retention.getLastRetentionReport()!
-    snapshot.deleted.access = 99
+    snapshot.deleted.activity = 99
     snapshot.errors.push('mutated')
     report.deleted.activity = 88
-    expect(retention.getLastRetentionReport()?.deleted).toEqual({ access: 0, access_files: 0, activity: 0, errors: 0, error_groups: 0 })
+    expect(retention.getLastRetentionReport()?.deleted).toEqual({ activity: 0, errors: 0, error_groups: 0 })
     expect(retention.getLastRetentionReport()?.errors).toEqual([])
   })
 })

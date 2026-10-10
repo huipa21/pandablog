@@ -1,5 +1,6 @@
 import { defineEventHandler, getHeader, getRequestURL, send, setResponseHeader, setResponseStatus, type EventHandler } from 'h3'
 import { writeBarrier, type WriteBarrier } from './maintenance'
+import { ensureRequestId } from './request-id'
 
 /** Keep the outer handler and inner middleware diagnostic exceptions identical. */
 export function isMaintenanceDiagnosticRequest(method: string, pathname: string) {
@@ -15,6 +16,8 @@ export function wrapMaintenanceHandler(original: EventHandler, barrier: WriteBar
     // Nitro initializes this in h3App's onRequest, which never runs when the
     // fence rejects first; its error handler (useRuntimeConfig) requires it.
     event.context.nitro ||= { errors: [] }
+    // The outer fence can respond before Nitro's request hooks/middleware.
+    ensureRequestId(event)
     const pathname = getRequestURL(event).pathname
     if (isMaintenanceDiagnosticRequest(event.method, pathname)
       || (!barrier.status().closed && event.method === 'POST' && /^\/api\/admin\/backups\/(?:backups(?::|%3[Aa]))?[A-Za-z0-9_-]+\/restore$/.test(pathname))) return original(event)

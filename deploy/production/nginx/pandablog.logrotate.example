@@ -1,0 +1,18 @@
+# Operator example for host nginx, NOT an installed app service.
+# Adapt users/paths/reopen to the actual host or proxy container before use.
+# Five rotated files + active file; count/size can shorten history below 30 days.
+/var/log/nginx/pandablog.access.log {
+    daily
+    maxsize 10M
+    rotate 5
+    maxage 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 nginx adm
+    sharedscripts
+    postrotate
+        /usr/sbin/nginx -s reopen
+    endscript
+}

@@ -402,7 +402,6 @@ const breadcrumbLabels = computed<Record<string, string>>(() => ({
   system: t('admin.nav.system'),
   logs: t('admin.nav.logs'),
   backups: t('admin.nav.backups'),
-  access: t('admin.nav.access'),
   activity: t('admin.nav.activity'),
   errors: t('admin.nav.errors'),
   setup: t('admin.nav.setup'),

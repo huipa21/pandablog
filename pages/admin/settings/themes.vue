@@ -107,11 +107,14 @@
 </template>
 
 <script setup lang="ts">
+import type { ThemeManifest } from '~/server/utils/theme-validator'
+
 definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
 
-const { data, pending, refresh } = await useFetch('/api/admin/themes')
+// Keep the DTO typed even when the themes route is excluded in minimal builds.
+const { data, pending, refresh } = await useFetch<{ themes: ThemeManifest[], activeId: string }>('/api/admin/themes')
 
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)

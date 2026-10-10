@@ -14,7 +14,7 @@ A bundle contains exactly `db.surql.gz`, `media.tar.gz` and `manifest.json`. Emp
 
 ## 2. Included and excluded data
 
-Included: full current DB tables (including settings/accounts/activity/error/groups) and all media originals. Derived image variants are rebuilt during restore under its ownership; they are not bundled.
+Included: full current DB tables (including settings/accounts/activity/error/groups and any surviving inert `access_logs` history) and all media originals. Derived image variants are rebuilt during restore under its ownership; they are not bundled.
 
 Not included: `.env`, deployment/runtime configuration and encryption keys, access day files/migration receipts, Docker logs, setup authority, restore journals/safety directories, other backups or temporary stages. Preserve session/MFA encryption keys separately and securely; changing them can make restored encrypted data unusable. See [environment/identity operations](../runtime-startup-config/operations.md) and [logging backup policy](../logging/operations.md).
 
@@ -34,6 +34,7 @@ Keep space for existing components + bundle + import staging/validation, and for
 
 ## 4. Existing backups and clients
 
+- A surviving legacy `access_logs` table is preserved/restored as inert full-snapshot data. Access migration/table removal no longer runs on boot or restore. Existing snapshot validation, paired safety/rollback and format refusals remain; access files/buffers/proxy history need separate archives. See [logging operations](../logging/operations.md).
 - Existing ready **full** snapshots remain restorable. First bundle download packages their original files once without reading current live data or changing original components/manifest. A busy/headroom error can require a later retry.
 - Existing split full DB/media imports and raw full download endpoints remain backend compatibility adapters; the new UI uses one bundle input/action. Consolidation parameters are no longer accepted. A legacy pair without a manifest remains an explicit administrator assertion of full coverage: validation cannot prove omitted tables were not intended. Any supplied manifest must explicitly assert full; unknown/non-full/contradictory metadata rejects.
 - Existing **incremental/partial/unknown** snapshots are preserved and displayed as unsupported for automatic restore/download. The implementation request approved this preservation/compatibility policy; retirement of the preserved data still requires separate operator authorization.

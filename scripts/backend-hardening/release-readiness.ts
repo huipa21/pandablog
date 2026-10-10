@@ -14,7 +14,7 @@ export const GATES = [
   { id: 'browser-proxy', stage: 'local', tier: 'integration', requirement: 'Real Nitro/browser/proxy privacy/CSRF/SSR isolation and absence of legacy IPX transforms, en and zh-CN' },
   { id: 'crash-recovery', stage: 'local', tier: 'rehearsal', requirement: 'Ordinary forced restart without app receipts; destructive restore DB/media/publication/checkpoint crash matrix and recovery artifacts' },
   { id: 'mixed-load', stage: 'local', tier: 'rehearsal', requirement: 'Constrained mixed-load RSS/native/DB/disk/queues and predeclared HTTP latency targets' },
-  { id: 'operations-handoff', stage: 'predeploy', tier: 'operator', requirement: 'Final defaults/env/migrations/recovery/findings and existing logging gates reviewed' },
+  { id: 'operations-handoff', stage: 'predeploy', tier: 'operator', requirement: 'Final defaults/env/migrations/recovery/findings, retained error/activity gates and access-retirement history/proxy cutover reviewed' },
   { id: 'copy-rehearsal', stage: 'predeploy', tier: 'operator', requirement: 'Authorized isolated production-copy rehearsal, separate mounts, no live-source writes' },
   { id: 'backup-rollback', stage: 'predeploy', tier: 'operator', requirement: 'Verified paired backups, rollback image/config/schema and owner/session recovery' },
   { id: 'mounts-budgets', stage: 'predeploy', tier: 'operator', requirement: 'Persistent receipts/journals/temp/media/log paths, UID/GID/disk/resources verified' },

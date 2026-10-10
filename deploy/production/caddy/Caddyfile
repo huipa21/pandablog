@@ -9,7 +9,9 @@
     # unless a known proxy/load balancer is added in front of Caddy.
 }
 
-# Per-app access log. Usage: import logs app1
+# Per-app access log (Caddy 2.10+). Usage: import logs app1
+# Keep /var/log/caddy on a persistent proxy-owned mount, not in the app.
+# Size/count ceilings may shorten history below the 720h maximum.
 (logs) {
     log {
         output file /var/log/caddy/{args[0]}.access.log {
@@ -17,9 +19,19 @@
             roll_keep     5
             roll_keep_for 720h
         }
-        format json
+        format filter {
+            wrap json
+            fields {
+                request>uri regexp "[?].*$" ""
+                request>headers delete
+                resp_headers delete
+            }
+        }
         level INFO
     }
+    # Captured from the application RESPONSE; never trust an inbound ID.
+    # Edge-only responses can have an empty app ID.
+    log_append app_request_id {http.response.header.X-Request-Id}
 }
 
 # Baseline response headers. Usage: import hardening

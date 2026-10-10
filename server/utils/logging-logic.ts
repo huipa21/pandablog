@@ -1,10 +1,5 @@
 import type { ErrorCause, LoggingSettings } from '~/types/logging'
 
-/** Keep stored/custom prefixes first, then append missing defaults without mutation. */
-export function mergeExcludedPaths(stored: string[], defaults: string[]): string[] {
-  return [...new Set([...stored, ...defaults])]
-}
-
 export function shouldCaptureHookError(status: number, minStatus: number): boolean {
   return status >= minStatus
 }
@@ -72,27 +67,6 @@ export function shouldAllowDebug(settings: LoggingSettings) {
   }
 
   return settings.debug_enabled
-}
-
-export function isHealthCheckPath(pathname: string) {
-  const path = pathname.split('?', 1)[0]
-  return path === '/api/health' || path === '/api/health/'
-}
-
-export function shouldRecordAccessLog(pathname: string, statusCode: number, settings: LoggingSettings, randomValue = Math.random()) {
-  if (isHealthCheckPath(pathname) || !settings.enabled || !settings.access_log_enabled) {
-    return false
-  }
-
-  if (settings.excluded_paths.some(prefix => pathname.startsWith(prefix))) {
-    return false
-  }
-
-  if (settings.excluded_status_codes.includes(statusCode)) {
-    return false
-  }
-
-  return randomValue < settings.sampling_rate
 }
 
 export function redactDeep(input: unknown, redactFields: string[]): unknown {

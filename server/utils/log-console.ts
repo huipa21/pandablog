@@ -11,7 +11,7 @@ export interface ConsoleConfig {
 export interface ConsoleEntry {
   ts?: string | Date
   level: LogLevel
-  kind: 'error_log' | 'access_log' | 'activity_log' | 'app'
+  kind: 'error_log' | 'activity_log' | 'app'
   msg: string
   fingerprint?: string
   request_id?: string | null

@@ -25,7 +25,6 @@ export interface EditorModuleConfig {
 
 export interface LogsModuleConfig {
   enabled: boolean
-  accessLogs: boolean
   activityLogs: boolean
   errorLogs: boolean
 }

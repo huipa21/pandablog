@@ -1,6 +1,6 @@
 export interface RuntimeModulesConfig {
   editor?: { enabled?: boolean, blocks?: Record<string, boolean | undefined> }
-  logs?: { enabled?: boolean, accessLogs?: boolean, activityLogs?: boolean, errorLogs?: boolean }
+  logs?: { enabled?: boolean, activityLogs?: boolean, errorLogs?: boolean }
   analytics?: { enabled?: boolean, geoip?: boolean }
   users?: { enabled?: boolean, multiUser?: boolean }
   themes?: { enabled?: boolean }
@@ -25,7 +25,6 @@ export function resolveModuleFlags(modules?: RuntimeModulesConfig | null) {
   return {
     editor: editorEnabled,
     logs: logsEnabled,
-    accessLogs: logsEnabled && modules?.logs?.accessLogs !== false,
     activityLogs: logsEnabled && modules?.logs?.activityLogs !== false,
     errorLogs: logsEnabled && modules?.logs?.errorLogs !== false,
     analytics: analyticsEnabled,

@@ -1,46 +1,26 @@
 import { createError } from 'h3'
 import { describe, expect, it, vi } from 'vitest'
-import { applySettingsPatch, extractErrorContext, getErrorCauseChain, isHealthCheckPath, mergeExcludedPaths, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, shouldRecordAccessLog, trimByMaxSize } from '../../server/utils/logging-logic'
+import { applySettingsPatch, extractErrorContext, getErrorCauseChain, redactDeep, resolveErrorStatus, shouldAllowDebug, shouldCaptureHookError, trimByMaxSize } from '../../server/utils/logging-logic'
 import type { LoggingSettings } from '../../types/logging'
-import { DEFAULT_LOGGING_EXCLUDED_PATHS, parseExcludedStatusCodes } from '../../utils/loggingSettings'
 
 function baseSettings(): LoggingSettings {
   return {
     enabled: true,
     debug_enabled: false,
     debug_override_prod: false,
-    access_log_enabled: true,
     activity_log_enabled: true,
     error_log_enabled: true,
     error_log_min_status: 500,
     error_occurrences_per_group: 50,
     log_level: 'info',
-    excluded_paths: [...DEFAULT_LOGGING_EXCLUDED_PATHS],
-    excluded_status_codes: [],
     redact_fields: ['password', 'token', 'authorization', 'cookie'],
-    retention_access_days: 30,
     retention_activity_days: 365,
     retention_error_days: 90,
     max_metadata_size_kb: 50,
-    sampling_rate: 1,
     console_output: false,
     updated_at: '2026-05-19T00:00:00.000Z'
   }
 }
-
-describe('admin excluded-status form parsing', () => {
-  it.each(['', ' ', '\n\t', ', ,'])('keeps empty/delimiter-only text %j empty instead of sending status 0', (value) => {
-    expect(parseExcludedStatusCodes(value)).toEqual([])
-  })
-
-  it('parses comma and whitespace separators without creating extra statuses', () => {
-    expect(parseExcludedStatusCodes(' 204, 304\n404,\t')).toEqual([204, 304, 404])
-  })
-
-  it('ignores non-numeric/non-integer tokens but leaves range validation to the API', () => {
-    expect(parseExcludedStatusCodes('invalid, 204.5, 0, 99, 600, 200')).toEqual([0, 99, 600, 200])
-  })
-})
 
 describe('error capture logic', () => {
   it.each([
@@ -96,37 +76,6 @@ describe('error capture logic', () => {
   })
 })
 
-describe('mergeExcludedPaths', () => {
-  it('preserves custom entries and stored order, then appends missing defaults', () => {
-    expect(mergeExcludedPaths(['/custom', '/_ipx', '/other'], ['/api/health', '/_ipx', '/_nuxt']))
-      .toEqual(['/custom', '/_ipx', '/other', '/api/health', '/_nuxt'])
-  })
-
-  it('deduplicates both inputs by exact value, not by prefix coverage', () => {
-    expect(mergeExcludedPaths(['/api', '/api', '/API'], ['/api/health', '/api', '/api/health']))
-      .toEqual(['/api', '/API', '/api/health'])
-  })
-
-  it.each([
-    [[], [], []],
-    [[], ['/one', '/one', '/two'], ['/one', '/two']],
-    [['/custom', '/custom'], [], ['/custom']]
-  ])('handles empty inputs (%j, %j)', (stored, defaults, expected) => {
-    expect(mergeExcludedPaths(stored, defaults)).toEqual(expected)
-  })
-
-  it('is idempotent and does not mutate or reuse its inputs', () => {
-    const stored = ['/custom', '/_nuxt']
-    const defaults = ['/api/health', '/_nuxt']
-    const merged = mergeExcludedPaths(stored, defaults)
-    expect(mergeExcludedPaths(merged, defaults)).toEqual(merged)
-    expect(merged).not.toBe(stored)
-    expect(merged).not.toBe(defaults)
-    expect(stored).toEqual(['/custom', '/_nuxt'])
-    expect(defaults).toEqual(['/api/health', '/_nuxt'])
-  })
-})
-
 describe('logging logic', () => {
   it('debug is disabled when override is false', () => {
     const settings = baseSettings()
@@ -134,61 +83,6 @@ describe('logging logic', () => {
     settings.debug_override_prod = false
 
     expect(shouldAllowDebug(settings)).toBe(false)
-  })
-
-  it('master switch disables access logging', () => {
-    const settings = baseSettings()
-    settings.enabled = false
-
-    expect(shouldRecordAccessLog('/blog/hello', 200, settings, 0.01)).toBe(false)
-  })
-
-  it('access storage switch disables recording', () => {
-    expect(shouldRecordAccessLog('/posts/hello', 200, { ...baseSettings(), access_log_enabled: false }, 0)).toBe(false)
-  })
-
-  it('excludes configured statuses without suppressing other responses', () => {
-    const settings = { ...baseSettings(), excluded_status_codes: [204] }
-    expect(shouldRecordAccessLog('/posts/hello', 204, settings, 0)).toBe(false)
-    expect(shouldRecordAccessLog('/posts/hello', 200, settings, 0)).toBe(true)
-  })
-
-  it('excluded paths are not recorded', () => {
-    const settings = baseSettings()
-
-    expect(shouldRecordAccessLog('/_nuxt/chunk.js', 200, settings, 0.01)).toBe(false)
-  })
-
-  it.each(['/api/health', '/api/health/', '/api/health?db=1', '/api/health/?db=1'])('never records health probes even without configured exclusions (%s)', (path) => {
-    const settings = { ...baseSettings(), excluded_paths: [] }
-    expect(isHealthCheckPath(path)).toBe(true)
-    expect(shouldRecordAccessLog(path, 200, settings, 0)).toBe(false)
-    expect(shouldRecordAccessLog(path, 503, settings, 0)).toBe(false)
-  })
-
-  it.each(['/api/healthz', '/api/health-other', '/api/health/details'])('does not suppress unrelated health-like paths (%s)', (path) => {
-    expect(isHealthCheckPath(path)).toBe(false)
-    expect(shouldRecordAccessLog(path, 200, { ...baseSettings(), excluded_paths: [] }, 0)).toBe(true)
-  })
-
-  it.each([
-    '/_nuxt/chunk.js', '/favicon.ico', '/api/admin/logs/access', '/api/health?db=1',
-    '/api/analytics/track', '/__nuxt_error?statusCode=500',
-    '/_i18n/hash/en/messages.json'
-  ])('excludes low-value paths by default (%s)', (path) => {
-    expect(shouldRecordAccessLog(path, 200, baseSettings(), 0)).toBe(false)
-  })
-
-  it.each(['/posts/hello', '/api/posts', '/api/site/bootstrap', '/robots.txt', '/sitemap.xml', '/_ipx/w_100/media/image'])('keeps visitor/API and nonexistent utility routes observable (%s)', (path) => {
-    expect(shouldRecordAccessLog(path, 200, baseSettings(), 0)).toBe(true)
-  })
-
-  it('sampling rate controls recording probability threshold', () => {
-    const settings = baseSettings()
-    settings.sampling_rate = 0.2
-
-    expect(shouldRecordAccessLog('/blog/hello', 200, settings, 0.19)).toBe(true)
-    expect(shouldRecordAccessLog('/blog/hello', 200, settings, 0.2)).toBe(false)
   })
 
   it('redaction strips sensitive keys at nested depth', () => {
@@ -226,11 +120,11 @@ describe('logging logic', () => {
     vi.setSystemTime(new Date('2026-05-19T00:00:01.000Z'))
 
     const updated = applySettingsPatch(settings, {
-      sampling_rate: 0.5,
+      log_level: 'warn',
       debug_override_prod: true
     })
 
-    expect(updated.sampling_rate).toBe(0.5)
+    expect(updated.log_level).toBe('warn')
     expect(updated.debug_override_prod).toBe(true)
     expect(updated.updated_at).not.toBe(previousUpdatedAt)
 
