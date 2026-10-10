@@ -4,22 +4,8 @@
       <p class="text-sm font-medium uppercase tracking-wider text-[var(--pb-link)]">{{ t('admin.settings.common.eyebrow') }}</p>
       <h1 class="mt-1 text-3xl font-semibold tracking-normal text-[var(--pb-text)]">{{ t('admin.settings.themes.title') }}</h1>
       <p class="mt-2 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.themes.description') }}</p>
+      <p class="mt-2 text-sm text-[var(--pb-text-muted)]">{{ t('admin.settings.themes.deploymentHelp') }}</p>
     </header>
-
-    <!-- Upload -->
-    <section class="rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] bg-[var(--pb-card-bg)] p-4 shadow-[var(--pb-shadow-sm)]">
-      <h2 class="mb-2 font-medium text-[var(--pb-text)]">{{ t('admin.settings.themes.uploadTitle') }}</h2>
-      <form class="flex items-center gap-3" @submit.prevent="onUpload">
-        <input ref="fileInput" type="file" accept=".zip" class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-border)] px-2 py-1" />
-        <UButton
-          type="submit"
-          icon="i-lucide-upload"
-          :disabled="uploading"
-        >
-          {{ uploading ? t('admin.settings.themes.uploading') : t('admin.settings.themes.uploadZip') }}
-        </UButton>
-      </form>
-    </section>
 
     <!-- Theme list -->
     <section>
@@ -58,28 +44,11 @@
               >
                 {{ theme.id === data?.activeId ? t('admin.settings.themes.active') : t('admin.settings.themes.activate') }}
               </button>
-              <button
-                v-if="!isBuiltInTheme(theme.id) && theme.id !== data?.activeId"
-                class="text-sm px-2 py-1 border border-red-300 text-red-600 rounded"
-                @click="requestRemove(theme.id)"
-              >{{ t('admin.settings.themes.delete') }}</button>
             </div>
           </div>
         </article>
       </div>
     </section>
-
-    <AdminConfirmActionDialog
-      :open="deleteDialogOpen"
-      :title="t('admin.settings.themes.deleteTitle')"
-      :description="deleteDialogDescription"
-      :confirm-label="t('admin.settings.themes.delete')"
-      confirm-color="error"
-      :loading="deleting"
-      @update:open="(value) => { if (!value) closeDeleteDialog() }"
-      @cancel="closeDeleteDialog"
-      @confirm="confirmRemove"
-    />
 
     <!-- Preview modal -->
     <div
@@ -113,50 +82,10 @@ definePageMeta({ layout: 'admin' })
 
 const { t } = useI18n()
 
-// Keep the DTO typed even when the themes route is excluded in minimal builds.
 const { data, pending, refresh } = await useFetch<{ themes: ThemeManifest[], activeId: string }>('/api/admin/themes')
 
-const fileInput = ref<HTMLInputElement>()
-const uploading = ref(false)
-const deleting = ref(false)
 const adminToast = useAdminToast()
-
 const previewId = ref<string | null>(null)
-const deleteDialogOpen = ref(false)
-const pendingDeleteThemeId = ref<string | null>(null)
-const builtInThemeIds = new Set(['default', 'tesla', 'notion', 'clay', 'hexagon'])
-const deleteDialogDescription = computed(() => pendingDeleteThemeId.value
-  ? t('admin.settings.themes.deleteDescription', { id: pendingDeleteThemeId.value })
-  : t('admin.settings.themes.deleteFallback'))
-
-function isBuiltInTheme(themeId: string) {
-  return builtInThemeIds.has(themeId)
-}
-
-async function onUpload() {
-  const file = fileInput.value?.files?.[0]
-  if (!file) {
-    adminToast.error(new Error(t('admin.settings.themes.pickZip')), t('admin.settings.themes.pickZip'))
-    return
-  }
-
-  uploading.value = true
-  try {
-    const formData = new FormData()
-    formData.append('theme', file)
-    const res = await $fetch<{ ok: boolean, themeId: string }>('/api/admin/themes/upload', {
-      method: 'POST',
-      body: formData
-    })
-    adminToast.success(t('admin.settings.themes.installedToast', { id: res.themeId }))
-    if (fileInput.value) fileInput.value.value = ''
-    await refresh()
-  } catch (err: any) {
-    adminToast.error(err, t('admin.settings.themes.uploadFailed'))
-  } finally {
-    uploading.value = false
-  }
-}
 
 async function activate(themeId: string) {
   try {
@@ -175,40 +104,6 @@ function refreshThemeStylesheet(themeId: string) {
   if (link) {
     const params = new URLSearchParams({ theme: themeId, v: String(Date.now()) })
     link.href = `/api/theme/css?${params.toString()}`
-  }
-}
-
-function requestRemove(themeId: string) {
-  pendingDeleteThemeId.value = themeId
-  deleteDialogOpen.value = true
-}
-
-function closeDeleteDialog() {
-  if (deleting.value) {
-    return
-  }
-
-  deleteDialogOpen.value = false
-  pendingDeleteThemeId.value = null
-}
-
-async function confirmRemove() {
-  const themeId = pendingDeleteThemeId.value
-  if (!themeId) {
-    closeDeleteDialog()
-    return
-  }
-
-  deleting.value = true
-  try {
-    await $fetch(`/api/admin/themes/${themeId}`, { method: 'DELETE' })
-    await refresh()
-    closeDeleteDialog()
-    adminToast.success(t('admin.settings.themes.deleted'))
-  } catch (err: any) {
-    adminToast.error(err, t('admin.settings.themes.deleteFailed'))
-  } finally {
-    deleting.value = false
   }
 }
 

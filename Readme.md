@@ -58,7 +58,7 @@ managing media, and configuring your site — all backed by SurrealDB.
 - **Analytics** — pageview/session metrics with optional city-level GeoIP lookups.
 - **Logging** — configurable activity and grouped error logs with export and DB retention; HTTP access logs belong to the reverse proxy.
 - **Backups** — full and incremental snapshots of the database and media, with import/export.
-- **Themes** — uploadable, validated themes with light/dark design tokens.
+- **Themes** — deployment-managed themes with preview, activation, and light/dark design tokens.
 - **Multi-user roles** — superadmin, admin, author, and viewer roles.
 - **Two-factor authentication** — per-account TOTP, with optional admin enforcement.
 - **Internationalized UI** — English and Simplified Chinese out of the box.
@@ -426,7 +426,8 @@ Code implementation is not deployment approval.
 
 ## Themes
 
-The public site uses an uploadable theme system. Themes live in `themes/<id>/`:
+The public and admin surfaces use deployment-managed themes. Preview and activate available
+themes under **Admin → Settings → Themes**. Themes live in `themes/<id>/`:
 
 ```text
 themes/my-theme/
@@ -439,10 +440,21 @@ themes/my-theme/
 See `themes/default/` for a reference implementation. Tokens are split into `light` and `dark`
 sets and exposed as CSS custom properties (for example `color.bg` → `--color-bg`).
 
-**Uploading:** zip your theme folder, then go to **Admin → Settings → Themes → Upload .zip**.
-Uploads must be ≤5 MB and pass validation (no path traversal, allowed extensions only, valid
-manifest, and CSS free of `@import`, `javascript:`, or `expression()`). After upload, preview the
-theme and then activate it.
+**Customizations:** add or update trusted theme files through deployment, then restart the
+application. Manifest and token schemas are checked when loading; CSS is trusted deployment
+code, not sandboxed upload content. The admin page has no ZIP upload or theme-delete actions.
+To remove a theme, activate another one first, then remove its files from the next deployment.
+
+**Existing installations:** no database migration or automatic theme-file cleanup is required.
+The saved `app_settings.active_theme` selection and light/dark settings remain unchanged;
+existing custom themes remain selectable while their files are available. Include those files
+in future deployments, or explicitly select a retained theme before removing them.
+
+**Containers:** the image copies `themes/` at build time. The supplied Compose configuration
+persists `/app/storage`, not `/app/themes`, so preserve any previously uploaded theme files
+before replacing the container. Track custom theme files explicitly (they are ignored by
+`.gitignore` by default) and include them in the build context. Theme files are not part of
+DB/media backups; preserve their source separately.
 
 ---
 
@@ -765,7 +777,7 @@ server/api/                        Nitro API endpoints (public + admin)
 server/plugins/db-init.ts          SurrealDB schema bootstrap and migrations
 server/utils/                      DB, auth, content, and helper utilities
 server/utils/schema.surql          SurrealDB schema definition
-themes/                            Bundled and uploaded themes
+themes/                            Bundled and deployment-managed custom themes
 bin/panda.mjs                      Operator CLI shipped in the container
 scripts/version.mjs                Build version generator (date + commit)
 modules/build-version.ts           Injects the version into runtimeConfig

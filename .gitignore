@@ -29,7 +29,7 @@ storage/setup-authority.json.*.tmp
 !storage/downloads/.gitkeep
 pandablog.code-workspace
 
-# Themes - keep built-ins, ignore uploaded/custom themes
+# Themes - keep built-ins; custom deployment themes must be tracked explicitly
 themes/*
 !themes/default/
 !themes/default/**
@@ -66,6 +66,7 @@ tests/unit/*
 !tests/unit/content-image.test.ts
 !tests/unit/editor-presentation-browser.test.ts
 !tests/unit/editor-settings.test.ts
+!tests/unit/theme-management.test.ts
 !tests/unit/authRedirect.test.ts
 !tests/unit/analytics.test.ts
 !tests/unit/analytics-bounds.test.ts

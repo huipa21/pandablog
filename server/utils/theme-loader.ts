@@ -99,7 +99,7 @@ export async function loadTheme(themeId: string): Promise<LoadedTheme | null> {
 }
 
 /**
- * List all themes by reading the themes directory.
+ * List all deployed themes, including existing custom themes, from disk.
  */
 export async function listThemes(): Promise<ThemeManifest[]> {
   if (!existsSync(THEMES_DIR)) return []
@@ -117,7 +117,7 @@ export async function listThemes(): Promise<ThemeManifest[]> {
 }
 
 /**
- * Clear the cache — call after install/delete/activate.
+ * Clear theme and active-selection caches after activation.
  */
 export function invalidateThemeCache(themeId?: string) {
   if (themeId) cache.delete(themeId)

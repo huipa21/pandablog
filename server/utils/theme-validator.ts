@@ -39,18 +39,3 @@ export const ThemeTokensSchema = z.object({
 })
 
 export type ThemeTokens = z.infer<typeof ThemeTokensSchema>
-
-/**
- * Reject CSS that contains potentially dangerous constructs.
- * Not a security boundary (CSS can't execute code), but blocks accidental issues.
- */
-export function validateCss(css: string): { ok: true } | { ok: false, reason: string } {
-  if (css.length > 500_000) return { ok: false, reason: 'CSS file too large (>500KB)' }
-  // Block @import — themes must be self-contained
-  if (/@import\s/i.test(css)) return { ok: false, reason: '@import is not allowed; bundle all CSS into theme.css' }
-  // Block javascript: URLs
-  if (/javascript\s*:/i.test(css)) return { ok: false, reason: 'javascript: URLs are not allowed in CSS' }
-  // Block expression() (legacy IE, but defensive)
-  if (/expression\s*\(/i.test(css)) return { ok: false, reason: 'expression() is not allowed' }
-  return { ok: true }
-}

@@ -25,6 +25,11 @@ for every future release.
   UID/GID, disk headroom and measured resource limits. Guarantee one app instance:
   stop/remove the old app before creating its replacement; no rolling overlap or
   uncoordinated external writer. Preserve recovery records—do not delete them to force boot.
+- [ ] **Preserve deployed themes.** No DB migration is needed for theme upload/delete retirement.
+  Keep existing `active_theme` and light/dark settings. Preserve custom files under `themes/<id>/`
+  and include them in the candidate deployment, or select a retained theme before cutover.
+  The supplied image bakes in `/app/themes`; Compose persists only `/app/storage` and DB/media
+  backups do not include theme files. Do not discard old custom directories automatically.
 - [ ] **Verify the actual proxy.** Check TLS/canonical origin, forwarding configuration,
   private-media/cache policy and access-log redaction/persistence. Purge preexisting
   public CDN/proxy media entries before relying on the new privacy boundary. Preserve
@@ -38,7 +43,8 @@ for every future release.
   Check `/api/health` for liveness and `/api/ready` for readiness; a live process alone
   does not prove initialized DB/schema or completed restore recovery.
 - [ ] **Smoke-test through the proxy.** Verify owner login, expected stale-session rejection,
-  roles, CSRF, private media, public rendering, upload/ZIP and job/status behavior using
+  roles, CSRF, private media, public rendering, media upload, theme preview/activation,
+  light/dark mode and job/status behavior using
   approved test accounts/data. Never rehearse destructive restore on the live target.
 - [ ] **Observe and retain rollback.** Review errors, queues, DB/RSS/disk/latency and the
   overnight/UTC-rollover scheduled jobs. Keep verified backups and rollback artifacts
