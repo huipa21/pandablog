@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { importedImagePreset, importedLayoutPreset, presentationHtmlAttrs } from '~/utils/blockPresentation'
 
 export const MediaTextNode = Node.create({
   name: 'mediaText',
@@ -24,47 +25,12 @@ export const MediaTextNode = Node.create({
         parseHTML: (el) => el.getAttribute('data-media-title-position') ?? 'bottom',
         renderHTML: (attrs) => ({ 'data-media-title-position': attrs.mediaTitlePosition ?? 'bottom' })
       },
-      mediaSourceSize: {
+      mediaSizePreset: {
         default: 'full',
-        parseHTML: (el) => {
-          const value = el.getAttribute('data-media-source-size')
-          return value === 'thumbnail' || value === 'medium' || value === 'large' || value === 'full'
-            ? value
-            : 'full'
-        },
-        renderHTML: (attrs) => ({ 'data-media-source-size': attrs.mediaSourceSize ?? 'full' })
+        parseHTML: el => importedImagePreset(presentationHtmlAttrs(el), true),
+        renderHTML: attrs => ({ 'data-media-size-preset': attrs.mediaSizePreset })
       },
-      mediaDisplaySize: {
-        default: 'fill-container',
-        parseHTML: (el) => {
-          const value = el.getAttribute('data-media-display-size')
-          return value === 'natural'
-            || value === 'fill-container'
-            || value === 'custom-percent'
-            || value === 'custom-px'
-            || value === 'viewport'
-            || value === 'full-bleed'
-            ? value
-            : 'fill-container'
-        },
-        renderHTML: (attrs) => ({ 'data-media-display-size': attrs.mediaDisplaySize ?? 'fill-container' })
-      },
-      mediaDisplayPercent: {
-        default: 100,
-        parseHTML: (el) => {
-          const n = parseFloat(el.getAttribute('data-media-display-percent') ?? '')
-          return Number.isFinite(n) ? n : null
-        },
-        renderHTML: (attrs) => (attrs.mediaDisplayPercent ? { 'data-media-display-percent': String(attrs.mediaDisplayPercent) } : {})
-      },
-      mediaDisplayPx: {
-        default: null,
-        parseHTML: (el) => {
-          const n = parseInt(el.getAttribute('data-media-display-px') ?? '', 10)
-          return Number.isFinite(n) ? n : null
-        },
-        renderHTML: (attrs) => (attrs.mediaDisplayPx ? { 'data-media-display-px': String(attrs.mediaDisplayPx) } : {})
-      },
+      imageSources: { default: null, rendered: false },
       blockWidth: {
         default: 'content',
         parseHTML: (el) => {
@@ -73,30 +39,7 @@ export const MediaTextNode = Node.create({
         },
         renderHTML: (attrs) => ({ 'data-block-width': attrs.blockWidth ?? 'content' })
       },
-      mediaWidth: {
-        default: null,
-        parseHTML: (el) => {
-          const n = parseInt(el.getAttribute('data-media-width') ?? '', 10)
-          return Number.isFinite(n) ? n : null
-        },
-        renderHTML: (attrs) => (attrs.mediaWidth ? { 'data-media-width': String(attrs.mediaWidth) } : {})
-      },
-      mediaHeight: {
-        default: null,
-        parseHTML: (el) => {
-          const n = parseInt(el.getAttribute('data-media-height') ?? '', 10)
-          return Number.isFinite(n) ? n : null
-        },
-        renderHTML: (attrs) => (attrs.mediaHeight ? { 'data-media-height': String(attrs.mediaHeight) } : {})
-      },
-      mediaWidthPercent: {
-        default: 100,
-        parseHTML: (el) => {
-          const n = parseFloat(el.getAttribute('data-media-width-percent') ?? '')
-          return Number.isFinite(n) ? n : null
-        },
-        renderHTML: (attrs) => (attrs.mediaWidthPercent ? { 'data-media-width-percent': String(attrs.mediaWidthPercent) } : {})
-      },
+
       mediaNaturalWidth: {
         default: null,
         parseHTML: (el) => {
@@ -113,23 +56,16 @@ export const MediaTextNode = Node.create({
         },
         renderHTML: (attrs) => (attrs.mediaNaturalHeight ? { 'data-media-natural-height': String(attrs.mediaNaturalHeight) } : {})
       },
-      lockAspect: {
-        default: true,
-        parseHTML: (el) => el.getAttribute('data-lock-aspect') !== 'false',
-        renderHTML: (attrs) => ({ 'data-lock-aspect': attrs.lockAspect === false ? 'false' : 'true' })
-      },
+
       mediaPosition: {
         default: 'left',
         parseHTML: (el) => el.getAttribute('data-media-position') ?? 'left',
         renderHTML: (attrs) => ({ 'data-media-position': attrs.mediaPosition ?? 'left' })
       },
-      ratio: {
-        default: 0.5,
-        parseHTML: (el) => {
-          const v = parseFloat(el.getAttribute('data-ratio') ?? '')
-          return Number.isFinite(v) ? v : 0.5
-        },
-        renderHTML: (attrs) => ({ 'data-ratio': String(attrs.ratio ?? 0.5) })
+      layoutPreset: {
+        default: 'equal',
+        parseHTML: el => importedLayoutPreset(presentationHtmlAttrs(el), 2, true),
+        renderHTML: attrs => ({ 'data-layout-preset': attrs.layoutPreset })
       },
       mediaMime: {
         default: '',

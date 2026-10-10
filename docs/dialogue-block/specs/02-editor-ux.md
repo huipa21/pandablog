@@ -30,7 +30,7 @@ The dialogue lines share the public layout. Line actions are positioned outside 
 - Dialogue style: three selectable cards with a mini preview; the selected card has a stronger border and a tint.
 - Characters: rows with clickable initials/avatar, name input and delete (confirm: "Lines become narration"). Clicking initials/avatar opens the palette and a custom-avatar option using the existing image-filtered media-library picker, plus Clear avatar when an image is set.
 - Add character creates a new character with an unused palette colour where possible and a unique default name, then focuses/selects the name input. Disabled at the existing 24-character limit; added characters are immediately available in the speaker picker.
-- Spacing: the existing spacing controls (`supports.spacing`).
+- Spacing: arbitrary dialogue margins and spacing controls are removed by the [editor presentation follow-up](../../editor-simplification/specs/02-layout-and-presentation.md); site spacing now applies. Structural styles, character colours/avatars and authoring remain. Exact local evidence and incomplete full-app acceptance are in the new [ledger](../../editor-simplification/progress.md).
 
 ## Registry / toolbar
 

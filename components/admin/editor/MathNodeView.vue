@@ -137,10 +137,7 @@ import {
   DEFAULT_BLOCK_MATH_FONT_SIZE,
   DEFAULT_BLOCK_MATH_PADDING_X,
   DEFAULT_BLOCK_MATH_PADDING_Y,
-  normalizeBlockMathAlign,
-  normalizeBlockMathFontFamily,
-  normalizeBlockMathFontSize,
-  normalizeBlockMathPadding
+  normalizeBlockMathAlign
 } from '~/extensions/blockMath'
 import { renderLatex } from '~/utils/renderLatex'
 
@@ -167,16 +164,14 @@ const isInline = computed(() => props.node.type.name === 'inlineMath')
 const selected = computed(() => Boolean(props.selected))
 const latex = computed(() => typeof props.node.attrs.latex === 'string' ? props.node.attrs.latex : '')
 const align = computed(() => normalizeBlockMathAlign(props.node.attrs.align ?? DEFAULT_BLOCK_MATH_ALIGN))
-const paddingX = computed(() => normalizeBlockMathPadding(props.node.attrs.paddingX, DEFAULT_BLOCK_MATH_PADDING_X))
-const paddingY = computed(() => normalizeBlockMathPadding(props.node.attrs.paddingY, DEFAULT_BLOCK_MATH_PADDING_Y))
-const fontSize = computed(() => normalizeBlockMathFontSize(props.node.attrs.fontSize ?? DEFAULT_BLOCK_MATH_FONT_SIZE))
-const fontFamily = computed(() => normalizeBlockMathFontFamily(props.node.attrs.fontFamily ?? DEFAULT_BLOCK_MATH_FONT_FAMILY))
+const paddingX = computed(() => DEFAULT_BLOCK_MATH_PADDING_X)
+const paddingY = computed(() => DEFAULT_BLOCK_MATH_PADDING_Y)
+const fontSize = computed(() => DEFAULT_BLOCK_MATH_FONT_SIZE)
+const fontFamily = computed(() => DEFAULT_BLOCK_MATH_FONT_FAMILY)
 const justify = computed(() => align.value === 'left' ? 'flex-start' : align.value === 'right' ? 'flex-end' : 'center')
 const isEditing = computed(() => isInline.value ? editMode.value : blockMode.value === 'source')
 const blockStyle = computed(() => ({
-  '--pb-math-padding-x': `${paddingX.value}px`,
-  '--pb-math-padding-y': `${paddingY.value}px`,
-  '--pb-math-font-size': String(fontSize.value),
+
   '--pb-math-source-font-size': `${Math.max(13, Math.round(fontSize.value * 16))}px`,
   '--pb-math-align': align.value,
   '--pb-math-justify': justify.value
@@ -387,9 +382,9 @@ function validateLatex(value: string, displayMode: boolean) {
   display: flex;
   justify-content: var(--pb-math-justify, center);
   min-width: 0;
-  padding: var(--pb-math-padding-y, 16px) var(--pb-math-padding-x, 16px);
+  padding: var(--space-lg, 1rem);
   overflow-x: auto;
-  font-family: var(--pb-font-display);
+  font-family: KaTeX_Main, 'Times New Roman', serif;
   font-size: calc(1em * var(--pb-math-font-size, 1.15));
   text-align: var(--pb-math-align, center);
 }
@@ -427,27 +422,6 @@ function validateLatex(value: string, displayMode: boolean) {
 
 .block-math[data-font-family='katex'] .math-render {
   font-family: KaTeX_Main, 'Times New Roman', serif;
-}
-
-.block-math[data-font-family='serif'] .math-render {
-  font-family: Georgia, 'Times New Roman', serif;
-}
-
-.block-math[data-font-family='sans'] .math-render {
-  font-family: var(--pb-font-text);
-}
-
-.block-math[data-font-family='mono'] .math-render {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Cascadia Code', monospace;
-}
-
-.block-math[data-font-family='serif'] .math-render :deep(.katex),
-.block-math[data-font-family='serif'] .math-render :deep(.katex *),
-.block-math[data-font-family='sans'] .math-render :deep(.katex),
-.block-math[data-font-family='sans'] .math-render :deep(.katex *),
-.block-math[data-font-family='mono'] .math-render :deep(.katex),
-.block-math[data-font-family='mono'] .math-render :deep(.katex *) {
-  font-family: inherit !important;
 }
 
 .math-block-shell {

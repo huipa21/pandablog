@@ -6,7 +6,7 @@
     @keydown.delete="handleKeyboardDelete"
     @keydown.backspace="handleKeyboardDelete"
   >
-    <div v-if="showHeaders" class="columns-block-header" contenteditable="false" @mousedown="selectParentColumnsBlock">
+    <div v-if="showHeaders && (header || editor.isEditable)" class="columns-block-header" contenteditable="false" @mousedown="selectParentColumnsBlock">
       <input
         class="columns-block-header-input"
         type="text"
@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { NodeSelection } from '@tiptap/pm/state'
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
+import '~/assets/css/columns-block.css'
 
 const props = defineProps(nodeViewProps)
 
@@ -108,7 +109,7 @@ function handleKeyboardDelete(event: KeyboardEvent) {
   font-size: 0.9rem;
   font-weight: 650;
   line-height: 1.35;
-  padding: 0.5rem 0.85rem;
+  padding: var(--space-sm, 0.5rem) var(--space-md, 0.75rem);
 }
 
 .columns-block-header-input {
@@ -126,7 +127,7 @@ function handleKeyboardDelete(event: KeyboardEvent) {
 .columns-block-content {
   min-width: 0;
   color: var(--pb-text);
-  padding: 0.85rem;
+  padding: var(--space-md, 0.75rem);
 }
 
 .columns-block-content :deep(> :first-child) {

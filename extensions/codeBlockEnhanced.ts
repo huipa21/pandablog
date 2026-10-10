@@ -1,19 +1,5 @@
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 
-export const CODE_BLOCK_THEMES = [
-  { value: 'github-dark', label: 'GitHub Dark' },
-  { value: 'github-light', label: 'GitHub Light' },
-  { value: 'vs-dark', label: 'Visual Studio Dark' },
-  { value: 'vs-light', label: 'Visual Studio Light' },
-  { value: 'monokai', label: 'Monokai' },
-  { value: 'dracula', label: 'Dracula' },
-  { value: 'one-dark', label: 'One Dark Pro' },
-  { value: 'solarized-dark', label: 'Solarized Dark' },
-  { value: 'solarized-light', label: 'Solarized Light' },
-  { value: 'nord', label: 'Nord' },
-  { value: 'tomorrow-night', label: 'Tomorrow Night' }
-] as const
-
 export const CODE_BLOCK_LANGUAGES = [
   { value: 'text', label: 'Plain text' },
   { value: 'bash', label: 'Bash / Shell' },
@@ -51,8 +37,6 @@ export const CODE_BLOCK_LANGUAGES = [
   { value: 'xml', label: 'XML' },
   { value: 'yaml', label: 'YAML' }
 ] as const
-
-export const DEFAULT_CODE_THEME = 'github-dark'
 
 export function parseCodeLineHighlights(value: unknown) {
   const source = typeof value === 'string' ? value : ''
@@ -147,11 +131,7 @@ export const CodeBlockEnhanced = CodeBlockLowlight.extend({
         },
         renderHTML: (attrs) => ({ 'data-language': attrs.language ?? 'text' })
       },
-      theme: {
-        default: DEFAULT_CODE_THEME,
-        parseHTML: (element) => element.getAttribute('data-theme') ?? DEFAULT_CODE_THEME,
-        renderHTML: (attrs) => ({ 'data-theme': attrs.theme ?? DEFAULT_CODE_THEME })
-      },
+
       lineNumbers: {
         default: true,
         parseHTML: (element) => element.getAttribute('data-line-numbers') !== 'false',
@@ -183,21 +163,7 @@ export const CodeBlockEnhanced = CodeBlockLowlight.extend({
         parseHTML: (element) => element.getAttribute('data-wrap') !== 'false',
         renderHTML: (attrs) => ({ 'data-wrap': attrs.wrap === false ? 'false' : 'true' })
       },
-      zoom: {
-        default: 1,
-        parseHTML: (element) => {
-          const raw = Number.parseFloat(element.getAttribute('data-zoom') ?? '1')
-          if (!Number.isFinite(raw)) {
-            return 1
-          }
-          return Math.max(0.7, Math.min(2, raw))
-        },
-        renderHTML: (attrs) => {
-          const raw = Number(attrs.zoom ?? 1)
-          const zoom = Number.isFinite(raw) ? Math.max(0.7, Math.min(2, raw)) : 1
-          return { 'data-zoom': String(Math.round(zoom * 100) / 100) }
-        }
-      },
+
       collapsed: {
         default: true,
         parseHTML: (element) => element.getAttribute('data-collapsed') !== 'false',

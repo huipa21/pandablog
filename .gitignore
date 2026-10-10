@@ -52,6 +52,7 @@ tests/e2e/*
 !tests/e2e/editor-public-visual-parity.spec.ts
 !tests/e2e/dialogue-block.spec.ts
 !tests/e2e/dialogue-controls.spec.ts
+!tests/e2e/dark-mode-rendering.spec.ts
 !tests/e2e/fixtures/
 tests/e2e/fixtures/*
 !tests/e2e/fixtures/dialogue.ts
@@ -59,6 +60,12 @@ tests/e2e/fixtures/*
 tests/unit/*
 !tests/unit/annotate.test.ts
 !tests/unit/dialogueBlock.test.ts
+!tests/unit/editor-inserter.test.ts
+!tests/unit/block-presentation.test.ts
+!tests/unit/emptyBlocks.test.ts
+!tests/unit/content-image.test.ts
+!tests/unit/editor-presentation-browser.test.ts
+!tests/unit/editor-settings.test.ts
 !tests/unit/authRedirect.test.ts
 !tests/unit/analytics.test.ts
 !tests/unit/analytics-bounds.test.ts

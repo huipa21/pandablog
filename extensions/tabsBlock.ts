@@ -1,7 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 
 const TAB_ORIENTATIONS = new Set(['horizontal', 'vertical'])
-const TAB_STYLES = new Set(['underline', 'pills', 'enclosed'])
 const BLOCK_WIDTHS = new Set(['content', 'wide', 'full-bleed'])
 
 export const TabsBlockNode = Node.create({
@@ -21,14 +20,7 @@ export const TabsBlockNode = Node.create({
         },
         renderHTML: (attrs) => ({ 'data-orientation': TAB_ORIENTATIONS.has(String(attrs.orientation)) ? String(attrs.orientation) : 'horizontal' })
       },
-      tabStyle: {
-        default: 'underline',
-        parseHTML: (el) => {
-          const value = el.getAttribute('data-tab-style') ?? 'underline'
-          return TAB_STYLES.has(value) ? value : 'underline'
-        },
-        renderHTML: (attrs) => ({ 'data-tab-style': TAB_STYLES.has(String(attrs.tabStyle)) ? String(attrs.tabStyle) : 'underline' })
-      },
+
       blockWidth: {
         default: 'content',
         parseHTML: (el) => {

@@ -1,4 +1,5 @@
 import type { JsonContent } from '~/types/content'
+import { normalizePresentationNode } from '~/utils/blockPresentation'
 
 const TEXT_BEARING_BLOCK_TYPES = new Set([
   'paragraph',
@@ -76,6 +77,7 @@ export function normalizeDocForComparison(doc: JsonContent | null | undefined): 
 }
 
 function normalizeNode(node: JsonContent, stripBlockId: boolean): JsonContent {
+  node = normalizePresentationNode(node)
   const out: JsonContent = {}
 
   if (typeof node.type === 'string') {

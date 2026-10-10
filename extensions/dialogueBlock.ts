@@ -25,8 +25,6 @@ export interface DialogueBlockAttrs {
   title: string
   dialogueStyle: DialogueStyle
   characters: DialogueCharacter[]
-  marginTop: string
-  marginBottom: string
 }
 
 export interface ParsedDialogueLine extends DialogueLineAttrs {
@@ -53,7 +51,6 @@ const LINE_KINDS = new Set<DialogueLineKind>(['speech', 'narration', 'thought'])
 const SAFE_COLOR = /^#[0-9a-f]{6}$/i
 const SAFE_ID = /^[a-z0-9_-]{1,32}$/i
 const SAFE_MEDIA_ID = /^[\w:.-]{1,128}$/
-const SAFE_SPACING = /^(?:0|-?\d{1,4}(?:\.\d{1,3})?(?:px|rem|em))$/
 const CJK_CHAR = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const SCRIPT_LINE = /^([^:：\n]{1,40}?)\s*(?:[(（]\s*(thought|thinking|心想|内心)\s*[)）])?\s*[:：]\s*(.*)$/iu
 
@@ -114,18 +111,11 @@ export function normalizeDialogueTitle(value: unknown) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, DIALOGUE_MAX_TITLE_LENGTH) : ''
 }
 
-function normalizeSpacing(value: unknown) {
-  const text = typeof value === 'string' ? value.trim() : ''
-  return SAFE_SPACING.test(text) ? text : '1rem'
-}
-
 export function normalizeDialogueAttrs(attrs: Record<string, unknown> | null | undefined): DialogueBlockAttrs {
   return {
     title: normalizeDialogueTitle(attrs?.title),
     dialogueStyle: normalizeDialogueStyle(attrs?.dialogueStyle),
-    characters: normalizeCharacters(attrs?.characters),
-    marginTop: normalizeSpacing(attrs?.marginTop),
-    marginBottom: normalizeSpacing(attrs?.marginBottom)
+    characters: normalizeCharacters(attrs?.characters)
   }
 }
 
@@ -476,16 +466,6 @@ export const DialogueBlockNode = Node.create<{ characterNames: string[] }>({
         default: createDefaultDialogueCharacters(),
         parseHTML: (el) => parseCharactersAttr(el),
         renderHTML: (attrs) => ({ 'data-characters': JSON.stringify(normalizeCharacters(attrs.characters)) })
-      },
-      marginTop: {
-        default: '1rem',
-        parseHTML: (el) => normalizeSpacing(el.getAttribute('data-margin-top')),
-        renderHTML: (attrs) => ({ 'data-margin-top': normalizeSpacing(attrs.marginTop) })
-      },
-      marginBottom: {
-        default: '1rem',
-        parseHTML: (el) => normalizeSpacing(el.getAttribute('data-margin-bottom')),
-        renderHTML: (attrs) => ({ 'data-margin-bottom': normalizeSpacing(attrs.marginBottom) })
       }
     }
   },
@@ -583,9 +563,7 @@ function pickBlockAttrs(attrs: Record<string, unknown>) {
   return {
     title: attrs.title,
     dialogueStyle: attrs.dialogueStyle,
-    characters: attrs.characters,
-    marginTop: attrs.marginTop,
-    marginBottom: attrs.marginBottom
+    characters: attrs.characters
   }
 }
 

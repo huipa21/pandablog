@@ -1,8 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 
-const PANE_STYLES = new Set(['minimal', 'dark', 'colored', 'underline', 'highlighted'])
-const TRIGGER_ICONS = new Set(['chevron', 'plus-minus', 'arrow'])
 const BLOCK_WIDTHS = new Set(['content', 'wide', 'full-bleed'])
 
 export const AccordionBlockNode = Node.create({
@@ -29,16 +27,7 @@ export const AccordionBlockNode = Node.create({
         parseHTML: (el) => normalizeColumns(el.getAttribute('data-columns')),
         renderHTML: (attrs) => ({ 'data-columns': String(normalizeColumns(attrs.columns)) })
       },
-      paneStyle: {
-        default: 'minimal',
-        parseHTML: (el) => normalizePaneStyle(el.getAttribute('data-pane-style')),
-        renderHTML: (attrs) => ({ 'data-pane-style': normalizePaneStyle(attrs.paneStyle) })
-      },
-      triggerIcon: {
-        default: 'chevron',
-        parseHTML: (el) => normalizeTriggerIcon(el.getAttribute('data-trigger-icon')),
-        renderHTML: (attrs) => ({ 'data-trigger-icon': normalizeTriggerIcon(attrs.triggerIcon) })
-      },
+
       defaultOpenIndices: {
         default: [0],
         parseHTML: (el) => parseDefaultOpenIndices(el.getAttribute('data-default-open-indices')),
@@ -48,16 +37,6 @@ export const AccordionBlockNode = Node.create({
         default: 'content',
         parseHTML: (el) => normalizeBlockWidth(el.getAttribute('data-block-width')),
         renderHTML: (attrs) => ({ 'data-block-width': normalizeBlockWidth(attrs.blockWidth) })
-      },
-      marginTop: {
-        default: '1rem',
-        parseHTML: (el) => el.getAttribute('data-margin-top') ?? '1rem',
-        renderHTML: (attrs) => ({ 'data-margin-top': String(attrs.marginTop ?? '1rem') })
-      },
-      marginBottom: {
-        default: '1rem',
-        parseHTML: (el) => el.getAttribute('data-margin-bottom') ?? '1rem',
-        renderHTML: (attrs) => ({ 'data-margin-bottom': String(attrs.marginBottom ?? '1rem') })
       }
     }
   },
@@ -117,8 +96,6 @@ export const AccordionBlockNode = Node.create({
             const singleOpen = parseBoolean(current.attrs.singleOpen, true)
             const startCollapsed = parseBoolean(current.attrs.startCollapsed, false)
             const columns = normalizeColumns(current.attrs.columns)
-            const paneStyle = normalizePaneStyle(current.attrs.paneStyle)
-            const triggerIcon = normalizeTriggerIcon(current.attrs.triggerIcon)
             const blockWidth = normalizeBlockWidth(current.attrs.blockWidth)
             const panes = current.content.content.filter((child) => child.type.name === 'accordionPane')
             const paneCount = Math.max(1, Math.min(12, panes.length || current.childCount || 1))
@@ -135,8 +112,6 @@ export const AccordionBlockNode = Node.create({
               singleOpen,
               startCollapsed,
               columns,
-              paneStyle,
-              triggerIcon,
               blockWidth,
               defaultOpenIndices
             }
@@ -214,8 +189,6 @@ function needsAccordionRepair(node: any) {
     || parseBoolean(node.attrs.singleOpen, true) !== singleOpen
     || parseBoolean(node.attrs.startCollapsed, false) !== startCollapsed
     || normalizeColumns(node.attrs.columns) !== Number(node.attrs.columns ?? 1)
-    || normalizePaneStyle(node.attrs.paneStyle) !== String(node.attrs.paneStyle ?? 'minimal')
-    || normalizeTriggerIcon(node.attrs.triggerIcon) !== String(node.attrs.triggerIcon ?? 'chevron')
     || normalizeBlockWidth(node.attrs.blockWidth) !== String(node.attrs.blockWidth ?? 'content')
     || serializeDefaultOpenIndices(node.attrs.defaultOpenIndices) !== serializeDefaultOpenIndices(defaultOpenIndices)
     || panes.some((pane: any, index: number) => pane.attrs.defaultOpen !== defaultOpenIndices.includes(index) || pane.childCount === 0)
@@ -256,16 +229,6 @@ function parseBoolean(value: unknown, fallback: boolean) {
 function normalizeColumns(value: unknown) {
   const columns = Number(value)
   return Math.max(1, Math.min(3, Number.isFinite(columns) ? Math.round(columns) : 1))
-}
-
-function normalizePaneStyle(value: unknown) {
-  const normalized = String(value ?? 'minimal')
-  return PANE_STYLES.has(normalized) ? normalized : 'minimal'
-}
-
-function normalizeTriggerIcon(value: unknown) {
-  const normalized = String(value ?? 'chevron')
-  return TRIGGER_ICONS.has(normalized) ? normalized : 'chevron'
 }
 
 function normalizeBlockWidth(value: unknown) {

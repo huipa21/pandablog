@@ -53,7 +53,7 @@ const props = defineProps<{
 
 const panels = computed(() => (props.node.content ?? []).filter((child) => child.type === 'tabPanel'))
 const orientation = computed(() => normalizeOrientation(String(props.node.attrs?.orientation ?? 'horizontal')))
-const tabStyle = computed(() => normalizeTabStyle(String(props.node.attrs?.tabStyle ?? 'underline')))
+const tabStyle = computed(() => 'underline')
 const blockWidth = computed(() => normalizeBlockWidth(String(props.node.attrs?.blockWidth ?? 'content')))
 const active = ref(normalizeActiveIndex(Number(props.node.attrs?.activeIndex ?? 0), panels.value.length))
 const activeIndex = computed(() => normalizeActiveIndex(active.value, panels.value.length))
@@ -99,10 +99,6 @@ function normalizeOrientation(value: string) {
   return value === 'vertical' ? 'vertical' : 'horizontal'
 }
 
-function normalizeTabStyle(value: string) {
-  return value === 'pills' || value === 'enclosed' ? value : 'underline'
-}
-
 function normalizeBlockWidth(value: string) {
   return value === 'wide' || value === 'full-bleed' ? value : 'content'
 }
@@ -110,7 +106,7 @@ function normalizeBlockWidth(value: string) {
 
 <style scoped>
 .tabs-block {
-  margin-block: 1rem;
+  margin-block: var(--space-lg, 1rem);
 }
 
 .tabs-block-shell {
@@ -153,32 +149,6 @@ function normalizeBlockWidth(value: string) {
 .tabs-block-tab.is-active {
   border-bottom-color: var(--pb-primary);
   color: var(--pb-primary);
-}
-
-.tabs-block[data-tab-style="pills"] .tabs-block-list,
-.tabs-block[data-tab-style="enclosed"] .tabs-block-list {
-  border-bottom: 0;
-}
-
-.tabs-block[data-tab-style="pills"] .tabs-block-tab {
-  border: 1px solid transparent;
-  border-radius: 999px;
-}
-
-.tabs-block[data-tab-style="pills"] .tabs-block-tab.is-active {
-  border-color: var(--pb-selected-border);
-  background: var(--pb-selected-bg);
-}
-
-.tabs-block[data-tab-style="enclosed"] .tabs-block-tab {
-  border: 1px solid var(--pb-divider);
-  border-radius: 0.45rem 0.45rem 0 0;
-  background: var(--pb-surface-subtle);
-}
-
-.tabs-block[data-tab-style="enclosed"] .tabs-block-tab.is-active {
-  background: var(--pb-surface);
-  border-color: var(--pb-selected-border);
 }
 
 .tabs-block-panels {

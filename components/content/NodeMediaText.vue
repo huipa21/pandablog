@@ -1,5 +1,5 @@
 <template>
-  <div class="mediatext-nodeview my-4 overflow-hidden rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)]" :style="blockStyle">
+  <div class="mediatext-nodeview overflow-hidden rounded-[var(--pb-radius-card-inner)] border border-[var(--pb-divider)]" :style="blockStyle">
     <div class="mediatext-row" :data-media-position="mediaPosition">
       <div class="mediatext-media" :style="{ flex: `0 0 ${(ratio * 100).toFixed(2)}%` }">
         <div v-if="mediaTitle && mediaTitlePosition === 'top'" class="px-2 py-1 text-center text-sm text-[var(--pb-text-subtle)]">{{ mediaTitle }}</div>
@@ -8,12 +8,13 @@
             <img
               v-if="showImagePreview"
               :src="resolvedMediaSrc"
+              :srcset="srcset"
+              :sizes="srcset ? contentImageSizes(preset) : undefined"
               :alt="mediaAlt"
-              :width="mediaDisplayWidthAttr || undefined"
-              :height="lockAspect ? undefined : (mediaHeight || undefined)"
-              :style="mediaElementStyle"
-              class="block max-w-full rounded-md"
+              :data-size-preset="preset"
+              class="content-image block rounded-md"
               loading="lazy"
+              @error="fallbackContentImage"
             >
             <MediaFileList v-else :files="mediaItems" density="compact" />
           </template>
@@ -37,6 +38,9 @@ import ContentRenderer from './ContentRenderer.vue'
 import MediaFileList from './MediaFileList.vue'
 import { mediaFileKind, mediaFilesFromAttrs } from '~/utils/mediaFiles'
 import { extractMediaHash } from '~/composables/useMediaUrl'
+import { importedImagePreset, importedLayoutPreset, mediaFraction } from '~/utils/blockPresentation'
+import { contentImageSrcset, contentImageSizes, fallbackContentImage } from '~/utils/contentImage'
+import '~/assets/css/block-presentation.css'
 
 const props = defineProps<{
   node: JsonContent
@@ -48,67 +52,15 @@ const mediaItems = computed(() => mediaFilesFromAttrs(props.node.attrs))
 const primaryMediaItem = computed(() => mediaItems.value[0] ?? null)
 const showImagePreview = computed(() => mediaItems.value.length === 1 && primaryMediaItem.value ? mediaFileKind(primaryMediaItem.value) === 'image' : false)
 const mediaSrc = computed(() => primaryMediaItem.value?.src ?? '')
-const mediaSourceSize = computed(() => String(props.node.attrs?.mediaSourceSize ?? 'full'))
+const preset = computed(() => importedImagePreset(props.node.attrs ?? {}, true))
+const srcset = computed(() => extractMediaHash(mediaSrc.value) ? contentImageSrcset(props.node.attrs?.imageSources, mediaSrc.value, size => toPublicMediaVariantUrl(mediaSrc.value, size)) : undefined)
 const mediaAlt = computed(() => primaryMediaItem.value?.alt || String(props.node.attrs?.mediaAlt ?? ''))
 const mediaTitle = computed(() => String(props.node.attrs?.mediaTitle ?? ''))
 const mediaTitlePosition = computed(() => String(props.node.attrs?.mediaTitlePosition ?? 'bottom'))
-const mediaWidth = computed(() => Number(props.node.attrs?.mediaWidth ?? 0) || null)
-const mediaHeight = computed(() => Number(props.node.attrs?.mediaHeight ?? 0) || null)
-const mediaDisplaySize = computed(() => {
-  const explicit = String(props.node.attrs?.mediaDisplaySize ?? '')
-  if (explicit) {
-    if (explicit === 'viewport' || explicit === 'full-bleed') {
-      return 'fill-container'
-    }
-    return explicit
-  }
-
-  const widthPercent = Number(props.node.attrs?.mediaWidthPercent ?? 0)
-  if (Number.isFinite(widthPercent) && widthPercent > 0 && widthPercent !== 100) {
-    return 'custom-percent'
-  }
-
-  return mediaWidth.value ? 'custom-px' : 'fill-container'
-})
-const mediaDisplayPercent = computed(() => {
-  const value = Number(props.node.attrs?.mediaDisplayPercent ?? props.node.attrs?.mediaWidthPercent ?? 0)
-  return Number.isFinite(value) && value > 0 ? Math.min(200, value) : 100
-})
-const mediaDisplayPx = computed(() => Number(props.node.attrs?.mediaDisplayPx ?? props.node.attrs?.mediaWidth ?? 0) || null)
-const mediaNaturalWidth = computed(() => Number(props.node.attrs?.mediaNaturalWidth ?? 0) || null)
-const mediaNaturalHeight = computed(() => Number(props.node.attrs?.mediaNaturalHeight ?? 0) || null)
-const lockAspect = computed(() => props.node.attrs?.lockAspect !== false)
 const mediaPosition = computed(() => String(props.node.attrs?.mediaPosition ?? 'left'))
 const blockWidth = computed(() => String(props.node.attrs?.blockWidth ?? 'content'))
-const ratio = computed(() => {
-  const v = Number(props.node.attrs?.ratio ?? 0.5)
-  return Number.isFinite(v) ? Math.max(0.15, Math.min(0.85, v)) : 0.5
-})
-
-const baseResolvedMediaSrc = computed(() => resolveMediaUrl(mediaSrc.value))
-const resolvedMediaSrc = computed(() => {
-  const resolved = baseResolvedMediaSrc.value
-  if (!showImagePreview.value) {
-    return resolved
-  }
-
-  const hash = extractMediaHash(mediaSrc.value)
-  if (!hash) {
-    return resolved
-  }
-
-  if (mediaSourceSize.value === 'thumbnail') {
-    return toPublicMediaVariantUrl(hash, 'thumbnail')
-  }
-  if (mediaSourceSize.value === 'medium') {
-    return toPublicMediaVariantUrl(hash, 'medium')
-  }
-  if (mediaSourceSize.value === 'large') {
-    return toPublicMediaVariantUrl(hash, 'large')
-  }
-
-  return resolved
-})
+const ratio = computed(() => mediaFraction(importedLayoutPreset(props.node.attrs ?? {}, 2, true), mediaPosition.value))
+const resolvedMediaSrc = computed(() => resolveMediaUrl(mediaSrc.value))
 
 const blockStyle = computed<CSSProperties>(() => {
   switch (blockWidth.value) {
@@ -134,28 +86,6 @@ const blockStyle = computed<CSSProperties>(() => {
   }
 })
 
-const mediaDisplayWidthAttr = computed(() => {
-  if (mediaDisplaySize.value === 'custom-px' || mediaDisplaySize.value === 'natural') {
-    return mediaDisplayPx.value ?? mediaWidth.value
-  }
-
-  return null
-})
-
-const mediaElementStyle = computed(() => ({
-  width: mediaDisplaySize.value === 'natural'
-    ? 'auto'
-    : mediaDisplaySize.value === 'custom-percent'
-      ? `${mediaDisplayPercent.value}%`
-      : mediaDisplaySize.value === 'custom-px'
-        ? (mediaDisplayPx.value ? `${mediaDisplayPx.value}px` : '100%')
-        : '100%',
-  maxWidth: '100%',
-  height: lockAspect.value ? 'auto' : (mediaHeight.value ? `${mediaHeight.value}px` : undefined),
-  aspectRatio: lockAspect.value && mediaNaturalWidth.value && mediaNaturalHeight.value
-    ? `${mediaNaturalWidth.value} / ${mediaNaturalHeight.value}`
-    : undefined
-}))
 </script>
 
 <style scoped>
@@ -171,7 +101,7 @@ const mediaElementStyle = computed(() => ({
 }
 
 .mediatext-media {
-  padding: 0.75rem;
+  padding: var(--space-md, 0.75rem);
   background: var(--pb-surface-subtle);
   min-width: 0;
 }
@@ -186,7 +116,7 @@ const mediaElementStyle = computed(() => ({
 
 .mediatext-text {
   flex: 1 1 auto;
-  padding: 0.75rem 1rem;
+  padding: var(--space-md, 0.75rem) var(--space-lg, 1rem);
   min-width: 0;
 }
 

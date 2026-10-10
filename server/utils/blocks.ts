@@ -3,6 +3,7 @@ import type { Surreal } from 'surrealdb'
 import type { BlockRecord, JsonContent, RelatedPostSummary } from '~/types/content'
 import { computeContentStats } from '../../utils/contentStats'
 import { isEmptyBlock } from '../../utils/emptyBlocks'
+import { normalizeBlockPresentation } from '../../utils/blockPresentation'
 import { queryDb } from './db'
 import { mediaReserveReferences } from './referenceTracker'
 import type { SessionUser } from './users'
@@ -230,7 +231,7 @@ export function extractBlocksFromDoc(doc: JsonContent | null | undefined): Block
     seen.add(blockId)
     attrs[BLOCK_ID_ATTR] = blockId
 
-    const node: JsonContent = { ...raw, attrs }
+    const node: JsonContent = normalizeBlockPresentation({ ...raw, attrs })
     if (isEmptyBlock(node)) {
       continue
     }

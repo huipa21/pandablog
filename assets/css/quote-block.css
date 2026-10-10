@@ -1,0 +1,31 @@
+.quote-nodeview { margin-block: var(--space-lg, 1rem); }
+.quote-block {
+  --quote-accent: var(--pb-primary);
+  font-family: var(--pb-font-text);
+  font-size: var(--size-text-base, 1rem);
+  color: var(--pb-text);
+  background: transparent;
+}
+.quote-bar-row {
+  display: flex;
+  gap: var(--space-lg, 1rem);
+  padding: var(--space-md, 0.75rem);
+}
+.quote-bar { width: 4px; background: var(--quote-accent); border-radius: 1px; flex-shrink: 0; }
+.quote-bar-content { flex: 1; min-width: 0; }
+.quote-body { line-height: 1.6; min-height: 1.5em; }
+.quote-bar-content .quote-body { font-style: italic; }
+.quote-body p { margin: 0; }
+.quote-source { margin-top: var(--space-sm, 0.5rem); font-size: 0.875rem; font-style: normal; opacity: 0.7; }
+.quote-author { font-weight: 600; }
+.quote-title { margin-left: 0.25rem; }
+.quote-marks-row { padding: var(--space-sm, 0.5rem) 0; }
+.quote-top-row { display: flex; align-items: center; gap: var(--space-sm, 0.5rem); margin-bottom: var(--space-md, 0.75rem); }
+.quote-mark { font-family: Georgia, 'Times New Roman', serif; font-size: 3.5rem; line-height: 1; user-select: none; flex-shrink: 0; color: var(--quote-accent); }
+.quote-mark-open { margin-top: -0.5rem; }
+.quote-rule { flex: 1; height: 1px; opacity: 0.4; background: var(--quote-accent); }
+.quote-bottom-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: var(--space-lg, 1rem); gap: var(--space-lg, 1rem); }
+.quote-source-marks { font-size: 0.875rem; font-style: normal; }
+.quote-author-name { font-weight: 600; }
+.quote-author-title { margin-left: 0.25rem; font-style: italic; opacity: 0.7; }
+.quote-mark-close { margin-bottom: -0.75rem; align-self: flex-end; }

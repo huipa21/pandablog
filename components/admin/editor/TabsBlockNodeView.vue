@@ -37,7 +37,7 @@ const props = defineProps(nodeViewProps)
 const viewId = `tabs-block-${Math.random().toString(36).slice(2)}`
 
 const orientation = computed(() => normalizeOrientation(String(props.node.attrs.orientation ?? 'horizontal')))
-const tabStyle = computed(() => normalizeTabStyle(String(props.node.attrs.tabStyle ?? 'underline')))
+const tabStyle = computed(() => 'underline')
 const blockWidth = computed(() => normalizeBlockWidth(String(props.node.attrs.blockWidth ?? 'content')))
 const tabs = computed(() => {
   const items: Array<{ title: string }> = []
@@ -106,10 +106,6 @@ function normalizeOrientation(value: string) {
   return value === 'vertical' ? 'vertical' : 'horizontal'
 }
 
-function normalizeTabStyle(value: string) {
-  return value === 'pills' || value === 'enclosed' ? value : 'underline'
-}
-
 function normalizeBlockWidth(value: string) {
   return value === 'wide' || value === 'full-bleed' ? value : 'content'
 }
@@ -117,7 +113,7 @@ function normalizeBlockWidth(value: string) {
 
 <style scoped>
 .tabs-block {
-  margin-block: 1rem;
+  margin-block: var(--space-lg, 1rem);
 }
 
 .tabs-block-shell {
@@ -162,37 +158,11 @@ function normalizeBlockWidth(value: string) {
   color: var(--pb-primary);
 }
 
-.tabs-block[data-tab-style="pills"] .tabs-block-list,
-.tabs-block[data-tab-style="enclosed"] .tabs-block-list {
-  border-bottom: 0;
-}
-
-.tabs-block[data-tab-style="pills"] .tabs-block-tab {
-  border: 1px solid transparent;
-  border-radius: 999px;
-}
-
-.tabs-block[data-tab-style="pills"] .tabs-block-tab.is-active {
-  border-color: var(--pb-selected-border);
-  background: var(--pb-selected-bg);
-}
-
-.tabs-block[data-tab-style="enclosed"] .tabs-block-tab {
-  border: 1px solid var(--pb-divider);
-  border-radius: 0.45rem 0.45rem 0 0;
-  background: var(--pb-surface-subtle);
-}
-
-.tabs-block[data-tab-style="enclosed"] .tabs-block-tab.is-active {
-  background: var(--pb-surface);
-  border-color: var(--pb-selected-border);
-}
-
 .tabs-block-panels {
   min-width: 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 48rem) {
   .tabs-block[data-orientation="vertical"] .tabs-block-shell {
     grid-template-columns: 1fr;
   }

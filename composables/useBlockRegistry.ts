@@ -3,10 +3,9 @@ import {
   DEFAULT_DIFF_NEW_LABEL,
   DEFAULT_DIFF_OLD_LABEL,
 } from '~/utils/diffBlock'
-import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME } from '~/extensions/blockquoteEnhanced'
-import { DEFAULT_BLOCK_MATH_ALIGN, DEFAULT_BLOCK_MATH_FONT_FAMILY, DEFAULT_BLOCK_MATH_FONT_SIZE, DEFAULT_BLOCK_MATH_PADDING_X, DEFAULT_BLOCK_MATH_PADDING_Y, DEFAULT_BLOCK_MATH_THEME } from '~/extensions/blockMath'
+import { DEFAULT_BLOCK_MATH_ALIGN } from '~/extensions/blockMath'
+import { normalizeBlockPresentation } from '~/utils/blockPresentation'
 import { DEFAULT_ANNOT_LANG } from '~/extensions/rubyUnit'
-import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
 import { createDialogueContent } from '~/extensions/dialogueBlock'
 
 export type BlockCategory = 'text' | 'media' | 'design' | 'embed' | 'advanced'
@@ -100,7 +99,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { color: true, spacing: true, border: true },
     createContent: () => ({
       type: 'blockquote',
-      attrs: { style: 'bar', theme: DEFAULT_QUOTE_THEME, fontFamily: 'sans', fontSize: '1rem', fontColor: DEFAULT_QUOTE_FONT_COLOR, backgroundColor: '', authorName: '', authorTitle: '' },
+      attrs: { style: 'bar', authorName: '', authorTitle: '' },
       content: [{ type: 'paragraph' }]
     })
   },
@@ -117,10 +116,7 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'image',
       attrs: {
         src: '', alt: '', title: '', titlePosition: 'bottom',
-        sourceSize: 'full', displaySize: 'fill-container', displayPercent: 100, displayPx: null,
-        width: null, height: null, widthPercent: 100,
-        naturalWidth: null, naturalHeight: null,
-        lockAspect: true, align: 'center'
+        sizePreset: 'full', naturalWidth: null, naturalHeight: null, align: 'center'
       }
     })
   },
@@ -137,12 +133,9 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'mediaText',
       attrs: {
         mediaSrc: '', mediaAlt: '', mediaTitle: '', mediaTitlePosition: 'bottom',
-        mediaSourceSize: 'full', mediaDisplaySize: 'fill-container', mediaDisplayPercent: 100, mediaDisplayPx: null,
-        blockWidth: 'content',
-        mediaWidth: null, mediaHeight: null, mediaWidthPercent: 100,
+        mediaSizePreset: 'full', blockWidth: 'content',
         mediaNaturalWidth: null, mediaNaturalHeight: null,
-        lockAspect: true,
-        mediaPosition: 'left', ratio: 0.5
+        mediaPosition: 'left', layoutPreset: 'equal'
       },
       content: [{ type: 'paragraph' }]
     })
@@ -177,13 +170,7 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'columnsBlock',
       attrs: {
         columns: 2,
-        proportions: '1-1',
-        customPercentages: '',
-        showHeaders: true,
-        blockWidth: 'content',
-        columnGap: '1rem',
-        marginTop: '1rem',
-        marginBottom: '1rem'
+        layoutPreset: 'equal', showHeaders: true, blockWidth: 'content'
       },
       content: [
         { type: 'columnItem', attrs: { header: '' }, content: [{ type: 'paragraph' }] },
@@ -202,7 +189,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'tabsBlock',
-      attrs: { orientation: 'horizontal', tabStyle: 'underline', blockWidth: 'content', activeIndex: 0 },
+      attrs: { orientation: 'horizontal', blockWidth: 'content', activeIndex: 0 },
       content: [
         { type: 'tabPanel', attrs: { title: '' }, content: [{ type: 'paragraph' }] },
         { type: 'tabPanel', attrs: { title: '' }, content: [{ type: 'paragraph' }] }
@@ -224,12 +211,7 @@ const blockDefinitions: BlockDefinition[] = [
         singleOpen: true,
         startCollapsed: false,
         columns: 1,
-        paneStyle: 'minimal',
-        triggerIcon: 'chevron',
-        defaultOpenIndices: [0],
-        blockWidth: 'content',
-        marginTop: '1rem',
-        marginBottom: '1rem'
+        defaultOpenIndices: [0], blockWidth: 'content'
       },
       content: [
         { type: 'accordionPane', attrs: { title: 'Accordion Pane 1', defaultOpen: true }, content: [{ type: 'paragraph' }] },
@@ -269,7 +251,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'codeBlock',
-      attrs: { language: 'javascript', theme: 'github-dark', lineNumbers: true, lineHighlights: '', wrap: true, zoom: 1, collapsed: true },
+      attrs: { language: 'javascript', lineNumbers: true, lineHighlights: '', wrap: true, collapsed: true },
       content: []
     })
   },
@@ -320,12 +302,7 @@ const blockDefinitions: BlockDefinition[] = [
       type: 'blockMath',
       attrs: {
         latex: '',
-        theme: DEFAULT_BLOCK_MATH_THEME,
-        align: DEFAULT_BLOCK_MATH_ALIGN,
-        paddingX: DEFAULT_BLOCK_MATH_PADDING_X,
-        paddingY: DEFAULT_BLOCK_MATH_PADDING_Y,
-        fontSize: DEFAULT_BLOCK_MATH_FONT_SIZE,
-        fontFamily: DEFAULT_BLOCK_MATH_FONT_FAMILY
+        align: DEFAULT_BLOCK_MATH_ALIGN
       }
     })
   },
@@ -340,7 +317,7 @@ const blockDefinitions: BlockDefinition[] = [
     supports: { spacing: true },
     createContent: () => ({
       type: 'horizontalRule',
-      attrs: { styleType: 'solid', thickness: 1, marginY: 16, color: DEFAULT_SEPARATOR_COLOR }
+      attrs: { styleType: 'solid' }
     })
   },
   {
@@ -398,7 +375,11 @@ const blockDefinitions: BlockDefinition[] = [
   }
 ]
 
-const enabledBlockDefinitions = blockDefinitions
+const enabledBlockDefinitions = blockDefinitions.map(block => ({
+  ...block,
+  supports: Object.fromEntries(Object.entries(block.supports).filter(([key]) => key !== 'spacing')),
+  createContent: block.createContent ? () => normalizeBlockPresentation(block.createContent!()) : undefined
+}))
 const visibleBlockDefinitions = enabledBlockDefinitions.filter((block) => !block.hidden)
 
 const normalizedBlocks = visibleBlockDefinitions.map((block) => ({

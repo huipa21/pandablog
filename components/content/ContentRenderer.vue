@@ -30,7 +30,7 @@
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
-import { DEFAULT_SEPARATOR_COLOR } from '~/extensions/separator'
+import { normalizePresentationNode } from '~/utils/blockPresentation'
 
 const NodeImage = defineAsyncComponent(() => import('./NodeImage.vue'))
 const NodeCodeBlock = defineAsyncComponent(() => import('./NodeCodeBlock.vue'))
@@ -54,6 +54,8 @@ const NodeFootnotesBlock = defineAsyncComponent(() => import('./NodeFootnotesBlo
 const props = defineProps<{
   node: JsonContent
 }>()
+
+const node = computed(() => normalizePresentationNode(props.node))
 
 const tag = computed(() => {
   switch (props.node.type) {
@@ -125,14 +127,10 @@ const separatorStyle = computed(() => {
   }
 
   const styleType = String(props.node.attrs?.styleType ?? 'solid')
-  const thickness = Math.max(1, Number(props.node.attrs?.thickness ?? 1))
-  const marginY = Math.max(0, Number(props.node.attrs?.marginY ?? 16))
-  const color = String(props.node.attrs?.color ?? DEFAULT_SEPARATOR_COLOR)
-
   return {
     border: 0,
-    borderTop: `${thickness}px ${styleType} ${color}`,
-    margin: `${marginY}px 0`
+    borderTop: `1px ${['solid', 'dashed', 'dotted'].includes(styleType) ? styleType : 'solid'} var(--pb-divider)`,
+    margin: 'var(--space-lg, 1rem) 0'
   }
 })
 

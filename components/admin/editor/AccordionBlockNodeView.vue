@@ -26,11 +26,11 @@ const viewId = `accordion-block-${Math.random().toString(36).slice(2)}`
 const singleOpen = computed(() => props.node.attrs.singleOpen !== false)
 const startCollapsed = computed(() => props.node.attrs.startCollapsed === true)
 const columns = computed(() => normalizeColumns(props.node.attrs.columns))
-const paneStyle = computed(() => normalizePaneStyle(String(props.node.attrs.paneStyle ?? 'minimal')))
-const triggerIcon = computed(() => normalizeTriggerIcon(String(props.node.attrs.triggerIcon ?? 'chevron')))
+const paneStyle = computed(() => 'minimal')
+const triggerIcon = computed(() => 'chevron')
 const blockWidth = computed(() => normalizeBlockWidth(String(props.node.attrs.blockWidth ?? 'content')))
-const marginTop = computed(() => String(props.node.attrs.marginTop ?? '1rem'))
-const marginBottom = computed(() => String(props.node.attrs.marginBottom ?? '1rem'))
+const marginTop = computed(() => 'var(--space-lg, 1rem)')
+const marginBottom = computed(() => 'var(--space-lg, 1rem)')
 const paneCount = computed(() => {
   let count = 0
   props.node.forEach((child) => {
@@ -145,14 +145,6 @@ function normalizeColumns(value: unknown) {
   return Math.max(1, Math.min(3, Number.isFinite(columns) ? Math.round(columns) : 1))
 }
 
-function normalizePaneStyle(value: string) {
-  return ['dark', 'colored', 'underline', 'highlighted'].includes(value) ? value : 'minimal'
-}
-
-function normalizeTriggerIcon(value: string) {
-  return ['plus-minus', 'arrow'].includes(value) ? value : 'chevron'
-}
-
 function normalizeBlockWidth(value: string) {
   return value === 'wide' || value === 'full-bleed' ? value : 'content'
 }
@@ -232,25 +224,7 @@ function normalizeDefaultOpenIndices(value: unknown, count: number, single: bool
   transition: transform 0.16s ease;
 }
 
-.accordion-pane-plus-minus {
-  display: none;
-  font-weight: 750;
-  line-height: 1;
-}
-
-.accordion-block[data-trigger-icon="chevron"] .accordion-pane-icon.is-chevron,
-.accordion-block[data-trigger-icon="arrow"] .accordion-pane-icon.is-arrow,
-.accordion-block[data-trigger-icon="plus-minus"] .accordion-pane-plus-minus.is-plus {
-  display: inline-block;
-}
-
-.accordion-block[data-trigger-icon="plus-minus"] .accordion-pane[data-open="true"] .accordion-pane-plus-minus.is-plus {
-  display: none;
-}
-
-.accordion-block[data-trigger-icon="plus-minus"] .accordion-pane[data-open="true"] .accordion-pane-plus-minus.is-minus {
-  display: inline-block;
-}
+.accordion-pane-icon.is-chevron { display: inline-block; }
 
 .accordion-pane[data-open="true"] .accordion-pane-trigger.is-chevron svg {
   transform: rotate(180deg);
@@ -277,47 +251,7 @@ function normalizeDefaultOpenIndices(value: unknown, count: number, single: bool
   margin-bottom: 0;
 }
 
-.accordion-block[data-pane-style="dark"] .accordion-pane-header {
-  background: var(--pb-text);
-  color: var(--pb-card-bg);
-}
-
-.accordion-block[data-pane-style="colored"] .accordion-pane {
-  border-color: var(--pb-selected-border);
-}
-
-.accordion-block[data-pane-style="colored"] .accordion-pane-header {
-  background: var(--pb-selected-bg);
-  color: var(--pb-link);
-}
-
-.accordion-block[data-pane-style="underline"] .accordion-pane {
-  border-color: transparent;
-  border-radius: 0;
-  border-bottom-color: var(--pb-divider);
-}
-
-.accordion-block[data-pane-style="underline"] .accordion-pane-header {
-  border-bottom: 2px solid var(--pb-selected-border);
-  background: transparent;
-  padding-inline: 0;
-}
-
-.accordion-block[data-pane-style="highlighted"] .accordion-pane {
-  border-color: var(--pb-selected-border);
-  background: var(--pb-selected-bg);
-}
-
-.accordion-block[data-pane-style="highlighted"] .accordion-pane-header {
-  background: transparent;
-  color: var(--pb-link);
-}
-
-.accordion-block[data-trigger-icon="arrow"] .accordion-pane-icon.is-arrow {
-  transform: none;
-}
-
-@media (max-width: 760px) {
+@media (max-width: 48rem) {
   .accordion-block-grid {
     grid-template-columns: 1fr;
   }

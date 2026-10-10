@@ -42,6 +42,13 @@ managing media, and configuring your site — all backed by SurrealDB.
   Mermaid diagrams, KaTeX math, image/media-text blocks, columns, tabs, accordions, diffs,
   footnotes, annotations, custom HTML, video embeds, and more.
 - **WYSIWYG parity** — what you see in the editor matches the published post exactly.
+
+  **Editor simplification implemented locally:** image/layout presets, automatic image
+  sources, site-owned presentation and one Pinia inserter state source. Old custom
+  styling normalizes to presets/defaults; canonical attributes persist on the next
+  ordinary save, without bulk history rewrites. Full-app acceptance is incomplete;
+  see the [plan](docs/editor-simplification/plan.md) and
+  [evidence/remaining gates](docs/editor-simplification/progress.md).
 - **Media library** — drag-and-drop uploads, SHA-256 deduplication, automatic WebP variants,
   folders, tags, search, and orphan cleanup.
 - **Full-text search** — multilingual search across titles, summaries, and body content, with

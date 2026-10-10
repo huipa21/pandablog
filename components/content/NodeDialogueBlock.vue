@@ -1,5 +1,5 @@
 <template>
-  <div class="dialogue-block" data-type="dialogue-block" :data-style="attrs.dialogueStyle" :style="{ marginTop: attrs.marginTop, marginBottom: attrs.marginBottom }">
+  <div class="dialogue-block" data-type="dialogue-block" :data-style="attrs.dialogueStyle">
     <div v-if="attrs.title" class="dialogue-block-title">{{ attrs.title }}</div>
     <div v-for="(line, index) in lines" :key="index" class="dialogue-line" data-type="dialogue-line" :data-kind="line.attrs.kind" :data-character-id="line.attrs.characterId" :style="{ '--pb-dialogue-color': line.character?.color }">
       <div class="dialogue-speaker" :aria-hidden="line.attrs.kind === 'narration' ? 'true' : undefined">
@@ -24,6 +24,7 @@ import type { JsonContent } from '~/types/content'
 import { initialsOf, normalizeDialogueAttrs, normalizeDialogueLineAttrs, resolveCharacter } from '~/extensions/dialogueBlock'
 import ContentRenderer from './ContentRenderer.vue'
 import '~/assets/css/dialogue-block.css'
+import '~/assets/css/block-presentation.css'
 
 const props = defineProps<{ node: JsonContent }>()
 const { t } = useI18n()

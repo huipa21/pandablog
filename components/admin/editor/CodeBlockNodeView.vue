@@ -1,6 +1,6 @@
 <template>
   <NodeViewWrapper
-    class="codeblock-nodeview my-4 overflow-hidden rounded-lg"
+    class="codeblock-nodeview overflow-hidden rounded-lg"
     :class="`code-theme-${theme}`"
     :data-theme="theme"
     :data-language="language"
@@ -26,13 +26,6 @@
         <span v-if="showTotalLines" class="opacity-70">{{ t('admin.editor.nodeViews.lineCount', { count: lineCount }) }}</span>
       </div>
       <div class="codeblock-header-right">
-        <button type="button" class="codeblock-action" :title="t('admin.editor.nodeViews.zoomOut')" @click="adjustZoom(-0.1)">
-          <UIcon name="i-lucide-minus" class="size-3" />
-        </button>
-        <span class="codeblock-zoom">{{ Math.round(zoom * 100) }}%</span>
-        <button type="button" class="codeblock-action" :title="t('admin.editor.nodeViews.zoomIn')" @click="adjustZoom(0.1)">
-          <UIcon name="i-lucide-plus" class="size-3" />
-        </button>
         <button
           type="button"
           class="codeblock-action"
@@ -86,31 +79,27 @@
 
 <script setup lang="ts">
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
+import { CODE_BLOCK_LANGUAGES, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
+import { useCodeTheme } from '~/composables/editor/useCodeTheme'
+import '~/assets/css/block-presentation.css'
 
 const props = defineProps(nodeViewProps)
 
 const { t } = useI18n()
 const languageLabelMap = new Map<string, string>(CODE_BLOCK_LANGUAGES.map((item) => [item.value as string, item.label]))
 const supportedLanguages = new Set<string>(CODE_BLOCK_LANGUAGES.map((item) => item.value as string))
-const supportedThemes = new Set<string>(CODE_BLOCK_THEMES.map((item) => item.value as string))
+
 
 const language = computed(() => {
   const value = typeof props.node.attrs.language === 'string' ? props.node.attrs.language : 'text'
   return supportedLanguages.has(value) ? value : 'text'
 })
-const theme = computed(() => {
-  const value = typeof props.node.attrs.theme === 'string' ? props.node.attrs.theme : DEFAULT_CODE_THEME
-  return supportedThemes.has(value) ? value : DEFAULT_CODE_THEME
-})
+const theme = useCodeTheme()
 const lineNumbers = computed(() => props.node.attrs.lineNumbers !== false)
 const lineHighlights = computed(() => normalizeCodeLineHighlights(props.node.attrs.lineHighlights))
 const highlightedLineSet = computed(() => parseCodeLineHighlights(lineHighlights.value))
 const wrapLines = computed(() => props.node.attrs.wrap !== false)
-const zoom = computed(() => {
-  const value = Number(props.node.attrs.zoom ?? 1)
-  return Number.isFinite(value) ? Math.max(0.7, Math.min(2, value)) : 1
-})
+const zoom = computed(() => 1)
 const collapsed = computed(() => props.node.attrs.collapsed !== false)
 const fileName = computed(() => typeof props.node.attrs.fileName === 'string' ? props.node.attrs.fileName : '')
 const showTotalLines = computed(() => props.node.attrs.showTotalLines === true)
@@ -179,11 +168,6 @@ const fileIcon = computed(() => {
   }
   return map[ext] ?? 'i-lucide-file-code-2'
 })
-
-function adjustZoom(delta: number) {
-  const next = Math.max(0.7, Math.min(2, zoom.value + delta))
-  props.updateAttributes({ zoom: Math.round(next * 100) / 100 })
-}
 
 function toggleWrap() {
   props.updateAttributes({ wrap: !wrapLines.value })

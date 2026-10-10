@@ -321,6 +321,11 @@ const editLock = useEditLock(id, sessionFetch as typeof $fetch)
 const currentStatus = ref<PostStatus>('draft')
 const blockEditorRef = ref<BlockEditorInstance | null>(null)
 const editorStore = useEditorStore()
+// Nuxt can reuse this page/editor when only the post parameter changes.
+watch(id, () => {
+  editorStore.closeInserter()
+  editorStore.selectBlock(null)
+}, { flush: 'sync' })
 const rightPaneCollapsed = ref(true)
 const leaveDialogOpen = ref(false)
 const postSettingsOpen = ref(false)

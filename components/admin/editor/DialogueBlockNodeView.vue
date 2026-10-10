@@ -1,5 +1,5 @@
 <template>
-  <NodeViewWrapper class="dialogue-block" data-type="dialogue-block" :data-active="active" :data-style="attrs.dialogueStyle" :style="{ marginTop: attrs.marginTop, marginBottom: attrs.marginBottom }">
+  <NodeViewWrapper class="dialogue-block" data-type="dialogue-block" :data-active="active" :data-style="attrs.dialogueStyle">
     <input v-if="attrs.title || active" class="dialogue-block-title" contenteditable="false" :value="node.attrs.title" :placeholder="t('admin.editor.dialogue.sceneTitle')" :aria-label="t('admin.editor.dialogue.sceneTitle')" maxlength="120" :readonly="!editor.isEditable" @change="updateAttributes({ title: ($event.target as HTMLInputElement).value })">
     <NodeViewContent class="dialogue-lines" />
     <div v-if="editor.isEditable" class="dialogue-add-row" contenteditable="false">
@@ -13,6 +13,7 @@ import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
 import { normalizeDialogueAttrs, type DialogueLineKind } from '~/extensions/dialogueBlock'
 import DialogueLineKindMenu from './DialogueLineKindMenu.vue'
 import '~/assets/css/dialogue-block.css'
+import '~/assets/css/block-presentation.css'
 const props = defineProps(nodeViewProps)
 const { t } = useI18n()
 const attrs = computed(() => normalizeDialogueAttrs(props.node.attrs))

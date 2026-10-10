@@ -85,7 +85,7 @@ describe('dialogue attribute normalization', () => {
     expect(attrs.dialogueStyle).toBe('compact')
     expect(attrs.title.startsWith('In the x')).toBe(true)
     expect(attrs.title).toHaveLength(120)
-    expect(attrs.marginTop).toBe('1rem')
+    expect(attrs).not.toHaveProperty('marginTop')
     expect(attrs.characters).toHaveLength(DIALOGUE_MAX_CHARACTERS)
     expect(attrs.characters[0]!.name).toHaveLength(40)
     expect(attrs.characters[1]!.name).toBe('Character 2')

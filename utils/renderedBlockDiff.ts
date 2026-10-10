@@ -1,4 +1,5 @@
 import type { JsonContent } from '~/types/content'
+import { normalizeBlockPresentation } from '~/utils/blockPresentation'
 
 export type RenderedBlockDiffStatus = 'unchanged' | 'changed' | 'moved' | 'removed' | 'added'
 
@@ -50,8 +51,8 @@ interface NewMatch {
  *      edited block reads as `changed` instead of removed + added.
  */
 export function buildRenderedBlockDiff(oldDoc?: JsonContent | null, newDoc?: JsonContent | null): RenderedBlockDiffRow[] {
-  const oldItems = docBlocks(oldDoc)
-  const newItems = docBlocks(newDoc)
+  const oldItems = docBlocks(normalizeBlockPresentation(oldDoc))
+  const newItems = docBlocks(normalizeBlockPresentation(newDoc))
 
   const oldUnmatched = new Set(oldItems.map((item) => item.index))
   const newMatch = new Map<number, NewMatch>()

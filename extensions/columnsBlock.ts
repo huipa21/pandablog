@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeSelection, Plugin } from '@tiptap/pm/state'
 
-const COLUMN_PROPORTIONS = new Set(['1-1', '1-2', '2-1', '1-1-1', '1-1-2', '1-2-1', '2-1-1', '1-1-1-1', '1-1-1-1-1', '1-1-1-1-1-1'])
+import { importedLayoutPreset, layoutPreset, presentationHtmlAttrs } from '~/utils/blockPresentation'
 const BLOCK_WIDTHS = new Set(['content', 'wide', 'full-bleed'])
 
 export const ColumnsBlockNode = Node.create({
@@ -21,24 +21,10 @@ export const ColumnsBlockNode = Node.create({
         },
         renderHTML: (attrs) => ({ 'data-columns': String(Math.max(2, Math.min(6, attrs.columns || 2))) })
       },
-      proportions: {
-        default: '1-1',
-        parseHTML: (el) => {
-          const value = el.getAttribute('data-proportions') ?? '1-1'
-          return COLUMN_PROPORTIONS.has(value) ? value : '1-1'
-        },
-        renderHTML: (attrs) => ({ 'data-proportions': COLUMN_PROPORTIONS.has(String(attrs.proportions)) ? String(attrs.proportions) : '1-1' })
-      },
-      customPercentages: {
-        default: '',
-        parseHTML: (el) => {
-          const value = el.getAttribute('data-custom-percentages') ?? ''
-          return value
-        },
-        renderHTML: (attrs) => {
-          const value = String(attrs.customPercentages ?? '').trim()
-          return value ? { 'data-custom-percentages': value } : {}
-        }
+      layoutPreset: {
+        default: 'equal',
+        parseHTML: el => importedLayoutPreset(presentationHtmlAttrs(el), el.querySelectorAll(':scope > [data-type="column-item"]').length || Number(el.getAttribute('data-columns')) || 2),
+        renderHTML: attrs => ({ 'data-layout-preset': layoutPreset(attrs.layoutPreset, Number(attrs.columns)) })
       },
       showHeaders: {
         default: true,
@@ -55,21 +41,6 @@ export const ColumnsBlockNode = Node.create({
           return BLOCK_WIDTHS.has(value) ? value : 'content'
         },
         renderHTML: (attrs) => ({ 'data-block-width': BLOCK_WIDTHS.has(String(attrs.blockWidth)) ? String(attrs.blockWidth) : 'content' })
-      },
-      columnGap: {
-        default: '1rem',
-        parseHTML: (el) => el.getAttribute('data-column-gap') ?? '1rem',
-        renderHTML: (attrs) => ({ 'data-column-gap': String(attrs.columnGap ?? '1rem') })
-      },
-      marginTop: {
-        default: '1rem',
-        parseHTML: (el) => el.getAttribute('data-margin-top') ?? '1rem',
-        renderHTML: (attrs) => ({ 'data-margin-top': String(attrs.marginTop ?? '1rem') })
-      },
-      marginBottom: {
-        default: '1rem',
-        parseHTML: (el) => el.getAttribute('data-margin-bottom') ?? '1rem',
-        renderHTML: (attrs) => ({ 'data-margin-bottom': String(attrs.marginBottom ?? '1rem') })
       }
     }
   },
@@ -108,11 +79,11 @@ export const ColumnsBlockNode = Node.create({
             if (node.type.name !== 'columnsBlock') return
 
             const expectedColumns = normalizeColumnsCount(node.attrs.columns, node.childCount || 2)
-            const customPercentages = normalizeCustomPercentages(String(node.attrs.customPercentages ?? ''), expectedColumns)
+            const preset = layoutPreset(node.attrs.layoutPreset, expectedColumns)
             const needsColumnRepair = node.childCount !== expectedColumns
               || node.content.content.some((child) => child.type.name !== 'columnItem')
             const needsAttrRepair = Number(node.attrs.columns) !== expectedColumns
-              || String(node.attrs.customPercentages ?? '') !== customPercentages
+              || node.attrs.layoutPreset !== preset
 
             if (needsColumnRepair || needsAttrRepair) {
               updates.push({ pos, expectedColumns })
@@ -139,7 +110,7 @@ export const ColumnsBlockNode = Node.create({
             const attrs = {
               ...current.attrs,
               columns: expectedColumns,
-              customPercentages: normalizeCustomPercentages(String(current.attrs.customPercentages ?? ''), expectedColumns)
+              layoutPreset: layoutPreset(current.attrs.layoutPreset, expectedColumns)
             }
 
             const replacement = current.type.create(attrs, normalizedColumns)
@@ -199,25 +170,6 @@ function normalizeColumnsCount(rawCount: unknown, fallback: number) {
   const count = Number(rawCount)
   const base = Number.isFinite(count) && count > 0 ? count : fallback
   return Math.max(2, Math.min(6, Math.round(base || 2)))
-}
-
-function normalizeCustomPercentages(value: string, count: number) {
-  if (!value.trim()) return ''
-
-  const parts = value.split(',').map((part) => Number(part.trim()))
-  if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0 || part >= 100)) {
-    return ''
-  }
-
-  const total = parts.reduce((sum, part) => sum + part, 0)
-  if (Math.abs(total - 100) > 0.1) {
-    return ''
-  }
-
-  return parts
-    .map((part) => Math.round(part * 100) / 100)
-    .map((part) => part.toFixed(2).replace(/\.00$/, ''))
-    .join(',')
 }
 
 function normalizeColumnItems(columnsBlockNode: any, count: number, paragraphNodeType: any) {

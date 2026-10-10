@@ -39,10 +39,6 @@
         </div>
         <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-plus" :disabled="normalized.characters.length >= DIALOGUE_MAX_CHARACTERS || !editor?.isEditable" @click="addCharacter">{{ t('admin.editor.dialogue.addCharacter') }}</UButton>
       </div>
-      <div class="grid grid-cols-2 gap-2">
-        <UFormField :label="t('admin.editor.settingsPanel.marginAbove')"><UInput :model-value="normalized.marginTop" @change="emit('update', { marginTop: ($event.target as HTMLInputElement).value })" /></UFormField>
-        <UFormField :label="t('admin.editor.settingsPanel.marginBelow')"><UInput :model-value="normalized.marginBottom" @change="emit('update', { marginBottom: ($event.target as HTMLInputElement).value })" /></UFormField>
-      </div>
     </div>
     <MediaPicker v-model:open="mediaOpen" type-filter="image" @select="onMediaSelected" />
     <ConfirmActionDialog :open="!!deleteId" :title="t('admin.editor.dialogue.deleteCharacter')" :description="t('admin.editor.dialogue.deleteCharacterConfirm')" :confirm-label="t('admin.editor.dialogue.deleteCharacter')" :cancel-label="t('admin.editor.dialogue.cancel')" @update:open="onDeleteDialogOpen" @confirm="confirmDelete" />

@@ -1,0 +1,40 @@
+/* Shared author/reader presets. Themes provide tokens, not separate block rules. */
+.imageblock-nodeview .imageblock-figure,
+.mediatext-media .content-image {
+  width: 100%;
+  max-width: 100%;
+}
+.imageblock-nodeview .imageblock-figure[data-size-preset="small"],
+.mediatext-media .content-image[data-size-preset="small"] {
+  width: var(--pb-image-small-width, 33.333%);
+}
+.imageblock-nodeview .imageblock-figure[data-size-preset="medium"],
+.mediatext-media .content-image[data-size-preset="medium"] {
+  width: var(--pb-image-medium-width, 66.667%);
+}
+.imageblock-image,
+.mediatext-media .content-image {
+  height: auto;
+  max-width: 100%;
+}
+.imageblock-image { width: 100%; }
+.imageblock-nodeview,
+.mediatext-nodeview,
+.columns-block,
+.tabs-block,
+.accordion-block,
+.dialogue-block,
+.block-math,
+.codeblock-nodeview,
+.quote-nodeview {
+  margin-block: var(--space-lg, 1rem);
+}
+.codeblock-nodeview[data-theme] {
+  --code-bg: var(--pb-surface-subtle);
+  --code-fg: var(--pb-text);
+  --code-gutter: var(--pb-surface);
+}
+@media (max-width: 48rem) {
+  .imageblock-nodeview .imageblock-figure[data-size-preset],
+  .mediatext-media .content-image[data-size-preset] { width: 100%; }
+}

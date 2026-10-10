@@ -202,6 +202,7 @@
 
 <script setup lang="ts">
 import { EditorContent, useEditor, VueNodeViewRenderer } from '@tiptap/vue-3'
+import { storeToRefs } from 'pinia'
 import { getMarkRange } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Color from '@tiptap/extension-color'
@@ -271,6 +272,8 @@ import { useMediaUrl } from '~/composables/useMediaUrl'
 import { mediaRecordToFileItem } from '~/utils/mediaFiles'
 import { pastedImageFilename } from '~/utils/pastedImage'
 import { resolveVideoEmbed } from '~/utils/videoEmbed'
+import { normalizeBlockPresentation } from '~/utils/blockPresentation'
+import { contentImageSources } from '~/utils/contentImage'
 
 interface ActiveBlockRange {
   from: number
@@ -475,25 +478,21 @@ const slashItems = computed(() => {
 const ALLOWED_NESTED_BLOCK_CONTAINERS = new Set(['mediaText', 'columnsBlock', 'columnItem', 'tabsBlock', 'tabPanel', 'accordionBlock', 'accordionPane'])
 const NESTED_BLOCK_ROOT_TYPES = new Set(['columnItem', 'tabPanel', 'accordionPane'])
 
-// Inserter state (also mirrored to editorStore so parent layout can switch to 3-column mode)
-const inserterOpen = ref(false)
+// The parent layout and editor share one open state; targets stay editor-local.
+const { inserterOpen } = storeToRefs(editorStore)
 const insertAfterPos = ref<number | null>(null)
 const insertReplaceRange = ref<{ from: number; to: number } | null>(null)
 const pendingImageInsertPos = ref<number | null>(null)
 
+// Parent/mobile closes must clear targets too, even when reopened in the same tick.
 watch(inserterOpen, (open) => {
-  if (open) editorStore.openInserter()
-  else editorStore.closeInserter()
-})
-
-watch(() => editorStore.inserterOpen, (open) => {
-  if (open !== inserterOpen.value) inserterOpen.value = open
-})
+  if (!open) clearInserterTarget()
+}, { flush: 'sync' })
 let trackFrame: number | null = null
 let draggedBlockElement: HTMLElement | null = null
 
 const editor = useEditor({
-  content: props.modelValue,
+  content: normalizeBlockPresentation(props.modelValue),
   editable: !props.readonly,
   extensions: [
     BlockId,
@@ -940,7 +939,7 @@ watch(() => props.modelValue, (value) => {
 
   const nextValueJson = JSON.stringify(value)
   if (nextValueJson !== lastAppliedModelValueJson) {
-    ed.commands.setContent(value, false)
+    ed.commands.setContent(normalizeBlockPresentation(value), false)
     lastAppliedModelValueJson = nextValueJson
   }
   lastEmittedModelValue = null
@@ -966,6 +965,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  closeInserter()
   window.removeEventListener('scroll', handleViewportChange, true)
   window.removeEventListener('resize', handleViewportChange)
   editorContainer.value?.removeEventListener('mediatext-pick', onMediaTextPickEvent as EventListener)
@@ -1119,16 +1119,19 @@ function addBlockAfterCurrent() {
   inserterOpen.value = true
 }
 
-function openInserterWithoutTarget() {
+function clearInserterTarget() {
   insertAfterPos.value = null
   insertReplaceRange.value = null
+}
+
+function openInserterWithoutTarget() {
+  clearInserterTarget()
   inserterOpen.value = true
 }
 
 function closeInserter() {
   inserterOpen.value = false
-  insertAfterPos.value = null
-  insertReplaceRange.value = null
+  clearInserterTarget()
 }
 
 function handleInserterPick(name: string) {
@@ -2456,15 +2459,10 @@ function handleMediaPicked(files: MediaRecord[]) {
     attrs: {
       src: toPublicMediaUrl(file.hash || file.id || file.url),
       alt: file.original_name,
-      sourceSize: 'full',
-      displaySize: 'fill-container',
-      displayPercent: 100,
-      displayPx: null,
-      width: null,
-      height: null,
+      sizePreset: 'full',
+      imageSources: contentImageSources(file, toPublicMediaUrl(file.hash || file.id || file.url)),
       naturalWidth: typeof file.width === 'number' ? file.width : null,
-      naturalHeight: typeof file.height === 'number' ? file.height : null,
-      widthPercent: 100
+      naturalHeight: typeof file.height === 'number' ? file.height : null
     }
   }))
 
@@ -2494,13 +2492,8 @@ async function uploadImage(file: File, insertPos: number) {
           attrs: {
             src: imageSrc,
             alt: String(asset.original_name ?? file.name),
-            sourceSize: 'full',
-            displaySize: 'fill-container',
-            displayPercent: 100,
-            displayPx: null,
-            width: null,
-            height: null,
-            widthPercent: 100
+            sizePreset: 'full', imageSources: contentImageSources(asset, imageSrc),
+            naturalWidth: asset.width ?? null, naturalHeight: asset.height ?? null
           }
         }).run()
       }
@@ -2562,16 +2555,11 @@ function handleMediaTextPicked(files: MediaRecord[]) {
         mediaName: firstItem.name ?? '',
         mediaMime: firstItem.mime ?? '',
         mediaSize: typeof firstItem.size === 'number' ? firstItem.size : null,
-        mediaSourceSize: 'full',
-        mediaDisplaySize: 'fill-container',
-        mediaDisplayPercent: 100,
-        mediaDisplayPx: null,
+        mediaSizePreset: node.attrs.mediaSizePreset ?? 'full',
+        imageSources: contentImageSources(firstFile, firstItem.src),
         blockWidth: node.attrs.blockWidth ?? 'content',
-        mediaWidth: null,
-        mediaHeight: null,
         mediaNaturalWidth: typeof firstItem.width === 'number' ? firstItem.width : null,
-        mediaNaturalHeight: typeof firstItem.height === 'number' ? firstItem.height : null,
-        mediaWidthPercent: 100
+        mediaNaturalHeight: typeof firstItem.height === 'number' ? firstItem.height : null
       })
       return true
     }

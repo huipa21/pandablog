@@ -30,9 +30,8 @@
         >
           <span class="accordion-pane-title">{{ panelTitle(panel, index) }}</span>
           <span class="accordion-pane-trigger" :class="triggerIcon === 'chevron' ? 'is-chevron' : ''" aria-hidden="true">
-            <span v-if="triggerIcon === 'plus-minus'" class="accordion-pane-plus-minus">{{ isOpen(index) ? '-' : '+' }}</span>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path :d="triggerIcon === 'arrow' ? 'M5 12h14m-6-6 6 6-6 6' : 'm6 9 6 6 6-6'" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
             </svg>
           </span>
         </button>
@@ -64,11 +63,11 @@ const panels = computed(() => (props.node.content ?? []).filter((child) => child
 const singleOpen = computed(() => props.node.attrs?.singleOpen !== false)
 const startCollapsed = computed(() => props.node.attrs?.startCollapsed === true)
 const columns = computed(() => normalizeColumns(props.node.attrs?.columns))
-const paneStyle = computed(() => normalizePaneStyle(String(props.node.attrs?.paneStyle ?? 'minimal')))
-const triggerIcon = computed(() => normalizeTriggerIcon(String(props.node.attrs?.triggerIcon ?? 'chevron')))
+const paneStyle = computed(() => 'minimal')
+const triggerIcon = computed(() => 'chevron')
 const blockWidth = computed(() => normalizeBlockWidth(String(props.node.attrs?.blockWidth ?? 'content')))
-const marginTop = computed(() => String(props.node.attrs?.marginTop ?? '1rem'))
-const marginBottom = computed(() => String(props.node.attrs?.marginBottom ?? '1rem'))
+const marginTop = computed(() => 'var(--space-lg, 1rem)')
+const marginBottom = computed(() => 'var(--space-lg, 1rem)')
 const defaultOpenIndices = computed(() => normalizeDefaultOpenIndices(props.node.attrs?.defaultOpenIndices, panels.value.length, singleOpen.value, startCollapsed.value, panels.value))
 const defaultOpenKey = computed(() => defaultOpenIndices.value.join(','))
 const openIndices = ref(new Set(defaultOpenIndices.value))
@@ -141,14 +140,6 @@ function panelId(index: number) {
 function normalizeColumns(value: unknown) {
   const columns = Number(value)
   return Math.max(1, Math.min(3, Number.isFinite(columns) ? Math.round(columns) : 1))
-}
-
-function normalizePaneStyle(value: string) {
-  return ['dark', 'colored', 'underline', 'highlighted'].includes(value) ? value : 'minimal'
-}
-
-function normalizeTriggerIcon(value: string) {
-  return ['plus-minus', 'arrow'].includes(value) ? value : 'chevron'
 }
 
 function normalizeBlockWidth(value: string) {
@@ -234,47 +225,6 @@ function normalizeDefaultOpenIndices(value: unknown, count: number, single: bool
 
 .accordion-pane-content > :last-child {
   margin-bottom: 0;
-}
-
-.accordion-block[data-pane-style="dark"] .accordion-pane-header {
-  background: var(--pb-text);
-  color: var(--pb-card-bg);
-}
-
-.accordion-block[data-pane-style="colored"] .accordion-pane {
-  border-color: var(--pb-selected-border);
-}
-
-.accordion-block[data-pane-style="colored"] .accordion-pane-header {
-  background: var(--pb-selected-bg);
-  color: var(--pb-link);
-}
-
-.accordion-block[data-pane-style="underline"] .accordion-pane {
-  border-color: transparent;
-  border-radius: 0;
-  border-bottom-color: var(--pb-divider);
-}
-
-.accordion-block[data-pane-style="underline"] .accordion-pane-header {
-  border-bottom: 2px solid var(--pb-selected-border);
-  background: transparent;
-  padding-inline: 0;
-}
-
-.accordion-block[data-pane-style="highlighted"] .accordion-pane {
-  border-color: var(--pb-selected-border);
-  background: var(--pb-selected-bg);
-}
-
-.accordion-block[data-pane-style="highlighted"] .accordion-pane-header {
-  background: transparent;
-  color: var(--pb-link);
-}
-
-.accordion-block[data-trigger-icon="plus-minus"] .accordion-pane-trigger svg,
-.accordion-block[data-trigger-icon="arrow"] .accordion-pane-trigger.is-chevron svg {
-  transform: none;
 }
 
 @media (max-width: 48rem) {

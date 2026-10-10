@@ -1,2207 +1,257 @@
 <template>
   <div class="block-settings-panel space-y-4">
-    <div v-if="!blockName" class="rounded-md border border-dashed border-stone-200 p-4 text-sm text-stone-500">
-      {{ t('admin.editor.settingsPanel.selectBlock') }}
-    </div>
-
+    <p v-if="!blockName" class="text-sm text-[var(--pb-text-subtle)]">{{ t('admin.editor.settingsPanel.selectBlock') }}</p>
     <template v-else>
-      <div class="rounded-md border border-stone-200 bg-white p-3">
-        <div class="flex items-center gap-2">
-          <UIcon :name="blockDefinition?.icon ?? 'i-lucide-box'" class="size-4 text-teal-700" />
-          <div>
-            <div class="text-sm font-semibold text-stone-900">{{ blockDefinition?.title ?? blockName }}</div>
-            <div class="text-xs text-stone-500">{{ blockDefinition?.description ?? t('admin.editor.settingsPanel.blockSettings') }}</div>
+      <div class="flex items-center gap-2 rounded-md border border-[var(--pb-divider)] p-3">
+        <UIcon :name="blockDefinition?.icon ?? 'i-lucide-box'" class="size-4" />
+        <strong>{{ blockDefinition?.title ?? blockName }}</strong>
+      </div>
+      <DialogueSettings v-if="blockName === 'dialogueBlock'" :editor="editor" :attrs="attrs" :pos="selected?.pos ?? null" @update="updateAttrs" />
+      <div v-else class="space-y-3 rounded-md border border-[var(--pb-divider)] p-3" :data-code-settings="blockName === 'codeBlock' ? '' : undefined">
+        <UFormField v-for="field in fields" :key="field.key" :label="label(field.label)">
+          <USelect v-if="field.items" class="w-full" :model-value="String(attrs[field.key] ?? field.fallback ?? '')" :items="field.items" @update:model-value="setField(field, $event)" />
+          <UCheckbox v-else-if="field.boolean" :model-value="Boolean(attrs[field.key] ?? field.fallback)" :label="label(field.label)" @update:model-value="setField(field, $event)" />
+          <UTextarea v-else-if="field.multiline" :rows="8" :model-value="String(attrs[field.key] ?? '')" @update:model-value="setField(field, $event)" />
+          <UInput v-else class="w-full" :model-value="String(attrs[field.key] ?? '')" @update:model-value="setField(field, $event)" />
+        </UFormField>
+        <UFormField v-if="blockName === 'columnsBlock'" :label="label('columnCount')">
+          <USelect :model-value="String(children.length)" :items="[2,3,4,5,6].map(value => ({ label: String(value), value: String(value) }))" @update:model-value="setColumnCount" />
+        </UFormField>
+        <UCheckbox v-if="blockName === 'columnsBlock'" :model-value="attrs.showHeaders !== false" :label="label('showHeaders')" @update:model-value="updateAttrs({ showHeaders: $event === true })" />
+        <template v-if="childType">
+          <div v-for="(child, index) in children" :key="index" class="space-y-2 rounded-md border border-[var(--pb-divider)] p-2" :draggable="blockName === 'columnsBlock'" @dragstart="draggedIndex = index" @dragover.prevent @drop.prevent="dropChild(index)" @dragend="draggedIndex = null">
+            <UFormField :label="`${label(blockName === 'columnsBlock' ? 'columns' : blockName === 'tabsBlock' ? 'tabs' : 'panes')} ${index + 1}`">
+              <UInput :model-value="String(child.attrs?.[childLabelKey] ?? '')" @update:model-value="setChild(index, { [childLabelKey]: String($event) })" />
+            </UFormField>
+            <UCheckbox v-if="blockName === 'accordionBlock'" :model-value="openIndices.includes(index)" :disabled="attrs.startCollapsed === true" :label="label('openByDefault')" @update:model-value="setPaneOpen(index, $event === true)" />
+            <div class="flex gap-1">
+              <UButton type="button" icon="i-lucide-arrow-up" size="xs" variant="ghost" :disabled="index === 0" :aria-label="t('admin.editor.toolbar.moveUp')" @click="moveChild(index, -1)" />
+              <UButton type="button" icon="i-lucide-arrow-down" size="xs" variant="ghost" :disabled="index === children.length - 1" :aria-label="t('admin.editor.toolbar.moveDown')" @click="moveChild(index, 1)" />
+              <UButton type="button" icon="i-lucide-trash" size="xs" color="error" variant="ghost" :disabled="children.length <= minChildren" @click="removeChild(index)">{{ label('remove') }}</UButton>
+            </div>
           </div>
+          <UButton type="button" size="sm" icon="i-lucide-plus" variant="soft" :disabled="children.length >= maxChildren" @click="addChild">{{ label('add') }}</UButton>
+        </template>
+        <UFormField v-if="blockName === 'tabsBlock'" :label="label('defaultTab')">
+          <USelect :model-value="String(attrs.activeIndex ?? 0)" :items="children.map((child, i) => ({ label: String(child.attrs?.title || `${label('tabs')} ${i + 1}`), value: String(i) }))" @update:model-value="updateAttrs({ activeIndex: Number($event) })" />
+        </UFormField>
+        <UFormField v-if="footnoteSection" :label="label('title')">
+          <UInput :model-value="footnoteSection.node.textContent" @update:model-value="setFootnoteTitle" />
+        </UFormField>
+        <div v-if="blockName === 'table'" class="grid grid-cols-2 gap-2">
+          <UButton v-for="command in tableCommands" :key="command.key" type="button" variant="soft" @click="runTableCommand(command.key)">{{ label(command.label) }}</UButton>
         </div>
       </div>
-
-      <details v-if="blockName === 'heading'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.heading') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.headingLevel')">
-            <USelect :model-value="String(attrs.level ?? 2)" :items="headingLevelItems" @update:model-value="setHeadingLevel" />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'image'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.image') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.sourceUrl')">
-            <UInput :model-value="String(attrs.src ?? '')" @update:model-value="updateAttrs({ src: String($event) })" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.altText')">
-            <UInput :model-value="String(attrs.alt ?? '')" @update:model-value="updateAttrs({ alt: String($event) })" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.title')">
-            <UInput :model-value="String(attrs.title ?? '')" @update:model-value="updateAttrs({ title: String($event) })" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.titlePosition')">
-            <USelect
-              :model-value="String(attrs.titlePosition ?? 'bottom')"
-              :items="titlePositionItems"
-              @update:model-value="updateAttrs({ titlePosition: String($event) })"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.sourceSize')">
-            <USelect
-              :model-value="imageSourceSize"
-              :items="sourceSizeItems"
-              @update:model-value="setImageSourceSize"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.displaySize')">
-            <USelect
-              :model-value="imageDisplaySize"
-              :items="displaySizeItems"
-              @update:model-value="setImageDisplaySize"
-            />
-          </UFormField>
-          <div v-if="imageDisplaySize === 'custom-px'" class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.displayWidthPx')">
-              <UInput type="number" :model-value="(attrs.displayPx as number | null) ?? (attrs.width as number | null) ?? undefined" @update:model-value="setImageWidth" />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.displayHeightPx')">
-              <UInput type="number" :model-value="(attrs.height as number | null) ?? undefined" @update:model-value="setImageHeight" />
-            </UFormField>
-          </div>
-          <UFormField v-if="imageDisplaySize === 'custom-percent'" :label="t('admin.editor.settingsPanel.displaySizePercent')">
-            <div class="space-y-2">
-              <input
-                type="range"
-                min="1"
-                max="200"
-                :value="Number(attrs.displayPercent ?? attrs.widthPercent ?? 100)"
-                class="w-full"
-                @input="setImageDisplayPercent(($event.target as HTMLInputElement).value)"
-              >
-              <UInput
-                type="number"
-                min="1"
-                max="200"
-                :model-value="(attrs.displayPercent as number | null) ?? (attrs.widthPercent as number | null) ?? 100"
-                @update:model-value="setImageDisplayPercent"
-              />
-            </div>
-          </UFormField>
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.lockAspect !== false"
-              :label="t('admin.editor.settingsPanel.maintainAspectRatio')"
-              @update:model-value="setImageLockAspect"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.alignment')">
-            <USelect
-              :model-value="String(attrs.align ?? 'center')"
-              :items="alignmentItems"
-              @update:model-value="updateAttrs({ align: String($event) })"
-            />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'mediaText'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.mediaText') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.mediaPosition')">
-            <USelect
-              :model-value="String(attrs.mediaPosition ?? 'left')"
-              :items="mediaPositionItems"
-              @update:model-value="updateAttrs({ mediaPosition: String($event) })"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.mediaUrl')">
-            <UInput :model-value="String(attrs.mediaSrc ?? '')" @update:model-value="updateAttrs({ mediaSrc: String($event) })" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.alt')">
-            <UInput :model-value="String(attrs.mediaAlt ?? '')" @update:model-value="updateAttrs({ mediaAlt: String($event) })" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.caption')">
-            <UInput :model-value="String(attrs.mediaTitle ?? '')" @update:model-value="updateAttrs({ mediaTitle: String($event) })" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.captionPosition')">
-            <USelect
-              :model-value="String(attrs.mediaTitlePosition ?? 'bottom')"
-              :items="titlePositionItems"
-              @update:model-value="updateAttrs({ mediaTitlePosition: String($event) })"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.wholeBlockWidth')">
-            <USelect
-              :model-value="String(attrs.blockWidth ?? 'content')"
-              :items="blockWidthItems"
-              @update:model-value="updateAttrs({ blockWidth: String($event) })"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.mediaSourceSize')">
-            <USelect
-              :model-value="mediaSourceSize"
-              :items="sourceSizeItems"
-              @update:model-value="setMediaSourceSize"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.mediaDisplaySize')">
-            <USelect
-              :model-value="mediaDisplaySize"
-              :items="displaySizeItems"
-              @update:model-value="setMediaDisplaySize"
-            />
-          </UFormField>
-          <div v-if="mediaDisplaySize === 'custom-px'" class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.mediaWidthPx')">
-              <UInput type="number" :model-value="(attrs.mediaDisplayPx as number | null) ?? (attrs.mediaWidth as number | null) ?? undefined" @update:model-value="setMediaWidth" />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.mediaHeightPx')">
-              <UInput type="number" :model-value="(attrs.mediaHeight as number | null) ?? undefined" @update:model-value="setMediaHeight" />
-            </UFormField>
-          </div>
-          <UFormField v-if="mediaDisplaySize === 'custom-percent'" :label="t('admin.editor.settingsPanel.mediaSizePercent')">
-            <div class="space-y-2">
-              <input
-                type="range"
-                min="1"
-                max="200"
-                :value="Number(attrs.mediaDisplayPercent ?? attrs.mediaWidthPercent ?? 100)"
-                class="w-full"
-                @input="setMediaDisplayPercent(($event.target as HTMLInputElement).value)"
-              >
-              <UInput
-                type="number"
-                min="1"
-                max="200"
-                :model-value="(attrs.mediaDisplayPercent as number | null) ?? (attrs.mediaWidthPercent as number | null) ?? 100"
-                @update:model-value="setMediaDisplayPercent"
-              />
-            </div>
-          </UFormField>
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.lockAspect !== false"
-              :label="t('admin.editor.settingsPanel.maintainAspectRatio')"
-              @update:model-value="setMediaLockAspect"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.mediaTextRatio')">
-            <USelect
-              :model-value="String(Math.round(Number(attrs.ratio ?? 0.5) * 100))"
-              :items="ratioPresetItems"
-              @update:model-value="setMediaRatioPreset"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.columnSplit', { left: Math.round(Number(attrs.ratio ?? 0.5) * 100), right: 100 - Math.round(Number(attrs.ratio ?? 0.5) * 100) })">
-            <input
-              type="range"
-              min="15"
-              max="85"
-              :value="Math.round(Number(attrs.ratio ?? 0.5) * 100)"
-              class="w-full"
-              @input="updateAttrs({ ratio: Number(($event.target as HTMLInputElement).value) / 100 })"
-            >
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'filesBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.files') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.blockWidth')">
-            <USelect
-              :model-value="String(attrs.blockWidth ?? 'content')"
-              :items="blockWidthItems"
-              @update:model-value="updateAttrs({ blockWidth: String($event) })"
-            />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'codeBlock'" open class="code-settings-panel rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.code') }}</summary>
-        <div class="mt-3 space-y-3" data-code-settings>
-          <UFormField :label="t('admin.editor.settingsPanel.fileNameOptional')" class="code-settings-field">
-            <UInput class="w-full" :model-value="String(attrs.fileName ?? '')" placeholder="app.ts" @update:model-value="setCodeFileName" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.language')" class="code-settings-field">
-            <USelect class="w-full" :model-value="String(attrs.language ?? 'text')" :items="languageItems" @update:model-value="setCodeLanguage" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.theme')" class="code-settings-field">
-            <USelect class="w-full" :model-value="String(attrs.theme ?? 'github-dark')" :items="themeItems" @update:model-value="setCodeTheme" />
-          </UFormField>
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.lineNumbers !== false"
-              :label="t('admin.editor.settingsPanel.showLineNumbers')"
-              @update:model-value="setCodeLineNumbers"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.highlightedLines')" class="code-settings-field">
-            <UInput
-              class="w-full"
-              :model-value="String(attrs.lineHighlights ?? '')"
-              placeholder="10, 20-25, 31"
-              @update:model-value="setCodeLineHighlights"
-            />
-          </UFormField>
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.showTotalLines === true"
-              :label="t('admin.editor.settingsPanel.showTotalLines')"
-              @update:model-value="setCodeShowTotalLines"
-            />
-          </UFormField>
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.wrap !== false"
-              :label="t('admin.editor.settingsPanel.wrapLongLines')"
-              @update:model-value="setCodeWrap"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.zoom', { value: Math.round(Number(attrs.zoom ?? 1) * 100) })">
-            <input
-              type="range"
-              min="70"
-              max="200"
-              step="5"
-              :value="Math.round(Number(attrs.zoom ?? 1) * 100)"
-              class="w-full"
-              @input="setCodeZoom(($event.target as HTMLInputElement).value)"
-            >
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'blockMath'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.formula') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.alignment')">
-            <USelect class="w-full" :model-value="String(attrs.align ?? 'center')" :items="alignmentItems" @update:model-value="setBlockMathAlign" />
-          </UFormField>
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.paddingX')">
-              <UInput type="number" min="0" max="96" :model-value="Number(attrs.paddingX ?? 16)" @update:model-value="setBlockMathPaddingX" />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.paddingY')">
-              <UInput type="number" min="0" max="96" :model-value="Number(attrs.paddingY ?? 16)" @update:model-value="setBlockMathPaddingY" />
-            </UFormField>
-          </div>
-          <UFormField :label="t('admin.editor.settingsPanel.fontFamily')">
-            <USelect class="w-full" :model-value="String(attrs.fontFamily ?? 'katex')" :items="blockMathFontFamilyItems" @update:model-value="setBlockMathFontFamily" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.fontSizeScale', { value: Number(attrs.fontSize ?? 1.15).toFixed(2) })">
-            <input
-              type="range"
-              min="75"
-              max="250"
-              step="5"
-              :value="Math.round(Number(attrs.fontSize ?? 1.15) * 100)"
-              class="w-full"
-              @input="setBlockMathFontSize(($event.target as HTMLInputElement).value)"
-            >
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'columnsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.columns') }}</summary>
-        <div class="mt-3 space-y-4">
-          <div class="grid grid-cols-2 gap-3">
-            <UFormField :label="t('admin.editor.settingsPanel.columnCount')" class="min-w-0">
-              <USelect
-                :model-value="String(columnsCount)"
-                :items="columnCountItems"
-                class="w-full min-w-0"
-                @update:model-value="setColumnsCount"
-              />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.layout')" class="min-w-0">
-              <USelect
-                :model-value="columnsProportions"
-                :items="columnProportionItems"
-                class="w-full min-w-0"
-                @update:model-value="setColumnsProportions"
-              />
-            </UFormField>
-          </div>
-
-          <UFormField>
-            <UCheckbox
-              :model-value="attrs.showHeaders !== false"
-              :label="t('admin.editor.settingsPanel.showHeaders')"
-              @update:model-value="setColumnsShowHeaders"
-            />
-          </UFormField>
-
-          <div class="space-y-2 rounded-md border border-stone-200 bg-stone-50 p-2">
-            <div
-              v-for="column in columnItems"
-              :key="column.index"
-              class="rounded border border-stone-200 bg-white p-2"
-              :class="[
-                draggedColumnIndex === column.index ? 'opacity-60' : '',
-                dragOverColumnIndex === column.index ? 'ring-2 ring-teal-300 ring-offset-1' : ''
-              ]"
-              :draggable="columnItems.length > 1"
-              @dragstart="onColumnCardDragStart($event, column.index)"
-              @dragover.prevent="onColumnCardDragOver(column.index)"
-              @drop.prevent="onColumnCardDrop(column.index)"
-              @dragend="onColumnCardDragEnd"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2 text-xs font-medium text-stone-600">
-                  <UIcon name="i-lucide-grip-vertical" class="size-4 text-stone-400" />
-                  <span>{{ t('admin.editor.settingsPanel.columnLabel', { index: column.index + 1, percent: columnPercentageLabel(column.index) }) }}</span>
-                </div>
-                <UButton
-                  v-if="columnsCount > 2"
-                  type="button"
-                  icon="i-lucide-trash"
-                  size="sm"
-                  color="error"
-                  variant="ghost"
-                  @click="removeColumn(column.index)"
-                >
-                  {{ t('admin.editor.settingsPanel.remove') }}
-                </UButton>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-2">
-            <UButton
-              v-if="columnsCount < 6"
-              type="button"
-              icon="i-lucide-plus"
-              size="sm"
-              variant="soft"
-              color="neutral"
-              @click="addColumn"
-            >
-              {{ t('admin.editor.settingsPanel.addColumn') }}
-            </UButton>
-          </div>
-
-          <div class="space-y-2">
-            <UFormField :label="t('admin.editor.settingsPanel.gapBetweenColumns')">
-              <UInput
-                :model-value="String(attrs.columnGap ?? '1rem')"
-                placeholder="1rem"
-                size="sm"
-                @update:model-value="updateAttrs({ columnGap: String($event) })"
-              />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.marginAboveBlock')">
-              <UInput
-                :model-value="String(attrs.marginTop ?? '1rem')"
-                placeholder="1rem"
-                size="sm"
-                @update:model-value="updateAttrs({ marginTop: String($event) })"
-              />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.marginBelowBlock')">
-              <UInput
-                :model-value="String(attrs.marginBottom ?? '1rem')"
-                placeholder="1rem"
-                size="sm"
-                @update:model-value="updateAttrs({ marginBottom: String($event) })"
-              />
-            </UFormField>
-          </div>
-
-          <UFormField :label="t('admin.editor.settingsPanel.wholeBlockWidth')">
-            <USelect
-              :model-value="String(attrs.blockWidth ?? 'content')"
-              :items="blockWidthItems"
-              @update:model-value="updateAttrs({ blockWidth: String($event) })"
-            />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'tabsBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.tabs') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.orientation')">
-            <USelect
-              :model-value="String(attrs.orientation ?? 'horizontal')"
-              :items="tabOrientationItems"
-              @update:model-value="setTabsOrientation"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.tabStyle')">
-            <USelect
-              :model-value="String(attrs.tabStyle ?? 'underline')"
-              :items="tabStyleItems"
-              @update:model-value="setTabsStyle"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.blockWidth')">
-            <USelect
-              :model-value="String(attrs.blockWidth ?? 'content')"
-              :items="blockWidthItems"
-              @update:model-value="updateAttrs({ blockWidth: String($event) })"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.defaultTab')">
-            <USelect
-              :model-value="String(tabsActiveIndex)"
-              :items="tabDefaultItems"
-              @update:model-value="setTabsActiveIndex"
-            />
-          </UFormField>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">{{ t('admin.editor.settingsPanel.tabLabels') }}</div>
-              <div class="flex gap-1.5">
-                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="tabPanels.length >= 6" @click="addTabPanel">{{ t('admin.editor.settingsPanel.add') }}</UButton>
-                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="tabPanels.length <= 2" @click="removeTabPanel">{{ t('admin.editor.settingsPanel.remove') }}</UButton>
-              </div>
-            </div>
-            <UFormField v-for="tab in tabPanels" :key="tab.index" :label="t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 })">
-              <UInput
-                :model-value="String(tab.attrs.title ?? t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 }))"
-                :placeholder="t('admin.editor.settingsPanel.tabTitlePlaceholder')"
-                @update:model-value="setTabTitle(tab.index, $event)"
-              />
-            </UFormField>
-          </div>
-        </div>
-      </details>
-
-      <DialogueSettings v-if="blockName === 'dialogueBlock'" :editor="editor" :attrs="attrs" :pos="selectedBlockNode?.pos ?? null" @update="updateAttrs" />
-
-      <details v-if="blockName === 'accordionBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.accordion') }}</summary>
-        <div class="mt-3 space-y-3">
-          <div class="space-y-2">
-            <UFormField>
-              <UCheckbox
-                :model-value="attrs.singleOpen !== false"
-                :label="t('admin.editor.settingsPanel.onlyOnePane')"
-                @update:model-value="setAccordionSingleOpen"
-              />
-            </UFormField>
-            <UFormField>
-              <UCheckbox
-                :model-value="attrs.startCollapsed === true"
-                :label="t('admin.editor.settingsPanel.startCollapsed')"
-                @update:model-value="setAccordionStartCollapsed"
-              />
-            </UFormField>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.columns')">
-              <USelect
-                :model-value="String(attrs.columns ?? 1)"
-                :items="accordionColumnItems"
-                @update:model-value="setAccordionColumns"
-              />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.blockWidth')">
-              <USelect
-                :model-value="String(attrs.blockWidth ?? 'content')"
-                :items="blockWidthItems"
-                @update:model-value="setAccordionBlockWidth"
-              />
-            </UFormField>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.paneStyle')">
-              <USelect
-                :model-value="String(attrs.paneStyle ?? 'minimal')"
-                :items="accordionStyleItems"
-                @update:model-value="setAccordionPaneStyle"
-              />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.triggerIcon')">
-              <USelect
-                :model-value="String(attrs.triggerIcon ?? 'chevron')"
-                :items="accordionIconItems"
-                @update:model-value="setAccordionTriggerIcon"
-              />
-            </UFormField>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.marginAbove')">
-              <UInput
-                :model-value="String(attrs.marginTop ?? '1rem')"
-                placeholder="1rem"
-                size="sm"
-                @update:model-value="setAccordionMarginTop"
-              />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.marginBelow')">
-              <UInput
-                :model-value="String(attrs.marginBottom ?? '1rem')"
-                placeholder="1rem"
-                size="sm"
-                @update:model-value="setAccordionMarginBottom"
-              />
-            </UFormField>
-          </div>
-
-          <div class="space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-medium uppercase tracking-wider text-stone-400">{{ t('admin.editor.settingsPanel.panes') }}</div>
-              <div class="flex gap-1.5">
-                <UButton type="button" icon="i-lucide-plus" size="xs" variant="soft" color="neutral" :disabled="accordionPanes.length >= 12" @click="addAccordionPane">{{ t('admin.editor.settingsPanel.add') }}</UButton>
-                <UButton type="button" icon="i-lucide-minus" size="xs" variant="ghost" color="neutral" :disabled="accordionPanes.length <= 1" @click="removeAccordionPane(accordionPanes.length - 1)">{{ t('admin.editor.settingsPanel.remove') }}</UButton>
-              </div>
-            </div>
-
-            <div
-              v-for="pane in accordionPanes"
-              :key="pane.index"
-              class="space-y-2 rounded-md border border-stone-200 bg-stone-50 p-2"
-            >
-              <div class="flex items-center gap-2">
-                <div class="min-w-0 flex-1 truncate text-xs font-medium text-stone-700">{{ String(pane.attrs.title || t('admin.editor.settingsPanel.accordionPaneN', { index: pane.index + 1 })) }}</div>
-                <UCheckbox
-                  :model-value="accordionPaneDefaultOpen(pane.index)"
-                  :label="undefined"
-                  :aria-label="t('admin.editor.settingsPanel.openPaneDefault', { index: pane.index + 1 })"
-                  :disabled="attrs.startCollapsed === true"
-                  :title="t('admin.editor.settingsPanel.openByDefault')"
-                  class="shrink-0"
-                  @update:model-value="setAccordionPaneDefaultOpen(pane.index, $event)"
-                />
-                <UButton
-                  v-if="accordionPanes.length > 1"
-                  type="button"
-                  icon="i-lucide-trash"
-                  size="xs"
-                  color="error"
-                  variant="ghost"
-                  :aria-label="t('admin.editor.settingsPanel.removePane', { index: pane.index + 1 })"
-                  @click="removeAccordionPane(pane.index)"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'blockquote'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.quote') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.style')">
-            <USelect
-              :model-value="String(attrs.style ?? 'bar')"
-              :items="quoteStyleItems"
-              @update:model-value="updateAttrs({ style: String($event) })"
-            />
-          </UFormField>
-
-          <UFormField :label="t('admin.editor.settingsPanel.themeColor')">
-            <div class="flex items-center gap-2">
-              <input
-                type="color"
-                :value="String(attrs.theme ?? DEFAULT_QUOTE_THEME)"
-                class="h-10 w-16 rounded border border-stone-200"
-                @input="updateAttrs({ theme: ($event.target as HTMLInputElement).value })"
-              >
-              <UInput
-                :model-value="String(attrs.theme ?? DEFAULT_QUOTE_THEME)"
-                :placeholder="DEFAULT_QUOTE_THEME"
-                class="flex-1"
-                @update:model-value="updateAttrs({ theme: String($event) })"
-              />
-            </div>
-          </UFormField>
-
-          <div class="border-t border-stone-200 pt-3">
-            <div class="mb-2 text-xs font-semibold text-stone-700">{{ t('admin.editor.settingsPanel.typography') }}</div>
-
-            <UFormField :label="t('admin.editor.settingsPanel.fontFamily')">
-              <USelect
-                :model-value="String(attrs.fontFamily ?? 'sans')"
-                :items="fontFamilyItems"
-                @update:model-value="updateAttrs({ fontFamily: String($event) })"
-              />
-            </UFormField>
-
-            <UFormField :label="t('admin.editor.settingsPanel.fontSize')">
-              <div class="flex gap-2">
-                <UInput
-                  type="number"
-                  min="0.5"
-                  step="0.1"
-                  :model-value="parseFontSize(String(attrs.fontSize ?? '1rem'))"
-                  placeholder="1"
-                  class="w-20"
-                  @update:model-value="updateAttrs({ fontSize: String($event) + 'rem' })"
-                />
-                <span class="flex items-center text-sm text-stone-500">rem</span>
-              </div>
-            </UFormField>
-
-            <UFormField :label="t('admin.editor.settingsPanel.textColor')">
-              <div class="flex items-center gap-2">
-                <input
-                  type="color"
-                  :value="String(attrs.fontColor ?? DEFAULT_QUOTE_FONT_COLOR)"
-                  class="h-10 w-16 rounded border border-stone-200"
-                  @input="updateAttrs({ fontColor: ($event.target as HTMLInputElement).value })"
-                >
-                <UInput
-                  :model-value="String(attrs.fontColor ?? DEFAULT_QUOTE_FONT_COLOR)"
-                  :placeholder="DEFAULT_QUOTE_FONT_COLOR"
-                  class="flex-1"
-                  @update:model-value="updateAttrs({ fontColor: String($event) })"
-                />
-              </div>
-            </UFormField>
-
-            <UFormField :label="t('admin.editor.settingsPanel.backgroundColorOptional')">
-              <div class="flex items-center gap-2">
-                <input
-                  type="color"
-                  :value="String(attrs.backgroundColor ?? '#ffffff')"
-                  class="h-10 w-16 rounded border border-stone-200"
-                  @input="updateAttrs({ backgroundColor: ($event.target as HTMLInputElement).value })"
-                >
-                <UInput
-                  :model-value="String(attrs.backgroundColor ?? '')"
-                  :placeholder="t('admin.editor.settingsPanel.emptyTransparent')"
-                  class="flex-1"
-                  @update:model-value="updateAttrs({ backgroundColor: String($event) })"
-                />
-              </div>
-            </UFormField>
-          </div>
-
-          <div class="border-t border-stone-200 pt-3">
-            <div class="mb-2 text-xs font-semibold text-stone-700">{{ t('admin.editor.settingsPanel.sourceAuthor') }}</div>
-
-            <UFormField :label="t('admin.editor.settingsPanel.authorNameOptional')">
-              <UInput
-                :model-value="String(attrs.authorName ?? '')"
-                :placeholder="t('admin.editor.settingsPanel.authorNamePlaceholder')"
-                @update:model-value="updateAttrs({ authorName: String($event) })"
-              />
-            </UFormField>
-
-            <UFormField :label="t('admin.editor.settingsPanel.titleRoleOptional')">
-              <UInput
-                :model-value="String(attrs.authorTitle ?? '')"
-                :placeholder="t('admin.editor.settingsPanel.titleRolePlaceholder')"
-                @update:model-value="updateAttrs({ authorTitle: String($event) })"
-              />
-            </UFormField>
-          </div>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'horizontalRule'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.separator') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.lineStyle')">
-            <USelect
-              :model-value="String(attrs.styleType ?? 'solid')"
-              :items="separatorStyleItems"
-              @update:model-value="setSeparatorStyle"
-            />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.thicknessPx')">
-            <UInput type="number" min="1" max="12" :model-value="Number(attrs.thickness ?? 1)" @update:model-value="setSeparatorThickness" />
-          </UFormField>
-          <UFormField :label="t('admin.editor.settingsPanel.colorPalette')">
-            <div class="grid grid-cols-8 gap-1.5">
-              <button
-                v-for="color in separatorPalette"
-                :key="`sep-${color}`"
-                type="button"
-                class="h-7 rounded border"
-                :style="{ backgroundColor: color, borderColor: color === String(attrs.color ?? DEFAULT_SEPARATOR_COLOR) ? SEPARATOR_SELECTED_BORDER_COLOR : DEFAULT_SEPARATOR_COLOR }"
-                :title="color"
-                @click="setSeparatorColor(color)"
-              />
-            </div>
-          </UFormField>
-          <details class="rounded-md border border-stone-200 p-2">
-            <summary class="cursor-pointer text-xs font-medium text-stone-700">{{ t('admin.editor.settingsPanel.advancedColor') }}</summary>
-            <div class="mt-2 grid grid-cols-[auto,1fr] items-center gap-2">
-              <input type="color" :value="String(attrs.color ?? DEFAULT_SEPARATOR_COLOR)" class="h-9 w-12 rounded border border-stone-200" @input="setSeparatorColor(($event.target as HTMLInputElement).value)">
-              <UInput :model-value="String(attrs.color ?? DEFAULT_SEPARATOR_COLOR)" :placeholder="DEFAULT_SEPARATOR_COLOR" @update:model-value="setSeparatorColorHex" />
-            </div>
-          </details>
-          <UFormField :label="t('admin.editor.settingsPanel.verticalMarginPx')">
-            <UInput type="number" min="0" max="120" :model-value="Number(attrs.marginY ?? 16)" @update:model-value="setSeparatorMargin" />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="footnoteSection" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.footnotes') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.title')">
-            <UInput :model-value="footnoteTitle" @update:model-value="setFootnoteTitle" />
-          </UFormField>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'customHtml'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.customHtml') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UTextarea :model-value="String(attrs.html ?? '')" :rows="8" class="font-mono text-xs" @update:model-value="updateAttrs({ html: String($event) })" />
-        </div>
-      </details>
-
-      <details v-if="blockName === 'diffBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.diff') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.language')">
-            <USelect :model-value="String(attrs.language ?? 'plaintext')" :items="diffLanguageItems" @update:model-value="setDiffLanguage" />
-          </UFormField>
-          <div class="grid grid-cols-2 gap-2">
-            <UFormField :label="t('admin.editor.settingsPanel.oldLabel')">
-              <UInput :model-value="String(attrs.oldLabel ?? t('admin.editor.nodeViews.before'))" @update:model-value="setDiffOldLabel" />
-            </UFormField>
-            <UFormField :label="t('admin.editor.settingsPanel.newLabel')">
-              <UInput :model-value="String(attrs.newLabel ?? t('admin.editor.nodeViews.after'))" @update:model-value="setDiffNewLabel" />
-            </UFormField>
-          </div>
-          <p class="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-900">
-            {{ t('admin.editor.settingsPanel.diffHelp') }}
-          </p>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'mermaid'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.mermaid') }}</summary>
-        <div class="mt-3">
-          <UTextarea :model-value="String(attrs.code ?? '')" :rows="8" @update:model-value="updateAttrs({ code: String($event) })" />
-        </div>
-      </details>
-
-      <details v-if="blockName === 'table'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.table') }}</summary>
-        <div class="mt-3 grid grid-cols-2 gap-2">
-          <UButton type="button" icon="i-lucide-columns-3" size="sm" variant="soft" color="neutral" @click="runTableCommand('addColumnAfter')">{{ t('admin.editor.settingsPanel.addColumn') }}</UButton>
-          <UButton type="button" icon="i-lucide-rows-3" size="sm" variant="soft" color="neutral" @click="runTableCommand('addRowAfter')">{{ t('admin.editor.settingsPanel.addRow') }}</UButton>
-          <UButton type="button" icon="i-lucide-trash-2" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteColumn')">{{ t('admin.editor.settingsPanel.deleteColumn') }}</UButton>
-          <UButton type="button" icon="i-lucide-trash" size="sm" variant="ghost" color="error" @click="runTableCommand('deleteRow')">{{ t('admin.editor.settingsPanel.deleteRow') }}</UButton>
-        </div>
-      </details>
-
-      <details v-if="blockName === 'annotationBlock'" open class="rounded-md border border-stone-200 bg-white p-3">
-        <summary class="cursor-pointer text-sm font-medium text-stone-900">{{ t('admin.editor.settingsPanel.annotation') }}</summary>
-        <div class="mt-3 space-y-3">
-          <UFormField :label="t('admin.editor.settingsPanel.defaultLanguage')">
-            <USelect
-              :model-value="String(attrs.lang ?? 'cmn')"
-              :items="annotationLangItems"
-              @update:model-value="updateAttrs({ lang: String($event) })"
-            />
-          </UFormField>
-          <p class="rounded-md border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-900">
-            {{ t('admin.editor.settingsPanel.annotationHelp') }}
-          </p>
-        </div>
-      </details>
     </template>
   </div>
 </template>
-
 <script setup lang="ts">
 import type { Editor } from '@tiptap/core'
-import DialogueSettings from './DialogueSettings.vue'
-import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES } from '~/extensions/codeBlockEnhanced'
-import { BLOCK_MATH_FONT_FAMILIES, DEFAULT_BLOCK_MATH_PADDING_X, DEFAULT_BLOCK_MATH_PADDING_Y, normalizeBlockMathFontSize, normalizeBlockMathPadding } from '~/extensions/blockMath'
-import { DEFAULT_QUOTE_FONT_COLOR, DEFAULT_QUOTE_THEME, QUOTE_STYLES, QUOTE_FONT_FAMILIES } from '~/extensions/blockquoteEnhanced'
-import { DEFAULT_SEPARATOR_COLOR, SEPARATOR_PALETTE, SEPARATOR_SELECTED_BORDER_COLOR } from '~/extensions/separator'
 import type { JsonContent } from '~/types/content'
+import DialogueSettings from './DialogueSettings.vue'
+import { CODE_BLOCK_LANGUAGES } from '~/extensions/codeBlockEnhanced'
 import { DIFF_BLOCK_LANGUAGES, normalizeDiffLanguage } from '~/utils/diffBlock'
+import { normalizeBlockPresentation, layoutPreset, imagePreset } from '~/utils/blockPresentation'
 
-const props = defineProps<{
-  editor: Editor | null
-}>()
-
+const props = defineProps<{ editor: Editor | null }>()
 const { t } = useI18n()
 const editorStore = useEditorStore()
-const blockRegistry = useBlockRegistry()
-
+const registry = useBlockRegistry()
 const blockName = computed(() => editorStore.selectedBlockType)
 const attrs = computed(() => editorStore.selectedBlockAttrs)
-const blockDefinition = computed(() => blockName.value ? blockRegistry.getBlockDefinition(blockName.value) : null)
-
-const headingLevelItems = computed(() => [1, 2, 3, 4, 5, 6].map((level) => ({ label: t('admin.editor.settingsPanel.headingN', { level }), value: String(level) })))
-
-const languageItems = CODE_BLOCK_LANGUAGES.map((l) => ({ label: l.label, value: l.value as string }))
-const themeItems = CODE_BLOCK_THEMES.map((t) => ({ label: t.label, value: t.value as string }))
-const blockMathFontFamilyItems = BLOCK_MATH_FONT_FAMILIES.map((family) => ({ label: family.label, value: family.value as string }))
-const diffLanguageItems = DIFF_BLOCK_LANGUAGES.map((language) => ({ label: language.label, value: language.value as string }))
-const titlePositionItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.none'), value: 'none' },
-  { label: t('admin.editor.settingsPanel.top'), value: 'top' },
-  { label: t('admin.editor.settingsPanel.bottom'), value: 'bottom' }
-])
-const alignmentItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.left'), value: 'left' },
-  { label: t('admin.editor.settingsPanel.center'), value: 'center' },
-  { label: t('admin.editor.settingsPanel.right'), value: 'right' }
-])
-const mediaPositionItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.left'), value: 'left' },
-  { label: t('admin.editor.settingsPanel.right'), value: 'right' }
-])
-const sourceSizeItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.thumbnail'), value: 'thumbnail' },
-  { label: t('admin.editor.settingsPanel.medium'), value: 'medium' },
-  { label: t('admin.editor.settingsPanel.large'), value: 'large' },
-  { label: t('admin.editor.settingsPanel.fullOriginal'), value: 'full' }
-])
-const displaySizeItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.naturalAuto'), value: 'natural' },
-  { label: t('admin.editor.settingsPanel.fillContainer'), value: 'fill-container' },
-  { label: t('admin.editor.settingsPanel.customPercent'), value: 'custom-percent' },
-  { label: t('admin.editor.settingsPanel.customPx'), value: 'custom-px' }
-])
-const blockWidthItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.content'), value: 'content' },
-  { label: t('admin.editor.settingsPanel.wide'), value: 'wide' },
-  { label: t('admin.editor.settingsPanel.fullBleed'), value: 'full-bleed' }
-])
-const columnCountItems = computed(() => [2, 3, 4, 5, 6].map((count) => ({ label: t('admin.editor.settingsPanel.nColumns', { count }), value: String(count) })))
-const columnProportionItems = computed(() => {
-  const count = columnsCount.value
-  const items: Array<{ label: string, value: string }> = []
-
-  if (count === 2) {
-    items.push(
-      { label: t('admin.editor.settingsPanel.equalHalves'), value: '1-1' },
-      { label: t('admin.editor.settingsPanel.oneThirdTwoThirds'), value: '1-2' },
-      { label: t('admin.editor.settingsPanel.twoThirdsOneThird'), value: '2-1' }
-    )
-  } else if (count === 3) {
-    items.push(
-      { label: t('admin.editor.settingsPanel.equalThirds'), value: '1-1-1' },
-      { label: t('admin.editor.settingsPanel.narrowNarrowWide'), value: '1-1-2' },
-      { label: t('admin.editor.settingsPanel.narrowWideNarrow'), value: '1-2-1' },
-      { label: t('admin.editor.settingsPanel.wideNarrowNarrow'), value: '2-1-1' }
-    )
-  } else if (count === 4) {
-    items.push({ label: t('admin.editor.settingsPanel.equalQuarters'), value: '1-1-1-1' })
-  } else if (count === 5) {
-    items.push({ label: t('admin.editor.settingsPanel.equalFifths'), value: '1-1-1-1-1' })
-  } else if (count === 6) {
-    items.push({ label: t('admin.editor.settingsPanel.equalSixths'), value: '1-1-1-1-1-1' })
-  } else {
-    items.push({ label: t('admin.editor.settingsPanel.evenDistribution'), value: '1-1' })
-  }
-
-  items.push({ label: t('admin.editor.settingsPanel.manual'), value: 'manual' })
-  return items
-})
-const tabOrientationItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.horizontal'), value: 'horizontal' },
-  { label: t('admin.editor.settingsPanel.vertical'), value: 'vertical' }
-])
-const tabStyleItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.underline'), value: 'underline' },
-  { label: t('admin.editor.settingsPanel.pills'), value: 'pills' },
-  { label: t('admin.editor.settingsPanel.enclosed'), value: 'enclosed' }
-])
-const accordionColumnItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.oneColumn'), value: '1' },
-  { label: t('admin.editor.settingsPanel.nColumns', { count: 2 }), value: '2' },
-  { label: t('admin.editor.settingsPanel.nColumns', { count: 3 }), value: '3' }
-])
-const accordionStyleItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.minimal'), value: 'minimal' },
-  { label: t('admin.editor.settingsPanel.dark'), value: 'dark' },
-  { label: t('admin.editor.settingsPanel.colored'), value: 'colored' },
-  { label: t('admin.editor.settingsPanel.underline'), value: 'underline' },
-  { label: t('admin.editor.settingsPanel.highlighted'), value: 'highlighted' }
-])
-const accordionIconItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.chevron'), value: 'chevron' },
-  { label: t('admin.editor.settingsPanel.plusMinus'), value: 'plus-minus' },
-  { label: t('admin.editor.settingsPanel.arrow'), value: 'arrow' }
-])
-const ratioPresetItems = [
-  { label: '30 / 70', value: '30' },
-  { label: '40 / 60', value: '40' },
-  { label: '50 / 50', value: '50' },
-  { label: '60 / 40', value: '60' },
-  { label: '70 / 30', value: '70' }
-]
-
-const separatorPalette = [...SEPARATOR_PALETTE]
-
-const quoteStyleItems = QUOTE_STYLES.map((s) => ({ label: s.label, value: s.value as string }))
-const fontFamilyItems = QUOTE_FONT_FAMILIES.map((f) => ({ label: f.label, value: f.value as string }))
-
-const separatorStyleItems = computed(() => [
-  { label: t('admin.editor.settingsPanel.solid'), value: 'solid' },
-  { label: t('admin.editor.settingsPanel.dashed'), value: 'dashed' },
-  { label: t('admin.editor.settingsPanel.dotted'), value: 'dotted' }
-])
-
-const annotationLangItems = computed(() => [
-  { label: t('admin.editor.nodeViews.mandarinPinyin'), value: 'cmn' },
-  { label: t('admin.editor.nodeViews.cantoneseJyutping'), value: 'yue' },
-  { label: t('admin.editor.nodeViews.japaneseFurigana'), value: 'jpn' }
-])
-
-const parseFontSize = (size: string) => {
-  const match = size.match(/^([\d.]+)rem$/)
-  return match ? match[1] : '1'
-}
-
-const imageSourceSize = computed(() => String(attrs.value.sourceSize ?? 'full'))
-const imageDisplaySize = computed(() => {
-  const explicit = String(attrs.value.displaySize ?? '')
-  if (explicit) {
-    return explicit
-  }
-
-  const percent = Number(attrs.value.widthPercent ?? 0)
-  if (Number.isFinite(percent) && percent > 0 && percent !== 100) {
-    return 'custom-percent'
-  }
-
-  const width = numberOrNull(attrs.value.width)
-  return width ? 'custom-px' : 'fill-container'
-})
-
-const mediaSourceSize = computed(() => String(attrs.value.mediaSourceSize ?? 'full'))
-const mediaDisplaySize = computed(() => {
-  const explicit = String(attrs.value.mediaDisplaySize ?? '')
-  if (explicit) {
-    return explicit
-  }
-
-  const percent = Number(attrs.value.mediaWidthPercent ?? 0)
-  if (Number.isFinite(percent) && percent > 0 && percent !== 100) {
-    return 'custom-percent'
-  }
-
-  const width = numberOrNull(attrs.value.mediaWidth)
-  return width ? 'custom-px' : 'fill-container'
-})
-
-const selectedBlockNode = computed(() => {
-  const activeEditor = props.editor
-  const activeBlockName = blockName.value
-  if (!activeEditor || !activeBlockName) return null
-
-  const pos = resolveSelectedBlockPos(activeEditor, activeBlockName, editorStore.selectedBlockPos)
-  if (pos === null) return null
-
-  const node = activeEditor.state.doc.nodeAt(pos)
-  if (!node || node.type.name !== activeBlockName) return null
-
-
-  return { pos, node }
-})
-
-const columnItems = computed(() => childSettings('columnItem'))
-const columnsCount = computed(() => Math.max(2, Math.min(6, columnItems.value.length || Number(attrs.value.columns ?? 2) || 2)))
-const columnsCustomPercentages = computed(() => parseCustomPercentages(String(attrs.value.customPercentages ?? ''), columnsCount.value))
-const columnsPercentages = computed(() => {
-  if (columnsCustomPercentages.value.length === columnsCount.value) {
-    return columnsCustomPercentages.value
-  }
-  return proportionsToPercentages(String(attrs.value.proportions ?? ''), columnsCount.value)
-})
-const columnsProportions = computed(() => {
-  if (columnsCustomPercentages.value.length === columnsCount.value) {
-    return 'manual'
-  }
-  return normalizeColumnProportions(String(attrs.value.proportions ?? ''), columnsCount.value)
-})
-const draggedColumnIndex = ref<number | null>(null)
-const dragOverColumnIndex = ref<number | null>(null)
-const tabPanels = computed(() => childSettings('tabPanel'))
-const tabsActiveIndex = computed(() => normalizeTabsActiveIndex(Number(attrs.value.activeIndex ?? 0), tabPanels.value.length))
-const tabDefaultItems = computed(() => tabPanels.value.map((tab) => ({
-  label: String(tab.attrs.title ?? t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 })).trim() || t('admin.editor.settingsPanel.tabN', { index: tab.index + 1 }),
-  value: String(tab.index)
-})))
-const accordionPanes = computed(() => childSettings('accordionPane'))
-const accordionDefaultOpenIndices = computed(() => normalizeAccordionDefaultOpenIndices(
-  attrs.value.defaultOpenIndices,
-  accordionPanes.value.length,
-  attrs.value.singleOpen !== false,
-  attrs.value.startCollapsed === true,
-  accordionPanes.value.map((pane) => pane.attrs.defaultOpen === true)
-))
-
-const footnoteSection = computed(() => {
-  const activeEditor = props.editor
-  const selectedPos = editorStore.selectedBlockPos
-  if (!activeEditor || selectedPos === null) return null
-
-  const topLevel: Array<{ pos: number, node: any }> = []
-  activeEditor.state.doc.forEach((node, pos) => {
-    topLevel.push({ pos, node })
-  })
-
-  for (let i = 1; i < topLevel.length; i += 1) {
-    const heading = topLevel[i - 1]
-    const list = topLevel[i]
-    if (!heading || !list) continue
-    if (heading.node.type.name !== 'paragraph' || list.node.type.name !== 'orderedList') continue
-    if (selectedPos !== heading.pos && selectedPos !== list.pos) continue
-    return { headingPos: heading.pos, headingNode: heading.node, listPos: list.pos }
-  }
-
-  return null
-})
-
-const footnoteTitle = computed(() => {
-  return footnoteSection.value?.headingNode?.textContent?.trim() || t('admin.editor.settingsPanel.footnotes')
-})
-
-function updateAttrs(nextAttrs: Record<string, unknown>) {
-  const activeEditor = props.editor
-  const activeBlockName = blockName.value
-
-  if (!activeEditor || !activeBlockName) {
-    return
-  }
-
-  const state = activeEditor.state
-  const targetPos = resolveSelectedBlockPos(activeEditor, activeBlockName, editorStore.selectedBlockPos)
-
-  if (targetPos !== null) {
-    const node = state.doc.nodeAt(targetPos)
-    if (!node || node.type.name !== activeBlockName) {
-      return
-    }
-
-    const mergedAttrs = { ...node.attrs, ...nextAttrs }
-    const tr = state.tr.setNodeMarkup(targetPos, undefined, mergedAttrs)
-    tr.setMeta('addToHistory', true)
-    activeEditor.view.dispatch(tr)
-    editorStore.mergeSelectedBlockAttrs(nextAttrs)
-    return
-  }
-
-  const updated = activeEditor.chain().updateAttributes(activeBlockName, nextAttrs).run()
-  if (updated) {
-    editorStore.mergeSelectedBlockAttrs(nextAttrs)
-  }
-}
-
-function resolveSelectedBlockPos(editor: Editor, blockType: string, storePos: number | null) {
-  const candidates = new Set<number>()
-
-  if (typeof storePos === 'number') {
-    candidates.add(Math.max(0, Math.min(storePos, editor.state.doc.content.size)))
-  }
-
-  const selectionPos = topLevelSelectionPos(editor)
-  if (selectionPos !== null) {
-    candidates.add(selectionPos)
-  }
-
-  const idPos = selectedBlockIdPos()
-  if (idPos !== null) {
-    candidates.add(idPos)
-  }
-
+const blockDefinition = computed(() => blockName.value ? registry.getBlockDefinition(blockName.value) : null)
+function label(key: string) { return t(`admin.editor.settingsPanel.${key}`) }
+const selected = computed(() => {
+  void attrs.value
+  const ed = props.editor
+  if (!ed || !blockName.value) return null
+  const candidates = [editorStore.selectedBlockPos]
+  const { $from } = ed.state.selection
+  for (let depth = $from.depth; depth > 0; depth--) candidates.push($from.before(depth))
   for (const pos of candidates) {
-    const node = editor.state.doc.nodeAt(pos)
-    if (node?.type.name === blockType) {
-      return pos
-    }
+    if (typeof pos !== 'number') continue
+    const node = ed.state.doc.nodeAt(pos)
+    if (node?.type.name === blockName.value) return { pos, node }
   }
-
   return null
-}
-
-function selectedBlockIdPos() {
-  const id = editorStore.selectedBlockId
-  if (!id || typeof id !== 'string') {
-    return null
-  }
-
-  const match = id.match(/:(\d+)$/)
-  if (!match) {
-    return null
-  }
-
-  return Number(match[1])
-}
-
-function topLevelSelectionPos(editor: Editor) {
-  const { $from } = editor.state.selection
-
-  for (let depth = $from.depth; depth > 0; depth -= 1) {
-    if ($from.node(depth - 1).type.name === 'doc') {
-      return $from.before(depth)
-    }
-  }
-
-  return null
-}
-
-function childSettings(typeName: string) {
-  const selected = selectedBlockNode.value
-  if (!selected) return []
-
-  const children: Array<{ index: number, attrs: Record<string, unknown> }> = []
-  selected.node.forEach((child: any, _offset: number, index: number) => {
-    if (child.type.name === typeName) {
-      children.push({ index, attrs: { ...child.attrs } })
-    }
-  })
-
-  return children
-}
-
-function selectedBlockJson(blockType: string) {
-  const selected = selectedBlockNode.value
-  if (!selected || selected.node.type.name !== blockType) return null
-  return selected.node.toJSON() as JsonContent
-}
-
-function replaceSelectedBlockJson(blockType: string, nextJson: JsonContent) {
-  const activeEditor = props.editor
-  const selected = selectedBlockNode.value
-  if (!activeEditor || !selected || selected.node.type.name !== blockType) return
-
-  const replacement = activeEditor.schema.nodeFromJSON(nextJson)
-  const tr = activeEditor.state.tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize, replacement)
-  tr.setMeta('addToHistory', true)
-  activeEditor.view.dispatch(tr)
-  editorStore.selectBlock({
-    id: `${blockType}:${selected.pos}`,
-    type: blockType,
-    attrs: nextJson.attrs ?? {},
-    pos: selected.pos
-  })
-}
-
-function updateNestedChildAttrs(blockType: string, childType: string, childIndex: number, nextAttrs: Record<string, unknown>) {
-  const nextJson = selectedBlockJson(blockType)
-  if (!nextJson || !Array.isArray(nextJson.content)) return
-
-  const child = nextJson.content[childIndex]
-  if (!child || child.type !== childType) return
-
-  child.attrs = { ...(child.attrs ?? {}), ...nextAttrs }
-  replaceSelectedBlockJson(blockType, nextJson)
-}
-
-function normalizeColumnProportions(value: string, count: number) {
-  const fallback = Array.from({ length: Math.max(2, Math.min(6, count)) }, () => '1').join('-')
-  const parts = value.split('-').map((part) => Number(part))
-  if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0)) {
-    return fallback
-  }
-
-  return parts.map((part) => Math.max(1, Math.round(part))).join('-')
-}
-
-function parseCustomPercentages(value: string, count: number): number[] {
-  if (!value.trim()) return []
-  const parts = value.split(',').map((part) => Number(part.trim()))
-  if (parts.length !== count || parts.some((part) => !Number.isFinite(part) || part <= 0 || part >= 100)) {
-    return []
-  }
-
-  const total = parts.reduce((sum, part) => sum + part, 0)
-  if (Math.abs(total - 100) > 0.1) {
-    return []
-  }
-
-  return normalizePercentages(parts)
-}
-
-function proportionsToPercentages(value: string, count: number): number[] {
-  const normalized = normalizeColumnProportions(value, count)
-  const weights = normalized.split('-').map((part) => Math.max(1, Number(part) || 1))
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
-  if (!totalWeight) {
-    return normalizePercentages(Array.from({ length: count }, () => 100 / count))
-  }
-  return normalizePercentages(weights.map((weight) => (weight / totalWeight) * 100))
-}
-
-function normalizePercentages(values: number[]): number[] {
-  if (!values.length) return []
-  const rounded = values.map((value) => Math.max(1, Math.min(99, Math.round(value * 100) / 100)))
-  const total = rounded.reduce((sum, value) => sum + value, 0)
-  const adjustment = Math.round((100 - total) * 100) / 100
-  const lastIndex = rounded.length - 1
-  const lastValue = rounded[lastIndex] ?? 0
-  rounded[lastIndex] = Math.round((lastValue + adjustment) * 100) / 100
-  return rounded
-}
-
-function serializePercentages(values: number[]) {
-  return normalizePercentages(values)
-    .map((value) => value.toFixed(2).replace(/\.00$/, ''))
-    .join(',')
-}
-
-function columnPercentageLabel(index: number) {
-  const value = columnsPercentages.value[index] ?? 0
-  if (!Number.isFinite(value)) return '0%'
-  return `${Math.round(value * 10) / 10}%`
-}
-
-function normalizeColumnItems(content: JsonContent[] | undefined, count: number) {
-  const existing = (content ?? []).filter((child) => child.type === 'columnItem')
-  const columns: JsonContent[] = existing.slice(0, count).map((child, index) => ({
-    ...child,
-    attrs: {
-      ...(child.attrs ?? {}),
-      header: String(child.attrs?.header ?? '')
-    },
-    content: child.content?.length ? child.content : defaultColumnItem(index).content
-  }))
-
-  const overflow = existing.slice(count)
-  if (overflow.length && columns.length) {
-    const last = columns[columns.length - 1]!
-    last.content = [
-      ...(last.content ?? []),
-      ...overflow.flatMap((column) => column.content ?? [])
+})
+interface Field { key: string, label: string, fallback?: unknown, items?: Array<{ label: string, value: string }>, boolean?: boolean, multiline?: boolean }
+function options(keys: string[]) { return keys.map(key => ({ label: label(key), value: key })) }
+const imageItems = computed(() => [{ label: label('small'), value: 'small' }, { label: label('medium'), value: 'medium' }, { label: label('fullContentWidth'), value: 'full' }])
+const layoutItems = computed(() => [{ label: label('equal'), value: 'equal' }, ...(blockName.value === 'columnsBlock' && children.value.length !== 2 ? [] : [{ label: label('widerLeft'), value: 'wider-left' }, { label: label('widerRight'), value: 'wider-right' }])])
+const fields = computed<Field[]>(() => {
+  const align = { key: 'align', label: 'alignment', fallback: 'center', items: options(['left', 'center', 'right']) }
+  const width = { key: 'blockWidth', label: 'blockWidth', fallback: 'content', items: [{ label: label('content'), value: 'content' }, { label: label('wide'), value: 'wide' }, { label: label('fullBleed'), value: 'full-bleed' }] }
+  const titlePosition = options(['none', 'top', 'bottom'])
+  switch (blockName.value) {
+    case 'heading': return [{ key: 'level', label: 'headingLevel', fallback: 2, items: [1,2,3,4,5,6].map(n => ({ label: `H${n}`, value: String(n) })) }]
+    case 'image': return [
+      { key: 'src', label: 'sourceUrl' }, { key: 'alt', label: 'altText' }, { key: 'title', label: 'title' },
+      { key: 'titlePosition', label: 'titlePosition', fallback: 'bottom', items: titlePosition },
+      { key: 'sizePreset', label: 'displaySize', fallback: 'full', items: imageItems.value }, align
     ]
+    case 'mediaText': return [
+      { key: 'mediaPosition', label: 'mediaPosition', fallback: 'left', items: options(['left', 'right']) },
+      { key: 'mediaSrc', label: 'mediaUrl' }, { key: 'mediaAlt', label: 'alt' }, { key: 'mediaTitle', label: 'caption' },
+      { key: 'mediaTitlePosition', label: 'captionPosition', fallback: 'bottom', items: titlePosition }, width,
+      { key: 'mediaSizePreset', label: 'displaySize', fallback: 'full', items: imageItems.value },
+      { key: 'layoutPreset', label: 'layout', fallback: 'equal', items: layoutItems.value }
+    ]
+    case 'columnsBlock': return [{ key: 'layoutPreset', label: 'layout', fallback: 'equal', items: layoutItems.value }, width]
+    case 'filesBlock': return [width]
+    case 'codeBlock': return [
+      { key: 'fileName', label: 'fileNameOptional' },
+      { key: 'language', label: 'language', fallback: 'text', items: CODE_BLOCK_LANGUAGES.map(item => ({ ...item })) },
+      { key: 'lineNumbers', label: 'showLineNumbers', fallback: true, boolean: true },
+      { key: 'lineHighlights', label: 'highlightedLines' },
+      { key: 'showTotalLines', label: 'showTotalLines', fallback: false, boolean: true },
+      { key: 'wrap', label: 'wrapLongLines', fallback: true, boolean: true }
+    ]
+    case 'blockMath': return [align]
+    case 'tabsBlock': return [{ key: 'orientation', label: 'orientation', fallback: 'horizontal', items: options(['horizontal', 'vertical']) }, width]
+    case 'accordionBlock': return [
+      { key: 'singleOpen', label: 'onlyOnePane', fallback: true, boolean: true },
+      { key: 'startCollapsed', label: 'startCollapsed', fallback: false, boolean: true },
+      { key: 'columns', label: 'columns', fallback: 1, items: [1,2,3].map(n => ({ label: String(n), value: String(n) })) }, width
+    ]
+    case 'blockquote': return [{ key: 'style', label: 'style', fallback: 'bar', items: [{ label: label('quoteBar'), value: 'bar' }, { label: label('quoteMarks'), value: 'marks' }] }, { key: 'authorName', label: 'authorNameOptional' }, { key: 'authorTitle', label: 'titleRoleOptional' }]
+    case 'horizontalRule': return [{ key: 'styleType', label: 'lineStyle', fallback: 'solid', items: options(['solid', 'dashed', 'dotted']) }]
+    case 'customHtml': return [{ key: 'html', label: 'customHtml', multiline: true }]
+    case 'mermaid': return [{ key: 'code', label: 'mermaid', multiline: true }]
+    case 'diffBlock': return [{ key: 'language', label: 'language', fallback: 'plaintext', items: DIFF_BLOCK_LANGUAGES.map(item => ({ label: item.label, value: item.value })) }, { key: 'oldLabel', label: 'oldLabel' }, { key: 'newLabel', label: 'newLabel' }]
+    case 'annotationBlock': return [{ key: 'lang', label: 'defaultLanguage', fallback: 'cmn', items: [{ label: 'Mandarin', value: 'cmn' }, { label: 'Cantonese', value: 'yue' }, { label: 'Japanese', value: 'jpn' }] }]
+    case 'footnotesBlock': return [{ key: 'title', label: 'title' }]
+    default: return []
   }
-
-  while (columns.length < count) {
-    columns.push(defaultColumnItem(columns.length))
+})
+function setField(field: Field, value: unknown) {
+  const raw = value && typeof value === 'object' && 'value' in value ? (value as { value: unknown }).value : value
+  let next: unknown = field.boolean ? raw === true : String(raw ?? '')
+  if (field.key === 'level' || field.key === 'columns') next = Number(next)
+  if (field.key === 'language' && blockName.value === 'diffBlock') next = normalizeDiffLanguage(next)
+  if (field.key === 'sizePreset' || field.key === 'mediaSizePreset') next = imagePreset(next)
+  if (field.key === 'layoutPreset') next = layoutPreset(next, blockName.value === 'columnsBlock' ? children.value.length : 2)
+  if (field.key === 'mediaAlt') {
+    const items = Array.isArray(attrs.value.mediaItems) ? attrs.value.mediaItems : []
+    updateAttrs({ mediaAlt: next, mediaItems: items.map((item, i) => i === 0 ? { ...item as Record<string, unknown>, alt: next } : item) })
+    return
   }
-
-  return columns
+  updateAttrs({ [field.key]: next })
 }
-
-function defaultColumnItem(_index: number): JsonContent {
-  return {
-    type: 'columnItem',
-    attrs: { header: '' },
-    content: [{ type: 'paragraph' }]
+function updateAttrs(next: Record<string, unknown>) {
+  const ed = props.editor, target = selected.value
+  if (!ed || !target || !ed.isEditable) return
+  const merged = { ...target.node.attrs, ...next }
+  if ('src' in next || 'mediaSrc' in next) {
+    merged.imageSources = null
+    if ('src' in next) { merged.naturalWidth = null; merged.naturalHeight = null }
+    if ('mediaSrc' in next) { merged.mediaNaturalWidth = null; merged.mediaNaturalHeight = null; merged.mediaItems = [] }
   }
+  if (blockName.value === 'accordionBlock') { replaceChildren(children.value, merged); return }
+  const normalized = normalizeBlockPresentation({ type: blockName.value!, attrs: merged }).attrs!
+  ed.view.dispatch(ed.state.tr.setNodeMarkup(target.pos, undefined, normalized))
+  editorStore.mergeSelectedBlockAttrs(normalized)
 }
-
-function defaultTabPanel(_index: number): JsonContent {
-  return {
-    type: 'tabPanel',
-    attrs: { title: '' },
-    content: [{ type: 'paragraph' }]
+const childType = computed(() => blockName.value === 'columnsBlock' ? 'columnItem' : blockName.value === 'tabsBlock' ? 'tabPanel' : blockName.value === 'accordionBlock' ? 'accordionPane' : null)
+const childLabelKey = computed(() => blockName.value === 'columnsBlock' ? 'header' : 'title')
+const children = computed<JsonContent[]>(() => childType.value ? (selected.value?.node.toJSON().content ?? []).filter((child: JsonContent) => child.type === childType.value) : [])
+const minChildren = computed(() => blockName.value === 'accordionBlock' ? 1 : 2)
+const maxChildren = computed(() => blockName.value === 'accordionBlock' ? 12 : 6)
+const openIndices = computed<number[]>(() => attrs.value.startCollapsed === true ? [] : Array.isArray(attrs.value.defaultOpenIndices) ? attrs.value.defaultOpenIndices as number[] : children.value.flatMap((child, i) => child.attrs?.defaultOpen ? [i] : []))
+function replaceChildren(content: JsonContent[], nextAttrs = attrs.value) {
+  const ed = props.editor, target = selected.value
+  if (!ed || !target || !ed.isEditable) return
+  const attributes = { ...nextAttrs }
+  if (blockName.value === 'columnsBlock') { attributes.columns = content.length; attributes.layoutPreset = layoutPreset(attributes.layoutPreset, content.length) }
+  if (blockName.value === 'tabsBlock') attributes.activeIndex = Math.max(0, Math.min(content.length - 1, Number(attributes.activeIndex) || 0))
+  if (blockName.value === 'accordionBlock') {
+    let open = Array.isArray(attributes.defaultOpenIndices) ? attributes.defaultOpenIndices.filter(i => Number.isInteger(i) && Number(i) >= 0 && Number(i) < content.length) as number[] : []
+    if (attributes.startCollapsed === true) open = []
+    else if (attributes.singleOpen !== false) open = open.slice(0, 1)
+    attributes.defaultOpenIndices = open
+    content = content.map((child, i) => ({ ...child, attrs: { ...child.attrs, defaultOpen: open.includes(i) } }))
   }
+  const json = normalizeBlockPresentation({ type: blockName.value!, attrs: attributes, content })
+  const replacement = ed.schema.nodeFromJSON(json)
+  ed.view.dispatch(ed.state.tr.replaceWith(target.pos, target.pos + target.node.nodeSize, replacement))
+  editorStore.selectBlock({ id: `${blockName.value}:${target.pos}`, type: blockName.value!, attrs: json.attrs!, pos: target.pos })
 }
-
-function defaultAccordionPane(index: number): JsonContent {
-  return {
-    type: 'accordionPane',
-    attrs: { title: `Accordion Pane ${index + 1}`, defaultOpen: index === 0 },
-    content: [{ type: 'paragraph' }]
+function setChild(index: number, next: Record<string, unknown>) {
+  const content = children.value.map((child, i) => i === index ? { ...child, attrs: { ...child.attrs, ...next } } : child)
+  replaceChildren(content)
+}
+function setColumnCount(value: unknown) {
+  const count = Math.max(2, Math.min(6, Number(value) || 2)), content = [...children.value]
+  if (content.length > count) {
+    const overflow = content.splice(count)
+    const last = content[count - 1]!
+    content[count - 1] = { ...last, content: [...(last.content ?? []), ...overflow.flatMap(child => child.content ?? [])] }
   }
+  while (content.length < count) content.push(newChild())
+  replaceChildren(content)
 }
-
-function asSelectValue(value: unknown, fallback: string) {
-  if (typeof value === 'string') {
-    return value
+function newChild(): JsonContent { return { type: childType.value!, attrs: { [childLabelKey.value]: '', ...(blockName.value === 'accordionBlock' ? { defaultOpen: false } : {}) }, content: [{ type: 'paragraph' }] } }
+function addChild() { if (children.value.length < maxChildren.value) replaceChildren([...children.value, newChild()]) }
+function removeChild(index: number) {
+  if (children.value.length <= minChildren.value) return
+  const content = [...children.value], [removed] = content.splice(index, 1)
+  // Preserve removed container content in its neighbour, as the original editor did.
+  if (removed?.content) {
+    const receiver = Math.max(0, index - 1), child = content[receiver]!
+    content[receiver] = { ...child, content: [...(child.content ?? []), ...removed.content] }
   }
-
-  if (value && typeof value === 'object') {
-    const maybeValue = (value as { value?: unknown }).value
-    if (typeof maybeValue === 'string') {
-      return maybeValue
-    }
+  const next = { ...attrs.value }
+  if (blockName.value === 'accordionBlock') next.defaultOpenIndices = openIndices.value.filter(i => i !== index).map(i => i > index ? i - 1 : i)
+  if (blockName.value === 'tabsBlock') {
+    const active = Number(next.activeIndex) || 0
+    next.activeIndex = active > index ? active - 1 : active === index ? Math.max(0, index - 1) : active
   }
-
-  return fallback
+  replaceChildren(content, next)
 }
-
-function asInputValue(value: unknown, fallback = '') {
-  if (typeof value === 'string') {
-    return value
+function moveChild(index: number, direction: number) {
+  const destination = index + direction
+  if (destination < 0 || destination >= children.value.length) return
+  const content = [...children.value], [child] = content.splice(index, 1)
+  content.splice(destination, 0, child!)
+  const next = { ...attrs.value }
+  if (blockName.value === 'accordionBlock') next.defaultOpenIndices = content.flatMap((pane, i) => pane.attrs?.defaultOpen ? [i] : [])
+  if (blockName.value === 'tabsBlock') {
+    const active = Number(next.activeIndex) || 0
+    next.activeIndex = active === index ? destination : active === destination ? index : active
   }
-
-  if (value && typeof value === 'object') {
-    const target = (value as { target?: { value?: unknown } }).target
-    if (target && typeof target.value === 'string') {
-      return target.value
-    }
-    const maybeValue = (value as { value?: unknown }).value
-    if (typeof maybeValue === 'string') {
-      return maybeValue
-    }
+  replaceChildren(content, next)
+}
+const draggedIndex = ref<number | null>(null)
+function dropChild(index: number) {
+  const from = draggedIndex.value
+  draggedIndex.value = null
+  if (from === null || from === index) return
+  const content = [...children.value], [child] = content.splice(from, 1)
+  content.splice(index, 0, child!)
+  replaceChildren(content)
+}
+function setPaneOpen(index: number, open: boolean) {
+  const indices = attrs.value.singleOpen !== false ? (open ? [index] : []) : [...openIndices.value.filter(i => i !== index), ...(open ? [index] : [])].sort((a,b) => a-b)
+  replaceChildren(children.value, { ...attrs.value, defaultOpenIndices: indices })
+}
+const tableCommands = [{ key: 'addColumnAfter', label: 'addColumn' }, { key: 'addRowAfter', label: 'addRow' }, { key: 'deleteColumn', label: 'deleteColumn' }, { key: 'deleteRow', label: 'deleteRow' }] as const
+function runTableCommand(command: typeof tableCommands[number]['key']) { props.editor?.chain().focus()[command]().run() }
+const footnoteSection = computed(() => {
+  void attrs.value
+  const ed = props.editor
+  if (!ed) return null
+  const nodes: Array<{ pos: number, node: import('@tiptap/pm/model').Node }> = []
+  ed.state.doc.forEach((node, pos) => nodes.push({ node, pos }))
+  for (let i = 1; i < nodes.length; i++) {
+    const heading = nodes[i - 1]!, list = nodes[i]!
+    if (heading.node.type.name === 'paragraph' && list.node.type.name === 'orderedList'
+      && [heading.pos, list.pos].includes(editorStore.selectedBlockPos ?? -1)) return heading
   }
-
-  return fallback
-}
-
-function asBooleanValue(value: unknown, fallback = false) {
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (value && typeof value === 'object') {
-    const target = (value as { target?: { checked?: unknown } }).target
-    if (target && typeof target.checked === 'boolean') {
-      return target.checked
-    }
-
-    const maybeChecked = (value as { checked?: unknown }).checked
-    if (typeof maybeChecked === 'boolean') {
-      return maybeChecked
-    }
-  }
-
-  return fallback
-}
-
-function setCodeFileName(value: unknown) {
-  updateAttrs({ fileName: asInputValue(value, '') })
-}
-
-function setCodeLanguage(value: unknown) {
-  updateAttrs({ language: asSelectValue(value, 'text') })
-}
-
-function setCodeTheme(value: unknown) {
-  updateAttrs({ theme: asSelectValue(value, 'github-dark') })
-}
-
-function setCodeLineNumbers(value: unknown) {
-  updateAttrs({ lineNumbers: asBooleanValue(value, true) })
-}
-
-function setCodeLineHighlights(value: unknown) {
-  updateAttrs({ lineHighlights: asInputValue(value, '') })
-}
-
-function setCodeShowTotalLines(value: unknown) {
-  updateAttrs({ showTotalLines: asBooleanValue(value, false) })
-}
-
-function setCodeWrap(value: unknown) {
-  updateAttrs({ wrap: asBooleanValue(value, true) })
-}
-
-function setCodeZoom(value: unknown) {
-  const next = Number(value)
-  const zoom = Number.isFinite(next) ? Math.max(0.7, Math.min(2, next > 10 ? next / 100 : next)) : 1
-  updateAttrs({ zoom: Math.round(zoom * 100) / 100 })
-}
-
-function setBlockMathAlign(value: unknown) {
-  updateAttrs({ align: asSelectValue(value, 'center') })
-}
-
-function setBlockMathPaddingX(value: unknown) {
-  updateAttrs({ paddingX: normalizeBlockMathPadding(value, DEFAULT_BLOCK_MATH_PADDING_X) })
-}
-
-function setBlockMathPaddingY(value: unknown) {
-  updateAttrs({ paddingY: normalizeBlockMathPadding(value, DEFAULT_BLOCK_MATH_PADDING_Y) })
-}
-
-function setBlockMathFontFamily(value: unknown) {
-  updateAttrs({ fontFamily: asSelectValue(value, 'katex') })
-}
-
-function setBlockMathFontSize(value: unknown) {
-  const next = Number(value)
-  updateAttrs({ fontSize: normalizeBlockMathFontSize(Number.isFinite(next) && next > 10 ? next / 100 : next) })
-}
-
-function setSeparatorStyle(value: unknown) {
-  updateAttrs({ styleType: asSelectValue(value, 'solid') })
-}
-
-function setSeparatorThickness(value: unknown) {
-  const thickness = Math.max(1, Math.min(12, Number(value) || 1))
-  updateAttrs({ thickness })
-}
-
-function setSeparatorMargin(value: unknown) {
-  const marginY = Math.max(0, Math.min(120, Number(value) || 0))
-  updateAttrs({ marginY })
-}
-
-function setSeparatorColor(value: string) {
-  updateAttrs({ color: value || DEFAULT_SEPARATOR_COLOR })
-}
-
-function setSeparatorColorHex(value: unknown) {
-  const next = String(value ?? '').trim()
-  if (isHexColor(next)) {
-    setSeparatorColor(next)
-  }
-}
-
+  return null
+})
 function setFootnoteTitle(value: unknown) {
-  const activeEditor = props.editor
-  const section = footnoteSection.value
-  if (!activeEditor || !section) return
-
-  const title = asInputValue(value, 'Footnotes').trim() || 'Footnotes'
-  const from = section.headingPos + 1
-  const to = section.headingPos + section.headingNode.nodeSize - 1
-  const tr = activeEditor.state.tr.insertText(title, from, to)
-  activeEditor.view.dispatch(tr)
-}
-
-function setColumnsCount(value: unknown) {
-  const countStr = asSelectValue(value, '2')
-  const count = Math.max(2, Math.min(6, Number(countStr) || 2))
-  const nextJson = selectedBlockJson('columnsBlock')
-  if (!nextJson) return
-
-  const nextColumns = normalizeColumnItems(nextJson.content, count)
-  nextJson.attrs = {
-    ...(nextJson.attrs ?? {}),
-    columns: count,
-    proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), count),
-    customPercentages: ''
-  }
-  nextJson.content = nextColumns
-  replaceSelectedBlockJson('columnsBlock', nextJson)
-}
-
-function setColumnsProportions(value: unknown) {
-  const selected = asSelectValue(value, '1-1')
-
-  if (selected === 'manual') {
-    const current = columnsCustomPercentages.value.length === columnsCount.value
-      ? columnsCustomPercentages.value
-      : proportionsToPercentages(String(attrs.value.proportions ?? ''), columnsCount.value)
-    updateAttrs({ columns: columnsCount.value, customPercentages: serializePercentages(current) })
-    return
-  }
-
-  const defaultProportions = Array.from({ length: Math.max(2, Math.min(6, columnsCount.value)) }, () => '1').join('-')
-  const proportions = normalizeColumnProportions(selected || defaultProportions, columnsCount.value)
-  updateAttrs({ columns: columnsCount.value, proportions, customPercentages: '' })
-}
-
-function setColumnsShowHeaders(value: boolean | 'indeterminate') {
-  updateAttrs({ showHeaders: value === true })
-}
-
-function addColumn() {
-  if (columnsCount.value >= 6) return
-  setColumnsCount(String(columnsCount.value + 1))
-}
-
-function removeColumn(index: number) {
-  const nextJson = selectedBlockJson('columnsBlock')
-  if (!nextJson) return
-
-  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value)
-  if (nextColumns.length <= 2 || index < 0 || index >= nextColumns.length) {
-    return
-  }
-
-  const [removed] = nextColumns.splice(index, 1)
-  if (removed?.content?.length) {
-    const receiverIndex = Math.max(0, index - 1)
-    const receiver = nextColumns[receiverIndex]
-    if (receiver) {
-      receiver.content = [...(receiver.content ?? []), ...removed.content]
-    }
-  }
-
-  const nextCount = Math.max(2, Math.min(6, nextColumns.length))
-  nextJson.content = nextColumns.slice(0, nextCount)
-  nextJson.attrs = {
-    ...(nextJson.attrs ?? {}),
-    columns: nextCount,
-    proportions: normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), nextCount),
-    customPercentages: ''
-  }
-
-  replaceSelectedBlockJson('columnsBlock', nextJson)
-}
-
-function onColumnCardDragStart(event: DragEvent, index: number) {
-  draggedColumnIndex.value = index
-  dragOverColumnIndex.value = index
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', String(index))
-  }
-}
-
-function onColumnCardDragOver(index: number) {
-  if (draggedColumnIndex.value === null || draggedColumnIndex.value === index) {
-    return
-  }
-  dragOverColumnIndex.value = index
-}
-
-function onColumnCardDrop(index: number) {
-  const from = draggedColumnIndex.value
-  onColumnCardDragEnd()
-  if (from === null || from === index) {
-    return
-  }
-  moveColumn(from, index)
-}
-
-function onColumnCardDragEnd() {
-  draggedColumnIndex.value = null
-  dragOverColumnIndex.value = null
-}
-
-function moveColumn(fromIndex: number, toIndex: number) {
-  const nextJson = selectedBlockJson('columnsBlock')
-  if (!nextJson) return
-
-  const nextColumns = normalizeColumnItems(nextJson.content, columnsCount.value)
-  if (
-    fromIndex < 0
-    || toIndex < 0
-    || fromIndex >= nextColumns.length
-    || toIndex >= nextColumns.length
-    || fromIndex === toIndex
-  ) {
-    return
-  }
-
-  const [movedColumn] = nextColumns.splice(fromIndex, 1)
-  if (!movedColumn) return
-  nextColumns.splice(toIndex, 0, movedColumn)
-
-  const normalizedProportions = normalizeColumnProportions(String(nextJson.attrs?.proportions ?? ''), nextColumns.length)
-    .split('-')
-    .map((part) => Number(part) || 1)
-  const [movedProportion] = normalizedProportions.splice(fromIndex, 1)
-  normalizedProportions.splice(toIndex, 0, movedProportion ?? 1)
-
-  const currentCustomPercentages = columnsCustomPercentages.value.length === nextColumns.length
-    ? [...columnsCustomPercentages.value]
-    : []
-  if (currentCustomPercentages.length) {
-    const [movedPercent] = currentCustomPercentages.splice(fromIndex, 1)
-    currentCustomPercentages.splice(toIndex, 0, movedPercent ?? 100 / nextColumns.length)
-  }
-
-  nextJson.content = nextColumns
-  nextJson.attrs = {
-    ...(nextJson.attrs ?? {}),
-    columns: nextColumns.length,
-    proportions: normalizedProportions.map((value) => Math.max(1, Math.round(value))).join('-'),
-    customPercentages: currentCustomPercentages.length ? serializePercentages(currentCustomPercentages) : ''
-  }
-
-  replaceSelectedBlockJson('columnsBlock', nextJson)
-}
-
-function setTabsOrientation(value: unknown) {
-  updateAttrs({ orientation: asSelectValue(value, 'horizontal') === 'vertical' ? 'vertical' : 'horizontal' })
-}
-
-function setTabsStyle(value: unknown) {
-  const tabStyle = asSelectValue(value, 'underline')
-  updateAttrs({ tabStyle: tabStyle === 'pills' || tabStyle === 'enclosed' ? tabStyle : 'underline' })
-}
-
-function setTabsActiveIndex(value: unknown) {
-  updateAttrs({ activeIndex: normalizeTabsActiveIndex(Number(asSelectValue(value, '0')), tabPanels.value.length) })
-}
-
-function setTabTitle(index: number, value: unknown) {
-  updateNestedChildAttrs('tabsBlock', 'tabPanel', index, { title: asInputValue(value, `Tab ${index + 1}`).trim() || `Tab ${index + 1}` })
-}
-
-function setAccordionSingleOpen(value: unknown) {
-  const singleOpen = asBooleanValue(value, true)
-  const defaultOpenIndices = singleOpen ? accordionDefaultOpenIndices.value.slice(0, 1) : accordionDefaultOpenIndices.value
-  updateAccordionJson({ singleOpen, defaultOpenIndices })
-}
-
-function setAccordionStartCollapsed(value: unknown) {
-  const startCollapsed = asBooleanValue(value, false)
-  const defaultOpenIndices = startCollapsed
-    ? []
-    : (accordionDefaultOpenIndices.value.length ? accordionDefaultOpenIndices.value : [0])
-  updateAccordionJson({ startCollapsed, defaultOpenIndices })
-}
-
-function setAccordionColumns(value: unknown) {
-  updateAccordionJson({ columns: normalizeAccordionColumns(Number(asSelectValue(value, '1'))) })
-}
-
-function setAccordionPaneStyle(value: unknown) {
-  updateAccordionJson({ paneStyle: normalizeAccordionPaneStyle(asSelectValue(value, 'minimal')) })
-}
-
-function setAccordionTriggerIcon(value: unknown) {
-  updateAccordionJson({ triggerIcon: normalizeAccordionTriggerIcon(asSelectValue(value, 'chevron')) })
-}
-
-function setAccordionBlockWidth(value: unknown) {
-  updateAccordionJson({ blockWidth: normalizeAccordionBlockWidth(asSelectValue(value, 'content')) })
-}
-
-function setAccordionMarginTop(value: unknown) {
-  updateAccordionJson({ marginTop: asInputValue(value, '1rem') || '1rem' })
-}
-
-function setAccordionMarginBottom(value: unknown) {
-  updateAccordionJson({ marginBottom: asInputValue(value, '1rem') || '1rem' })
-}
-
-function setAccordionPaneTitle(index: number, value: unknown) {
-  updateNestedChildAttrs('accordionBlock', 'accordionPane', index, { title: asInputValue(value, `Accordion Pane ${index + 1}`).trim() || `Accordion Pane ${index + 1}` })
-}
-
-function accordionPaneDefaultOpen(index: number) {
-  return accordionDefaultOpenIndices.value.includes(index)
-}
-
-function setAccordionPaneDefaultOpen(index: number, value: unknown) {
-  const checked = asBooleanValue(value, false)
-  const next = new Set(accordionDefaultOpenIndices.value)
-  if (checked) {
-    if (attrs.value.singleOpen !== false) next.clear()
-    next.add(index)
-  } else {
-    next.delete(index)
-  }
-  updateAccordionJson({ defaultOpenIndices: Array.from(next).sort((left, right) => left - right), startCollapsed: false })
-}
-
-function addAccordionPane() {
-  const nextJson = selectedBlockJson('accordionBlock')
-  if (!nextJson) return
-
-  const panes = normalizeAccordionPaneJson(nextJson.content)
-  if (panes.length >= 12) return
-
-  panes.push(defaultAccordionPane(panes.length))
-  nextJson.content = panes
-  writeAccordionJson(nextJson, { defaultOpenIndices: [panes.length - 1], startCollapsed: false })
-}
-
-function removeAccordionPane(index: number) {
-  const nextJson = selectedBlockJson('accordionBlock')
-  if (!nextJson) return
-
-  const panes = normalizeAccordionPaneJson(nextJson.content)
-  if (panes.length <= 1 || index < 0 || index >= panes.length) return
-
-  const [removed] = panes.splice(index, 1)
-  const receiver = panes[Math.max(0, index - 1)] ?? panes[0]
-  if (removed?.content?.length && receiver) {
-    receiver.content = [...(receiver.content ?? []), ...removed.content]
-  }
-
-  const currentDefaultOpen = normalizeAccordionDefaultOpenIndices(
-    nextJson.attrs?.defaultOpenIndices,
-    panes.length + 1,
-    nextJson.attrs?.singleOpen !== false,
-    nextJson.attrs?.startCollapsed === true,
-    []
-  )
-  const defaultOpenIndices = currentDefaultOpen
-    .filter((openIndex) => openIndex !== index)
-    .map((openIndex) => openIndex > index ? openIndex - 1 : openIndex)
-
-  nextJson.content = panes
-  writeAccordionJson(nextJson, { defaultOpenIndices })
-}
-
-function updateAccordionJson(nextAttrs: Record<string, unknown>) {
-  const nextJson = selectedBlockJson('accordionBlock')
-  if (!nextJson) {
-    updateAttrs(nextAttrs)
-    return
-  }
-
-  writeAccordionJson(nextJson, nextAttrs)
-}
-
-function writeAccordionJson(nextJson: JsonContent, nextAttrs: Record<string, unknown>) {
-  const panes = normalizeAccordionPaneJson(nextJson.content)
-  const mergedAttrs = { ...(nextJson.attrs ?? {}), ...nextAttrs }
-  const singleOpen = mergedAttrs.singleOpen !== false
-  const startCollapsed = mergedAttrs.startCollapsed === true
-  const defaultOpenIndices = normalizeAccordionDefaultOpenIndices(
-    mergedAttrs.defaultOpenIndices,
-    panes.length,
-    singleOpen,
-    startCollapsed,
-    panes.map((pane) => pane.attrs?.defaultOpen === true)
-  )
-
-  nextJson.attrs = {
-    ...mergedAttrs,
-    singleOpen,
-    startCollapsed,
-    columns: normalizeAccordionColumns(Number(mergedAttrs.columns ?? 1)),
-    paneStyle: normalizeAccordionPaneStyle(String(mergedAttrs.paneStyle ?? 'minimal')),
-    triggerIcon: normalizeAccordionTriggerIcon(String(mergedAttrs.triggerIcon ?? 'chevron')),
-    defaultOpenIndices
-  }
-  nextJson.content = panes.map((pane, paneIndex) => ({
-    ...pane,
-    attrs: {
-      ...(pane.attrs ?? {}),
-      title: String(pane.attrs?.title ?? `Accordion Pane ${paneIndex + 1}`).trim() || `Accordion Pane ${paneIndex + 1}`,
-      defaultOpen: defaultOpenIndices.includes(paneIndex)
-    }
-  }))
-
-  replaceSelectedBlockJson('accordionBlock', nextJson)
-}
-
-function normalizeAccordionPaneJson(content: JsonContent[] | undefined): JsonContent[] {
-  const panes: JsonContent[] = (content ?? []).filter((child) => child.type === 'accordionPane').slice(0, 12)
-  if (!panes.length) {
-    panes.push(defaultAccordionPane(0))
-  }
-  return panes.map((pane, index): JsonContent => ({
-    ...pane,
-    attrs: {
-      ...(pane.attrs ?? {}),
-      title: String(pane.attrs?.title ?? `Accordion Pane ${index + 1}`).trim() || `Accordion Pane ${index + 1}`
-    },
-    content: pane.content?.length ? pane.content : [{ type: 'paragraph' }]
-  }))
-}
-
-function normalizeAccordionDefaultOpenIndices(value: unknown, count: number, singleOpen: boolean, startCollapsed: boolean, childDefaults: boolean[]) {
-  if (startCollapsed) return []
-  const values = Array.isArray(value) ? value : String(value ?? '').split(',')
-  const parsed = values.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0 && item < count)
-  const fallback = childDefaults.map((open, index) => open ? index : -1).filter((index) => index >= 0)
-  const indices = Array.from(new Set(parsed.length ? parsed : fallback)).sort((left, right) => left - right)
-  return singleOpen ? indices.slice(0, 1) : indices
-}
-
-function normalizeAccordionColumns(value: number) {
-  return Math.max(1, Math.min(3, Number.isFinite(value) ? Math.round(value) : 1))
-}
-
-function normalizeAccordionPaneStyle(value: string) {
-  return ['dark', 'colored', 'underline', 'highlighted'].includes(value) ? value : 'minimal'
-}
-
-function normalizeAccordionTriggerIcon(value: string) {
-  return ['plus-minus', 'arrow'].includes(value) ? value : 'chevron'
-}
-
-function normalizeAccordionBlockWidth(value: string) {
-  return value === 'wide' || value === 'full-bleed' ? value : 'content'
-}
-
-function normalizeTabsActiveIndex(value: number, count: number) {
-  const maxIndex = Math.max(0, count - 1)
-  return Number.isFinite(value) ? Math.max(0, Math.min(maxIndex, Math.round(value))) : 0
-}
-
-function setDiffLanguage(value: unknown) {
-  updateAttrs({ language: normalizeDiffLanguage(asSelectValue(value, 'plaintext')) })
-}
-
-function setDiffOldLabel(value: unknown) {
-  updateAttrs({ oldLabel: asInputValue(value, 'Before').trim() || 'Before' })
-}
-
-function setDiffNewLabel(value: unknown) {
-  updateAttrs({ newLabel: asInputValue(value, 'After').trim() || 'After' })
-}
-
-function addTabPanel() {
-  const nextJson = selectedBlockJson('tabsBlock')
-  if (!nextJson) return
-
-  const panels = (nextJson.content ?? []).filter((child) => child.type === 'tabPanel')
-  if (panels.length >= 6) return
-
-  panels.push(defaultTabPanel(panels.length))
-  nextJson.content = panels
-  nextJson.attrs = { ...(nextJson.attrs ?? {}), activeIndex: panels.length - 1 }
-  replaceSelectedBlockJson('tabsBlock', nextJson)
-}
-
-function removeTabPanel() {
-  const nextJson = selectedBlockJson('tabsBlock')
-  if (!nextJson) return
-
-  const panels = (nextJson.content ?? []).filter((child) => child.type === 'tabPanel')
-  if (panels.length <= 2) return
-
-  const removed = panels.pop()
-  const last = panels[panels.length - 1]
-  if (removed && last) {
-    last.content = [...(last.content ?? []), ...(removed.content ?? [])]
-  }
-
-  const activeIndex = Math.min(Number(nextJson.attrs?.activeIndex ?? 0) || 0, panels.length - 1)
-  nextJson.content = panels
-  nextJson.attrs = { ...(nextJson.attrs ?? {}), activeIndex }
-  replaceSelectedBlockJson('tabsBlock', nextJson)
-}
-
-function isHexColor(value: string) {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)
-}
-
-function setHeadingLevel(value: string | number) {
-  updateAttrs({ level: Number(value) })
-}
-
-function numberOrNull(value: unknown) {
-  const n = Number(value)
-  if (!Number.isFinite(n) || n <= 0) {
-    return null
-  }
-
-  return n
-}
-
-function percentOrNull(value: unknown) {
-  const n = Number(value)
-  if (!Number.isFinite(n) || n <= 0) {
-    return null
-  }
-
-  return Math.max(1, Math.min(200, Math.round(n)))
-}
-
-function aspectRatioFrom(currentWidth: unknown, currentHeight: unknown) {
-  const width = numberOrNull(currentWidth)
-  const height = numberOrNull(currentHeight)
-  if (!width || !height) {
-    return null
-  }
-
-  return width / height
-}
-
-function derivePercent(size: number | null, natural: number | null) {
-  if (!size || !natural || natural <= 0) {
-    return 100
-  }
-
-  return Math.max(1, Math.min(200, Math.round((size / natural) * 100)))
-}
-
-function imageNaturalDims() {
-  const naturalWidth = numberOrNull(attrs.value.naturalWidth ?? attrs.value.width)
-  const naturalHeight = numberOrNull(attrs.value.naturalHeight ?? attrs.value.height)
-  return { naturalWidth, naturalHeight }
-}
-
-function mediaNaturalDims() {
-  const mediaNaturalWidth = numberOrNull(attrs.value.mediaNaturalWidth ?? attrs.value.mediaWidth)
-  const mediaNaturalHeight = numberOrNull(attrs.value.mediaNaturalHeight ?? attrs.value.mediaHeight)
-  return { mediaNaturalWidth, mediaNaturalHeight }
-}
-
-function setImageSourceSize(value: unknown) {
-  updateAttrs({ sourceSize: asSelectValue(value, 'full') })
-}
-
-function setImageDisplaySize(value: unknown) {
-  const displaySize = asSelectValue(value, 'fill-container')
-  updateAttrs(displaySize === 'custom-px'
-    ? { displaySize }
-    : { displaySize, displayPx: null, width: null, height: null })
-}
-
-function setImageWidth(value: unknown) {
-  const width = numberOrNull(value)
-  const lockAspect = attrs.value.lockAspect !== false
-  const ratio = aspectRatioFrom(attrs.value.naturalWidth, attrs.value.naturalHeight) ?? aspectRatioFrom(attrs.value.width, attrs.value.height)
-  const { naturalWidth, naturalHeight } = imageNaturalDims()
-
-  if (lockAspect && width && ratio) {
-    const height = Math.round(width / ratio)
-    updateAttrs({
-      displaySize: 'custom-px',
-      displayPx: width,
-      width,
-      height,
-      displayPercent: derivePercent(width, naturalWidth),
-      widthPercent: derivePercent(width, naturalWidth),
-      naturalWidth: naturalWidth ?? width,
-      naturalHeight: naturalHeight ?? height
-    })
-    return
-  }
-
-  updateAttrs({
-    displaySize: 'custom-px',
-    displayPx: width,
-    width,
-    displayPercent: derivePercent(width, naturalWidth),
-    widthPercent: derivePercent(width, naturalWidth),
-    naturalWidth: naturalWidth ?? width
-  })
-}
-
-function setImageHeight(value: unknown) {
-  const height = numberOrNull(value)
-  const lockAspect = attrs.value.lockAspect !== false
-  const ratio = aspectRatioFrom(attrs.value.naturalWidth, attrs.value.naturalHeight) ?? aspectRatioFrom(attrs.value.width, attrs.value.height)
-  const { naturalWidth, naturalHeight } = imageNaturalDims()
-
-  if (lockAspect && height && ratio) {
-    const width = Math.round(height * ratio)
-    updateAttrs({
-      displaySize: 'custom-px',
-      displayPx: width,
-      height,
-      width,
-      displayPercent: derivePercent(width, naturalWidth),
-      widthPercent: derivePercent(width, naturalWidth),
-      naturalHeight: naturalHeight ?? height,
-      naturalWidth: naturalWidth ?? width
-    })
-    return
-  }
-
-  updateAttrs({
-    displaySize: 'custom-px',
-    height,
-    displayPercent: derivePercent(height, naturalHeight),
-    widthPercent: derivePercent(height, naturalHeight),
-    naturalHeight: naturalHeight ?? height
-  })
-}
-
-function setImageDisplayPercent(value: unknown) {
-  const widthPercent = percentOrNull(value)
-  if (!widthPercent) {
-    return
-  }
-
-  const { naturalWidth, naturalHeight } = imageNaturalDims()
-  if (!naturalWidth || !naturalHeight) {
-    updateAttrs({ displaySize: 'custom-percent', displayPercent: widthPercent, widthPercent })
-    return
-  }
-
-  const width = Math.round((naturalWidth * widthPercent) / 100)
-  const height = Math.round((naturalHeight * widthPercent) / 100)
-  updateAttrs({
-    displaySize: 'custom-percent',
-    displayPercent: widthPercent,
-    widthPercent,
-    width,
-    height,
-    naturalWidth,
-    naturalHeight
-  })
-}
-
-function setMediaSourceSize(value: unknown) {
-  updateAttrs({ mediaSourceSize: asSelectValue(value, 'full') })
-}
-
-function setMediaDisplaySize(value: unknown) {
-  const mediaDisplaySize = asSelectValue(value, 'fill-container')
-  updateAttrs({ mediaDisplaySize })
-}
-
-function setMediaWidth(value: unknown) {
-  const mediaWidth = numberOrNull(value)
-  const lockAspect = attrs.value.lockAspect !== false
-  const ratio = aspectRatioFrom(attrs.value.mediaNaturalWidth, attrs.value.mediaNaturalHeight) ?? aspectRatioFrom(attrs.value.mediaWidth, attrs.value.mediaHeight)
-  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
-
-  if (lockAspect && mediaWidth && ratio) {
-    const mediaHeight = Math.round(mediaWidth / ratio)
-    updateAttrs({
-      mediaDisplaySize: 'custom-px',
-      mediaDisplayPx: mediaWidth,
-      mediaWidth,
-      mediaHeight,
-      mediaDisplayPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-      mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-      mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth,
-      mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight
-    })
-    return
-  }
-
-  updateAttrs({
-    mediaDisplaySize: 'custom-px',
-    mediaDisplayPx: mediaWidth,
-    mediaWidth,
-    mediaDisplayPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-    mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-    mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth
-  })
-}
-
-function setMediaHeight(value: unknown) {
-  const mediaHeight = numberOrNull(value)
-  const lockAspect = attrs.value.lockAspect !== false
-  const ratio = aspectRatioFrom(attrs.value.mediaNaturalWidth, attrs.value.mediaNaturalHeight) ?? aspectRatioFrom(attrs.value.mediaWidth, attrs.value.mediaHeight)
-  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
-
-  if (lockAspect && mediaHeight && ratio) {
-    const mediaWidth = Math.round(mediaHeight * ratio)
-    updateAttrs({
-      mediaDisplaySize: 'custom-px',
-      mediaDisplayPx: mediaWidth,
-      mediaHeight,
-      mediaWidth,
-      mediaDisplayPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-      mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-      mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight,
-      mediaNaturalWidth: mediaNaturalWidth ?? mediaWidth
-    })
-    return
-  }
-
-  updateAttrs({
-    mediaDisplaySize: 'custom-px',
-    mediaHeight,
-    mediaDisplayPercent: derivePercent(mediaHeight, mediaNaturalHeight),
-    mediaWidthPercent: derivePercent(mediaHeight, mediaNaturalHeight),
-    mediaNaturalHeight: mediaNaturalHeight ?? mediaHeight
-  })
-}
-
-function setMediaDisplayPercent(value: unknown) {
-  const mediaWidthPercent = percentOrNull(value)
-  if (!mediaWidthPercent) {
-    return
-  }
-
-  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
-  if (!mediaNaturalWidth || !mediaNaturalHeight) {
-    updateAttrs({ mediaDisplaySize: 'custom-percent', mediaDisplayPercent: mediaWidthPercent, mediaWidthPercent })
-    return
-  }
-
-  const mediaWidth = Math.round((mediaNaturalWidth * mediaWidthPercent) / 100)
-  const mediaHeight = Math.round((mediaNaturalHeight * mediaWidthPercent) / 100)
-  updateAttrs({
-    mediaDisplaySize: 'custom-percent',
-    mediaDisplayPercent: mediaWidthPercent,
-    mediaWidthPercent,
-    mediaWidth,
-    mediaHeight,
-    mediaNaturalWidth,
-    mediaNaturalHeight
-  })
-}
-
-function setMediaRatioPreset(value: unknown) {
-  const raw = Number(asSelectValue(value, '50'))
-  if (!Number.isFinite(raw)) {
-    return
-  }
-
-  const ratio = Math.max(15, Math.min(85, Math.round(raw))) / 100
-  updateAttrs({ ratio })
-}
-
-function setImageLockAspect(value: unknown) {
-  const lockAspect = asBooleanValue(value, true)
-  if (!lockAspect) {
-    updateAttrs({ lockAspect })
-    return
-  }
-
-  const { naturalWidth, naturalHeight } = imageNaturalDims()
-  const width = numberOrNull(attrs.value.width)
-  if (naturalWidth && naturalHeight && width) {
-    updateAttrs({
-      lockAspect,
-      height: Math.round((width / naturalWidth) * naturalHeight),
-      widthPercent: derivePercent(width, naturalWidth),
-      naturalWidth,
-      naturalHeight
-    })
-    return
-  }
-
-  updateAttrs({ lockAspect })
-}
-
-function setMediaLockAspect(value: unknown) {
-  const lockAspect = asBooleanValue(value, true)
-  if (!lockAspect) {
-    updateAttrs({ lockAspect })
-    return
-  }
-
-  const { mediaNaturalWidth, mediaNaturalHeight } = mediaNaturalDims()
-  const mediaWidth = numberOrNull(attrs.value.mediaWidth)
-  if (mediaNaturalWidth && mediaNaturalHeight && mediaWidth) {
-    updateAttrs({
-      lockAspect,
-      mediaHeight: Math.round((mediaWidth / mediaNaturalWidth) * mediaNaturalHeight),
-      mediaWidthPercent: derivePercent(mediaWidth, mediaNaturalWidth),
-      mediaNaturalWidth,
-      mediaNaturalHeight
-    })
-    return
-  }
-
-  updateAttrs({ lockAspect })
-}
-
-function runTableCommand(command: 'addColumnAfter' | 'addRowAfter' | 'deleteColumn' | 'deleteRow') {
-  const activeEditor = props.editor
-  if (!activeEditor) {
-    return
-  }
-
-  const chain = activeEditor.chain().focus() as any
-  chain[command]().run()
+  const ed = props.editor, section = footnoteSection.value
+  if (!ed || !section) return
+  ed.view.dispatch(ed.state.tr.insertText(String(value ?? '').trim() || label('footnotes'), section.pos + 1, section.pos + section.node.nodeSize - 1))
 }
 </script>
-
-<style scoped>
-.block-settings-panel :where(.border-stone-200) {
-  border-color: var(--pb-card-border) !important;
-}
-
-.block-settings-panel :where(.border-teal-100) {
-  border-color: color-mix(in srgb, var(--pb-selected-border) 34%, var(--pb-card-border)) !important;
-}
-
-.block-settings-panel :where(.bg-white) {
-  background: var(--pb-card-bg) !important;
-}
-
-.block-settings-panel :where(.bg-teal-50) {
-  background: var(--pb-selected-bg) !important;
-}
-
-.block-settings-panel :where(.text-stone-900) {
-  color: var(--pb-text) !important;
-}
-
-.block-settings-panel :where(.text-stone-500) {
-  color: var(--pb-text-subtle) !important;
-}
-
-.block-settings-panel :where(.text-teal-700) {
-  color: var(--pb-icon-accent) !important;
-}
-
-.block-settings-panel :where(.text-teal-900) {
-  color: var(--pb-text) !important;
-}
-
-.code-settings-panel :deep(.code-settings-field .u-select),
-.code-settings-panel :deep(.code-settings-field .u-input),
-.code-settings-panel :deep(.code-settings-field .u-input-root) {
-  width: 100%;
-}
-
-.code-settings-panel :deep(.code-settings-field .u-select button) {
-  width: 100%;
-}
-
-.code-settings-panel :deep(.code-settings-field .u-select button span) {
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.code-settings-panel :deep([role='option']) {
-  white-space: nowrap;
-}
-</style>

@@ -86,7 +86,9 @@
 
 <script setup lang="ts">
 import type { JsonContent } from '~/types/content'
-import { CODE_BLOCK_LANGUAGES, CODE_BLOCK_THEMES, DEFAULT_CODE_THEME, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
+import { useCodeTheme } from '~/composables/editor/useCodeTheme'
+import '~/assets/css/block-presentation.css'
+import { CODE_BLOCK_LANGUAGES, normalizeCodeLineHighlights, parseCodeLineHighlights } from '~/extensions/codeBlockEnhanced'
 import { codeBlockHtmlCache, codeBlockLowlight } from './codeBlockHighlighter'
 
 const COLLAPSE_THRESHOLD = 300
@@ -97,17 +99,13 @@ const props = defineProps<{
 
 const languageLabelMap = new Map<string, string>(CODE_BLOCK_LANGUAGES.map((item) => [item.value as string, item.label]))
 const supportedLanguages = new Set<string>(CODE_BLOCK_LANGUAGES.map((item) => item.value as string))
-const supportedThemes = new Set<string>(CODE_BLOCK_THEMES.map((item) => item.value as string))
 
 const code = computed(() => textContent(props.node))
 const language = computed(() => {
   const value = typeof props.node.attrs?.language === 'string' ? props.node.attrs.language : 'text'
   return supportedLanguages.has(value) ? value : 'text'
 })
-const theme = computed(() => {
-  const value = typeof props.node.attrs?.theme === 'string' ? props.node.attrs.theme : DEFAULT_CODE_THEME
-  return supportedThemes.has(value) ? value : DEFAULT_CODE_THEME
-})
+const theme = useCodeTheme()
 const lineNumbers = computed(() => props.node.attrs?.lineNumbers !== false)
 const lineHighlights = computed(() => normalizeCodeLineHighlights(props.node.attrs?.lineHighlights))
 const highlightedLineSet = computed(() => parseCodeLineHighlights(lineHighlights.value))
@@ -116,7 +114,7 @@ const showTotalLines = computed(() => props.node.attrs?.showTotalLines === true)
 const languageLabel = computed(() => languageLabelMap.get(language.value) ?? language.value)
 const lineCount = computed(() => Math.max((code.value ?? '').split('\n').length, 1))
 const wrapLines = ref(props.node.attrs?.wrap !== false)
-const zoom = ref(clampZoom(props.node.attrs?.zoom))
+const zoom = ref(1)
 
 const copied = ref(false)
 const initialCacheKey = `${theme.value}\u0000${language.value}\u0000${lineNumbers.value ? '1' : '0'}\u0000${lineHighlights.value}\u0000${code.value}`
@@ -203,14 +201,6 @@ async function copy() {
   } catch {
     // ignore
   }
-}
-
-function clampZoom(value: unknown) {
-  const numeric = Number(value ?? 1)
-  if (!Number.isFinite(numeric)) {
-    return 1
-  }
-  return Math.max(0.7, Math.min(2, numeric))
 }
 
 function adjustZoom(delta: number) {
