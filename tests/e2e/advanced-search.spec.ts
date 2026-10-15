@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { SearchResponse } from '../../types/content'
 
 const adminUsername = process.env.E2E_ADMIN_USERNAME
 const adminPassword = process.env.E2E_ADMIN_PASSWORD
@@ -13,6 +14,71 @@ function uniqueWord() {
     value = Math.floor(value / 26)
   }
   return `zebra${suffix}`
+}
+
+for (const width of [360, 768, 1024, 1440]) {
+  test(`search snippets wrap long content within the card at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 })
+    const snippets = [
+      `${'\u2500'.repeat(300)} <mark>git</mark> ${'\u2500'.repeat(300)}`,
+      `https://example.com/${'longpath'.repeat(100)}<mark>git</mark>${'longpath'.repeat(100)}`,
+      'Normal paragraph with a <mark>git</mark> match.'
+    ]
+    const response: SearchResponse = {
+      query: 'git',
+      sort: 'relevance',
+      limit: 20,
+      page: 1,
+      pages: 1,
+      total: 1,
+      maxPerPost: 10,
+      results: [{
+        post: { id: 'post:wrap-test', slug: 'wrap-test', title: 'Search wrapping regression' },
+        score: 1,
+        tier: 'exact',
+        status: 'published',
+        locked: false,
+        totalMatches: snippets.length,
+        matches: snippets.map((snippet, index) => ({
+          blockId: `block:wrap-${index}`,
+          type: index === 0 ? 'codeBlock' : 'paragraph',
+          snippet,
+          score: 1
+        }))
+      }]
+    }
+    await page.route('**/api/search?*', (route) => route.fulfill({ json: response }))
+    // Submit client-side so the browser route supplies the fixture, not SSR.
+    await page.goto('/search')
+    await page.waitForLoadState('networkidle')
+    const input = page.locator('header').filter({ has: page.getByRole('heading', { level: 1 }) }).getByRole('searchbox')
+    await input.fill('git')
+    await input.press('Enter')
+
+    const matches = page.getByTestId('search-match')
+    await expect(matches).toHaveCount(snippets.length)
+    for (const [index, snippet] of snippets.entries()) {
+      const match = matches.nth(index)
+      const content = match.locator(':scope > span').last()
+      await expect(content).toHaveText(snippet.replace(/<\/?mark>/g, ''))
+      await expect(content.locator('mark')).toHaveText('git')
+      const metrics = await match.evaluate((element) => {
+        const bounds = element.getBoundingClientRect()
+        const range = document.createRange()
+        range.selectNodeContents(element.lastElementChild!)
+        return {
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          textInside: [...range.getClientRects()].every((rect) =>
+            rect.left >= bounds.left && rect.right <= bounds.right
+          )
+        }
+      })
+      expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
+      expect(metrics.textInside).toBe(true)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1)
+  })
 }
 
 test('advanced search dropdown finds posts with a typo (fuzzy) and applies filters', async ({ page }) => {

@@ -77,7 +77,8 @@
           <div
             v-for="match in result.matches"
             :key="match.blockId"
-            class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] px-3 py-2 text-sm text-[var(--pb-text-muted)]"
+            class="rounded-[var(--pb-radius-sm)] border border-[var(--pb-divider)] bg-[var(--pb-surface-subtle)] px-3 py-2 text-sm text-[var(--pb-text-muted)] [overflow-wrap:anywhere]"
+            data-testid="search-match"
           >
             <span class="mr-2 inline-block rounded-[var(--pb-radius-sm)] bg-[var(--pb-selected-bg)] px-1.5 py-0.5 text-xs uppercase tracking-wide text-[var(--pb-link)]">
               {{ match.type }}
