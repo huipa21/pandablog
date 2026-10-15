@@ -16,6 +16,9 @@ function hasKuromojiDict() {
     || existsSync(resolve(process.cwd(), '.output/public/dict/base.dat.gz'))
 }
 
+// The first Japanese call loads and parses the kuromoji dictionary, which is slow under parallel load.
+const KUROMOJI_LOAD_TIMEOUT_MS = 60_000
+
 describe('annotate', () => {
   it('returns no segments for empty text', async () => {
     await expect(annotate('', 'cmn')).resolves.toEqual([])
@@ -48,5 +51,5 @@ describe('annotate', () => {
     expect(renderedText(segments)).toBe('漢字とひらがな')
     expect(ruby.length).toBeGreaterThan(0)
     expect(ruby.some((segment) => segment.base.includes('漢') && segment.reading.length > 0)).toBe(true)
-  })
+  }, KUROMOJI_LOAD_TIMEOUT_MS)
 })

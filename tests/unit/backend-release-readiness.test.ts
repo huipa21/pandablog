@@ -152,10 +152,14 @@ describe('hardening project acceptance fails closed', () => {
     } finally { await rm(root, { recursive: true }) }
   })
 
+  // Each invocation boots tsx; four of them can exceed 30s when the full suite runs in parallel.
+  const SPAWN_TIMEOUT_MS = 60_000
+  const TEST_TIMEOUT_MS = 180_000
+
   it('reports real ledger blockers and refuses unknown CLI inputs without running commands or using app env', async () => {
     const root = fileURLToPath(new URL('../../', import.meta.url))
     const env = { ...fixtureEnvironment(), SURREAL_URL: 'http://example.invalid', NUXT_SESSION_PASSWORD: 'never-read-this-value' }
-    const invoke = (...args: string[]) => spawnSync(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'scripts/backend-hardening/release.ts', ...args], { cwd: root, env, encoding: 'utf8', timeout: 15_000 })
+    const invoke = (...args: string[]) => spawnSync(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'scripts/backend-hardening/release.ts', ...args], { cwd: root, env, encoding: 'utf8', timeout: SPAWN_TIMEOUT_MS })
     const before = execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' })
     const report = invoke('--report', '--stage=postdeploy')
     expect(report.status).toBe(0)
@@ -172,5 +176,5 @@ describe('hardening project acceptance fails closed', () => {
     expect(invoke().status).not.toBe(0)
     expect(report.stdout + report.stderr).not.toContain('never-read-this-value')
     expect(execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' })).toBe(before)
-  }, 30_000)
+  }, TEST_TIMEOUT_MS)
 })

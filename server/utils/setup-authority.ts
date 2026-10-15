@@ -9,6 +9,23 @@ import { newAuthEpoch } from './users'
 import { getActiveJob, inspectRestoreState } from './backups/jobMutex'
 
 type Database = Awaited<ReturnType<typeof useDb>>
+
+// Windows refuses to replace a file that another handle (a concurrent read, an
+// antivirus scan) briefly has open, failing with EPERM/EBUSY/EACCES. Those
+// errors are transient, so retry a few times with backoff before giving up.
+const TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EBUSY', 'EACCES'])
+const RENAME_RETRIES = 6
+async function renameReplacing(from: string, to: string) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await rename(from, to)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (process.platform !== 'win32' || attempt >= RENAME_RETRIES || !code || !TRANSIENT_RENAME_CODES.has(code)) throw error
+      await new Promise(resolve => setTimeout(resolve, 10 * 2 ** attempt))
+    }
+  }
+}
 interface Receipt {version: 1, state: 'reserved' | 'closed', claim: string, epoch: string}
 export interface SetupReservation {readonly claim: string, readonly epoch: string}
 const evidenceSql = `SELECT id, active, role FROM users WHERE username = 'admin' LIMIT 1;
@@ -135,7 +152,7 @@ export class SetupAuthority {
     await unlink(temp).catch(error => {if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error})
     const file = await open(temp, 'wx', 0o600)
     try {await file.writeFile(JSON.stringify({...receipt, state: 'closed'})); await file.sync()} finally {await file.close()}
-    try {await rename(temp, this.path); await this.syncParent()} catch (error) {await unlink(temp).catch(() => {}); throw error}
+    try {await renameReplacing(temp, this.path); await this.syncParent()} catch (error) {await unlink(temp).catch(() => {}); throw error}
   }
   abandon(reservation: SetupReservation) {
     if (this.reservedClaim === reservation.claim) this.reservedClaim = null

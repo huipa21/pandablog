@@ -63,6 +63,10 @@
                 <UIcon name="i-lucide-file-text" class="size-3.5 text-[var(--pb-icon-muted)]" />
                 {{ contentLengthLabel(post) }}
               </span>
+              <span v-if="readingTimeLabel(post)" class="inline-flex items-center gap-1.5" data-testid="post-card-reading-time">
+                <UIcon name="i-lucide-clock" class="size-3.5 text-[var(--pb-icon-muted)]" />
+                {{ readingTimeLabel(post) }}
+              </span>
               <UBadge v-if="post.visibility === 'password'" color="warning" variant="subtle" size="xs">
                 {{ t('public.postList.protected') }}
               </UBadge>
@@ -200,6 +204,8 @@ function formatViews(value: number | null | undefined) {
   const count = Math.max(0, Number(value) || 0)
   return `${new Intl.NumberFormat(locale.value).format(count)} ${t(count === 1 ? 'public.post.view' : 'public.post.views')}`
 }
+
+const readingTimeLabel = useReadingTimeLabel()
 
 function contentLengthLabel(post: PostListItem) {
   const words = Number(post.word_count ?? 0)

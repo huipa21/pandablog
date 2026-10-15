@@ -1,5 +1,9 @@
 <template>
   <article class="theme-scope grid min-w-0 gap-8">
+    <template v-if="isPublic">
+      <BlogReadingProgressBar :progress="progress" />
+      <BlogResumeReadingPrompt :visible="promptVisible" @resume="resume" @close="dismiss" />
+    </template>
     <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-4 shadow-[var(--pb-shadow-sm)] sm:p-6 md:p-8 min-h-[calc(100vh-12rem)]">
       <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -15,6 +19,10 @@
               <span v-if="contentLengthLabel" class="inline-flex items-center gap-1.5">
                 <UIcon name="i-lucide-file-text" class="size-4 text-[var(--pb-icon-muted)]" />
                 {{ contentLengthLabel }}
+              </span>
+              <span v-if="readingTime" class="inline-flex items-center gap-1.5" data-testid="post-reading-time">
+                <UIcon name="i-lucide-clock" class="size-4 text-[var(--pb-icon-muted)]" />
+                {{ readingTime }}
               </span>
             </template>
             <span v-else class="inline-flex items-center gap-1.5">
@@ -50,7 +58,7 @@
         </div>
       </header>
 
-      <div class="blog-content">
+      <div ref="contentEl" class="blog-content">
         <ContentRenderer :node="post.content_json" />
         <ContentFootnotesSection :content="post.content_json" />
       </div>
@@ -73,6 +81,19 @@ const props = withDefaults(defineProps<{
 })
 
 const { t, locale } = useI18n()
+
+const isPublic = computed(() => props.variant === 'public')
+const contentEl = ref<HTMLElement | null>(null)
+const { progress } = useReadingProgress(contentEl, isPublic)
+const { promptVisible, resume, dismiss } = useReadingPosition({
+  slug: () => props.post.slug,
+  updatedAt: () => props.post.updated_at,
+  contentEl,
+  enabled: isPublic
+})
+
+const readingTimeLabel = useReadingTimeLabel()
+const readingTime = computed(() => readingTimeLabel(props.post))
 
 const contentLengthLabel = computed(() => {
   const words = Number(props.post.word_count ?? 0)

@@ -1938,7 +1938,14 @@
       "view": "view",
       "views": "views",
       "chars": "chars",
-      "words": "words"
+      "words": "words",
+      "minRead": "{n} min read",
+      "readingProgress": "Reading progress",
+      "resume": {
+        "title": "Resume where you left off?",
+        "resume": "Resume",
+        "dismiss": "Dismiss"
+      }
     },
     "passwordGate": {
       "title": "This post is protected",

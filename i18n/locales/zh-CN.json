@@ -1925,7 +1925,14 @@
       "view": "次浏览",
       "views": "次浏览",
       "chars": "字",
-      "words": "词"
+      "words": "词",
+      "minRead": "约 {n} 分钟",
+      "readingProgress": "阅读进度",
+      "resume": {
+        "title": "继续上次的阅读位置？",
+        "resume": "继续",
+        "dismiss": "关闭"
+      }
     },
     "passwordGate": {
       "title": "此文章受保护",

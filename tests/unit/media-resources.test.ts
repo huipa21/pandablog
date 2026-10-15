@@ -61,9 +61,12 @@ describe('owned streaming media ingestion', () => {
     req.headers = {'content-type': 'multipart/form-data; boundary=fixture'}
     const receiving = receiveMediaUpload(req, {...limits, root: path, budget})
     req.push(part('partial').slice(0, -2))
-    const timer = setTimeout(() => req.emit('aborted'), 20)
+    // Abort only once the upload has attached its listener; a fixed delay races it under load.
+    const timer = setInterval(() => {
+      if (req.listenerCount('aborted') > 0) { clearInterval(timer); req.emit('aborted') }
+    }, 5)
     await expect(receiving).rejects.toThrow(/aborted/)
-    clearTimeout(timer); req.destroy()
+    clearInterval(timer); req.destroy()
     expect(await readdir(path)).toEqual([])
     expect(budget.diagnostics()).toMatchObject({active: 0, bytes: 0})
   })
