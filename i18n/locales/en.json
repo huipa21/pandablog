@@ -1945,6 +1945,31 @@
         "title": "Resume where you left off?",
         "resume": "Resume",
         "dismiss": "Dismiss"
+      },
+      "reader": {
+        "toggle": "Reader settings",
+        "title": "Reader settings",
+        "reset": "Reset",
+        "fontSize": "Font size",
+        "fontSizeSample": "Aa",
+        "fontFamily": "Font",
+        "fontFamilyOptions": {
+          "sans": "Sans",
+          "serif": "Serif"
+        },
+        "appearance": "Appearance",
+        "appearanceOptions": {
+          "auto": "Auto",
+          "light": "Light",
+          "sepia": "Sepia",
+          "dark": "Dark"
+        },
+        "lineWidth": "Line width",
+        "lineWidthOptions": {
+          "narrow": "Narrow",
+          "normal": "Normal",
+          "wide": "Wide"
+        }
       }
     },
     "passwordGate": {

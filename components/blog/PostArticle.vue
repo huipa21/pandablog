@@ -4,7 +4,13 @@
       <BlogReadingProgressBar :progress="progress" />
       <BlogResumeReadingPrompt :visible="promptVisible" @resume="resume" @close="dismiss" />
     </template>
-    <div class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-4 shadow-[var(--pb-shadow-sm)] sm:p-6 md:p-8 min-h-[calc(100vh-12rem)]">
+    <div
+      class="post-reading-frame mx-auto w-full min-w-0 rounded-[var(--pb-radius-card-outer)] border border-[var(--pb-card-border)] p-4 shadow-[var(--pb-shadow-sm)] sm:p-6 md:p-8 min-h-[calc(100vh-12rem)]"
+      :data-reader-font-size="isPublic ? readerPrefs.fontSize : null"
+      :data-reader-font-family="isPublic ? readerPrefs.fontFamily : null"
+      :data-reader-appearance="isPublic ? readerPrefs.appearance : null"
+      :data-reader-line-width="isPublic ? readerPrefs.lineWidth : null"
+    >
       <header class="mb-8 border-b border-[var(--pb-divider)] pb-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--pb-text-subtle)]">
@@ -32,6 +38,7 @@
           </div>
           <div class="flex items-center gap-2">
             <template v-if="variant === 'public'">
+              <BlogReaderSettingsMenu />
               <UButton v-if="isLoggedIn" :to="editLink" variant="soft" color="neutral" icon="i-lucide-pencil" size="xs">
                 {{ t('public.post.edit') }}
               </UButton>
@@ -85,6 +92,7 @@ const { t, locale } = useI18n()
 const isPublic = computed(() => props.variant === 'public')
 const contentEl = ref<HTMLElement | null>(null)
 const { progress } = useReadingProgress(contentEl, isPublic)
+const { prefs: readerPrefs } = useReaderPrefs()
 const { promptVisible, resume, dismiss } = useReadingPosition({
   slug: () => props.post.slug,
   updatedAt: () => props.post.updated_at,
@@ -120,7 +128,7 @@ function formatViews(value: number) {
 .post-reading-frame {
   width: 100%;
   min-width: 0;
-  max-width: var(--pb-post-content-max-width);
+  max-width: var(--pb-reader-line-width, var(--pb-post-content-max-width));
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--pb-card-bg) 90%, var(--pb-selected-bg)),
@@ -136,5 +144,85 @@ function formatViews(value: number) {
     border-inline: 0;
     border-radius: 0;
   }
+}
+
+/*
+ * Reader mode overrides. `useReaderPrefs` writes the chosen value as a
+ * `data-reader-*` attribute on `.post-reading-frame`; defaults (`md`/`sans`/
+ * `auto`/`normal`) are already the site's normal look, so visitors who never
+ * open the panel see no change at all.
+ */
+.post-reading-frame[data-reader-font-size="sm"] { --pb-reader-font-scale: 0.9; }
+.post-reading-frame[data-reader-font-size="lg"] { --pb-reader-font-scale: 1.15; }
+.post-reading-frame[data-reader-font-size="xl"] { --pb-reader-font-scale: 1.3; }
+
+.post-reading-frame[data-reader-font-family="serif"] {
+  --pb-reader-font-family: var(--pb-reader-serif-stack);
+}
+
+.post-reading-frame[data-reader-line-width="narrow"] { --pb-reader-line-width: min(100%, 42rem); }
+.post-reading-frame[data-reader-line-width="wide"] { --pb-reader-line-width: min(100%, var(--pb-post-content-cap-width)); }
+
+/* Appearance overrides use their own fixed palette (not the active site
+   theme's tokens), so Light/Sepia/Dark read the same regardless of which
+   theme or site-wide mode is active. Re-assigning the shared --pb-* tokens
+   (rather than hardcoding colors on every descendant) lets prose, links,
+   tags, dividers and inline code already built on those tokens pick the
+   override up for free. */
+.post-reading-frame[data-reader-appearance="light"] {
+  --pb-card-bg: var(--pb-reader-light-card-bg);
+  --pb-surface-subtle: var(--pb-reader-light-surface-subtle);
+  --pb-text: var(--pb-reader-light-text);
+  --pb-text-muted: var(--pb-reader-light-text-muted);
+  --pb-text-subtle: var(--pb-reader-light-text-subtle);
+  --pb-divider: var(--pb-reader-light-divider);
+  --pb-card-border: var(--pb-reader-light-divider);
+  --pb-link: var(--pb-reader-light-link);
+  --pb-link-hover: var(--pb-reader-light-link-hover);
+  --pb-primary: var(--pb-reader-light-link);
+  --pb-icon-muted: var(--pb-reader-light-icon-muted);
+  --pb-inline-code-bg: var(--pb-reader-light-code-bg);
+  --pb-inline-code-border: var(--pb-reader-light-code-border);
+  --pb-inline-code-color: var(--pb-reader-light-code-color);
+  --pb-selected-bg: var(--pb-reader-light-selected-bg);
+  --pb-selected-border: var(--pb-reader-light-link);
+}
+
+.post-reading-frame[data-reader-appearance="sepia"] {
+  --pb-card-bg: var(--pb-reader-sepia-card-bg);
+  --pb-surface-subtle: var(--pb-reader-sepia-surface-subtle);
+  --pb-text: var(--pb-reader-sepia-text);
+  --pb-text-muted: var(--pb-reader-sepia-text-muted);
+  --pb-text-subtle: var(--pb-reader-sepia-text-subtle);
+  --pb-divider: var(--pb-reader-sepia-divider);
+  --pb-card-border: var(--pb-reader-sepia-divider);
+  --pb-link: var(--pb-reader-sepia-link);
+  --pb-link-hover: var(--pb-reader-sepia-link-hover);
+  --pb-primary: var(--pb-reader-sepia-link);
+  --pb-icon-muted: var(--pb-reader-sepia-icon-muted);
+  --pb-inline-code-bg: var(--pb-reader-sepia-code-bg);
+  --pb-inline-code-border: var(--pb-reader-sepia-code-border);
+  --pb-inline-code-color: var(--pb-reader-sepia-code-color);
+  --pb-selected-bg: var(--pb-reader-sepia-selected-bg);
+  --pb-selected-border: var(--pb-reader-sepia-selected-border);
+}
+
+.post-reading-frame[data-reader-appearance="dark"] {
+  --pb-card-bg: var(--pb-reader-dark-card-bg);
+  --pb-surface-subtle: var(--pb-reader-dark-surface-subtle);
+  --pb-text: var(--pb-reader-dark-text);
+  --pb-text-muted: var(--pb-reader-dark-text-muted);
+  --pb-text-subtle: var(--pb-reader-dark-text-subtle);
+  --pb-divider: var(--pb-reader-dark-divider);
+  --pb-card-border: var(--pb-reader-dark-divider);
+  --pb-link: var(--pb-reader-dark-link);
+  --pb-link-hover: var(--pb-reader-dark-link-hover);
+  --pb-primary: var(--pb-reader-dark-link);
+  --pb-icon-muted: var(--pb-reader-dark-icon-muted);
+  --pb-inline-code-bg: var(--pb-reader-dark-code-bg);
+  --pb-inline-code-border: var(--pb-reader-dark-code-border);
+  --pb-inline-code-color: var(--pb-reader-dark-code-color);
+  --pb-selected-bg: var(--pb-reader-dark-selected-bg);
+  --pb-selected-border: var(--pb-reader-dark-selected-border);
 }
 </style>

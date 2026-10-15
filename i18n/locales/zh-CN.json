@@ -1932,6 +1932,31 @@
         "title": "继续上次的阅读位置？",
         "resume": "继续",
         "dismiss": "关闭"
+      },
+      "reader": {
+        "toggle": "阅读设置",
+        "title": "阅读设置",
+        "reset": "重置",
+        "fontSize": "字号",
+        "fontSizeSample": "文",
+        "fontFamily": "字体",
+        "fontFamilyOptions": {
+          "sans": "无衬线",
+          "serif": "衬线"
+        },
+        "appearance": "外观",
+        "appearanceOptions": {
+          "auto": "自动",
+          "light": "浅色",
+          "sepia": "护眼",
+          "dark": "深色"
+        },
+        "lineWidth": "行宽",
+        "lineWidthOptions": {
+          "narrow": "窄",
+          "normal": "正常",
+          "wide": "宽"
+        }
       }
     },
     "passwordGate": {

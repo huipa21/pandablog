@@ -65,6 +65,57 @@
   --pb-focus-ring: var(--shadow-focus, 0 0 0 3px rgba(62, 106, 225, 0.24));
   --pb-font-text: var(--font-text, 'Universal Sans Text', -apple-system, Arial, sans-serif);
   --pb-font-display: var(--font-display, 'Universal Sans Display', -apple-system, Arial, sans-serif);
+  --pb-reader-serif-stack: 'Source Serif Pro', 'Noto Serif', Georgia, 'Times New Roman', serif;
+  --pb-reader-font-family: var(--pb-font-text);
+  --pb-reader-font-scale: 1;
+  --pb-reader-line-width: var(--pb-post-content-max-width);
+  /* Reader-mode Light/Sepia/Dark appearance palettes: fixed, deliberately
+     literal colors independent of the active site theme, so the post reading
+     frame always reads the same regardless of which theme/mode is active.
+     Defined once here; PostArticle.vue and ReaderSettingsMenu.vue both
+     reference these instead of repeating hex values. */
+  --pb-reader-light-card-bg: #ffffff;
+  --pb-reader-light-surface-subtle: #f4f4f4;
+  --pb-reader-light-text: #1a1a1a;
+  --pb-reader-light-text-muted: #3f3f3f;
+  --pb-reader-light-text-subtle: #6b6b6b;
+  --pb-reader-light-divider: #e5e5e5;
+  --pb-reader-light-link: #1d4ed8;
+  --pb-reader-light-link-hover: #1e40af;
+  --pb-reader-light-icon-muted: #6b6b6b;
+  --pb-reader-light-code-bg: rgba(0, 0, 0, 0.05);
+  --pb-reader-light-code-border: rgba(0, 0, 0, 0.12);
+  --pb-reader-light-code-color: #3f3f3f;
+  --pb-reader-light-selected-bg: #eef2ff;
+  --pb-reader-light-selected-border: #1d4ed8;
+  --pb-reader-sepia-card-bg: #f4ecd8;
+  --pb-reader-sepia-surface-subtle: #ece0c7;
+  --pb-reader-sepia-text: #433422;
+  --pb-reader-sepia-text-muted: #5b4a36;
+  --pb-reader-sepia-text-subtle: #7a6650;
+  --pb-reader-sepia-divider: #ddcda8;
+  --pb-reader-sepia-link: #865d2d;
+  --pb-reader-sepia-link-hover: #6e4a23;
+  --pb-reader-sepia-icon-muted: #8a7558;
+  --pb-reader-sepia-code-bg: rgba(67, 52, 34, 0.08);
+  --pb-reader-sepia-code-border: rgba(67, 52, 34, 0.16);
+  --pb-reader-sepia-code-color: #5b4a36;
+  --pb-reader-sepia-selected-bg: #ece0c7;
+  --pb-reader-sepia-selected-border: #c9a96a;
+  --pb-reader-dark-card-bg: #1c1c1f;
+  --pb-reader-dark-surface-subtle: #242428;
+  --pb-reader-dark-text: #e7e6e3;
+  --pb-reader-dark-text-muted: #b9b7b2;
+  --pb-reader-dark-text-subtle: #8c8a85;
+  --pb-reader-dark-divider: #313136;
+  --pb-reader-dark-link: #8ab4ff;
+  --pb-reader-dark-link-hover: #a9c7ff;
+  --pb-reader-dark-icon-muted: #8c8a85;
+  --pb-reader-dark-code-bg: rgba(255, 255, 255, 0.06);
+  --pb-reader-dark-code-border: rgba(255, 255, 255, 0.14);
+  --pb-reader-dark-code-color: #cfcdc8;
+  --pb-reader-dark-selected-bg: #242b3d;
+  --pb-reader-dark-selected-border: #4a6aa8;
   --pb-transition-default: 0.33s cubic-bezier(0.5, 0, 0, 0.75);
   --pb-post-content-max-width: var(--pb-post-content-fluid-width);
   --pb-prose-line-height: 1.43;
@@ -267,8 +318,8 @@ html {
 
 .pb-prose,
 .pb-prose .ProseMirror {
-  font-family: var(--pb-font-text);
-  font-size: var(--size-body, 0.875rem);
+  font-family: var(--pb-reader-font-family, var(--pb-font-text));
+  font-size: calc(var(--size-body, 0.875rem) * var(--pb-reader-font-scale, 1));
   line-height: var(--pb-prose-line-height);
 }
 

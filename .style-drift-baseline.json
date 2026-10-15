@@ -110,31 +110,56 @@
     "#16a34a": 1,
     "#171a20": 3,
     "#182342": 2,
+    "#1a1a1a": 1,
+    "#1c1c1f": 1,
+    "#1d4ed8": 2,
+    "#1e40af": 1,
     "#202f5f": 2,
+    "#242428": 1,
+    "#242b3d": 1,
     "#262a31": 1,
     "#293f80": 2,
+    "#313136": 1,
     "#3457b1": 3,
     "#393c41": 2,
     "#3e6ae1": 4,
+    "#3f3f3f": 2,
+    "#433422": 1,
+    "#4a6aa8": 1,
+    "#5b4a36": 2,
     "#5c5e62": 2,
+    "#6b6b6b": 2,
     "#6d92f2": 2,
+    "#6e4a23": 1,
+    "#7a6650": 1,
+    "#865d2d": 1,
+    "#8a7558": 1,
+    "#8ab4ff": 1,
+    "#8c8a85": 2,
     "#8e8e8e": 2,
     "#93b3ff": 2,
+    "#a9c7ff": 1,
+    "#b9b7b2": 1,
     "#bbcffd": 2,
+    "#c9a96a": 1,
+    "#cfcdc8": 1,
     "#d0d1d2": 2,
     "#d97706": 1,
     "#dc2626": 1,
+    "#ddcda8": 1,
     "#dde7ff": 2,
+    "#e5e5e5": 1,
+    "#e7e6e3": 1,
+    "#ece0c7": 2,
     "#eeeeee": 3,
+    "#eef2ff": 1,
     "#eef3ff": 4,
-    "#f4f4f4": 2,
+    "#f4ecd8": 1,
+    "#f4f4f4": 3,
     "#f59e0b": 1,
     "#f8f8f8": 1,
     "#f8fafc": 1,
-    "#ffffff": 3
-  },
-  "components/admin/editor/blocks/BlockSettings.vue": {
-    "#ffffff": 1
+    "#ffffff": 4
   },
   "components/admin/editor/CodeBlockNodeView.vue": {
     "#1e1e1e": 2,
@@ -143,9 +168,6 @@
   "components/admin/editor/CustomHtmlNodeView.vue": {
     "#2e3440": 4,
     "#d8dee9": 6
-  },
-  "components/admin/editor/QuoteBlockNodeView.vue": {
-    "#3e6ae1": 1
   },
   "components/blog/GraphSurface.client.vue": {
     "#14211f": 1,
@@ -159,19 +181,6 @@
     "#1e1e1e": 2,
     "#d4d4d4": 7
   },
-  "components/content/NodeQuoteBlock.vue": {
-    "#3e6ae1": 1
-  },
-  "extensions/blockquoteEnhanced.ts": {
-    "#0f766e": 1,
-    "#171a20": 1,
-    "#1d4ed8": 1,
-    "#3e6ae1": 1,
-    "#475569": 1,
-    "#7c3aed": 1,
-    "#be123c": 1,
-    "#f59e0b": 1
-  },
   "extensions/dialogueBlock.ts": {
     "#059669": 1,
     "#0d9488": 1,
@@ -181,16 +190,6 @@
     "#d97706": 1,
     "#db2777": 1,
     "#dc2626": 1
-  },
-  "extensions/separator.ts": {
-    "#171a20": 1,
-    "#393c41": 1,
-    "#3e6ae1": 2,
-    "#5c5e62": 1,
-    "#8e8e8e": 1,
-    "#d0d1d2": 1,
-    "#eeeeee": 1,
-    "#f4f4f4": 1
   },
   "server/utils/theme-loader.ts": {
     "#fff": 2
